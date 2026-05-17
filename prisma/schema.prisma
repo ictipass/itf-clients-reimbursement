@@ -219,11 +219,18 @@ model TrainingRequest {
   id            String               @id @default(cuid())
   companyId     String
   title         String
+  description   String?
+  trainingType  String?
   provider      String
   venue         String?
   startsAt      DateTime
   endsAt        DateTime
+  participantCount Int?
   estimatedCost Decimal              @db.Decimal(14, 2)
+  expectedOutcome String?
+  approvalReference String?
+  approvedOriginalRef String?
+  approvedDuplicateRef String?
   status        WorkflowStatus       @default(DRAFT)
   submittedAt   DateTime?
   approvedAt    DateTime?
