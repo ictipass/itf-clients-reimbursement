@@ -234,6 +234,8 @@ model ComplianceYear {
   company               Company        @relation(fields: [companyId], references: [id])
   documents             Document[]
   branchReturns         ComplianceBranchReturn[]
+  decisions             Decision[]
+  comments              Comment[]
 
   @@unique([companyId, year])
   @@index([companyId, status, recordTier])
@@ -248,6 +250,8 @@ model ComplianceBranchReturn {
   createdAt        DateTime       @default(now())
   updatedAt        DateTime       @updatedAt
   complianceYear   ComplianceYear @relation(fields: [complianceYearId], references: [id])
+
+  @@index([complianceYearId])
 }
 
 model TrainingRequest {
@@ -396,6 +400,8 @@ model Document {
   trainingRequest      TrainingRequest?    @relation(fields: [trainingRequestId], references: [id])
   reimbursementClaim   ReimbursementClaim? @relation(fields: [reimbursementClaimId], references: [id])
   uploadedBy           User                @relation("UploadedDocuments", fields: [uploadedById], references: [id])
+  decisions            Decision[]
+  comments             Comment[]
 
   @@index([organizationId, kind, recordTier, isActive])
 }
@@ -404,16 +410,20 @@ model Decision {
   id                   String              @id @default(cuid())
   actorId              String
   companyId            String?
+  complianceYearId     String?
   trainingRequestId    String?
   reimbursementClaimId String?
+  documentId           String?
   action               DecisionAction
   reason               String?
   recordTier           RecordTier          @default(HOT)
   createdAt            DateTime            @default(now())
   actor                User                @relation(fields: [actorId], references: [id])
   company              Company?            @relation(fields: [companyId], references: [id])
+  complianceYear       ComplianceYear?     @relation(fields: [complianceYearId], references: [id])
   trainingRequest      TrainingRequest?    @relation(fields: [trainingRequestId], references: [id])
   reimbursementClaim   ReimbursementClaim? @relation(fields: [reimbursementClaimId], references: [id])
+  document             Document?           @relation(fields: [documentId], references: [id])
 
   @@index([actorId, recordTier, createdAt])
 }
@@ -422,16 +432,20 @@ model Comment {
   id                   String              @id @default(cuid())
   actorId              String
   companyId            String?
+  complianceYearId     String?
   trainingRequestId    String?
   reimbursementClaimId String?
+  documentId           String?
   body                 String
   visibility           CommentVisibility   @default(INTERNAL)
   recordTier           RecordTier          @default(HOT)
   createdAt            DateTime            @default(now())
   actor                User                @relation(fields: [actorId], references: [id])
   company              Company?            @relation(fields: [companyId], references: [id])
+  complianceYear       ComplianceYear?     @relation(fields: [complianceYearId], references: [id])
   trainingRequest      TrainingRequest?    @relation(fields: [trainingRequestId], references: [id])
   reimbursementClaim   ReimbursementClaim? @relation(fields: [reimbursementClaimId], references: [id])
+  document             Document?           @relation(fields: [documentId], references: [id])
 
   @@index([actorId, recordTier, createdAt])
 }
