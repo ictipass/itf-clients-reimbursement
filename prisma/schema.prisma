@@ -21,6 +21,11 @@ enum Role {
   EMPLOYER_VIEWER
 }
 
+enum OrganizationType {
+  ITF_INTERNAL
+  EMPLOYER
+}
+
 enum CompanyStatus {
   DRAFT
   PENDING_REVIEW
@@ -92,20 +97,21 @@ model Workspace {
 }
 
 model Organization {
-  id            String       @id @default(cuid())
-  workspaceId   String
-  name          String
-  slug          String
-  externalId    String?
-  isActive      Boolean      @default(true)
-  deactivatedAt DateTime?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
-  workspace     Workspace    @relation(fields: [workspaceId], references: [id])
-  companies     Company[]
-  memberships   Membership[]
-  documents     Document[]
-  auditEvents   AuditEvent[]
+  id               String           @id @default(cuid())
+  workspaceId      String
+  name             String
+  slug             String
+  organizationType OrganizationType @default(EMPLOYER)
+  externalId       String?
+  isActive         Boolean          @default(true)
+  deactivatedAt    DateTime?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  workspace        Workspace        @relation(fields: [workspaceId], references: [id])
+  companies        Company[]
+  memberships      Membership[]
+  documents        Document[]
+  auditEvents      AuditEvent[]
 
   @@unique([workspaceId, slug])
 }
