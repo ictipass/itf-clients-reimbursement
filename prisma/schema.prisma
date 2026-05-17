@@ -70,6 +70,12 @@ enum WorkflowStatus {
   ARCHIVED
 }
 
+enum RecordTier {
+  HOT
+  WARM
+  COLD
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -159,6 +165,7 @@ model Company {
   establishedAt       DateTime?
   payrollBasis        Decimal?             @db.Decimal(14, 2)
   status              CompanyStatus        @default(DRAFT)
+  recordTier          RecordTier           @default(HOT)
   isActive            Boolean              @default(true)
   deactivatedAt       DateTime?
   archivedAt          DateTime?
@@ -172,7 +179,7 @@ model Company {
   decisions           Decision[]
   comments            Comment[]
 
-  @@index([organizationId, status])
+  @@index([organizationId, status, recordTier])
 }
 
 model ComplianceYear {
@@ -195,6 +202,7 @@ model ComplianceYear {
   declarationPhone      String?
   declaredAt            DateTime?
   status                WorkflowStatus @default(DRAFT)
+  recordTier            RecordTier     @default(HOT)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
   company               Company        @relation(fields: [companyId], references: [id])
@@ -202,6 +210,7 @@ model ComplianceYear {
   branchReturns         ComplianceBranchReturn[]
 
   @@unique([companyId, year])
+  @@index([companyId, status, recordTier])
 }
 
 model ComplianceBranchReturn {
@@ -232,15 +241,41 @@ model TrainingRequest {
   approvedOriginalRef String?
   approvedDuplicateRef String?
   status        WorkflowStatus       @default(DRAFT)
+  recordTier    RecordTier           @default(HOT)
   submittedAt   DateTime?
   approvedAt    DateTime?
   createdAt     DateTime             @default(now())
   updatedAt     DateTime             @updatedAt
   company       Company              @relation(fields: [companyId], references: [id])
   documents     Document[]
+  participants  TrainingParticipant[]
   claims        ReimbursementClaim[]
   decisions     Decision[]
   comments      Comment[]
+
+  @@index([companyId, status, recordTier])
+}
+
+model TrainingParticipant {
+  id                    String          @id @default(cuid())
+  trainingRequestId     String
+  name                  String
+  trainingArea          String?
+  educationalQualification String?
+  jobTitle              String?
+  nationality           String?
+  courseTitle           String?
+  courseSynopsis        String?
+  courseOrganiser       String?
+  venue                 String?
+  startsAt              DateTime?
+  endsAt                DateTime?
+  approvalRemarks       String?
+  createdAt             DateTime        @default(now())
+  updatedAt             DateTime        @updatedAt
+  trainingRequest       TrainingRequest @relation(fields: [trainingRequestId], references: [id])
+
+  @@index([trainingRequestId])
 }
 
 model ReimbursementClaim {
@@ -251,6 +286,7 @@ model ReimbursementClaim {
   claimedAmount     Decimal          @db.Decimal(14, 2)
   eligibleAmount    Decimal?         @db.Decimal(14, 2)
   status            WorkflowStatus   @default(DRAFT)
+  recordTier        RecordTier       @default(HOT)
   submittedAt       DateTime?
   settledAt         DateTime?
   createdAt         DateTime         @default(now())
@@ -260,6 +296,8 @@ model ReimbursementClaim {
   documents         Document[]
   decisions         Decision[]
   comments          Comment[]
+
+  @@index([companyId, status, recordTier])
 }
 
 model Document {
@@ -280,6 +318,7 @@ model Document {
   retentionPolicy      String?
   expiresAt            DateTime?
   revokedAt            DateTime?
+  recordTier           RecordTier          @default(HOT)
   isActive             Boolean             @default(true)
   createdAt            DateTime            @default(now())
   organization         Organization        @relation(fields: [organizationId], references: [id])
@@ -289,7 +328,7 @@ model Document {
   reimbursementClaim   ReimbursementClaim? @relation(fields: [reimbursementClaimId], references: [id])
   uploadedBy           User                @relation("UploadedDocuments", fields: [uploadedById], references: [id])
 
-  @@index([organizationId, kind, isActive])
+  @@index([organizationId, kind, recordTier, isActive])
 }
 
 model Decision {
@@ -300,11 +339,14 @@ model Decision {
   reimbursementClaimId String?
   action               WorkflowStatus
   reason               String?
+  recordTier           RecordTier          @default(HOT)
   createdAt            DateTime            @default(now())
   actor                User                @relation(fields: [actorId], references: [id])
   company              Company?            @relation(fields: [companyId], references: [id])
   trainingRequest      TrainingRequest?    @relation(fields: [trainingRequestId], references: [id])
   reimbursementClaim   ReimbursementClaim? @relation(fields: [reimbursementClaimId], references: [id])
+
+  @@index([actorId, recordTier, createdAt])
 }
 
 model Comment {
@@ -314,11 +356,14 @@ model Comment {
   trainingRequestId    String?
   reimbursementClaimId String?
   body                 String
+  recordTier           RecordTier          @default(HOT)
   createdAt            DateTime            @default(now())
   actor                User                @relation(fields: [actorId], references: [id])
   company              Company?            @relation(fields: [companyId], references: [id])
   trainingRequest      TrainingRequest?    @relation(fields: [trainingRequestId], references: [id])
   reimbursementClaim   ReimbursementClaim? @relation(fields: [reimbursementClaimId], references: [id])
+
+  @@index([actorId, recordTier, createdAt])
 }
 
 model AuditEvent {
@@ -331,10 +376,12 @@ model AuditEvent {
   entityId       String
   reason         String?
   metadata       Json?
+  recordTier     RecordTier    @default(HOT)
   createdAt      DateTime      @default(now())
   workspace      Workspace     @relation(fields: [workspaceId], references: [id])
   organization   Organization? @relation(fields: [organizationId], references: [id])
   actor          User?         @relation(fields: [actorId], references: [id])
 
   @@index([workspaceId, entityType, entityId, createdAt])
+  @@index([workspaceId, recordTier, createdAt])
 }
