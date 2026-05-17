@@ -80,6 +80,23 @@ enum RecordTier {
   COLD
 }
 
+enum DecisionAction {
+  SUBMIT
+  APPROVE
+  REJECT
+  REQUEST_CHANGES
+  RECOMMEND
+  CERTIFY
+  SETTLE
+  REOPEN
+}
+
+enum CommentVisibility {
+  INTERNAL
+  EMPLOYER_VISIBLE
+  SYSTEM
+}
+
 enum AuditAction {
   CREATE
   UPDATE
@@ -91,6 +108,11 @@ enum AuditAction {
   REVOKE
   ARCHIVE
   LOGIN
+  UPLOAD_DOCUMENT
+  REVOKE_DOCUMENT
+  CHANGE_RECORD_TIER
+  SETTLE
+  REOPEN
 }
 
 model Workspace {
@@ -384,7 +406,7 @@ model Decision {
   companyId            String?
   trainingRequestId    String?
   reimbursementClaimId String?
-  action               WorkflowStatus
+  action               DecisionAction
   reason               String?
   recordTier           RecordTier          @default(HOT)
   createdAt            DateTime            @default(now())
@@ -403,6 +425,7 @@ model Comment {
   trainingRequestId    String?
   reimbursementClaimId String?
   body                 String
+  visibility           CommentVisibility   @default(INTERNAL)
   recordTier           RecordTier          @default(HOT)
   createdAt            DateTime            @default(now())
   actor                User                @relation(fields: [actorId], references: [id])
