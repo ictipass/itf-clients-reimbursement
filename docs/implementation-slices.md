@@ -224,3 +224,19 @@ Expected files:
 
 - app route files
 - registry data access helper
+
+### Slice 9: Document Storage Provider Abstraction
+
+Goal: implement upload/read/delete adapters for `STORAGE_PROVIDER="vercel_blob"` and `STORAGE_PROVIDER="s3"`.
+
+Packages needed later:
+
+```bash
+npm install @vercel/blob
+npm install @aws-sdk/client-s3 @aws-sdk/s3-request-presigner
+```
+
+Expected files:
+
+- `lib/storage/*`
+- upload route/server action files

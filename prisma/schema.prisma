@@ -39,24 +39,28 @@ enum DocumentKind {
   CAC_CERTIFICATE
   TAX_CLEARANCE_CERTIFICATE
   AUDITED_ACCOUNT
-  FORM_7A
   CONTRIBUTION_RECEIPT
   LEARNING_POLICY
   TRAINING_POLICY
   ANNUAL_TRAINING_PLAN
-  FORM_4A
-  CLAIM_COVER_LETTER
-  FORM_1A
-  FORM_1B
-  FORM_2A
-  FORM_2B
-  FORM_3A
-  FORM_5A
   ATTENDANCE_SHEET
   PAYMENT_RECEIPT
   TRAINING_REPORT
   TRAINING_PHOTO
   CERTIFICATE
+  SIGNED_DECLARATION
+  OFFICIAL_STAMPED_COPY
+  OTHER_SUPPORTING_EVIDENCE
+}
+
+enum StorageProvider {
+  VERCEL_BLOB
+  S3
+}
+
+enum DocumentAccess {
+  PRIVATE
+  PUBLIC
 }
 
 enum WorkflowStatus {
@@ -347,10 +351,16 @@ model Document {
   uploadedById         String
   kind                 DocumentKind
   fileName             String
+  storageProvider      StorageProvider
+  bucket               String?
   objectKey            String
+  url                  String?
+  etag                 String?
+  versionId            String?
   checksum             String
   mimeType             String
   fileSize             Int
+  access               DocumentAccess      @default(PRIVATE)
   classification       String              @default("OFFICIAL")
   retentionPolicy      String?
   expiresAt            DateTime?
