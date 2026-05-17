@@ -151,6 +151,12 @@ model Company {
   rcNumber            String?
   taxId               String?
   itfEmployerNumber   String?
+  businessAddress     String?
+  postalAddress       String?
+  email               String?
+  telephone           String?
+  natureOfBusiness    String?
+  establishedAt       DateTime?
   payrollBasis        Decimal?             @db.Decimal(14, 2)
   status              CompanyStatus        @default(DRAFT)
   isActive            Boolean              @default(true)
