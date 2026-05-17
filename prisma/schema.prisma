@@ -179,15 +179,40 @@ model ComplianceYear {
   id                    String         @id @default(cuid())
   companyId             String
   year                  Int
+  nigerianEmployeeCount Int?
+  expatriateEmployeeCount Int?
+  totalEmployeeCount    Int?
+  turnover              Decimal?       @db.Decimal(14, 2)
+  payrollTotal          Decimal?       @db.Decimal(14, 2)
+  contributionAmount    Decimal?       @db.Decimal(14, 2)
+  amountPaid            Decimal?       @db.Decimal(14, 2)
+  amountPaidInWords     String?
+  paymentMode           String?
   contributionPaidAt    DateTime?
   annualPlanSubmittedAt DateTime?
+  declarationName       String?
+  declarationPosition   String?
+  declarationPhone      String?
+  declaredAt            DateTime?
   status                WorkflowStatus @default(DRAFT)
   createdAt             DateTime       @default(now())
   updatedAt             DateTime       @updatedAt
   company               Company        @relation(fields: [companyId], references: [id])
   documents             Document[]
+  branchReturns         ComplianceBranchReturn[]
 
   @@unique([companyId, year])
+}
+
+model ComplianceBranchReturn {
+  id               String         @id @default(cuid())
+  complianceYearId String
+  address          String
+  employeeCount    Int?
+  payrollTotal     Decimal?       @db.Decimal(14, 2)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  complianceYear   ComplianceYear @relation(fields: [complianceYearId], references: [id])
 }
 
 model TrainingRequest {
