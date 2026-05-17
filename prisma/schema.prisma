@@ -283,8 +283,23 @@ model ReimbursementClaim {
   companyId         String
   trainingRequestId String?
   reference         String           @unique
+  claimYear         Int?
+  trainingContributionDue Decimal?   @db.Decimal(14, 2)
+  trainingContributionPaid Decimal?  @db.Decimal(14, 2)
+  maxReimbursableAmount Decimal?     @db.Decimal(14, 2)
+  itfReceiptNumber String?
+  bankName          String?
+  accountNumber     String?
+  sortCode          String?
   claimedAmount     Decimal          @db.Decimal(14, 2)
   eligibleAmount    Decimal?         @db.Decimal(14, 2)
+  claimRecommendedAmount Decimal?    @db.Decimal(14, 2)
+  claimRecommendedInWords String?
+  paymentDetails    String?
+  employerOfficerName String?
+  employerOfficerRank String?
+  chiefExecutiveName String?
+  employerDeclaredAt DateTime?
   status            WorkflowStatus   @default(DRAFT)
   recordTier        RecordTier       @default(HOT)
   submittedAt       DateTime?
@@ -294,10 +309,32 @@ model ReimbursementClaim {
   company           Company          @relation(fields: [companyId], references: [id])
   trainingRequest   TrainingRequest? @relation(fields: [trainingRequestId], references: [id])
   documents         Document[]
+  lines             ReimbursementClaimLine[]
   decisions         Decision[]
   comments          Comment[]
 
   @@index([companyId, status, recordTier])
+}
+
+model ReimbursementClaimLine {
+  id                  String             @id @default(cuid())
+  reimbursementClaimId String
+  trainingArea        String
+  totalWorkforce      Int?
+  totalTrained        Int?
+  percentTrained      Decimal?           @db.Decimal(5, 2)
+  emphasisNumber      Int?
+  contributionPaid    Decimal?           @db.Decimal(14, 2)
+  employerClaimAmount Decimal?           @db.Decimal(14, 2)
+  referencePage       String?
+  percentAwarded      Decimal?           @db.Decimal(5, 2)
+  amountAwarded       Decimal?           @db.Decimal(14, 2)
+  remarks             String?
+  createdAt           DateTime           @default(now())
+  updatedAt           DateTime           @updatedAt
+  reimbursementClaim  ReimbursementClaim @relation(fields: [reimbursementClaimId], references: [id])
+
+  @@index([reimbursementClaimId])
 }
 
 model Document {
