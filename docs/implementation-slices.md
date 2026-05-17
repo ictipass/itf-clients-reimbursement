@@ -174,12 +174,39 @@ docs: add implementation slice roadmap
 
 ### Slice 6: Environment Example and Bootstrap Auth Notes
 
-Goal: add `.env.example` and document the bootstrap admin variables without committing secrets.
+Status: implemented, pending review/commit.
 
-Expected files:
+Added environment documentation for:
 
 - `.env.example`
 - `docs/auth.md`
+- `.env.example` git tracking exception
+
+Real-world use case: gives developers a safe local configuration template while keeping real secrets out of git.
+
+Test:
+
+```bash
+npm run lint
+```
+
+Optional manual test after creating `.env.local`:
+
+```bash
+npm run dev:webpack
+```
+
+Then visit:
+
+```text
+http://localhost:3000/sign-in
+```
+
+Commit message:
+
+```text
+docs: add environment and bootstrap auth notes
+```
 
 ### Slice 7: Prisma Migration Setup
 
