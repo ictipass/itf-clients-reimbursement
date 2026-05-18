@@ -6,7 +6,7 @@
     "dev": "next dev",
     "dev:webpack": "next dev --webpack",
     "postinstall": "prisma generate",
-    "db:seed": "node prisma/seed.mjs",
+    "db:seed": "tsx prisma/seed.ts",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"

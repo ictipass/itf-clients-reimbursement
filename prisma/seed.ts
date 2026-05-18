@@ -17,7 +17,7 @@ const roles = [
   "EMPLOYER_VIEWER",
 ];
 
-function requiredEnv(name) {
+function requiredEnv(name: any) {
   const value = process.env[name];
 
   if (!value) {
@@ -27,7 +27,7 @@ function requiredEnv(name) {
   return value;
 }
 
-function resolveRole(value) {
+function resolveRole(value: any) {
   if (value && roles.includes(value)) {
     return value;
   }
