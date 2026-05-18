@@ -15,9 +15,15 @@ const roles = [
   "EMPLOYER_ADMIN",
   "EMPLOYER_SUBMITTER",
   "EMPLOYER_VIEWER",
-];
+] as const;
 
-function requiredEnv(name: any) {
+type Role = (typeof roles)[number];
+
+type IdRow = {
+  id: string;
+};
+
+function requiredEnv(name: string) {
   const value = process.env[name];
 
   if (!value) {
@@ -27,9 +33,9 @@ function requiredEnv(name: any) {
   return value;
 }
 
-function resolveRole(value: any) {
-  if (value && roles.includes(value)) {
-    return value;
+function resolveRole(value: string | undefined): Role {
+  if (value && roles.includes(value as Role)) {
+    return value as Role;
   }
 
   return "SYSTEM_ADMIN";
@@ -93,7 +99,13 @@ async function main() {
       [seed.workspace.id, seed.organization.slug],
     );
 
-    const organizationId = organizationResult.rows[0].id;
+    const organization = organizationResult.rows[0] as IdRow | undefined;
+
+    if (!organization) {
+      throw new Error("Seed failed to create or find the ITF organization.");
+    }
+
+    const organizationId = organization.id;
 
     await client.query(
       `
@@ -109,7 +121,13 @@ async function main() {
       seed.admin.email,
     ]);
 
-    const userId = userResult.rows[0].id;
+    const user = userResult.rows[0] as IdRow | undefined;
+
+    if (!user) {
+      throw new Error("Seed failed to create or find the bootstrap admin user.");
+    }
+
+    const userId = user.id;
 
     await client.query(
       `
