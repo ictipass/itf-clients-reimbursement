@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { listEmployerCompanies } from "@/lib/registry";
 
 export default async function RegistryPage() {
@@ -17,6 +19,15 @@ export default async function RegistryPage() {
           <span className="font-semibold text-[#800020]">{companies.length}</span>{" "}
           {companies.length === 1 ? "company" : "companies"}
         </div>
+      </div>
+
+      <div className="mt-6">
+        <Link
+          href="/registry/new"
+          className="inline-flex min-h-11 items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
+        >
+          New company
+        </Link>
       </div>
 
       {companies.length === 0 ? (

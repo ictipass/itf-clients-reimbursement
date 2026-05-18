@@ -52,6 +52,11 @@ const seed = {
     name: process.env.SEED_ITF_ORGANIZATION_NAME ?? "Industrial Training Fund",
     slug: process.env.SEED_ITF_ORGANIZATION_SLUG ?? "itf",
   },
+  employerOrganization: {
+    id: process.env.SEED_EMPLOYER_ORGANIZATION_ID ?? "demo-employer",
+    name: process.env.SEED_EMPLOYER_ORGANIZATION_NAME ?? "Demo Employer Organization",
+    slug: process.env.SEED_EMPLOYER_ORGANIZATION_SLUG ?? "demo-employer",
+  },
   admin: {
     id: process.env.BOOTSTRAP_ADMIN_ID ?? "system-admin",
     name: process.env.BOOTSTRAP_ADMIN_NAME ?? "System Administrator",
@@ -109,6 +114,26 @@ async function main() {
 
     await client.query(
       `
+        insert into "Organization" (
+          "id", "workspaceId", "name", "slug", "organizationType", "updatedAt"
+        )
+        values ($1, $2, $3, $4, 'EMPLOYER', now())
+        on conflict ("workspaceId", "slug")
+        do update set
+          "name" = excluded."name",
+          "organizationType" = excluded."organizationType",
+          "updatedAt" = now()
+      `,
+      [
+        seed.employerOrganization.id,
+        seed.workspace.id,
+        seed.employerOrganization.name,
+        seed.employerOrganization.slug,
+      ],
+    );
+
+    await client.query(
+      `
         insert into "User" ("id", "email", "name", "updatedAt")
         values ($1, $2, $3, now())
         on conflict ("email")
@@ -156,6 +181,7 @@ async function main() {
     console.log("Seeded foundation data:");
     console.log(`- Workspace: ${seed.workspace.name}`);
     console.log(`- ITF organization: ${seed.organization.name}`);
+    console.log(`- Demo employer organization: ${seed.employerOrganization.name}`);
     console.log(`- Bootstrap admin: ${seed.admin.email}`);
     console.log(`- Role: ${seed.admin.role}`);
   } catch (error) {
