@@ -210,11 +210,23 @@ docs: add environment and bootstrap auth notes
 
 ### Slice 7: Prisma Migration Setup
 
-Goal: create the first migration for the foundation schema after database connection details are confirmed.
+Status: implemented, pending review/commit.
 
-Expected files:
+Created and applied the first foundation migration.
 
 - `prisma/migrations/...`
+
+Test:
+
+```bash
+npx prisma migrate status
+```
+
+Commit message:
+
+```text
+feat: add initial database migration
+```
 
 ### Slice 8: Employer Registry Read Model
 
@@ -225,7 +237,34 @@ Expected files:
 - app route files
 - registry data access helper
 
-### Slice 9: Document Storage Provider Abstraction
+### Slice 8A: Foundation Seed Data
+
+Status: implemented, pending review/commit.
+
+Adds an idempotent seed script for the first workspace, ITF internal organization, bootstrap admin user, and admin membership.
+
+Test:
+
+```bash
+npm run db:seed
+```
+
+Commit message:
+
+```text
+feat: seed foundation workspace and admin data
+```
+
+### Slice 9: Employer Registry Read Model
+
+Goal: add a server-rendered registry list backed by seed/sample data or database records, depending on migration readiness.
+
+Expected files:
+
+- app route files
+- registry data access helper
+
+### Slice 10: Document Storage Provider Abstraction
 
 Goal: implement upload/read/delete adapters for `STORAGE_PROVIDER="vercel_blob"` and `STORAGE_PROVIDER="s3"`.
 

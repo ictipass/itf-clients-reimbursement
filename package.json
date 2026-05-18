@@ -6,6 +6,7 @@
     "dev": "next dev",
     "dev:webpack": "next dev --webpack",
     "postinstall": "prisma generate",
+    "db:seed": "node prisma/seed.mjs",
     "build": "next build",
     "start": "next start",
     "lint": "eslint"
@@ -25,12 +26,14 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.20.0",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.2.4",
     "prisma": "^7.8.0",
     "tailwindcss": "^4",
+    "tsx": "^4.22.1",
     "typescript": "^5"
   }
 }

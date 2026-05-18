@@ -66,6 +66,23 @@ After sign-in, the app should redirect to:
 http://localhost:3000/dashboard
 ```
 
+## Foundation Seed Data
+
+After the first migration, seed the local development database:
+
+```bash
+npm run db:seed
+```
+
+The seed creates:
+
+- `ITF Workspace`
+- `Industrial Training Fund` internal organization
+- Bootstrap admin user from the `BOOTSTRAP_ADMIN_*` environment variables
+- `SYSTEM_ADMIN` membership for the bootstrap admin
+
+The script is idempotent, so it can be run more than once.
+
 ## Real-World Direction
 
 The bootstrap credentials are a temporary bridge. The production direction is to integrate with ITF Workspace so that:
