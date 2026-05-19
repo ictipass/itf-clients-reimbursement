@@ -18,3 +18,14 @@ export type UploadObjectInput = {
   extension: string;
   mimeType: string;
 };
+
+export type DownloadObjectInput = {
+  storageProvider: "LOCAL" | "VERCEL_BLOB" | "S3";
+  bucket?: string | null;
+  objectKey: string;
+};
+
+export type DownloadedObject = {
+  buffer: Buffer;
+  fileSize: number;
+};

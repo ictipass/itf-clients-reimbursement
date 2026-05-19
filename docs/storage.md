@@ -41,7 +41,15 @@ The `Document` model stores:
 - `fileSize`
 - `access`: private or public
 
-Most ITF evidence should be private. Uploaded files should be downloaded through an authenticated route later, not served directly from a public folder.
+Most ITF evidence should be private. Uploaded files are downloaded through an authenticated route, not served directly from a public folder.
+
+The current company evidence download route is:
+
+```text
+/registry/[companyId]/evidence/[documentId]
+```
+
+The route verifies the active company/document relationship and the current user's organization access before reading from storage.
 
 ## E-Forms Versus Uploads
 
@@ -80,6 +88,7 @@ The local upload flow is intentionally restrictive:
 - File signatures are checked in addition to browser-provided MIME type.
 - HTML, SVG, JavaScript, and Office documents are blocked in this first slice.
 - Files are recorded as private metadata.
+- Downloads use `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, and `Content-Security-Policy: sandbox`.
 
 This reduces the risk of uploaded documents being executed by a browser or treated as trusted application content.
 

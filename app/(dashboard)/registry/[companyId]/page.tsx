@@ -120,6 +120,12 @@ export default async function CompanyDetailPage({
                   <p className="mt-1 text-xs text-zinc-500">
                     {document.kind.replaceAll("_", " ")} · {formatDate(document.createdAt)}
                   </p>
+                  <Link
+                    href={`/registry/${company.id}/evidence/${document.id}`}
+                    className="mt-3 inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+                  >
+                    Download
+                  </Link>
                 </div>
               ))}
             </div>

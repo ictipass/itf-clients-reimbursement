@@ -296,3 +296,20 @@ Expected files:
 - Prisma schema additions or seed data for workspace apps
 - dashboard layout/app launcher component
 - RBAC or entitlement helper updates
+
+### Slice 12: Company Evidence Download Flow
+
+Goal: add a protected route for viewing/downloading uploaded company evidence without exposing storage paths publicly.
+
+Expected design:
+
+- Authenticated download route
+- Company/document ownership check
+- Organization access check
+- Safe download headers for uploaded files
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/evidence/[documentId]/route.ts`
+- `lib/evidence.ts`
+- `lib/storage/*`

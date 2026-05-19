@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
-import { uploadObject } from "@/lib/storage";
+import { downloadObject, uploadObject } from "@/lib/storage";
+import { can, isItfRole, type Role } from "@/lib/rbac";
 
 const companyEvidenceKinds = [
   "CAC_CERTIFICATE",
@@ -16,6 +17,13 @@ export type UploadCompanyEvidenceInput = {
   uploadedByEmail: string;
   kind: CompanyEvidenceKind;
   file: File;
+};
+
+export type DownloadCompanyEvidenceInput = {
+  companyId: string;
+  documentId: string;
+  requesterEmail: string;
+  requesterRole: Role;
 };
 
 export function getCompanyEvidenceKinds() {
@@ -85,4 +93,83 @@ export async function uploadCompanyEvidence(input: UploadCompanyEvidenceInput) {
       id: true,
     },
   });
+}
+
+export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInput) {
+  if (!can(input.requesterRole, "company:read")) {
+    throw new Error("You do not have permission to read company documents.");
+  }
+
+  const db = getDb();
+  const document = await db.document.findFirst({
+    where: {
+      id: input.documentId,
+      companyId: input.companyId,
+      isActive: true,
+      recordTier: "HOT",
+      revokedAt: null,
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      organizationId: true,
+      fileName: true,
+      storageProvider: true,
+      bucket: true,
+      objectKey: true,
+      mimeType: true,
+      fileSize: true,
+      access: true,
+    },
+  });
+
+  if (!document) {
+    return null;
+  }
+
+  if (document.access !== "PRIVATE") {
+    throw new Error("Unsupported document access policy.");
+  }
+
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    requester.memberships.some((membership) => membership.organizationId === document.organizationId);
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this organization's evidence.");
+  }
+
+  const downloaded = await downloadObject({
+    storageProvider: document.storageProvider,
+    bucket: document.bucket,
+    objectKey: document.objectKey,
+  });
+
+  return {
+    buffer: downloaded.buffer,
+    fileName: document.fileName,
+    fileSize: downloaded.fileSize,
+    mimeType: document.mimeType,
+  };
 }

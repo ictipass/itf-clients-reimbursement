@@ -1,5 +1,5 @@
-import { uploadLocalObject } from "@/lib/storage/local";
-import type { StorageProviderName, UploadObjectInput } from "@/lib/storage/types";
+import { downloadLocalObject, uploadLocalObject } from "@/lib/storage/local";
+import type { DownloadObjectInput, StorageProviderName, UploadObjectInput } from "@/lib/storage/types";
 
 export function getStorageProvider(): StorageProviderName {
   const provider = process.env.STORAGE_PROVIDER ?? "local";
@@ -19,4 +19,12 @@ export async function uploadObject(input: UploadObjectInput) {
   }
 
   throw new Error(`${provider} uploads will be implemented in the storage adapter slice.`);
+}
+
+export async function downloadObject(input: DownloadObjectInput) {
+  if (input.storageProvider === "LOCAL") {
+    return downloadLocalObject(input);
+  }
+
+  throw new Error(`${input.storageProvider} downloads will be implemented in the storage adapter slice.`);
 }
