@@ -15,6 +15,16 @@ const complianceEvidenceKinds = [
 
 export type ComplianceEvidenceKind = (typeof complianceEvidenceKinds)[number];
 
+const complianceTransitions = [
+  "submit",
+  "start_review",
+  "approve",
+  "request_changes",
+  "reject",
+] as const;
+
+export type ComplianceTransition = (typeof complianceTransitions)[number];
+
 export type CreateComplianceYearInput = {
   companyId: string;
   requesterEmail: string;
@@ -46,8 +56,21 @@ export type UploadComplianceEvidenceInput = {
   file: File;
 };
 
+export type UpdateComplianceYearStatusInput = {
+  companyId: string;
+  complianceYearId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  transition: ComplianceTransition;
+  reason?: string;
+};
+
 export function getComplianceEvidenceKinds() {
   return complianceEvidenceKinds;
+}
+
+export function getComplianceTransitions() {
+  return complianceTransitions;
 }
 
 export async function createComplianceYear(input: CreateComplianceYearInput) {
@@ -245,5 +268,146 @@ export async function uploadComplianceEvidence(input: UploadComplianceEvidenceIn
     select: {
       id: true,
     },
+  });
+}
+
+function resolveTransition(transition: ComplianceTransition) {
+  if (transition === "submit") {
+    return {
+      action: "SUBMIT" as const,
+      nextStatus: "SUBMITTED" as const,
+      permission: "compliance:submit" as const,
+      allowedStatuses: ["DRAFT", "CHANGES_REQUESTED"] as const,
+    };
+  }
+
+  if (transition === "start_review") {
+    return {
+      action: "RECOMMEND" as const,
+      nextStatus: "IN_REVIEW" as const,
+      permission: "compliance:review" as const,
+      allowedStatuses: ["SUBMITTED"] as const,
+    };
+  }
+
+  if (transition === "approve") {
+    return {
+      action: "APPROVE" as const,
+      nextStatus: "APPROVED" as const,
+      permission: "compliance:review" as const,
+      allowedStatuses: ["SUBMITTED", "IN_REVIEW"] as const,
+    };
+  }
+
+  if (transition === "request_changes") {
+    return {
+      action: "REQUEST_CHANGES" as const,
+      nextStatus: "CHANGES_REQUESTED" as const,
+      permission: "compliance:review" as const,
+      allowedStatuses: ["SUBMITTED", "IN_REVIEW"] as const,
+    };
+  }
+
+  return {
+    action: "REJECT" as const,
+    nextStatus: "REJECTED" as const,
+    permission: "compliance:review" as const,
+    allowedStatuses: ["SUBMITTED", "IN_REVIEW"] as const,
+  };
+}
+
+export async function updateComplianceYearStatus(input: UpdateComplianceYearStatusInput) {
+  const transition = resolveTransition(input.transition);
+
+  if (!can(input.requesterRole, transition.permission)) {
+    throw new Error("You do not have permission to update this compliance return.");
+  }
+
+  const db = getDb();
+  const complianceYear = await db.complianceYear.findFirst({
+    where: {
+      id: input.complianceYearId,
+      companyId: input.companyId,
+      recordTier: "HOT",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      status: true,
+      company: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!complianceYear) {
+    throw new Error("Compliance year was not found.");
+  }
+
+  const allowedStatuses: readonly string[] = transition.allowedStatuses;
+
+  if (!allowedStatuses.includes(complianceYear.status)) {
+    throw new Error(`Cannot move compliance year from ${complianceYear.status}.`);
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    actor.memberships.some(
+      (membership) => membership.organizationId === complianceYear.company.organizationId,
+    );
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this compliance return.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.complianceYear.update({
+      where: {
+        id: complianceYear.id,
+      },
+      data: {
+        status: transition.nextStatus,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: complianceYear.companyId,
+        complianceYearId: complianceYear.id,
+        action: transition.action,
+        reason: input.reason,
+      },
+    });
+
+    return updated;
   });
 }

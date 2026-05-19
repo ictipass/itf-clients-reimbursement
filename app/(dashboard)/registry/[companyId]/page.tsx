@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { updateComplianceYearStatusAction } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
 import { getEmployerCompany } from "@/lib/registry";
 
 function formatDate(date: Date | null) {
@@ -37,6 +38,30 @@ function DetailItem({
       <div className="mt-2 text-sm font-medium leading-6 text-zinc-950">{value}</div>
     </div>
   );
+}
+
+const transitionLabels = {
+  submit: "Submit for review",
+  start_review: "Mark in review",
+  approve: "Approve",
+  request_changes: "Request correction",
+  reject: "Reject",
+} as const;
+
+function getAvailableTransitions(status: string) {
+  if (status === "DRAFT" || status === "CHANGES_REQUESTED") {
+    return ["submit"] as const;
+  }
+
+  if (status === "SUBMITTED") {
+    return ["start_review", "approve", "request_changes", "reject"] as const;
+  }
+
+  if (status === "IN_REVIEW") {
+    return ["approve", "request_changes", "reject"] as const;
+  }
+
+  return [] as const;
 }
 
 export default async function CompanyDetailPage({
@@ -160,6 +185,19 @@ export default async function CompanyDetailPage({
                     <p>{complianceYear.status.replaceAll("_", " ")}</p>
                     <p>{formatMoney(complianceYear.amountPaid)}</p>
                   </div>
+                  {complianceYear.decisions[0] ? (
+                    <p className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs leading-5 text-zinc-600">
+                      Last decision:{" "}
+                      <span className="font-semibold text-zinc-800">
+                        {complianceYear.decisions[0].action.replaceAll("_", " ")}
+                      </span>{" "}
+                      by {complianceYear.decisions[0].actor.name} on{" "}
+                      {formatDate(complianceYear.decisions[0].createdAt)}
+                      {complianceYear.decisions[0].reason
+                        ? ` · ${complianceYear.decisions[0].reason}`
+                        : ""}
+                    </p>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3">
                     <p className="text-xs text-zinc-500">
                       {complianceYear.documents.length === 0
@@ -173,6 +211,36 @@ export default async function CompanyDetailPage({
                       Upload evidence
                     </Link>
                   </div>
+                  {getAvailableTransitions(complianceYear.status).length > 0 ? (
+                    <form
+                      action={updateComplianceYearStatusAction.bind(
+                        null,
+                        company.id,
+                        complianceYear.id,
+                      )}
+                      className="mt-3 grid gap-3 rounded-md border border-zinc-100 bg-zinc-50 p-3"
+                    >
+                      <label className="grid gap-2 text-xs font-medium text-zinc-700">
+                        Review note
+                        <input
+                          name="reason"
+                          className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                        />
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {getAvailableTransitions(complianceYear.status).map((transition) => (
+                          <button
+                            key={transition}
+                            name="transition"
+                            value={transition}
+                            className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-900"
+                          >
+                            {transitionLabels[transition]}
+                          </button>
+                        ))}
+                      </div>
+                    </form>
+                  ) : null}
                   {complianceYear.documents.length > 0 ? (
                     <div className="mt-3 grid gap-2">
                       {complianceYear.documents.map((document) => (

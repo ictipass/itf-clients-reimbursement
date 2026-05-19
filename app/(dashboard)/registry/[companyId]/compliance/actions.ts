@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
-import { createComplianceYear } from "@/lib/compliance";
+import {
+  createComplianceYear,
+  getComplianceTransitions,
+  updateComplianceYearStatus,
+  type ComplianceTransition,
+} from "@/lib/compliance";
 
 function readOptionalString(formData: FormData, name: string) {
   const value = formData.get(name);
@@ -107,6 +112,41 @@ export async function createComplianceYearAction(companyId: string, formData: Fo
     declarationPosition: readOptionalString(formData, "declarationPosition"),
     declarationPhone: readOptionalString(formData, "declarationPhone"),
     declaredAt: readOptionalDate(formData, "declaredAt"),
+  });
+
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+function readComplianceTransition(formData: FormData): ComplianceTransition {
+  const value = readOptionalString(formData, "transition");
+  const transitions = getComplianceTransitions();
+
+  if (!value || !transitions.includes(value as ComplianceTransition)) {
+    throw new Error("Unsupported compliance transition.");
+  }
+
+  return value as ComplianceTransition;
+}
+
+export async function updateComplianceYearStatusAction(
+  companyId: string,
+  complianceYearId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await updateComplianceYearStatus({
+    companyId,
+    complianceYearId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    transition: readComplianceTransition(formData),
+    reason: readOptionalString(formData, "reason"),
   });
 
   revalidatePath(`/registry/${companyId}`);

@@ -367,3 +367,22 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/evidence/[documentId]/route.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - `docs/storage.md`
+
+### Slice 16: Compliance Evidence Review Status
+
+Goal: let authorized users move a compliance year through a simple review workflow and keep a decision trail.
+
+Expected design:
+
+- Submit, mark in review, approve, request correction, and reject actions
+- Permission checks for submitter and reviewer paths
+- Status update on `ComplianceYear`
+- Decision record for each transition
+- Latest decision shown on the company detail page
+
+Expected files:
+
+- `lib/compliance.ts`
+- `app/(dashboard)/registry/[companyId]/compliance/actions.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
