@@ -7,6 +7,12 @@ The app stores uploaded file binaries outside PostgreSQL and keeps document meta
 New uploads are controlled by:
 
 ```env
+STORAGE_PROVIDER="local"
+```
+
+or:
+
+```env
 STORAGE_PROVIDER="vercel_blob"
 ```
 
@@ -18,11 +24,13 @@ STORAGE_PROVIDER="s3"
 
 Each `Document` row also stores its own `storageProvider`, so older files remain traceable if the preferred provider changes later.
 
+For local development, uploaded files are stored under `LOCAL_STORAGE_ROOT`, which defaults to `storage/uploads`. This folder is intentionally ignored by git and must not be placed under `public`.
+
 ## Provider Metadata
 
 The `Document` model stores:
 
-- `storageProvider`: Vercel Blob or S3
+- `storageProvider`: local disk, Vercel Blob, or S3
 - `bucket`: bucket/store name where applicable
 - `objectKey`: provider object key/path
 - `url`: provider URL, not necessarily public
@@ -33,7 +41,7 @@ The `Document` model stores:
 - `fileSize`
 - `access`: private or public
 
-Most ITF evidence should be private.
+Most ITF evidence should be private. Uploaded files should be downloaded through an authenticated route later, not served directly from a public folder.
 
 ## E-Forms Versus Uploads
 
@@ -61,9 +69,23 @@ Uploaded documents are supporting evidence, such as:
 - Official stamped copy
 - Other supporting evidence
 
-## Packages Needed Later
+## Upload Security
 
-Do not install these until the upload implementation slice.
+The local upload flow is intentionally restrictive:
+
+- Files are stored outside `public`.
+- Original filenames are sanitized and used only for display.
+- Object keys are random, not user-controlled.
+- Allowed file types are limited to PDF, JPEG, and PNG for this first slice.
+- File signatures are checked in addition to browser-provided MIME type.
+- HTML, SVG, JavaScript, and Office documents are blocked in this first slice.
+- Files are recorded as private metadata.
+
+This reduces the risk of uploaded documents being executed by a browser or treated as trusted application content.
+
+## Packages
+
+These packages are already present in the project dependencies.
 
 For Vercel Blob:
 

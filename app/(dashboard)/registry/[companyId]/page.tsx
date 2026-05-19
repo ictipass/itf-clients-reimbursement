@@ -99,7 +99,15 @@ export default async function CompanyDetailPage({
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-xl font-semibold tracking-tight">Evidence summary</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-xl font-semibold tracking-tight">Evidence summary</h2>
+            <Link
+              href={`/registry/${company.id}/evidence/new`}
+              className="inline-flex min-h-10 items-center rounded-md bg-[#800020] px-3 text-sm font-semibold text-white"
+            >
+              Upload evidence
+            </Link>
+          </div>
           {company.documents.length === 0 ? (
             <p className="mt-3 text-sm leading-6 text-zinc-600">
               No supporting evidence has been uploaded for this company yet.

@@ -54,6 +54,7 @@ enum DocumentKind {
 }
 
 enum StorageProvider {
+  LOCAL
   VERCEL_BLOB
   S3
 }
