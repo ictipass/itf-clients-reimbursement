@@ -133,7 +133,15 @@ export default async function CompanyDetailPage({
         </div>
 
         <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-xl font-semibold tracking-tight">Compliance years</h2>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <h2 className="text-xl font-semibold tracking-tight">Compliance years</h2>
+            <Link
+              href={`/registry/${company.id}/compliance/new`}
+              className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
+            >
+              Create year
+            </Link>
+          </div>
           {company.complianceYears.length === 0 ? (
             <p className="mt-3 text-sm leading-6 text-zinc-600">
               No annual compliance returns have been created for this company yet.

@@ -313,3 +313,21 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/evidence/[documentId]/route.ts`
 - `lib/evidence.ts`
 - `lib/storage/*`
+
+### Slice 13: Compliance Year Creation
+
+Goal: let an authorized user create an annual compliance return for a company.
+
+Expected design:
+
+- Company detail action to create a compliance year
+- Server-rendered compliance form
+- Server action with authentication, permission, and organization access checks
+- Created compliance years visible on the company detail page
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/compliance/new/page.tsx`
+- `app/(dashboard)/registry/[companyId]/compliance/actions.ts`
+- `lib/compliance.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
