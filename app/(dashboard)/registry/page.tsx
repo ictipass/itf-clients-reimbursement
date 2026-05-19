@@ -54,7 +54,12 @@ export default async function RegistryPage() {
               {companies.map((company) => (
                 <tr key={company.id} className="border-t border-zinc-100">
                   <td className="px-4 py-4 align-top">
-                    <p className="font-semibold text-zinc-950">{company.legalName}</p>
+                    <Link
+                      href={`/registry/${company.id}`}
+                      className="font-semibold text-zinc-950 transition hover:text-[#800020]"
+                    >
+                      {company.legalName}
+                    </Link>
                     <p className="mt-1 text-xs text-zinc-500">
                       RC: {company.rcNumber ?? "Not provided"}
                     </p>

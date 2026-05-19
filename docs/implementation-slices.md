@@ -279,3 +279,20 @@ Expected files:
 
 - `lib/storage/*`
 - upload route/server action files
+
+### Slice 11: Workspace App Launcher Waffle
+
+Goal: add a Google-style app launcher where users can open workspace applications they are authorized to access.
+
+Expected design:
+
+- Workspace application registry
+- User/app entitlement checks
+- Waffle launcher in the dashboard shell
+- Links to ITF Reimbursement Gateway and future workspace apps
+
+Expected files:
+
+- Prisma schema additions or seed data for workspace apps
+- dashboard layout/app launcher component
+- RBAC or entitlement helper updates

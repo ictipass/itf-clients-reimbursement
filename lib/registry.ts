@@ -41,6 +41,69 @@ export async function listEmployerCompanies() {
   });
 }
 
+export async function getEmployerCompany(companyId: string) {
+  const db = getDb();
+
+  return db.company.findFirst({
+    where: {
+      id: companyId,
+      recordTier: "HOT",
+    },
+    select: {
+      id: true,
+      legalName: true,
+      rcNumber: true,
+      taxId: true,
+      itfEmployerNumber: true,
+      businessAddress: true,
+      postalAddress: true,
+      email: true,
+      telephone: true,
+      natureOfBusiness: true,
+      establishedAt: true,
+      payrollBasis: true,
+      status: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+      organization: {
+        select: {
+          name: true,
+          slug: true,
+          organizationType: true,
+        },
+      },
+      documents: {
+        where: {
+          isActive: true,
+          recordTier: "HOT",
+        },
+        select: {
+          id: true,
+          kind: true,
+          fileName: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+      complianceYears: {
+        select: {
+          id: true,
+          year: true,
+          status: true,
+          amountPaid: true,
+          contributionPaidAt: true,
+        },
+        orderBy: {
+          year: "desc",
+        },
+      },
+    },
+  });
+}
+
 export async function listEmployerOrganizations() {
   const db = getDb();
 
