@@ -51,6 +51,12 @@ The current company evidence download route is:
 
 The route verifies the active company/document relationship and the current user's organization access before reading from storage.
 
+For reviewer-friendly previews, the same protected route supports inline viewing for PDF, JPEG, and PNG:
+
+```text
+/registry/[companyId]/evidence/[documentId]?disposition=inline
+```
+
 ## E-Forms Versus Uploads
 
 ITF forms should be structured e-forms in the application, not ordinary uploads.
@@ -88,7 +94,8 @@ The local upload flow is intentionally restrictive:
 - File signatures are checked in addition to browser-provided MIME type.
 - HTML, SVG, JavaScript, and Office documents are blocked in this first slice.
 - Files are recorded as private metadata.
-- Downloads use `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, and `Content-Security-Policy: sandbox`.
+- Downloads use `Content-Disposition`, `X-Content-Type-Options: nosniff`, and `Content-Security-Policy: sandbox`.
+- Inline previews are only allowed for the restricted upload types: PDF, JPEG, and PNG.
 
 This reduces the risk of uploaded documents being executed by a browser or treated as trusted application content.
 

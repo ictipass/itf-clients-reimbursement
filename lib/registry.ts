@@ -95,6 +95,21 @@ export async function getEmployerCompany(companyId: string) {
           status: true,
           amountPaid: true,
           contributionPaidAt: true,
+          documents: {
+            where: {
+              isActive: true,
+              recordTier: "HOT",
+            },
+            select: {
+              id: true,
+              kind: true,
+              fileName: true,
+              createdAt: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
         },
         orderBy: {
           year: "desc",

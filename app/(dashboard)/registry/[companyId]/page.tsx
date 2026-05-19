@@ -121,10 +121,12 @@ export default async function CompanyDetailPage({
                     {document.kind.replaceAll("_", " ")} · {formatDate(document.createdAt)}
                   </p>
                   <Link
-                    href={`/registry/${company.id}/evidence/${document.id}`}
+                    href={`/registry/${company.id}/evidence/${document.id}?disposition=inline`}
+                    target="_blank"
+                    rel="noopener noreferrer"
                     className="mt-3 inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
                   >
-                    Download
+                    View
                   </Link>
                 </div>
               ))}
@@ -151,11 +153,51 @@ export default async function CompanyDetailPage({
               {company.complianceYears.map((complianceYear) => (
                 <div
                   key={complianceYear.id}
-                  className="grid gap-2 rounded-md border border-zinc-100 p-3 text-sm md:grid-cols-3"
+                  className="rounded-md border border-zinc-100 p-3 text-sm"
                 >
-                  <p className="font-semibold">{complianceYear.year}</p>
-                  <p>{complianceYear.status.replaceAll("_", " ")}</p>
-                  <p>{formatMoney(complianceYear.amountPaid)}</p>
+                  <div className="grid gap-2 md:grid-cols-3">
+                    <p className="font-semibold">{complianceYear.year}</p>
+                    <p>{complianceYear.status.replaceAll("_", " ")}</p>
+                    <p>{formatMoney(complianceYear.amountPaid)}</p>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3">
+                    <p className="text-xs text-zinc-500">
+                      {complianceYear.documents.length === 0
+                        ? "No compliance evidence uploaded"
+                        : `${complianceYear.documents.length} evidence document${complianceYear.documents.length === 1 ? "" : "s"}`}
+                    </p>
+                    <Link
+                      href={`/registry/${company.id}/compliance/${complianceYear.id}/evidence/new`}
+                      className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+                    >
+                      Upload evidence
+                    </Link>
+                  </div>
+                  {complianceYear.documents.length > 0 ? (
+                    <div className="mt-3 grid gap-2">
+                      {complianceYear.documents.map((document) => (
+                        <div
+                          key={document.id}
+                          className="flex flex-wrap items-center justify-between gap-2 text-xs leading-5 text-zinc-600"
+                        >
+                          <p>
+                            <span className="font-semibold text-zinc-800">
+                              {document.fileName}
+                            </span>{" "}
+                            · {document.kind.replaceAll("_", " ")}
+                          </p>
+                          <Link
+                            href={`/registry/${company.id}/evidence/${document.id}?disposition=inline`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 px-2 font-semibold text-zinc-800"
+                          >
+                            View
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>

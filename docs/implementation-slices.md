@@ -331,3 +331,39 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/compliance/actions.ts`
 - `lib/compliance.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
+
+### Slice 14: Compliance Evidence Upload
+
+Goal: let an authorized user upload evidence documents against a specific compliance year.
+
+Expected design:
+
+- Compliance-year upload action from the company detail page
+- Evidence type selector for contribution receipts, policies, annual plans, declarations, and stamped copies
+- Reuse the private document storage and upload validation layer
+- Show compliance evidence count/list under each compliance year
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/compliance/[complianceYearId]/evidence/new/page.tsx`
+- `app/(dashboard)/registry/[companyId]/compliance/[complianceYearId]/evidence/actions.ts`
+- `lib/compliance.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+
+### Slice 15: Evidence Inline Viewer Mode
+
+Goal: let reviewers open protected evidence documents in a new tab instead of forcing every file to download.
+
+Expected design:
+
+- Protected evidence route supports `disposition=inline`
+- Inline previews limited to PDF, JPEG, and PNG
+- Evidence links open in a new tab with safe browser attributes
+- Existing route still falls back to attachment download
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/evidence/[documentId]/route.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- `docs/storage.md`
