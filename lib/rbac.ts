@@ -7,6 +7,14 @@ export const roles = [
   "ITF_CLAIMS_REVIEWER",
   "ITF_CLAIMS_APPROVER",
   "ITF_AUDITOR",
+  "AREA_MANAGER",
+  "HORIC",
+  "REVENUE_ACCOUNTANT",
+  "HEAD_OF_TRAINING",
+  "REIMBURSEMENT_OFFICER",
+  "DIRECTOR_FSD",
+  "HEAD_OF_DIVISION",
+  "HQ_REIMBURSEMENT_OFFICER",
   "EMPLOYER_ADMIN",
   "EMPLOYER_SUBMITTER",
   "EMPLOYER_VIEWER",
@@ -52,6 +60,21 @@ const permissionsByRole: Record<Role, Permission[]> = {
   ITF_CLAIMS_REVIEWER: ["claims:review", "company:read", "audit:read"],
   ITF_CLAIMS_APPROVER: ["claims:approve", "company:read", "audit:read"],
   ITF_AUDITOR: ["audit:read", "company:read"],
+  AREA_MANAGER: [
+    "registry:review",
+    "compliance:review",
+    "training:approve",
+    "claims:review",
+    "company:read",
+    "audit:read",
+  ],
+  HORIC: ["registry:review", "compliance:review", "company:read", "audit:read"],
+  REVENUE_ACCOUNTANT: ["registry:review", "compliance:review", "company:read", "audit:read"],
+  HEAD_OF_TRAINING: ["training:approve", "claims:review", "company:read", "audit:read"],
+  REIMBURSEMENT_OFFICER: ["training:approve", "claims:review", "company:read", "audit:read"],
+  DIRECTOR_FSD: ["claims:approve", "company:read", "audit:read"],
+  HEAD_OF_DIVISION: ["claims:review", "claims:approve", "company:read", "audit:read"],
+  HQ_REIMBURSEMENT_OFFICER: ["claims:review", "company:read", "audit:read"],
   EMPLOYER_ADMIN: [
     "registry:submit",
     "compliance:submit",
@@ -79,5 +102,17 @@ export function can(role: Role, permission: Permission) {
 }
 
 export function isItfRole(role: Role) {
-  return role.startsWith("ITF_") || role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
+  return (
+    role.startsWith("ITF_") ||
+    role === "SYSTEM_ADMIN" ||
+    role === "WORKSPACE_APP_ADMIN" ||
+    role === "AREA_MANAGER" ||
+    role === "HORIC" ||
+    role === "REVENUE_ACCOUNTANT" ||
+    role === "HEAD_OF_TRAINING" ||
+    role === "REIMBURSEMENT_OFFICER" ||
+    role === "DIRECTOR_FSD" ||
+    role === "HEAD_OF_DIVISION" ||
+    role === "HQ_REIMBURSEMENT_OFFICER"
+  );
 }

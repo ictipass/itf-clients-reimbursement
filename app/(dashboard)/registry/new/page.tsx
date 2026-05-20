@@ -1,10 +1,13 @@
 import Link from "next/link";
 
 import { createCompanyAction } from "@/app/(dashboard)/registry/actions";
-import { listEmployerOrganizations } from "@/lib/registry";
+import { listAreaOffices, listEmployerOrganizations } from "@/lib/registry";
 
 export default async function NewCompanyPage() {
-  const organizations = await listEmployerOrganizations();
+  const [organizations, areaOffices] = await Promise.all([
+    listEmployerOrganizations(),
+    listAreaOffices(),
+  ]);
 
   return (
     <div className="mx-auto max-w-4xl px-6 py-8 lg:px-8">
@@ -31,6 +34,22 @@ export default async function NewCompanyPage() {
             {organizations.map((organization) => (
               <option key={organization.id} value={organization.id}>
                 {organization.name}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label className="grid gap-2 text-sm font-medium">
+          Area office of choice
+          <select
+            name="areaOfficeId"
+            required
+            className="min-h-11 rounded-md border border-zinc-300 bg-white px-3"
+          >
+            <option value="">Select area office</option>
+            {areaOffices.map((areaOffice) => (
+              <option key={areaOffice.id} value={areaOffice.id}>
+                {areaOffice.name}
               </option>
             ))}
           </select>

@@ -2,6 +2,7 @@ import { getDb } from "@/lib/db";
 
 export type CreateCompanyInput = {
   organizationId: string;
+  areaOfficeId: string;
   legalName: string;
   rcNumber?: string;
   taxId?: string;
@@ -24,6 +25,11 @@ export async function listEmployerCompanies() {
     select: {
       id: true,
       legalName: true,
+      areaOffice: {
+        select: {
+          name: true,
+        },
+      },
       rcNumber: true,
       itfEmployerNumber: true,
       email: true,
@@ -71,6 +77,12 @@ export async function getEmployerCompany(companyId: string) {
           name: true,
           slug: true,
           organizationType: true,
+        },
+      },
+      areaOffice: {
+        select: {
+          name: true,
+          slug: true,
         },
       },
       documents: {
@@ -158,12 +170,31 @@ export async function listEmployerOrganizations() {
   });
 }
 
+export async function listAreaOffices() {
+  const db = getDb();
+
+  return db.areaOffice.findMany({
+    where: {
+      isActive: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+    select: {
+      id: true,
+      name: true,
+      slug: true,
+    },
+  });
+}
+
 export async function createCompany(input: CreateCompanyInput) {
   const db = getDb();
 
   return db.company.create({
     data: {
       organizationId: input.organizationId,
+      areaOfficeId: input.areaOfficeId,
       legalName: input.legalName,
       rcNumber: input.rcNumber,
       taxId: input.taxId,

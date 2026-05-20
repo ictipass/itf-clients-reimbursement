@@ -39,6 +39,7 @@ function readOptionalDate(formData: FormData, name: string) {
 export async function createCompanyAction(formData: FormData) {
   await createCompany({
     organizationId: readRequiredString(formData, "organizationId"),
+    areaOfficeId: readRequiredString(formData, "areaOfficeId"),
     legalName: readRequiredString(formData, "legalName"),
     rcNumber: readOptionalString(formData, "rcNumber"),
     taxId: readOptionalString(formData, "taxId"),

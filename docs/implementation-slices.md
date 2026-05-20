@@ -386,3 +386,26 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/compliance/actions.ts`
 - `lib/registry.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
+
+### Slice 17: Area Office And Workflow Foundation
+
+Goal: add Area Offices, area-office-aware company registration, and ITF operational roles before training request creation.
+
+Expected design:
+
+- Dedicated `AreaOffice` model
+- Company chooses one Area Office
+- Area Office data seeded from `data/ao.txt`
+- Operational roles for AM, HORIC, RA, HOT, R_O, Director FSD, Head of Division, and HQ-R_O
+- Architecture documentation for registration, mid-submission, training approval, and claim routing
+
+Expected files:
+
+- `prisma/schema.prisma`
+- `prisma/seed.ts`
+- `data/ao.txt`
+- `lib/rbac.ts`
+- `lib/domain.ts`
+- `lib/registry.ts`
+- registry page/form files
+- architecture/workflow docs

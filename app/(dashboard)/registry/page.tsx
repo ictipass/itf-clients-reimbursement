@@ -45,6 +45,7 @@ export default async function RegistryPage() {
               <tr>
                 <th className="px-4 py-3 font-semibold">Company</th>
                 <th className="px-4 py-3 font-semibold">Organization</th>
+                <th className="px-4 py-3 font-semibold">Area office</th>
                 <th className="px-4 py-3 font-semibold">ITF No.</th>
                 <th className="px-4 py-3 font-semibold">Contact</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
@@ -69,6 +70,9 @@ export default async function RegistryPage() {
                   </td>
                   <td className="px-4 py-4 align-top text-zinc-700">
                     {company.organization.name}
+                  </td>
+                  <td className="px-4 py-4 align-top text-zinc-700">
+                    {company.areaOffice?.name ?? "Not selected"}
                   </td>
                   <td className="px-4 py-4 align-top text-zinc-700">
                     {company.itfEmployerNumber ?? "Pending"}

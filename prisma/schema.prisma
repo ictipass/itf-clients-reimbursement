@@ -16,6 +16,14 @@ enum Role {
   ITF_CLAIMS_REVIEWER
   ITF_CLAIMS_APPROVER
   ITF_AUDITOR
+  AREA_MANAGER
+  HORIC
+  REVENUE_ACCOUNTANT
+  HEAD_OF_TRAINING
+  REIMBURSEMENT_OFFICER
+  DIRECTOR_FSD
+  HEAD_OF_DIVISION
+  HQ_REIMBURSEMENT_OFFICER
   EMPLOYER_ADMIN
   EMPLOYER_SUBMITTER
   EMPLOYER_VIEWER
@@ -125,8 +133,26 @@ model Workspace {
   createdAt     DateTime       @default(now())
   updatedAt     DateTime       @updatedAt
   organizations Organization[]
+  areaOffices   AreaOffice[]
   memberships   Membership[]
   auditEvents   AuditEvent[]
+}
+
+model AreaOffice {
+  id          String       @id @default(cuid())
+  workspaceId String
+  name        String
+  slug        String
+  code        String?
+  isActive    Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id])
+  companies   Company[]
+  memberships Membership[]
+
+  @@unique([workspaceId, slug])
+  @@index([workspaceId, isActive])
 }
 
 model Organization {
@@ -168,18 +194,22 @@ model Membership {
   userId         String
   workspaceId    String
   organizationId String?
+  areaOfficeId   String?
   role           Role
   createdAt      DateTime      @default(now())
   user           User          @relation(fields: [userId], references: [id])
   workspace      Workspace     @relation(fields: [workspaceId], references: [id])
   organization   Organization? @relation(fields: [organizationId], references: [id])
+  areaOffice     AreaOffice?   @relation(fields: [areaOfficeId], references: [id])
 
   @@unique([userId, workspaceId, organizationId, role])
+  @@index([areaOfficeId, role])
 }
 
 model Company {
   id                  String               @id @default(cuid())
   organizationId      String
+  areaOfficeId        String?
   legalName           String
   rcNumber            String?
   taxId               String?
@@ -199,6 +229,7 @@ model Company {
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
   organization        Organization         @relation(fields: [organizationId], references: [id])
+  areaOffice          AreaOffice?          @relation(fields: [areaOfficeId], references: [id])
   documents           Document[]
   complianceYears     ComplianceYear[]
   trainingRequests    TrainingRequest[]
@@ -207,36 +238,37 @@ model Company {
   comments            Comment[]
 
   @@index([organizationId, status, recordTier])
+  @@index([areaOfficeId, status, recordTier])
 }
 
 model ComplianceYear {
-  id                    String         @id @default(cuid())
-  companyId             String
-  year                  Int
-  nigerianEmployeeCount Int?
+  id                      String                   @id @default(cuid())
+  companyId               String
+  year                    Int
+  nigerianEmployeeCount   Int?
   expatriateEmployeeCount Int?
-  totalEmployeeCount    Int?
-  turnover              Decimal?       @db.Decimal(14, 2)
-  payrollTotal          Decimal?       @db.Decimal(14, 2)
-  contributionAmount    Decimal?       @db.Decimal(14, 2)
-  amountPaid            Decimal?       @db.Decimal(14, 2)
-  amountPaidInWords     String?
-  paymentMode           String?
-  contributionPaidAt    DateTime?
-  annualPlanSubmittedAt DateTime?
-  declarationName       String?
-  declarationPosition   String?
-  declarationPhone      String?
-  declaredAt            DateTime?
-  status                WorkflowStatus @default(DRAFT)
-  recordTier            RecordTier     @default(HOT)
-  createdAt             DateTime       @default(now())
-  updatedAt             DateTime       @updatedAt
-  company               Company        @relation(fields: [companyId], references: [id])
-  documents             Document[]
-  branchReturns         ComplianceBranchReturn[]
-  decisions             Decision[]
-  comments              Comment[]
+  totalEmployeeCount      Int?
+  turnover                Decimal?                 @db.Decimal(14, 2)
+  payrollTotal            Decimal?                 @db.Decimal(14, 2)
+  contributionAmount      Decimal?                 @db.Decimal(14, 2)
+  amountPaid              Decimal?                 @db.Decimal(14, 2)
+  amountPaidInWords       String?
+  paymentMode             String?
+  contributionPaidAt      DateTime?
+  annualPlanSubmittedAt   DateTime?
+  declarationName         String?
+  declarationPosition     String?
+  declarationPhone        String?
+  declaredAt              DateTime?
+  status                  WorkflowStatus           @default(DRAFT)
+  recordTier              RecordTier               @default(HOT)
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  company                 Company                  @relation(fields: [companyId], references: [id])
+  documents               Document[]
+  branchReturns           ComplianceBranchReturn[]
+  decisions               Decision[]
+  comments                Comment[]
 
   @@unique([companyId, year])
   @@index([companyId, status, recordTier])
@@ -256,114 +288,114 @@ model ComplianceBranchReturn {
 }
 
 model TrainingRequest {
-  id            String               @id @default(cuid())
-  companyId     String
-  title         String
-  description   String?
-  trainingType  String?
-  provider      String
-  venue         String?
-  startsAt      DateTime
-  endsAt        DateTime
-  participantCount Int?
-  estimatedCost Decimal              @db.Decimal(14, 2)
-  expectedOutcome String?
-  approvalReference String?
-  approvedOriginalRef String?
+  id                   String                @id @default(cuid())
+  companyId            String
+  title                String
+  description          String?
+  trainingType         String?
+  provider             String
+  venue                String?
+  startsAt             DateTime
+  endsAt               DateTime
+  participantCount     Int?
+  estimatedCost        Decimal               @db.Decimal(14, 2)
+  expectedOutcome      String?
+  approvalReference    String?
+  approvedOriginalRef  String?
   approvedDuplicateRef String?
-  status        WorkflowStatus       @default(DRAFT)
-  recordTier    RecordTier           @default(HOT)
-  submittedAt   DateTime?
-  approvedAt    DateTime?
-  createdAt     DateTime             @default(now())
-  updatedAt     DateTime             @updatedAt
-  company       Company              @relation(fields: [companyId], references: [id])
-  documents     Document[]
-  participants  TrainingParticipant[]
-  claims        ReimbursementClaim[]
-  decisions     Decision[]
-  comments      Comment[]
+  status               WorkflowStatus        @default(DRAFT)
+  recordTier           RecordTier            @default(HOT)
+  submittedAt          DateTime?
+  approvedAt           DateTime?
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  company              Company               @relation(fields: [companyId], references: [id])
+  documents            Document[]
+  participants         TrainingParticipant[]
+  claims               ReimbursementClaim[]
+  decisions            Decision[]
+  comments             Comment[]
 
   @@index([companyId, status, recordTier])
 }
 
 model TrainingParticipant {
-  id                    String          @id @default(cuid())
-  trainingRequestId     String
-  name                  String
-  trainingArea          String?
+  id                       String          @id @default(cuid())
+  trainingRequestId        String
+  name                     String
+  trainingArea             String?
   educationalQualification String?
-  jobTitle              String?
-  nationality           String?
-  courseTitle           String?
-  courseSynopsis        String?
-  courseOrganiser       String?
-  venue                 String?
-  startsAt              DateTime?
-  endsAt                DateTime?
-  approvalRemarks       String?
-  createdAt             DateTime        @default(now())
-  updatedAt             DateTime        @updatedAt
-  trainingRequest       TrainingRequest @relation(fields: [trainingRequestId], references: [id])
+  jobTitle                 String?
+  nationality              String?
+  courseTitle              String?
+  courseSynopsis           String?
+  courseOrganiser          String?
+  venue                    String?
+  startsAt                 DateTime?
+  endsAt                   DateTime?
+  approvalRemarks          String?
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
+  trainingRequest          TrainingRequest @relation(fields: [trainingRequestId], references: [id])
 
   @@index([trainingRequestId])
 }
 
 model ReimbursementClaim {
-  id                String           @id @default(cuid())
-  companyId         String
-  trainingRequestId String?
-  reference         String           @unique
-  claimYear         Int?
-  trainingContributionDue Decimal?   @db.Decimal(14, 2)
-  trainingContributionPaid Decimal?  @db.Decimal(14, 2)
-  maxReimbursableAmount Decimal?     @db.Decimal(14, 2)
-  itfReceiptNumber String?
-  bankName          String?
-  accountNumber     String?
-  sortCode          String?
-  claimedAmount     Decimal          @db.Decimal(14, 2)
-  eligibleAmount    Decimal?         @db.Decimal(14, 2)
-  claimRecommendedAmount Decimal?    @db.Decimal(14, 2)
-  claimRecommendedInWords String?
-  paymentDetails    String?
-  employerOfficerName String?
-  employerOfficerRank String?
-  chiefExecutiveName String?
-  employerDeclaredAt DateTime?
-  status            WorkflowStatus   @default(DRAFT)
-  recordTier        RecordTier       @default(HOT)
-  submittedAt       DateTime?
-  settledAt         DateTime?
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
-  company           Company          @relation(fields: [companyId], references: [id])
-  trainingRequest   TrainingRequest? @relation(fields: [trainingRequestId], references: [id])
-  documents         Document[]
-  lines             ReimbursementClaimLine[]
-  decisions         Decision[]
-  comments          Comment[]
+  id                       String                   @id @default(cuid())
+  companyId                String
+  trainingRequestId        String?
+  reference                String                   @unique
+  claimYear                Int?
+  trainingContributionDue  Decimal?                 @db.Decimal(14, 2)
+  trainingContributionPaid Decimal?                 @db.Decimal(14, 2)
+  maxReimbursableAmount    Decimal?                 @db.Decimal(14, 2)
+  itfReceiptNumber         String?
+  bankName                 String?
+  accountNumber            String?
+  sortCode                 String?
+  claimedAmount            Decimal                  @db.Decimal(14, 2)
+  eligibleAmount           Decimal?                 @db.Decimal(14, 2)
+  claimRecommendedAmount   Decimal?                 @db.Decimal(14, 2)
+  claimRecommendedInWords  String?
+  paymentDetails           String?
+  employerOfficerName      String?
+  employerOfficerRank      String?
+  chiefExecutiveName       String?
+  employerDeclaredAt       DateTime?
+  status                   WorkflowStatus           @default(DRAFT)
+  recordTier               RecordTier               @default(HOT)
+  submittedAt              DateTime?
+  settledAt                DateTime?
+  createdAt                DateTime                 @default(now())
+  updatedAt                DateTime                 @updatedAt
+  company                  Company                  @relation(fields: [companyId], references: [id])
+  trainingRequest          TrainingRequest?         @relation(fields: [trainingRequestId], references: [id])
+  documents                Document[]
+  lines                    ReimbursementClaimLine[]
+  decisions                Decision[]
+  comments                 Comment[]
 
   @@index([companyId, status, recordTier])
 }
 
 model ReimbursementClaimLine {
-  id                  String             @id @default(cuid())
+  id                   String             @id @default(cuid())
   reimbursementClaimId String
-  trainingArea        String
-  totalWorkforce      Int?
-  totalTrained        Int?
-  percentTrained      Decimal?           @db.Decimal(5, 2)
-  emphasisNumber      Int?
-  contributionPaid    Decimal?           @db.Decimal(14, 2)
-  employerClaimAmount Decimal?           @db.Decimal(14, 2)
-  referencePage       String?
-  percentAwarded      Decimal?           @db.Decimal(5, 2)
-  amountAwarded       Decimal?           @db.Decimal(14, 2)
-  remarks             String?
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-  reimbursementClaim  ReimbursementClaim @relation(fields: [reimbursementClaimId], references: [id])
+  trainingArea         String
+  totalWorkforce       Int?
+  totalTrained         Int?
+  percentTrained       Decimal?           @db.Decimal(5, 2)
+  emphasisNumber       Int?
+  contributionPaid     Decimal?           @db.Decimal(14, 2)
+  employerClaimAmount  Decimal?           @db.Decimal(14, 2)
+  referencePage        String?
+  percentAwarded       Decimal?           @db.Decimal(5, 2)
+  amountAwarded        Decimal?           @db.Decimal(14, 2)
+  remarks              String?
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  reimbursementClaim   ReimbursementClaim @relation(fields: [reimbursementClaimId], references: [id])
 
   @@index([reimbursementClaimId])
 }

@@ -109,6 +109,7 @@ export default async function CompanyDetailPage({
 
       <section className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <DetailItem label="Organization" value={company.organization.name} />
+        <DetailItem label="Area office" value={company.areaOffice?.name ?? "Not selected"} />
         <DetailItem label="ITF employer number" value={company.itfEmployerNumber ?? "Pending"} />
         <DetailItem label="RC number" value={company.rcNumber ?? "Not provided"} />
         <DetailItem label="Tax ID" value={company.taxId ?? "Not provided"} />

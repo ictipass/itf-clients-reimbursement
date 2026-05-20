@@ -16,6 +16,7 @@ ITF Workspace remains responsible for:
 - Enterprise app launcher
 - Access governance platform
 - Organization registry
+- Area office registry
 - App registry
 - Enterprise-wide audit and compliance visibility
 
@@ -68,6 +69,7 @@ Do not store large binary files directly in PostgreSQL for production. It will m
 ### Employer Registry
 
 - Company profile
+- Area Office of choice
 - CAC evidence
 - Tax Clearance Certificate evidence
 - Audited account evidence
@@ -75,6 +77,38 @@ Do not store large binary files directly in PostgreSQL for production. It will m
 - ITF employer number
 - Registration status
 - Activation/deactivation history
+
+### Area Office And Headquarters Routing
+
+Each company selects one ITF Area Office during registration. The Area Office is the operational entry point for registration, training approval, Training Plan and L&D Submission, and reimbursement claim routing.
+
+Employer registration follows this Area Office hierarchy:
+
+```text
+Company -> Area Manager -> HORIC -> Revenue Accountant -> HORIC -> Area Manager -> Company
+```
+
+The Revenue Accountant recommends the training contribution amount. HORIC reviews the recommendation, and the Area Manager communicates the recommendation to the company. After payment and receipt upload, the Area Office can notify Headquarters for compliance registration number/certificate processing.
+
+Headquarters Field Services Department routing follows this hierarchy:
+
+```text
+Director FSD -> Head of Division -> HQ Reimbursement Officer -> Head of Division -> Director FSD
+```
+
+Training Plan and L&D Submission is modeled separately from annual compliance. It covers Form 3A, the annual training plan, and L&D personnel CV evidence. The training plan is due on or before 31 March and may contribute to scoring.
+
+Training approval request routing:
+
+```text
+Company -> Area Manager -> Head of Training -> Reimbursement Officer -> Head of Training -> Area Manager -> Company
+```
+
+Training Plan/L&D Submission and claims routing:
+
+```text
+Company -> Area Manager -> Head of Training -> Reimbursement Officer -> Head of Training -> Area Manager -> Director FSD -> Head of Division -> HQ Reimbursement Officer -> Head of Division -> Director FSD
+```
 
 ### Annual Compliance
 

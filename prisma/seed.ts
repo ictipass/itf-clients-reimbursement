@@ -1,4 +1,7 @@
 import "dotenv/config";
+import fs from "node:fs/promises";
+import path from "node:path";
+
 import pg from "pg";
 
 const { Client } = pg;
@@ -12,6 +15,14 @@ const roles = [
   "ITF_CLAIMS_REVIEWER",
   "ITF_CLAIMS_APPROVER",
   "ITF_AUDITOR",
+  "AREA_MANAGER",
+  "HORIC",
+  "REVENUE_ACCOUNTANT",
+  "HEAD_OF_TRAINING",
+  "REIMBURSEMENT_OFFICER",
+  "DIRECTOR_FSD",
+  "HEAD_OF_DIVISION",
+  "HQ_REIMBURSEMENT_OFFICER",
   "EMPLOYER_ADMIN",
   "EMPLOYER_SUBMITTER",
   "EMPLOYER_VIEWER",
@@ -39,6 +50,26 @@ function resolveRole(value: string | undefined): Role {
   }
 
   return "SYSTEM_ADMIN";
+}
+
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function readAreaOfficeNames() {
+  const filePath = path.join(process.cwd(), "data", "ao.txt");
+  const content = await fs.readFile(filePath, "utf8");
+  const names = content
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(/\s+/g, " "))
+    .filter(Boolean);
+
+  return Array.from(new Set(names));
 }
 
 const seed = {
@@ -74,6 +105,8 @@ async function main() {
   await client.query("begin");
 
   try {
+    const areaOfficeNames = await readAreaOfficeNames();
+
     await client.query(
       `
         insert into "Workspace" ("id", "name", "slug", "updatedAt")
@@ -111,6 +144,23 @@ async function main() {
     }
 
     const organizationId = organization.id;
+
+    for (const name of areaOfficeNames) {
+      const slug = slugify(name);
+
+      await client.query(
+        `
+          insert into "AreaOffice" ("id", "workspaceId", "name", "slug", "updatedAt")
+          values ($1, $2, $3, $4, now())
+          on conflict ("workspaceId", "slug")
+          do update set
+            "name" = excluded."name",
+            "isActive" = true,
+            "updatedAt" = now()
+        `,
+        [`area-office-${slug}`, seed.workspace.id, name, slug],
+      );
+    }
 
     await client.query(
       `
@@ -182,6 +232,7 @@ async function main() {
     console.log(`- Workspace: ${seed.workspace.name}`);
     console.log(`- ITF organization: ${seed.organization.name}`);
     console.log(`- Demo employer organization: ${seed.employerOrganization.name}`);
+    console.log(`- Area offices: ${areaOfficeNames.length}`);
     console.log(`- Bootstrap admin: ${seed.admin.email}`);
     console.log(`- Role: ${seed.admin.role}`);
   } catch (error) {

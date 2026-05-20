@@ -39,7 +39,7 @@ export const workflowStages = [
 
 export const dashboardMetrics = [
   { label: "Domain models", value: "12", detail: "Workspace through audit events" },
-  { label: "RBAC roles", value: "11", detail: "ITF and employer boundaries" },
+  { label: "RBAC roles", value: "19", detail: "ITF, area office, HQ, and employer boundaries" },
   { label: "Document kinds", value: "21", detail: "Registration, compliance, claim evidence" },
   { label: "Workflow states", value: "8", detail: "Draft through archive" },
 ];
@@ -54,6 +54,46 @@ export const seedRoles: { role: Role; scope: string; purpose: string }[] = [
     role: "ITF_REGISTRATION_OFFICER",
     scope: "ITF",
     purpose: "Review employer identity, registration evidence, and activation state.",
+  },
+  {
+    role: "AREA_MANAGER",
+    scope: "Area Office",
+    purpose: "Entry and exit point for area office registration, training, and claims workflows.",
+  },
+  {
+    role: "HORIC",
+    scope: "Area Office",
+    purpose: "Review registration and compliance submissions before revenue recommendation.",
+  },
+  {
+    role: "REVENUE_ACCOUNTANT",
+    scope: "Area Office",
+    purpose: "Assess and recommend training contribution payable by employers.",
+  },
+  {
+    role: "HEAD_OF_TRAINING",
+    scope: "Area Office",
+    purpose: "Coordinate training approval, mid-submission, and claims review routing.",
+  },
+  {
+    role: "REIMBURSEMENT_OFFICER",
+    scope: "Area Office",
+    purpose: "Review training approval, monitoring, and reimbursement documents.",
+  },
+  {
+    role: "DIRECTOR_FSD",
+    scope: "Headquarters",
+    purpose: "Receive HQ correspondence and approve field services reimbursement routing.",
+  },
+  {
+    role: "HEAD_OF_DIVISION",
+    scope: "Headquarters",
+    purpose: "Coordinate HQ reimbursement division review and recommendations.",
+  },
+  {
+    role: "HQ_REIMBURSEMENT_OFFICER",
+    scope: "Headquarters",
+    purpose: "Review headquarters reimbursement submissions and award recommendations.",
   },
   {
     role: "ITF_COMPLIANCE_OFFICER",
