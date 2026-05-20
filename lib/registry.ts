@@ -117,6 +117,22 @@ export async function getEmployerCompany(companyId: string) {
               name: true,
             },
           },
+          documents: {
+            where: {
+              kind: "CONTRIBUTION_RECEIPT",
+              isActive: true,
+              recordTier: "HOT",
+            },
+            select: {
+              id: true,
+              kind: true,
+              fileName: true,
+              createdAt: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
           contributionAssessment: {
             select: {
               id: true,

@@ -278,6 +278,7 @@ model RegistrationApplication {
   areaOffice             AreaOffice                          @relation(fields: [areaOfficeId], references: [id])
   submittedBy            User?                               @relation("SubmittedRegistrationApplications", fields: [submittedById], references: [id])
   decisions              Decision[]
+  documents              Document[]
   contributionAssessment RegistrationContributionAssessment?
 
   @@index([areaOfficeId, currentDesk, status, recordTier])
@@ -479,42 +480,45 @@ model ReimbursementClaimLine {
 }
 
 model Document {
-  id                   String              @id @default(cuid())
-  organizationId       String
-  companyId            String?
-  complianceYearId     String?
-  trainingRequestId    String?
-  reimbursementClaimId String?
-  uploadedById         String
-  kind                 DocumentKind
-  fileName             String
-  storageProvider      StorageProvider
-  bucket               String?
-  objectKey            String
-  url                  String?
-  etag                 String?
-  versionId            String?
-  checksum             String
-  mimeType             String
-  fileSize             Int
-  access               DocumentAccess      @default(PRIVATE)
-  classification       String              @default("OFFICIAL")
-  retentionPolicy      String?
-  expiresAt            DateTime?
-  revokedAt            DateTime?
-  recordTier           RecordTier          @default(HOT)
-  isActive             Boolean             @default(true)
-  createdAt            DateTime            @default(now())
-  organization         Organization        @relation(fields: [organizationId], references: [id])
-  company              Company?            @relation(fields: [companyId], references: [id])
-  complianceYear       ComplianceYear?     @relation(fields: [complianceYearId], references: [id])
-  trainingRequest      TrainingRequest?    @relation(fields: [trainingRequestId], references: [id])
-  reimbursementClaim   ReimbursementClaim? @relation(fields: [reimbursementClaimId], references: [id])
-  uploadedBy           User                @relation("UploadedDocuments", fields: [uploadedById], references: [id])
-  decisions            Decision[]
-  comments             Comment[]
+  id                        String                   @id @default(cuid())
+  organizationId            String
+  companyId                 String?
+  registrationApplicationId String?
+  complianceYearId          String?
+  trainingRequestId         String?
+  reimbursementClaimId      String?
+  uploadedById              String
+  kind                      DocumentKind
+  fileName                  String
+  storageProvider           StorageProvider
+  bucket                    String?
+  objectKey                 String
+  url                       String?
+  etag                      String?
+  versionId                 String?
+  checksum                  String
+  mimeType                  String
+  fileSize                  Int
+  access                    DocumentAccess           @default(PRIVATE)
+  classification            String                   @default("OFFICIAL")
+  retentionPolicy           String?
+  expiresAt                 DateTime?
+  revokedAt                 DateTime?
+  recordTier                RecordTier               @default(HOT)
+  isActive                  Boolean                  @default(true)
+  createdAt                 DateTime                 @default(now())
+  organization              Organization             @relation(fields: [organizationId], references: [id])
+  company                   Company?                 @relation(fields: [companyId], references: [id])
+  registrationApplication   RegistrationApplication? @relation(fields: [registrationApplicationId], references: [id])
+  complianceYear            ComplianceYear?          @relation(fields: [complianceYearId], references: [id])
+  trainingRequest           TrainingRequest?         @relation(fields: [trainingRequestId], references: [id])
+  reimbursementClaim        ReimbursementClaim?      @relation(fields: [reimbursementClaimId], references: [id])
+  uploadedBy                User                     @relation("UploadedDocuments", fields: [uploadedById], references: [id])
+  decisions                 Decision[]
+  comments                  Comment[]
 
   @@index([organizationId, kind, recordTier, isActive])
+  @@index([registrationApplicationId, kind, recordTier, isActive])
 }
 
 model Decision {

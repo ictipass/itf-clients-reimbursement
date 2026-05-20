@@ -94,9 +94,11 @@ Registration is modeled as a formal `RegistrationApplication` workflow, separate
 
 Registration desk routing decisions are recorded against the registration application so AM/HORIC/RA movement is auditable before the contribution recommendation stage.
 
-The Revenue Accountant records the registration contribution recommendation as a separate assessment linked to the registration application. HORIC review, Area Manager release to company, payment receipt upload, Remita integration, and certificate generation remain later workflow stages.
+The Revenue Accountant records the registration contribution recommendation as a separate assessment linked to the registration application. HORIC review and Area Manager release to company are recorded on the assessment. After release, the company uploads the contribution receipt as a private `CONTRIBUTION_RECEIPT` document attached to the registration application and company.
 
 Area Manager release supports a dashboard-only notification path and a dashboard-plus-email path. The later email delivery slice should use Resend as the preferred transactional email provider.
+
+Remita integration and certificate generation remain later workflow stages.
 
 Headquarters Field Services Department routing follows this hierarchy:
 

@@ -13,6 +13,7 @@ import {
   releaseRegistrationContribution,
   routeRegistrationApplication,
   submitRegistrationApplication,
+  uploadRegistrationContributionReceipt,
   type RegistrationDeskTransition,
 } from "@/lib/registration";
 
@@ -168,6 +169,27 @@ export async function releaseRegistrationContributionAction(companyId: string, f
   redirect(`/registry/${companyId}`);
 }
 
+export async function uploadRegistrationContributionReceiptAction(
+  companyId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await uploadRegistrationContributionReceipt({
+    companyId,
+    uploadedByEmail: session.user.email,
+    requesterRole: session.user.role,
+    file: readRequiredFile(formData, "receipt"),
+  });
+
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
 function readReleaseChannel(formData: FormData): RecommendationReleaseChannel {
   const value = readOptionalString(formData, "releaseChannel");
   const channels = getRecommendationReleaseChannels();
@@ -177,4 +199,14 @@ function readReleaseChannel(formData: FormData): RecommendationReleaseChannel {
   }
 
   return value as RecommendationReleaseChannel;
+}
+
+function readRequiredFile(formData: FormData, name: string) {
+  const value = formData.get(name);
+
+  if (!(value instanceof File) || value.size === 0) {
+    throw new Error(`${name} file is required.`);
+  }
+
+  return value;
 }

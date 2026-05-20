@@ -489,3 +489,24 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/registration/actions.ts`
 - `lib/registry.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
+
+### Slice 22: Registration Payment Receipt Upload
+
+Goal: let the company upload its payment receipt after the Area Manager releases the confirmed contribution recommendation.
+
+Expected design:
+
+- Receipt upload is only available after AM release returns the registration application to the company desk
+- Receipt uses the existing secure document pipeline and `CONTRIBUTION_RECEIPT` document kind
+- Uploaded receipt is attached to the registration application and company
+- Registration workflow panel shows receipt status and inline view links
+- Remita payment integration remains a later slice
+
+Expected files:
+
+- `prisma/schema.prisma`
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/registration/actions.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- architecture/workflow docs

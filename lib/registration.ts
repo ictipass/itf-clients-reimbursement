@@ -1,5 +1,7 @@
 import { getDb } from "@/lib/db";
 import { can, isItfRole, type Role } from "@/lib/rbac";
+import { uploadObject } from "@/lib/storage";
+import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 
 export type SubmitRegistrationApplicationInput = {
   companyId: string;
@@ -48,6 +50,13 @@ export type ReleaseRegistrationContributionInput = {
   requesterRole: Role;
   releaseChannel: RecommendationReleaseChannel;
   releaseNote?: string;
+};
+
+export type UploadRegistrationContributionReceiptInput = {
+  companyId: string;
+  uploadedByEmail: string;
+  requesterRole: Role;
+  file: File;
 };
 
 const recommendationReleaseChannels = ["DASHBOARD", "DASHBOARD_AND_EMAIL"] as const;
@@ -724,5 +733,132 @@ export async function releaseRegistrationContribution(input: ReleaseRegistration
     });
 
     return updated;
+  });
+}
+
+export async function uploadRegistrationContributionReceipt(
+  input: UploadRegistrationContributionReceiptInput,
+) {
+  if (!can(input.requesterRole, "registry:submit")) {
+    throw new Error("You do not have permission to upload registration payment receipts.");
+  }
+
+  const db = getDb();
+  const registrationApplication = await db.registrationApplication.findFirst({
+    where: {
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "SUBMITTED",
+      currentDesk: "COMPANY",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+      contributionAssessment: {
+        is: {
+          amReleasedAt: {
+            not: null,
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          id: true,
+          organizationId: true,
+        },
+      },
+      contributionAssessment: {
+        select: {
+          id: true,
+        },
+      },
+    },
+  });
+
+  if (!registrationApplication?.contributionAssessment) {
+    throw new Error("A released contribution recommendation was not found for this company.");
+  }
+
+  const uploader = await db.user.findUnique({
+    where: {
+      email: input.uploadedByEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!uploader) {
+    throw new Error("Upload user was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    uploader.memberships.some(
+      (membership) => membership.organizationId === registrationApplication.company.organizationId,
+    );
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this company's registration receipt.");
+  }
+
+  const buffer = Buffer.from(await input.file.arrayBuffer());
+  const safeFileName = sanitizeFileName(input.file.name);
+  const validated = validateUpload(buffer, safeFileName, input.file.type);
+  const stored = await uploadObject({
+    buffer,
+    companyId: registrationApplication.company.id,
+    extension: validated.extension,
+    mimeType: validated.mimeType,
+  });
+
+  return db.$transaction(async (tx) => {
+    const document = await tx.document.create({
+      data: {
+        organizationId: registrationApplication.company.organizationId,
+        companyId: registrationApplication.company.id,
+        registrationApplicationId: registrationApplication.id,
+        uploadedById: uploader.id,
+        kind: "CONTRIBUTION_RECEIPT",
+        fileName: safeFileName,
+        storageProvider: stored.storageProvider,
+        bucket: stored.bucket,
+        objectKey: stored.objectKey,
+        url: stored.url,
+        etag: stored.etag,
+        versionId: stored.versionId,
+        checksum: stored.checksum,
+        mimeType: stored.mimeType,
+        fileSize: stored.fileSize,
+        access: "PRIVATE",
+        classification: "OFFICIAL",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: uploader.id,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        documentId: document.id,
+        action: "SUBMIT",
+        reason: "Uploaded registration contribution payment receipt.",
+      },
+    });
+
+    return document;
   });
 }

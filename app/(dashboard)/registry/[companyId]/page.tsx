@@ -8,6 +8,7 @@ import {
   releaseRegistrationContributionAction,
   routeRegistrationApplicationAction,
   submitRegistrationApplicationAction,
+  uploadRegistrationContributionReceiptAction,
 } from "@/app/(dashboard)/registry/[companyId]/registration/actions";
 import { getEmployerCompany } from "@/lib/registry";
 
@@ -242,7 +243,7 @@ export default async function CompanyDetailPage({
             {company.registrationApplication.decisions[0] ? (
               <div className="md:col-span-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                  Latest routing decision
+                  Latest registration activity
                 </p>
                 <p className="mt-1 text-sm leading-6 text-zinc-700">
                   <span className="font-semibold text-zinc-950">
@@ -329,6 +330,40 @@ export default async function CompanyDetailPage({
                     </p>
                   ) : null}
                 </div>
+              </div>
+            ) : null}
+            {company.registrationApplication.contributionAssessment?.amReleasedAt ? (
+              <div className="md:col-span-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                  Payment receipt
+                </p>
+                {company.registrationApplication.documents.length === 0 ? (
+                  <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    No contribution payment receipt has been uploaded yet.
+                  </p>
+                ) : (
+                  <div className="mt-2 grid gap-2 rounded-md bg-zinc-50 p-3">
+                    {company.registrationApplication.documents.map((document) => (
+                      <div
+                        key={document.id}
+                        className="flex flex-wrap items-center justify-between gap-2 text-sm"
+                      >
+                        <p>
+                          <span className="font-semibold text-zinc-950">{document.fileName}</span>{" "}
+                          · {formatDate(document.createdAt)}
+                        </p>
+                        <Link
+                          href={`/registry/${company.id}/evidence/${document.id}?disposition=inline`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800"
+                        >
+                          View
+                        </Link>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             ) : null}
           </div>
@@ -471,6 +506,30 @@ export default async function CompanyDetailPage({
             <div>
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Recommend contribution and return to HORIC
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {company.registrationApplication?.currentDesk === "COMPANY" &&
+        company.registrationApplication.status === "SUBMITTED" &&
+        company.registrationApplication.contributionAssessment?.amReleasedAt ? (
+          <form
+            action={uploadRegistrationContributionReceiptAction.bind(null, company.id)}
+            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+          >
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Contribution payment receipt
+              <input
+                name="receipt"
+                type="file"
+                required
+                accept="application/pdf,image/jpeg,image/png"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2"
+              />
+            </label>
+            <div>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Upload payment receipt
               </button>
             </div>
           </form>
