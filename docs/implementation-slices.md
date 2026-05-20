@@ -451,3 +451,23 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/registration/actions.ts`
 - `lib/registry.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
+
+### Slice 20: Registration Contribution Assessment
+
+Goal: let the Revenue Accountant recommend the employer's registration training contribution before HORIC review.
+
+Expected design:
+
+- Dedicated contribution assessment model linked to registration application
+- RA captures payroll basis, turnover basis, recommended contribution amount, and notes
+- Assessment action updates or creates the current recommendation
+- Registration returns from RA desk to HORIC after recommendation
+- Recommendation appears on the company detail page
+
+Expected files:
+
+- `prisma/schema.prisma`
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/registration/actions.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`

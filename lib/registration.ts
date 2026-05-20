@@ -25,6 +25,16 @@ export type RouteRegistrationApplicationInput = {
   reason?: string;
 };
 
+export type AssessRegistrationContributionInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  payrollBasis?: string;
+  turnoverBasis?: string;
+  recommendedAmount: string;
+  assessmentNote?: string;
+};
+
 export function getRegistrationDeskTransitions() {
   return registrationDeskTransitions;
 }
@@ -294,5 +304,127 @@ export async function routeRegistrationApplication(input: RouteRegistrationAppli
     });
 
     return updated;
+  });
+}
+
+export async function assessRegistrationContribution(input: AssessRegistrationContributionInput) {
+  if (!can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to assess registration contribution.");
+  }
+
+  if (
+    input.requesterRole !== "REVENUE_ACCOUNTANT" &&
+    input.requesterRole !== "SYSTEM_ADMIN" &&
+    input.requesterRole !== "WORKSPACE_APP_ADMIN"
+  ) {
+    throw new Error("Only a Revenue Accountant can recommend registration contribution.");
+  }
+
+  const db = getDb();
+  const registrationApplication = await db.registrationApplication.findFirst({
+    where: {
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "SUBMITTED",
+      currentDesk: "REVENUE_ACCOUNTANT",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      areaOfficeId: true,
+    },
+  });
+
+  if (!registrationApplication) {
+    throw new Error("Registration application is not currently with Revenue Accountant.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasAreaOfficeAccess =
+    input.requesterRole === "SYSTEM_ADMIN" ||
+    input.requesterRole === "WORKSPACE_APP_ADMIN" ||
+    actor.memberships.some(
+      (membership) => membership.areaOfficeId === registrationApplication.areaOfficeId,
+    );
+
+  if (!hasAreaOfficeAccess) {
+    throw new Error("You do not have access to this Area Office registration.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const assessment = await tx.registrationContributionAssessment.upsert({
+      where: {
+        registrationApplicationId: registrationApplication.id,
+      },
+      update: {
+        assessedById: actor.id,
+        payrollBasis: input.payrollBasis,
+        turnoverBasis: input.turnoverBasis,
+        recommendedAmount: input.recommendedAmount,
+        assessmentNote: input.assessmentNote,
+        assessedAt: new Date(),
+      },
+      create: {
+        registrationApplicationId: registrationApplication.id,
+        companyId: registrationApplication.companyId,
+        areaOfficeId: registrationApplication.areaOfficeId,
+        assessedById: actor.id,
+        payrollBasis: input.payrollBasis,
+        turnoverBasis: input.turnoverBasis,
+        recommendedAmount: input.recommendedAmount,
+        assessmentNote: input.assessmentNote,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.registrationApplication.update({
+      where: {
+        id: registrationApplication.id,
+      },
+      data: {
+        currentDesk: "HORIC",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        action: "RECOMMEND",
+        reason: [`Recommended contribution: ${input.recommendedAmount}`, input.assessmentNote]
+          .filter(Boolean)
+          .join(": "),
+      },
+    });
+
+    return assessment;
   });
 }

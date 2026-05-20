@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
 import {
+  assessRegistrationContribution,
   getRegistrationDeskTransitions,
   routeRegistrationApplication,
   submitRegistrationApplication,
@@ -64,6 +65,61 @@ export async function routeRegistrationApplicationAction(companyId: string, form
     requesterRole: session.user.role,
     transition: readDeskTransition(formData),
     reason: readOptionalString(formData, "reason"),
+  });
+
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+function readRequiredMoney(formData: FormData, name: string) {
+  const value = readOptionalString(formData, name);
+
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+
+  const normalized = value.replaceAll(",", "");
+  const parsed = Number(normalized);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${name} must be a valid amount.`);
+  }
+
+  return normalized;
+}
+
+function readOptionalMoney(formData: FormData, name: string) {
+  const value = readOptionalString(formData, name);
+
+  if (!value) {
+    return undefined;
+  }
+
+  const normalized = value.replaceAll(",", "");
+  const parsed = Number(normalized);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${name} must be a valid amount.`);
+  }
+
+  return normalized;
+}
+
+export async function assessRegistrationContributionAction(companyId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await assessRegistrationContribution({
+    companyId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    payrollBasis: readOptionalMoney(formData, "payrollBasis"),
+    turnoverBasis: readOptionalMoney(formData, "turnoverBasis"),
+    recommendedAmount: readRequiredMoney(formData, "recommendedAmount"),
+    assessmentNote: readOptionalString(formData, "assessmentNote"),
   });
 
   revalidatePath(`/registry/${companyId}`);

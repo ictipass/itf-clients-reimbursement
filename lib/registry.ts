@@ -117,6 +117,21 @@ export async function getEmployerCompany(companyId: string) {
               name: true,
             },
           },
+          contributionAssessment: {
+            select: {
+              id: true,
+              payrollBasis: true,
+              turnoverBasis: true,
+              recommendedAmount: true,
+              assessmentNote: true,
+              assessedAt: true,
+              assessedBy: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
         },
       },
       documents: {

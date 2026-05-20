@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { updateComplianceYearStatusAction } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
 import {
+  assessRegistrationContributionAction,
   routeRegistrationApplicationAction,
   submitRegistrationApplicationAction,
 } from "@/app/(dashboard)/registry/[companyId]/registration/actions";
@@ -240,6 +241,42 @@ export default async function CompanyDetailPage({
                 </p>
               </div>
             ) : null}
+            {company.registrationApplication.contributionAssessment ? (
+              <div className="md:col-span-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                  Contribution recommendation
+                </p>
+                <div className="mt-2 grid gap-2 rounded-md bg-zinc-50 p-3 md:grid-cols-3">
+                  <p>
+                    Recommended:{" "}
+                    <span className="font-semibold text-zinc-950">
+                      {formatMoney(
+                        company.registrationApplication.contributionAssessment.recommendedAmount,
+                      )}
+                    </span>
+                  </p>
+                  <p>
+                    By:{" "}
+                    <span className="font-semibold text-zinc-950">
+                      {company.registrationApplication.contributionAssessment.assessedBy.name}
+                    </span>
+                  </p>
+                  <p>
+                    Date:{" "}
+                    <span className="font-semibold text-zinc-950">
+                      {formatDate(
+                        company.registrationApplication.contributionAssessment.assessedAt,
+                      )}
+                    </span>
+                  </p>
+                  {company.registrationApplication.contributionAssessment.assessmentNote ? (
+                    <p className="md:col-span-3">
+                      {company.registrationApplication.contributionAssessment.assessmentNote}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
         ) : !company.areaOffice ? (
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -276,6 +313,54 @@ export default async function CompanyDetailPage({
                   {registrationTransitionLabels[transition]}
                 </button>
               ))}
+            </div>
+          </form>
+        ) : null}
+        {company.registrationApplication?.currentDesk === "REVENUE_ACCOUNTANT" &&
+        company.registrationApplication.status === "SUBMITTED" ? (
+          <form
+            action={assessRegistrationContributionAction.bind(null, company.id)}
+            className="mt-4 grid gap-4 border-t border-zinc-100 pt-4"
+          >
+            <div className="grid gap-3 md:grid-cols-3">
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Payroll basis
+                <input
+                  name="payrollBasis"
+                  inputMode="decimal"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Turnover basis
+                <input
+                  name="turnoverBasis"
+                  inputMode="decimal"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Recommended contribution
+                <input
+                  name="recommendedAmount"
+                  inputMode="decimal"
+                  required
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+                />
+              </label>
+            </div>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Assessment note
+              <textarea
+                name="assessmentNote"
+                rows={3}
+                className="rounded-md border border-zinc-200 bg-white px-3 py-2"
+              />
+            </label>
+            <div>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Recommend contribution and return to HORIC
+              </button>
             </div>
           </form>
         ) : null}
