@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { getAttentionSummary } from "@/lib/attention";
 import { appName } from "@/lib/domain";
 
 const navItems = [
@@ -17,6 +18,11 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }>) {
   const session = await getServerSession(authOptions);
+  const attentionSummary = await getAttentionSummary({
+    requesterEmail: session?.user?.email,
+    requesterRole: session?.user?.role ?? "SYSTEM_ADMIN",
+    take: 0,
+  });
 
   return (
     <main className="min-h-screen bg-zinc-100 text-zinc-950">
@@ -25,6 +31,11 @@ export default async function DashboardLayout({
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
               {appName}
+              {attentionSummary.total > 0 ? (
+                <span className="ml-2 rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white">
+                  {attentionSummary.total}
+                </span>
+              ) : null}
             </Link>
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="rounded-full border border-zinc-200 px-3 py-1 font-medium text-zinc-700">
@@ -45,7 +56,12 @@ export default async function DashboardLayout({
                 href={item.href}
                 className="rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-[#800020]/40 hover:text-[#800020]"
               >
-                {item.label}
+                <span>{item.label}</span>
+                {item.href === "/registry" && attentionSummary.total > 0 ? (
+                  <span className="ml-2 rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white">
+                    {attentionSummary.total}
+                  </span>
+                ) : null}
               </Link>
             ))}
           </nav>

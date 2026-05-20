@@ -770,8 +770,15 @@ export async function uploadRegistrationContributionReceipt(
         select: {
           id: true,
           organizationId: true,
+          legalName: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
         },
       },
+      areaOfficeId: true,
       contributionAssessment: {
         select: {
           id: true,
@@ -856,6 +863,50 @@ export async function uploadRegistrationContributionReceipt(
         documentId: document.id,
         action: "SUBMIT",
         reason: "Uploaded registration contribution payment receipt.",
+      },
+    });
+
+    await tx.registrationApplication.update({
+      where: {
+        id: registrationApplication.id,
+      },
+      data: {
+        currentDesk: "AREA_MANAGER",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.workItem.upsert({
+      where: {
+        sourceKey: `registration:${registrationApplication.id}:contribution-receipt-review`,
+      },
+      create: {
+        workspaceId: registrationApplication.company.organization.workspaceId,
+        organizationId: registrationApplication.company.organizationId,
+        areaOfficeId: registrationApplication.areaOfficeId,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        assignedRole: "AREA_MANAGER",
+        app: "REIMBURSEMENT",
+        kind: "REGISTRATION_RECEIPT_REVIEW",
+        status: "OPEN",
+        priority: "HIGH",
+        title: "Review registration payment receipt",
+        summary: `${registrationApplication.company.legalName} uploaded a contribution payment receipt.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+        sourceKey: `registration:${registrationApplication.id}:contribution-receipt-review`,
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        priority: "HIGH",
+        summary: `${registrationApplication.company.legalName} uploaded a contribution payment receipt.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+      },
+      select: {
+        id: true,
       },
     });
 

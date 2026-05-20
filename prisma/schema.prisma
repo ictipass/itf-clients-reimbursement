@@ -95,6 +95,26 @@ enum RecommendationReleaseChannel {
   DASHBOARD_AND_EMAIL
 }
 
+enum WorkspaceApp {
+  REIMBURSEMENT
+}
+
+enum WorkItemKind {
+  REGISTRATION_RECEIPT_REVIEW
+}
+
+enum WorkItemStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum WorkItemPriority {
+  NORMAL
+  HIGH
+  URGENT
+}
+
 enum RecordTier {
   HOT
   WARM
@@ -148,6 +168,7 @@ model Workspace {
   organizations Organization[]
   areaOffices   AreaOffice[]
   memberships   Membership[]
+  workItems     WorkItem[]
   auditEvents   AuditEvent[]
 }
 
@@ -165,6 +186,7 @@ model AreaOffice {
   memberships              Membership[]
   registrationApplications RegistrationApplication[]
   contributionAssessments  RegistrationContributionAssessment[]
+  workItems                WorkItem[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, isActive])
@@ -185,6 +207,7 @@ model Organization {
   companies        Company[]
   memberships      Membership[]
   documents        Document[]
+  workItems        WorkItem[]
   auditEvents      AuditEvent[]
 
   @@unique([workspaceId, slug])
@@ -205,6 +228,7 @@ model User {
   amReleasedRegistrationContributionAssessments    RegistrationContributionAssessment[] @relation("AmReleasedRegistrationContributionAssessments")
   decisions                                        Decision[]
   comments                                         Comment[]
+  assignedWorkItems                                WorkItem[]                           @relation("AssignedWorkItems")
   auditEvents                                      AuditEvent[]
 }
 
@@ -255,6 +279,7 @@ model Company {
   reimbursementClaims                 ReimbursementClaim[]
   registrationApplication             RegistrationApplication?
   registrationContributionAssessments RegistrationContributionAssessment[]
+  workItems                           WorkItem[]
   decisions                           Decision[]
   comments                            Comment[]
 
@@ -279,6 +304,7 @@ model RegistrationApplication {
   submittedBy            User?                               @relation("SubmittedRegistrationApplications", fields: [submittedById], references: [id])
   decisions              Decision[]
   documents              Document[]
+  workItems              WorkItem[]
   contributionAssessment RegistrationContributionAssessment?
 
   @@index([areaOfficeId, currentDesk, status, recordTier])
@@ -566,6 +592,40 @@ model Comment {
   document             Document?           @relation(fields: [documentId], references: [id])
 
   @@index([actorId, recordTier, createdAt])
+}
+
+model WorkItem {
+  id                        String                   @id @default(cuid())
+  workspaceId               String
+  organizationId            String?
+  areaOfficeId              String?
+  companyId                 String?
+  registrationApplicationId String?
+  assignedUserId            String?
+  assignedRole              Role?
+  app                       WorkspaceApp             @default(REIMBURSEMENT)
+  kind                      WorkItemKind
+  status                    WorkItemStatus           @default(OPEN)
+  priority                  WorkItemPriority         @default(NORMAL)
+  title                     String
+  summary                   String?
+  targetHref                String
+  sourceKey                 String                   @unique
+  resolvedAt                DateTime?
+  recordTier                RecordTier               @default(HOT)
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  workspace                 Workspace                @relation(fields: [workspaceId], references: [id])
+  organization              Organization?            @relation(fields: [organizationId], references: [id])
+  areaOffice                AreaOffice?              @relation(fields: [areaOfficeId], references: [id])
+  company                   Company?                 @relation(fields: [companyId], references: [id])
+  registrationApplication   RegistrationApplication? @relation(fields: [registrationApplicationId], references: [id])
+  assignedUser              User?                    @relation("AssignedWorkItems", fields: [assignedUserId], references: [id])
+
+  @@index([workspaceId, app, status, recordTier, createdAt])
+  @@index([areaOfficeId, assignedRole, status, recordTier])
+  @@index([organizationId, status, recordTier])
+  @@index([assignedUserId, status, recordTier])
 }
 
 model AuditEvent {

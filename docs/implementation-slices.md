@@ -510,3 +510,25 @@ Expected files:
 - `lib/registry.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture/workflow docs
+
+### Slice 23: Attention Queue Foundation
+
+Goal: create a durable work queue that can power dashboard, workspace app card, and waffle notification badges.
+
+Expected design:
+
+- Dedicated `WorkItem` model for open operational attention items
+- Work items can target a workspace app, role, user, Area Office, organization, company, and workflow record
+- Contribution receipt upload moves registration back to the Area Manager desk
+- Receipt upload creates or reopens an Area Manager attention item for that Area Office
+- Dashboard shell and overview page show open attention counts for the signed-in user's scope
+- Workspace waffle/card badges remain a later UI slice using the same work-item count helper
+
+Expected files:
+
+- `prisma/schema.prisma`
+- `lib/attention.ts`
+- `lib/registration.ts`
+- `app/(dashboard)/layout.tsx`
+- `app/(dashboard)/dashboard/page.tsx`
+- architecture/workflow docs

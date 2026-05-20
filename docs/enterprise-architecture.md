@@ -100,6 +100,10 @@ Area Manager release supports a dashboard-only notification path and a dashboard
 
 Remita integration and certificate generation remain later workflow stages.
 
+Operational attention is modeled separately from email delivery. When a workflow reaches a desk, the app can create a `WorkItem` for a role, user, Area Office, organization, company, or specific workflow record. These work items power dashboard counts now and can later power workspace app-card badges and waffle launcher badges across the broader ITF Workspace.
+
+For registration contribution receipts, company upload returns the registration application to the Area Manager desk and opens an Area Manager attention item for the selected Area Office.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text
