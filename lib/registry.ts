@@ -92,6 +92,26 @@ export async function getEmployerCompany(companyId: string) {
           currentDesk: true,
           submittedAt: true,
           completedAt: true,
+          decisions: {
+            where: {
+              recordTier: "HOT",
+            },
+            select: {
+              id: true,
+              action: true,
+              reason: true,
+              createdAt: true,
+              actor: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
+          },
           submittedBy: {
             select: {
               name: true,

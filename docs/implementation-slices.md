@@ -430,3 +430,24 @@ Expected files:
 - `lib/registry.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture/workflow docs
+
+### Slice 19: Registration Desk Routing
+
+Goal: route a submitted registration application through Area Office desks before contribution assessment.
+
+Expected design:
+
+- AM can forward to HORIC or send back to company
+- HORIC can forward to RA or return to AM
+- RA can return to HORIC
+- Current registration desk updates on the application
+- Each routing move creates a decision record attached to the registration application
+- Latest routing decision appears on the company detail page
+
+Expected files:
+
+- `prisma/schema.prisma`
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/registration/actions.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`

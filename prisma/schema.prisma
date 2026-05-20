@@ -98,6 +98,7 @@ enum RecordTier {
 
 enum DecisionAction {
   SUBMIT
+  FORWARD
   APPROVE
   REJECT
   REQUEST_CHANGES
@@ -266,6 +267,7 @@ model RegistrationApplication {
   company       Company          @relation(fields: [companyId], references: [id])
   areaOffice    AreaOffice       @relation(fields: [areaOfficeId], references: [id])
   submittedBy   User?            @relation("SubmittedRegistrationApplications", fields: [submittedById], references: [id])
+  decisions     Decision[]
 
   @@index([areaOfficeId, currentDesk, status, recordTier])
   @@index([submittedById, recordTier])
@@ -470,25 +472,28 @@ model Document {
 }
 
 model Decision {
-  id                   String              @id @default(cuid())
-  actorId              String
-  companyId            String?
-  complianceYearId     String?
-  trainingRequestId    String?
-  reimbursementClaimId String?
-  documentId           String?
-  action               DecisionAction
-  reason               String?
-  recordTier           RecordTier          @default(HOT)
-  createdAt            DateTime            @default(now())
-  actor                User                @relation(fields: [actorId], references: [id])
-  company              Company?            @relation(fields: [companyId], references: [id])
-  complianceYear       ComplianceYear?     @relation(fields: [complianceYearId], references: [id])
-  trainingRequest      TrainingRequest?    @relation(fields: [trainingRequestId], references: [id])
-  reimbursementClaim   ReimbursementClaim? @relation(fields: [reimbursementClaimId], references: [id])
-  document             Document?           @relation(fields: [documentId], references: [id])
+  id                        String                   @id @default(cuid())
+  actorId                   String
+  companyId                 String?
+  registrationApplicationId String?
+  complianceYearId          String?
+  trainingRequestId         String?
+  reimbursementClaimId      String?
+  documentId                String?
+  action                    DecisionAction
+  reason                    String?
+  recordTier                RecordTier               @default(HOT)
+  createdAt                 DateTime                 @default(now())
+  actor                     User                     @relation(fields: [actorId], references: [id])
+  company                   Company?                 @relation(fields: [companyId], references: [id])
+  registrationApplication   RegistrationApplication? @relation(fields: [registrationApplicationId], references: [id])
+  complianceYear            ComplianceYear?          @relation(fields: [complianceYearId], references: [id])
+  trainingRequest           TrainingRequest?         @relation(fields: [trainingRequestId], references: [id])
+  reimbursementClaim        ReimbursementClaim?      @relation(fields: [reimbursementClaimId], references: [id])
+  document                  Document?                @relation(fields: [documentId], references: [id])
 
   @@index([actorId, recordTier, createdAt])
+  @@index([registrationApplicationId, recordTier, createdAt])
 }
 
 model Comment {

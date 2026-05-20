@@ -7,6 +7,28 @@ export type SubmitRegistrationApplicationInput = {
   requesterRole: Role;
 };
 
+const registrationDeskTransitions = [
+  "am_to_horic",
+  "horic_to_ra",
+  "ra_to_horic",
+  "horic_to_am",
+  "am_to_company",
+] as const;
+
+export type RegistrationDeskTransition = (typeof registrationDeskTransitions)[number];
+
+export type RouteRegistrationApplicationInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  transition: RegistrationDeskTransition;
+  reason?: string;
+};
+
+export function getRegistrationDeskTransitions() {
+  return registrationDeskTransitions;
+}
+
 export async function submitRegistrationApplication(input: SubmitRegistrationApplicationInput) {
   if (!can(input.requesterRole, "registry:submit")) {
     throw new Error("You do not have permission to submit company registration.");
@@ -121,5 +143,156 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
     });
 
     return registrationApplication;
+  });
+}
+
+function resolveDeskTransition(transition: RegistrationDeskTransition) {
+  if (transition === "am_to_horic") {
+    return {
+      from: "AREA_MANAGER" as const,
+      to: "HORIC" as const,
+      allowedRoles: ["AREA_MANAGER"] as const,
+      label: "Forwarded from AM to HORIC",
+    };
+  }
+
+  if (transition === "horic_to_ra") {
+    return {
+      from: "HORIC" as const,
+      to: "REVENUE_ACCOUNTANT" as const,
+      allowedRoles: ["HORIC"] as const,
+      label: "Forwarded from HORIC to RA",
+    };
+  }
+
+  if (transition === "ra_to_horic") {
+    return {
+      from: "REVENUE_ACCOUNTANT" as const,
+      to: "HORIC" as const,
+      allowedRoles: ["REVENUE_ACCOUNTANT"] as const,
+      label: "Forwarded from RA to HORIC",
+    };
+  }
+
+  if (transition === "horic_to_am") {
+    return {
+      from: "HORIC" as const,
+      to: "AREA_MANAGER" as const,
+      allowedRoles: ["HORIC"] as const,
+      label: "Forwarded from HORIC to AM",
+    };
+  }
+
+  return {
+    from: "AREA_MANAGER" as const,
+    to: "COMPANY" as const,
+    allowedRoles: ["AREA_MANAGER"] as const,
+    label: "Forwarded from AM to company",
+  };
+}
+
+function hasDeskRoutingRole(role: Role, allowedRoles: readonly Role[]) {
+  return (
+    role === "SYSTEM_ADMIN" ||
+    role === "WORKSPACE_APP_ADMIN" ||
+    allowedRoles.includes(role)
+  );
+}
+
+export async function routeRegistrationApplication(input: RouteRegistrationApplicationInput) {
+  if (!can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to route registration applications.");
+  }
+
+  const transition = resolveDeskTransition(input.transition);
+
+  if (!hasDeskRoutingRole(input.requesterRole, transition.allowedRoles)) {
+    throw new Error("Your role cannot perform this registration desk action.");
+  }
+
+  const db = getDb();
+  const registrationApplication = await db.registrationApplication.findFirst({
+    where: {
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "SUBMITTED",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      areaOfficeId: true,
+      currentDesk: true,
+    },
+  });
+
+  if (!registrationApplication) {
+    throw new Error("Submitted registration application was not found.");
+  }
+
+  if (registrationApplication.currentDesk !== transition.from) {
+    throw new Error(`Registration is currently with ${registrationApplication.currentDesk}.`);
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasAreaOfficeAccess =
+    input.requesterRole === "SYSTEM_ADMIN" ||
+    input.requesterRole === "WORKSPACE_APP_ADMIN" ||
+    actor.memberships.some(
+      (membership) => membership.areaOfficeId === registrationApplication.areaOfficeId,
+    );
+
+  if (!hasAreaOfficeAccess) {
+    throw new Error("You do not have access to this Area Office registration.");
+  }
+
+  const reason = [transition.label, input.reason].filter(Boolean).join(": ");
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.registrationApplication.update({
+      where: {
+        id: registrationApplication.id,
+      },
+      data: {
+        currentDesk: transition.to,
+        status: transition.to === "COMPANY" ? "CHANGES_REQUESTED" : "SUBMITTED",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        action: transition.to === "COMPANY" ? "REQUEST_CHANGES" : "FORWARD",
+        reason,
+      },
+    });
+
+    return updated;
   });
 }

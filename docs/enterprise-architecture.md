@@ -92,6 +92,8 @@ The Revenue Accountant recommends the training contribution amount. HORIC review
 
 Registration is modeled as a formal `RegistrationApplication` workflow, separate from annual compliance. The first submission moves the application from the company into the Area Manager desk at the selected Area Office.
 
+Registration desk routing decisions are recorded against the registration application so AM/HORIC/RA movement is auditable before the contribution recommendation stage.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

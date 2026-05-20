@@ -2,7 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { updateComplianceYearStatusAction } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
-import { submitRegistrationApplicationAction } from "@/app/(dashboard)/registry/[companyId]/registration/actions";
+import {
+  routeRegistrationApplicationAction,
+  submitRegistrationApplicationAction,
+} from "@/app/(dashboard)/registry/[companyId]/registration/actions";
 import { getEmployerCompany } from "@/lib/registry";
 
 function formatDate(date: Date | null) {
@@ -49,6 +52,14 @@ const transitionLabels = {
   reject: "Reject",
 } as const;
 
+const registrationTransitionLabels = {
+  am_to_horic: "Forward to HORIC",
+  horic_to_ra: "Forward to RA",
+  ra_to_horic: "Return to HORIC",
+  horic_to_am: "Return to AM",
+  am_to_company: "Send to company",
+} as const;
+
 function getAvailableTransitions(status: string) {
   if (status === "DRAFT" || status === "CHANGES_REQUESTED") {
     return ["submit"] as const;
@@ -71,6 +82,26 @@ function formatDesk(value: string | null | undefined) {
   }
 
   return value.replaceAll("_", " ");
+}
+
+function getAvailableRegistrationTransitions(currentDesk: string, status: string) {
+  if (status !== "SUBMITTED") {
+    return [] as const;
+  }
+
+  if (currentDesk === "AREA_MANAGER") {
+    return ["am_to_horic", "am_to_company"] as const;
+  }
+
+  if (currentDesk === "HORIC") {
+    return ["horic_to_ra", "horic_to_am"] as const;
+  }
+
+  if (currentDesk === "REVENUE_ACCOUNTANT") {
+    return ["ra_to_horic"] as const;
+  }
+
+  return [] as const;
 }
 
 export default async function CompanyDetailPage({
@@ -155,10 +186,13 @@ export default async function CompanyDetailPage({
               </p>
             )}
           </div>
-          {!company.registrationApplication && company.areaOffice ? (
+          {(!company.registrationApplication ||
+            (company.registrationApplication.currentDesk === "COMPANY" &&
+              company.registrationApplication.status === "CHANGES_REQUESTED")) &&
+          company.areaOffice ? (
             <form action={submitRegistrationApplicationAction.bind(null, company.id)}>
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                Submit registration
+                {company.registrationApplication ? "Resubmit registration" : "Submit registration"}
               </button>
             </form>
           ) : null}
@@ -189,11 +223,61 @@ export default async function CompanyDetailPage({
                 {formatDate(company.registrationApplication.completedAt)}
               </p>
             </div>
+            {company.registrationApplication.decisions[0] ? (
+              <div className="md:col-span-3">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                  Latest routing decision
+                </p>
+                <p className="mt-1 text-sm leading-6 text-zinc-700">
+                  <span className="font-semibold text-zinc-950">
+                    {company.registrationApplication.decisions[0].action.replaceAll("_", " ")}
+                  </span>{" "}
+                  by {company.registrationApplication.decisions[0].actor.name} on{" "}
+                  {formatDate(company.registrationApplication.decisions[0].createdAt)}
+                  {company.registrationApplication.decisions[0].reason
+                    ? ` · ${company.registrationApplication.decisions[0].reason}`
+                    : ""}
+                </p>
+              </div>
+            ) : null}
           </div>
         ) : !company.areaOffice ? (
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Select an Area Office before registration can be submitted.
           </p>
+        ) : null}
+        {company.registrationApplication &&
+        getAvailableRegistrationTransitions(
+          company.registrationApplication.currentDesk,
+          company.registrationApplication.status,
+        ).length > 0 ? (
+          <form
+            action={routeRegistrationApplicationAction.bind(null, company.id)}
+            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+          >
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Routing note
+              <input
+                name="reason"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              {getAvailableRegistrationTransitions(
+                company.registrationApplication.currentDesk,
+                company.registrationApplication.status,
+              ).map((transition) => (
+                <button
+                  key={transition}
+                  name="transition"
+                  value={transition}
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
+                >
+                  {registrationTransitionLabels[transition]}
+                </button>
+              ))}
+            </div>
+          </form>
         ) : null}
       </section>
 

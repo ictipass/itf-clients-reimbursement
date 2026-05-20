@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
-import { submitRegistrationApplication } from "@/lib/registration";
+import {
+  getRegistrationDeskTransitions,
+  routeRegistrationApplication,
+  submitRegistrationApplication,
+  type RegistrationDeskTransition,
+} from "@/lib/registration";
 
 export async function submitRegistrationApplicationAction(companyId: string) {
   const session = await getServerSession(authOptions);
@@ -18,6 +23,47 @@ export async function submitRegistrationApplicationAction(companyId: string) {
     companyId,
     requesterEmail: session.user.email,
     requesterRole: session.user.role,
+  });
+
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+function readOptionalString(formData: FormData, name: string) {
+  const value = formData.get(name);
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function readDeskTransition(formData: FormData): RegistrationDeskTransition {
+  const value = readOptionalString(formData, "transition");
+  const transitions = getRegistrationDeskTransitions();
+
+  if (!value || !transitions.includes(value as RegistrationDeskTransition)) {
+    throw new Error("Unsupported registration desk transition.");
+  }
+
+  return value as RegistrationDeskTransition;
+}
+
+export async function routeRegistrationApplicationAction(companyId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await routeRegistrationApplication({
+    companyId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    transition: readDeskTransition(formData),
+    reason: readOptionalString(formData, "reason"),
   });
 
   revalidatePath(`/registry/${companyId}`);
