@@ -409,3 +409,24 @@ Expected files:
 - `lib/registry.ts`
 - registry page/form files
 - architecture/workflow docs
+
+### Slice 18: Registration Application Workflow Foundation
+
+Goal: formalize employer registration as its own Area Office workflow before contribution assessment and payment.
+
+Expected design:
+
+- Dedicated `RegistrationApplication` model
+- Link registration application to company and selected Area Office
+- Submit registration action moves the application to the Area Manager desk
+- Company detail page shows registration status, current desk, submitted date, and submitted by
+- RA contribution assessment remains a separate later slice
+
+Expected files:
+
+- `prisma/schema.prisma`
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/registration/actions.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- architecture/workflow docs

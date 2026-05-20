@@ -83,6 +83,13 @@ enum WorkflowStatus {
   ARCHIVED
 }
 
+enum RegistrationDesk {
+  COMPANY
+  AREA_MANAGER
+  HORIC
+  REVENUE_ACCOUNTANT
+}
+
 enum RecordTier {
   HOT
   WARM
@@ -139,17 +146,18 @@ model Workspace {
 }
 
 model AreaOffice {
-  id          String       @id @default(cuid())
-  workspaceId String
-  name        String
-  slug        String
-  code        String?
-  isActive    Boolean      @default(true)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  workspace   Workspace    @relation(fields: [workspaceId], references: [id])
-  companies   Company[]
-  memberships Membership[]
+  id                       String                    @id @default(cuid())
+  workspaceId              String
+  name                     String
+  slug                     String
+  code                     String?
+  isActive                 Boolean                   @default(true)
+  createdAt                DateTime                  @default(now())
+  updatedAt                DateTime                  @updatedAt
+  workspace                Workspace                 @relation(fields: [workspaceId], references: [id])
+  companies                Company[]
+  memberships              Membership[]
+  registrationApplications RegistrationApplication[]
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, isActive])
@@ -176,17 +184,18 @@ model Organization {
 }
 
 model User {
-  id           String       @id @default(cuid())
-  email        String       @unique
-  name         String
-  isActive     Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  memberships  Membership[]
-  uploadedDocs Document[]   @relation("UploadedDocuments")
-  decisions    Decision[]
-  comments     Comment[]
-  auditEvents  AuditEvent[]
+  id                                String                    @id @default(cuid())
+  email                             String                    @unique
+  name                              String
+  isActive                          Boolean                   @default(true)
+  createdAt                         DateTime                  @default(now())
+  updatedAt                         DateTime                  @updatedAt
+  memberships                       Membership[]
+  uploadedDocs                      Document[]                @relation("UploadedDocuments")
+  submittedRegistrationApplications RegistrationApplication[] @relation("SubmittedRegistrationApplications")
+  decisions                         Decision[]
+  comments                          Comment[]
+  auditEvents                       AuditEvent[]
 }
 
 model Membership {
@@ -207,38 +216,59 @@ model Membership {
 }
 
 model Company {
-  id                  String               @id @default(cuid())
-  organizationId      String
-  areaOfficeId        String?
-  legalName           String
-  rcNumber            String?
-  taxId               String?
-  itfEmployerNumber   String?
-  businessAddress     String?
-  postalAddress       String?
-  email               String?
-  telephone           String?
-  natureOfBusiness    String?
-  establishedAt       DateTime?
-  payrollBasis        Decimal?             @db.Decimal(14, 2)
-  status              CompanyStatus        @default(DRAFT)
-  recordTier          RecordTier           @default(HOT)
-  isActive            Boolean              @default(true)
-  deactivatedAt       DateTime?
-  archivedAt          DateTime?
-  createdAt           DateTime             @default(now())
-  updatedAt           DateTime             @updatedAt
-  organization        Organization         @relation(fields: [organizationId], references: [id])
-  areaOffice          AreaOffice?          @relation(fields: [areaOfficeId], references: [id])
-  documents           Document[]
-  complianceYears     ComplianceYear[]
-  trainingRequests    TrainingRequest[]
-  reimbursementClaims ReimbursementClaim[]
-  decisions           Decision[]
-  comments            Comment[]
+  id                      String                   @id @default(cuid())
+  organizationId          String
+  areaOfficeId            String?
+  legalName               String
+  rcNumber                String?
+  taxId                   String?
+  itfEmployerNumber       String?
+  businessAddress         String?
+  postalAddress           String?
+  email                   String?
+  telephone               String?
+  natureOfBusiness        String?
+  establishedAt           DateTime?
+  payrollBasis            Decimal?                 @db.Decimal(14, 2)
+  status                  CompanyStatus            @default(DRAFT)
+  recordTier              RecordTier               @default(HOT)
+  isActive                Boolean                  @default(true)
+  deactivatedAt           DateTime?
+  archivedAt              DateTime?
+  createdAt               DateTime                 @default(now())
+  updatedAt               DateTime                 @updatedAt
+  organization            Organization             @relation(fields: [organizationId], references: [id])
+  areaOffice              AreaOffice?              @relation(fields: [areaOfficeId], references: [id])
+  documents               Document[]
+  complianceYears         ComplianceYear[]
+  trainingRequests        TrainingRequest[]
+  reimbursementClaims     ReimbursementClaim[]
+  registrationApplication RegistrationApplication?
+  decisions               Decision[]
+  comments                Comment[]
 
   @@index([organizationId, status, recordTier])
   @@index([areaOfficeId, status, recordTier])
+}
+
+model RegistrationApplication {
+  id            String           @id @default(cuid())
+  companyId     String           @unique
+  areaOfficeId  String
+  submittedById String?
+  status        WorkflowStatus   @default(DRAFT)
+  currentDesk   RegistrationDesk @default(COMPANY)
+  submittedAt   DateTime?
+  completedAt   DateTime?
+  recordTier    RecordTier       @default(HOT)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  company       Company          @relation(fields: [companyId], references: [id])
+  areaOffice    AreaOffice       @relation(fields: [areaOfficeId], references: [id])
+  submittedBy   User?            @relation("SubmittedRegistrationApplications", fields: [submittedById], references: [id])
+
+  @@index([areaOfficeId, currentDesk, status, recordTier])
+  @@index([submittedById, recordTier])
 }
 
 model ComplianceYear {

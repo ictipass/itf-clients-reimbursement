@@ -90,6 +90,8 @@ Company -> Area Manager -> HORIC -> Revenue Accountant -> HORIC -> Area Manager 
 
 The Revenue Accountant recommends the training contribution amount. HORIC reviews the recommendation, and the Area Manager communicates the recommendation to the company. After payment and receipt upload, the Area Office can notify Headquarters for compliance registration number/certificate processing.
 
+Registration is modeled as a formal `RegistrationApplication` workflow, separate from annual compliance. The first submission moves the application from the company into the Area Manager desk at the selected Area Office.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

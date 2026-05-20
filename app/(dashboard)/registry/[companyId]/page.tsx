@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { updateComplianceYearStatusAction } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
+import { submitRegistrationApplicationAction } from "@/app/(dashboard)/registry/[companyId]/registration/actions";
 import { getEmployerCompany } from "@/lib/registry";
 
 function formatDate(date: Date | null) {
@@ -64,6 +65,14 @@ function getAvailableTransitions(status: string) {
   return [] as const;
 }
 
+function formatDesk(value: string | null | undefined) {
+  if (!value) {
+    return "Company";
+  }
+
+  return value.replaceAll("_", " ");
+}
+
 export default async function CompanyDetailPage({
   params,
 }: Readonly<{
@@ -121,6 +130,71 @@ export default async function CompanyDetailPage({
         <DetailItem label="Business address" value={company.businessAddress ?? "Not provided"} />
         <DetailItem label="Postal address" value={company.postalAddress ?? "Not provided"} />
         <DetailItem label="Last updated" value={formatDate(company.updatedAt)} />
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">Registration workflow</h2>
+            {company.registrationApplication ? (
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
+                Current desk:{" "}
+                <span className="font-semibold text-zinc-900">
+                  {formatDesk(company.registrationApplication.currentDesk)}
+                </span>
+                . Status:{" "}
+                <span className="font-semibold text-zinc-900">
+                  {company.registrationApplication.status.replaceAll("_", " ")}
+                </span>
+                .
+              </p>
+            ) : (
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
+                This company profile has not been submitted into the Area Office registration
+                workflow yet.
+              </p>
+            )}
+          </div>
+          {!company.registrationApplication && company.areaOffice ? (
+            <form action={submitRegistrationApplicationAction.bind(null, company.id)}>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Submit registration
+              </button>
+            </form>
+          ) : null}
+        </div>
+        {company.registrationApplication ? (
+          <div className="mt-4 grid gap-3 border-t border-zinc-100 pt-4 text-sm md:grid-cols-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Submitted by
+              </p>
+              <p className="mt-1 font-medium text-zinc-950">
+                {company.registrationApplication.submittedBy?.name ?? "Not recorded"}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Submitted date
+              </p>
+              <p className="mt-1 font-medium text-zinc-950">
+                {formatDate(company.registrationApplication.submittedAt)}
+              </p>
+            </div>
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Completed date
+              </p>
+              <p className="mt-1 font-medium text-zinc-950">
+                {formatDate(company.registrationApplication.completedAt)}
+              </p>
+            </div>
+          </div>
+        ) : !company.areaOffice ? (
+          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Select an Area Office before registration can be submitted.
+          </p>
+        ) : null}
       </section>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">

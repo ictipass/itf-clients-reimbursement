@@ -85,6 +85,20 @@ export async function getEmployerCompany(companyId: string) {
           slug: true,
         },
       },
+      registrationApplication: {
+        select: {
+          id: true,
+          status: true,
+          currentDesk: true,
+          submittedAt: true,
+          completedAt: true,
+          submittedBy: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
       documents: {
         where: {
           isActive: true,
