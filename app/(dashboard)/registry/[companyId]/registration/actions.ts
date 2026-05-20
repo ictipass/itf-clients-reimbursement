@@ -9,11 +9,14 @@ import {
   assessRegistrationContribution,
   confirmRegistrationContribution,
   getRegistrationDeskTransitions,
+  getRecommendationReleaseChannels,
   releaseRegistrationContribution,
   routeRegistrationApplication,
   submitRegistrationApplication,
   type RegistrationDeskTransition,
 } from "@/lib/registration";
+
+type RecommendationReleaseChannel = ReturnType<typeof getRecommendationReleaseChannels>[number];
 
 export async function submitRegistrationApplicationAction(companyId: string) {
   const session = await getServerSession(authOptions);
@@ -157,9 +160,21 @@ export async function releaseRegistrationContributionAction(companyId: string, f
     companyId,
     requesterEmail: session.user.email,
     requesterRole: session.user.role,
+    releaseChannel: readReleaseChannel(formData),
     releaseNote: readOptionalString(formData, "releaseNote"),
   });
 
   revalidatePath(`/registry/${companyId}`);
   redirect(`/registry/${companyId}`);
+}
+
+function readReleaseChannel(formData: FormData): RecommendationReleaseChannel {
+  const value = readOptionalString(formData, "releaseChannel");
+  const channels = getRecommendationReleaseChannels();
+
+  if (!value || !channels.includes(value as RecommendationReleaseChannel)) {
+    throw new Error("Unsupported recommendation release option.");
+  }
+
+  return value as RecommendationReleaseChannel;
 }

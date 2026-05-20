@@ -90,6 +90,11 @@ enum RegistrationDesk {
   REVENUE_ACCOUNTANT
 }
 
+enum RecommendationReleaseChannel {
+  DASHBOARD
+  DASHBOARD_AND_EMAIL
+}
+
 enum RecordTier {
   HOT
   WARM
@@ -280,31 +285,32 @@ model RegistrationApplication {
 }
 
 model RegistrationContributionAssessment {
-  id                        String                  @id @default(cuid())
-  registrationApplicationId String                  @unique
+  id                        String                        @id @default(cuid())
+  registrationApplicationId String                        @unique
   companyId                 String
   areaOfficeId              String
   assessedById              String
   horicReviewedById         String?
   amReleasedById            String?
-  payrollBasis              Decimal?                @db.Decimal(14, 2)
-  turnoverBasis             Decimal?                @db.Decimal(14, 2)
-  recommendedAmount         Decimal                 @db.Decimal(14, 2)
+  payrollBasis              Decimal?                      @db.Decimal(14, 2)
+  turnoverBasis             Decimal?                      @db.Decimal(14, 2)
+  recommendedAmount         Decimal                       @db.Decimal(14, 2)
   assessmentNote            String?
   horicReviewNote           String?
   amReleaseNote             String?
-  assessedAt                DateTime                @default(now())
+  releaseChannel            RecommendationReleaseChannel?
+  assessedAt                DateTime                      @default(now())
   horicReviewedAt           DateTime?
   amReleasedAt              DateTime?
-  recordTier                RecordTier              @default(HOT)
-  createdAt                 DateTime                @default(now())
-  updatedAt                 DateTime                @updatedAt
-  registrationApplication   RegistrationApplication @relation(fields: [registrationApplicationId], references: [id])
-  company                   Company                 @relation(fields: [companyId], references: [id])
-  areaOffice                AreaOffice              @relation(fields: [areaOfficeId], references: [id])
-  assessedBy                User                    @relation("RegistrationContributionAssessments", fields: [assessedById], references: [id])
-  horicReviewedBy           User?                   @relation("HoricReviewedRegistrationContributionAssessments", fields: [horicReviewedById], references: [id])
-  amReleasedBy              User?                   @relation("AmReleasedRegistrationContributionAssessments", fields: [amReleasedById], references: [id])
+  recordTier                RecordTier                    @default(HOT)
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
+  registrationApplication   RegistrationApplication       @relation(fields: [registrationApplicationId], references: [id])
+  company                   Company                       @relation(fields: [companyId], references: [id])
+  areaOffice                AreaOffice                    @relation(fields: [areaOfficeId], references: [id])
+  assessedBy                User                          @relation("RegistrationContributionAssessments", fields: [assessedById], references: [id])
+  horicReviewedBy           User?                         @relation("HoricReviewedRegistrationContributionAssessments", fields: [horicReviewedById], references: [id])
+  amReleasedBy              User?                         @relation("AmReleasedRegistrationContributionAssessments", fields: [amReleasedById], references: [id])
 
   @@index([companyId, recordTier])
   @@index([areaOfficeId, recordTier])

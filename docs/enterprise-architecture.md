@@ -96,6 +96,8 @@ Registration desk routing decisions are recorded against the registration applic
 
 The Revenue Accountant records the registration contribution recommendation as a separate assessment linked to the registration application. HORIC review, Area Manager release to company, payment receipt upload, Remita integration, and certificate generation remain later workflow stages.
 
+Area Manager release supports a dashboard-only notification path and a dashboard-plus-email path. The later email delivery slice should use Resend as the preferred transactional email provider.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

@@ -128,6 +128,7 @@ export async function getEmployerCompany(companyId: string) {
               horicReviewNote: true,
               horicReviewedAt: true,
               amReleaseNote: true,
+              releaseChannel: true,
               amReleasedAt: true,
               assessedBy: {
                 select: {

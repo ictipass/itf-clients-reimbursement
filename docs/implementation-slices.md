@@ -471,3 +471,21 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/registration/actions.ts`
 - `lib/registry.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
+
+### Slice 21: Registration Recommendation Release Channel
+
+Goal: let Area Manager choose how to release the confirmed contribution recommendation to the company.
+
+Expected design:
+
+- AM release action captures dashboard-only or dashboard-and-email channel
+- Current implementation records the selected delivery channel
+- Later email delivery slice should use Resend
+
+Expected files:
+
+- `prisma/schema.prisma`
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/registration/actions.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`

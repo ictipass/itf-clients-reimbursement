@@ -323,6 +323,9 @@ export default async function CompanyDetailPage({
                       {company.registrationApplication.contributionAssessment.amReleaseNote
                         ? ` · ${company.registrationApplication.contributionAssessment.amReleaseNote}`
                         : ""}
+                      {company.registrationApplication.contributionAssessment.releaseChannel
+                        ? ` · ${company.registrationApplication.contributionAssessment.releaseChannel.replaceAll("_", " ")}`
+                        : ""}
                     </p>
                   ) : null}
                 </div>
@@ -408,7 +411,16 @@ export default async function CompanyDetailPage({
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
               />
             </label>
-            <div>
+            <div className="flex flex-wrap gap-2">
+              <select
+                name="releaseChannel"
+                required
+                defaultValue="DASHBOARD"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
+              >
+                <option value="DASHBOARD">Dashboard only</option>
+                <option value="DASHBOARD_AND_EMAIL">Dashboard and email</option>
+              </select>
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Release recommendation to company
               </button>

@@ -46,8 +46,17 @@ export type ReleaseRegistrationContributionInput = {
   companyId: string;
   requesterEmail: string;
   requesterRole: Role;
+  releaseChannel: RecommendationReleaseChannel;
   releaseNote?: string;
 };
+
+const recommendationReleaseChannels = ["DASHBOARD", "DASHBOARD_AND_EMAIL"] as const;
+
+type RecommendationReleaseChannel = (typeof recommendationReleaseChannels)[number];
+
+export function getRecommendationReleaseChannels() {
+  return recommendationReleaseChannels;
+}
 
 export function getRegistrationDeskTransitions() {
   return registrationDeskTransitions;
@@ -678,6 +687,7 @@ export async function releaseRegistrationContribution(input: ReleaseRegistration
       data: {
         amReleasedById: actor.id,
         amReleaseNote: input.releaseNote,
+        releaseChannel: input.releaseChannel,
         amReleasedAt: new Date(),
       },
       select: {
@@ -705,6 +715,7 @@ export async function releaseRegistrationContribution(input: ReleaseRegistration
         action: "FORWARD",
         reason: [
           `AM released contribution to company: ${contributionAssessment.recommendedAmount.toString()}`,
+          `Channel: ${input.releaseChannel}`,
           input.releaseNote,
         ]
           .filter(Boolean)
