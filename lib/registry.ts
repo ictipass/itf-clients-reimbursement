@@ -125,7 +125,21 @@ export async function getEmployerCompany(companyId: string) {
               recommendedAmount: true,
               assessmentNote: true,
               assessedAt: true,
+              horicReviewNote: true,
+              horicReviewedAt: true,
+              amReleaseNote: true,
+              amReleasedAt: true,
               assessedBy: {
+                select: {
+                  name: true,
+                },
+              },
+              horicReviewedBy: {
+                select: {
+                  name: true,
+                },
+              },
+              amReleasedBy: {
                 select: {
                   name: true,
                 },

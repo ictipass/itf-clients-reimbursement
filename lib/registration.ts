@@ -35,6 +35,20 @@ export type AssessRegistrationContributionInput = {
   assessmentNote?: string;
 };
 
+export type ConfirmRegistrationContributionInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  reviewNote?: string;
+};
+
+export type ReleaseRegistrationContributionInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  releaseNote?: string;
+};
+
 export function getRegistrationDeskTransitions() {
   return registrationDeskTransitions;
 }
@@ -237,6 +251,13 @@ export async function routeRegistrationApplication(input: RouteRegistrationAppli
       companyId: true,
       areaOfficeId: true,
       currentDesk: true,
+      contributionAssessment: {
+        select: {
+          id: true,
+          horicReviewedAt: true,
+          amReleasedAt: true,
+        },
+      },
     },
   });
 
@@ -246,6 +267,22 @@ export async function routeRegistrationApplication(input: RouteRegistrationAppli
 
   if (registrationApplication.currentDesk !== transition.from) {
     throw new Error(`Registration is currently with ${registrationApplication.currentDesk}.`);
+  }
+
+  if (
+    input.transition === "horic_to_am" &&
+    registrationApplication.contributionAssessment &&
+    !registrationApplication.contributionAssessment.horicReviewedAt
+  ) {
+    throw new Error("HORIC must confirm the contribution recommendation before sending to AM.");
+  }
+
+  if (
+    input.transition === "am_to_company" &&
+    registrationApplication.contributionAssessment?.horicReviewedAt &&
+    !registrationApplication.contributionAssessment.amReleasedAt
+  ) {
+    throw new Error("AM must release the contribution recommendation to the company.");
   }
 
   const actor = await db.user.findUnique({
@@ -426,5 +463,255 @@ export async function assessRegistrationContribution(input: AssessRegistrationCo
     });
 
     return assessment;
+  });
+}
+
+export async function confirmRegistrationContribution(input: ConfirmRegistrationContributionInput) {
+  if (!can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to confirm registration contribution.");
+  }
+
+  if (
+    input.requesterRole !== "HORIC" &&
+    input.requesterRole !== "SYSTEM_ADMIN" &&
+    input.requesterRole !== "WORKSPACE_APP_ADMIN"
+  ) {
+    throw new Error("Only HORIC can confirm registration contribution.");
+  }
+
+  const db = getDb();
+  const registrationApplication = await db.registrationApplication.findFirst({
+    where: {
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "SUBMITTED",
+      currentDesk: "HORIC",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+      contributionAssessment: {
+        isNot: null,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      areaOfficeId: true,
+      contributionAssessment: {
+        select: {
+          id: true,
+          recommendedAmount: true,
+        },
+      },
+    },
+  });
+
+  if (!registrationApplication?.contributionAssessment) {
+    throw new Error("Contribution recommendation was not found for HORIC confirmation.");
+  }
+
+  const contributionAssessment = registrationApplication.contributionAssessment;
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasAreaOfficeAccess =
+    input.requesterRole === "SYSTEM_ADMIN" ||
+    input.requesterRole === "WORKSPACE_APP_ADMIN" ||
+    actor.memberships.some(
+      (membership) => membership.areaOfficeId === registrationApplication.areaOfficeId,
+    );
+
+  if (!hasAreaOfficeAccess) {
+    throw new Error("You do not have access to this Area Office registration.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.registrationContributionAssessment.update({
+      where: {
+        id: contributionAssessment.id,
+      },
+      data: {
+        horicReviewedById: actor.id,
+        horicReviewNote: input.reviewNote,
+        horicReviewedAt: new Date(),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.registrationApplication.update({
+      where: {
+        id: registrationApplication.id,
+      },
+      data: {
+        currentDesk: "AREA_MANAGER",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        action: "APPROVE",
+        reason: [
+          `HORIC confirmed contribution: ${contributionAssessment.recommendedAmount.toString()}`,
+          input.reviewNote,
+        ]
+          .filter(Boolean)
+          .join(": "),
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function releaseRegistrationContribution(input: ReleaseRegistrationContributionInput) {
+  if (!can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to release registration contribution.");
+  }
+
+  if (
+    input.requesterRole !== "AREA_MANAGER" &&
+    input.requesterRole !== "SYSTEM_ADMIN" &&
+    input.requesterRole !== "WORKSPACE_APP_ADMIN"
+  ) {
+    throw new Error("Only Area Manager can release registration contribution.");
+  }
+
+  const db = getDb();
+  const registrationApplication = await db.registrationApplication.findFirst({
+    where: {
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "SUBMITTED",
+      currentDesk: "AREA_MANAGER",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+      contributionAssessment: {
+        is: {
+          horicReviewedAt: {
+            not: null,
+          },
+        },
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      areaOfficeId: true,
+      contributionAssessment: {
+        select: {
+          id: true,
+          recommendedAmount: true,
+        },
+      },
+    },
+  });
+
+  if (!registrationApplication?.contributionAssessment) {
+    throw new Error("HORIC-confirmed contribution recommendation was not found.");
+  }
+
+  const contributionAssessment = registrationApplication.contributionAssessment;
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasAreaOfficeAccess =
+    input.requesterRole === "SYSTEM_ADMIN" ||
+    input.requesterRole === "WORKSPACE_APP_ADMIN" ||
+    actor.memberships.some(
+      (membership) => membership.areaOfficeId === registrationApplication.areaOfficeId,
+    );
+
+  if (!hasAreaOfficeAccess) {
+    throw new Error("You do not have access to this Area Office registration.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.registrationContributionAssessment.update({
+      where: {
+        id: contributionAssessment.id,
+      },
+      data: {
+        amReleasedById: actor.id,
+        amReleaseNote: input.releaseNote,
+        amReleasedAt: new Date(),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.registrationApplication.update({
+      where: {
+        id: registrationApplication.id,
+      },
+      data: {
+        currentDesk: "COMPANY",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        action: "FORWARD",
+        reason: [
+          `AM released contribution to company: ${contributionAssessment.recommendedAmount.toString()}`,
+          input.releaseNote,
+        ]
+          .filter(Boolean)
+          .join(": "),
+      },
+    });
+
+    return updated;
   });
 }

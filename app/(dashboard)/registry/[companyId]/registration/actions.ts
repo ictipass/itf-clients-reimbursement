@@ -7,7 +7,9 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import {
   assessRegistrationContribution,
+  confirmRegistrationContribution,
   getRegistrationDeskTransitions,
+  releaseRegistrationContribution,
   routeRegistrationApplication,
   submitRegistrationApplication,
   type RegistrationDeskTransition,
@@ -120,6 +122,42 @@ export async function assessRegistrationContributionAction(companyId: string, fo
     turnoverBasis: readOptionalMoney(formData, "turnoverBasis"),
     recommendedAmount: readRequiredMoney(formData, "recommendedAmount"),
     assessmentNote: readOptionalString(formData, "assessmentNote"),
+  });
+
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+export async function confirmRegistrationContributionAction(companyId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await confirmRegistrationContribution({
+    companyId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    reviewNote: readOptionalString(formData, "reviewNote"),
+  });
+
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+export async function releaseRegistrationContributionAction(companyId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await releaseRegistrationContribution({
+    companyId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    releaseNote: readOptionalString(formData, "releaseNote"),
   });
 
   revalidatePath(`/registry/${companyId}`);

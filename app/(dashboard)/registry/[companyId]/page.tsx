@@ -4,6 +4,8 @@ import { notFound } from "next/navigation";
 import { updateComplianceYearStatusAction } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
 import {
   assessRegistrationContributionAction,
+  confirmRegistrationContributionAction,
+  releaseRegistrationContributionAction,
   routeRegistrationApplicationAction,
   submitRegistrationApplicationAction,
 } from "@/app/(dashboard)/registry/[companyId]/registration/actions";
@@ -85,16 +87,29 @@ function formatDesk(value: string | null | undefined) {
   return value.replaceAll("_", " ");
 }
 
-function getAvailableRegistrationTransitions(currentDesk: string, status: string) {
+function getAvailableRegistrationTransitions(
+  currentDesk: string,
+  status: string,
+  hasContributionAssessment = false,
+  hasHoricReview = false,
+) {
   if (status !== "SUBMITTED") {
     return [] as const;
   }
 
   if (currentDesk === "AREA_MANAGER") {
+    if (hasHoricReview) {
+      return [] as const;
+    }
+
     return ["am_to_horic", "am_to_company"] as const;
   }
 
   if (currentDesk === "HORIC") {
+    if (hasContributionAssessment) {
+      return [] as const;
+    }
+
     return ["horic_to_ra", "horic_to_am"] as const;
   }
 
@@ -274,6 +289,42 @@ export default async function CompanyDetailPage({
                       {company.registrationApplication.contributionAssessment.assessmentNote}
                     </p>
                   ) : null}
+                  {company.registrationApplication.contributionAssessment.horicReviewedAt ? (
+                    <p className="md:col-span-3">
+                      HORIC confirmed by{" "}
+                      <span className="font-semibold text-zinc-950">
+                        {
+                          company.registrationApplication.contributionAssessment.horicReviewedBy
+                            ?.name
+                        }
+                      </span>{" "}
+                      on{" "}
+                      {formatDate(
+                        company.registrationApplication.contributionAssessment.horicReviewedAt,
+                      )}
+                      {company.registrationApplication.contributionAssessment.horicReviewNote
+                        ? ` · ${company.registrationApplication.contributionAssessment.horicReviewNote}`
+                        : ""}
+                    </p>
+                  ) : null}
+                  {company.registrationApplication.contributionAssessment.amReleasedAt ? (
+                    <p className="md:col-span-3">
+                      Released to company by{" "}
+                      <span className="font-semibold text-zinc-950">
+                        {
+                          company.registrationApplication.contributionAssessment.amReleasedBy
+                            ?.name
+                        }
+                      </span>{" "}
+                      on{" "}
+                      {formatDate(
+                        company.registrationApplication.contributionAssessment.amReleasedAt,
+                      )}
+                      {company.registrationApplication.contributionAssessment.amReleaseNote
+                        ? ` · ${company.registrationApplication.contributionAssessment.amReleaseNote}`
+                        : ""}
+                    </p>
+                  ) : null}
                 </div>
               </div>
             ) : null}
@@ -287,6 +338,8 @@ export default async function CompanyDetailPage({
         getAvailableRegistrationTransitions(
           company.registrationApplication.currentDesk,
           company.registrationApplication.status,
+          Boolean(company.registrationApplication.contributionAssessment),
+          Boolean(company.registrationApplication.contributionAssessment?.horicReviewedAt),
         ).length > 0 ? (
           <form
             action={routeRegistrationApplicationAction.bind(null, company.id)}
@@ -303,6 +356,8 @@ export default async function CompanyDetailPage({
               {getAvailableRegistrationTransitions(
                 company.registrationApplication.currentDesk,
                 company.registrationApplication.status,
+                Boolean(company.registrationApplication.contributionAssessment),
+                Boolean(company.registrationApplication.contributionAssessment?.horicReviewedAt),
               ).map((transition) => (
                 <button
                   key={transition}
@@ -313,6 +368,50 @@ export default async function CompanyDetailPage({
                   {registrationTransitionLabels[transition]}
                 </button>
               ))}
+            </div>
+          </form>
+        ) : null}
+        {company.registrationApplication?.currentDesk === "HORIC" &&
+        company.registrationApplication.status === "SUBMITTED" &&
+        company.registrationApplication.contributionAssessment &&
+        !company.registrationApplication.contributionAssessment.horicReviewedAt ? (
+          <form
+            action={confirmRegistrationContributionAction.bind(null, company.id)}
+            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+          >
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              HORIC review note
+              <input
+                name="reviewNote"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <div>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Confirm recommendation and send to AM
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {company.registrationApplication?.currentDesk === "AREA_MANAGER" &&
+        company.registrationApplication.status === "SUBMITTED" &&
+        company.registrationApplication.contributionAssessment?.horicReviewedAt &&
+        !company.registrationApplication.contributionAssessment.amReleasedAt ? (
+          <form
+            action={releaseRegistrationContributionAction.bind(null, company.id)}
+            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+          >
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              AM release note
+              <input
+                name="releaseNote"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <div>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Release recommendation to company
+              </button>
             </div>
           </form>
         ) : null}

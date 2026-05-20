@@ -186,19 +186,21 @@ model Organization {
 }
 
 model User {
-  id                                  String                               @id @default(cuid())
-  email                               String                               @unique
-  name                                String
-  isActive                            Boolean                              @default(true)
-  createdAt                           DateTime                             @default(now())
-  updatedAt                           DateTime                             @updatedAt
-  memberships                         Membership[]
-  uploadedDocs                        Document[]                           @relation("UploadedDocuments")
-  submittedRegistrationApplications   RegistrationApplication[]            @relation("SubmittedRegistrationApplications")
-  registrationContributionAssessments RegistrationContributionAssessment[] @relation("RegistrationContributionAssessments")
-  decisions                           Decision[]
-  comments                            Comment[]
-  auditEvents                         AuditEvent[]
+  id                                               String                               @id @default(cuid())
+  email                                            String                               @unique
+  name                                             String
+  isActive                                         Boolean                              @default(true)
+  createdAt                                        DateTime                             @default(now())
+  updatedAt                                        DateTime                             @updatedAt
+  memberships                                      Membership[]
+  uploadedDocs                                     Document[]                           @relation("UploadedDocuments")
+  submittedRegistrationApplications                RegistrationApplication[]            @relation("SubmittedRegistrationApplications")
+  registrationContributionAssessments              RegistrationContributionAssessment[] @relation("RegistrationContributionAssessments")
+  horicReviewedRegistrationContributionAssessments RegistrationContributionAssessment[] @relation("HoricReviewedRegistrationContributionAssessments")
+  amReleasedRegistrationContributionAssessments    RegistrationContributionAssessment[] @relation("AmReleasedRegistrationContributionAssessments")
+  decisions                                        Decision[]
+  comments                                         Comment[]
+  auditEvents                                      AuditEvent[]
 }
 
 model Membership {
@@ -283,11 +285,17 @@ model RegistrationContributionAssessment {
   companyId                 String
   areaOfficeId              String
   assessedById              String
+  horicReviewedById         String?
+  amReleasedById            String?
   payrollBasis              Decimal?                @db.Decimal(14, 2)
   turnoverBasis             Decimal?                @db.Decimal(14, 2)
   recommendedAmount         Decimal                 @db.Decimal(14, 2)
   assessmentNote            String?
+  horicReviewNote           String?
+  amReleaseNote             String?
   assessedAt                DateTime                @default(now())
+  horicReviewedAt           DateTime?
+  amReleasedAt              DateTime?
   recordTier                RecordTier              @default(HOT)
   createdAt                 DateTime                @default(now())
   updatedAt                 DateTime                @updatedAt
@@ -295,10 +303,14 @@ model RegistrationContributionAssessment {
   company                   Company                 @relation(fields: [companyId], references: [id])
   areaOffice                AreaOffice              @relation(fields: [areaOfficeId], references: [id])
   assessedBy                User                    @relation("RegistrationContributionAssessments", fields: [assessedById], references: [id])
+  horicReviewedBy           User?                   @relation("HoricReviewedRegistrationContributionAssessments", fields: [horicReviewedById], references: [id])
+  amReleasedBy              User?                   @relation("AmReleasedRegistrationContributionAssessments", fields: [amReleasedById], references: [id])
 
   @@index([companyId, recordTier])
   @@index([areaOfficeId, recordTier])
   @@index([assessedById, recordTier])
+  @@index([horicReviewedById, recordTier])
+  @@index([amReleasedById, recordTier])
 }
 
 model ComplianceYear {
