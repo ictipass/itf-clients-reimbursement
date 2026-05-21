@@ -6,6 +6,7 @@ import {
   assessRegistrationContributionAction,
   confirmRegistrationContributionAction,
   releaseRegistrationContributionAction,
+  reviewRegistrationContributionReceiptAction,
   routeRegistrationApplicationAction,
   submitRegistrationApplicationAction,
   uploadRegistrationContributionReceiptAction,
@@ -458,6 +459,39 @@ export default async function CompanyDetailPage({
               </select>
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Release recommendation to company
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {company.registrationApplication?.currentDesk === "AREA_MANAGER" &&
+        company.registrationApplication.status === "SUBMITTED" &&
+        company.registrationApplication.contributionAssessment?.amReleasedAt &&
+        company.registrationApplication.documents.length > 0 ? (
+          <form
+            action={reviewRegistrationContributionReceiptAction.bind(null, company.id)}
+            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+          >
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Receipt review note
+              <input
+                name="reviewNote"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <div className="flex flex-wrap gap-2">
+              <button
+                name="action"
+                value="accept"
+                className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
+              >
+                Accept receipt
+              </button>
+              <button
+                name="action"
+                value="request_changes"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-900"
+              >
+                Request correction
               </button>
             </div>
           </form>

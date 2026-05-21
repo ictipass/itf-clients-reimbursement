@@ -10,10 +10,13 @@ import {
   confirmRegistrationContribution,
   getRegistrationDeskTransitions,
   getRecommendationReleaseChannels,
+  getRegistrationReceiptReviewActions,
   releaseRegistrationContribution,
+  reviewRegistrationContributionReceipt,
   routeRegistrationApplication,
   submitRegistrationApplication,
   uploadRegistrationContributionReceipt,
+  type RegistrationReceiptReviewAction,
   type RegistrationDeskTransition,
 } from "@/lib/registration";
 
@@ -190,6 +193,29 @@ export async function uploadRegistrationContributionReceiptAction(
   redirect(`/registry/${companyId}`);
 }
 
+export async function reviewRegistrationContributionReceiptAction(
+  companyId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await reviewRegistrationContributionReceipt({
+    companyId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    action: readReceiptReviewAction(formData),
+    reviewNote: readOptionalString(formData, "reviewNote"),
+  });
+
+  revalidatePath(`/dashboard`);
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
 function readReleaseChannel(formData: FormData): RecommendationReleaseChannel {
   const value = readOptionalString(formData, "releaseChannel");
   const channels = getRecommendationReleaseChannels();
@@ -199,6 +225,17 @@ function readReleaseChannel(formData: FormData): RecommendationReleaseChannel {
   }
 
   return value as RecommendationReleaseChannel;
+}
+
+function readReceiptReviewAction(formData: FormData): RegistrationReceiptReviewAction {
+  const value = readOptionalString(formData, "action");
+  const actions = getRegistrationReceiptReviewActions();
+
+  if (!value || !actions.includes(value as RegistrationReceiptReviewAction)) {
+    throw new Error("Unsupported receipt review action.");
+  }
+
+  return value as RegistrationReceiptReviewAction;
 }
 
 function readRequiredFile(formData: FormData, name: string) {

@@ -59,6 +59,18 @@ export type UploadRegistrationContributionReceiptInput = {
   file: File;
 };
 
+const registrationReceiptReviewActions = ["accept", "request_changes"] as const;
+
+export type RegistrationReceiptReviewAction = (typeof registrationReceiptReviewActions)[number];
+
+export type ReviewRegistrationContributionReceiptInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  action: RegistrationReceiptReviewAction;
+  reviewNote?: string;
+};
+
 const recommendationReleaseChannels = ["DASHBOARD", "DASHBOARD_AND_EMAIL"] as const;
 
 type RecommendationReleaseChannel = (typeof recommendationReleaseChannels)[number];
@@ -69,6 +81,10 @@ export function getRecommendationReleaseChannels() {
 
 export function getRegistrationDeskTransitions() {
   return registrationDeskTransitions;
+}
+
+export function getRegistrationReceiptReviewActions() {
+  return registrationReceiptReviewActions;
 }
 
 export async function submitRegistrationApplication(input: SubmitRegistrationApplicationInput) {
@@ -911,5 +927,136 @@ export async function uploadRegistrationContributionReceipt(
     });
 
     return document;
+  });
+}
+
+export async function reviewRegistrationContributionReceipt(
+  input: ReviewRegistrationContributionReceiptInput,
+) {
+  if (!can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to review registration payment receipts.");
+  }
+
+  if (
+    input.requesterRole !== "AREA_MANAGER" &&
+    input.requesterRole !== "SYSTEM_ADMIN" &&
+    input.requesterRole !== "WORKSPACE_APP_ADMIN"
+  ) {
+    throw new Error("Only Area Manager can review registration payment receipts.");
+  }
+
+  const db = getDb();
+  const registrationApplication = await db.registrationApplication.findFirst({
+    where: {
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "SUBMITTED",
+      currentDesk: "AREA_MANAGER",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+      contributionAssessment: {
+        is: {
+          amReleasedAt: {
+            not: null,
+          },
+        },
+      },
+      documents: {
+        some: {
+          kind: "CONTRIBUTION_RECEIPT",
+          isActive: true,
+          recordTier: "HOT",
+          revokedAt: null,
+        },
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      areaOfficeId: true,
+    },
+  });
+
+  if (!registrationApplication) {
+    throw new Error("A receipt awaiting Area Manager review was not found.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasAreaOfficeAccess =
+    input.requesterRole === "SYSTEM_ADMIN" ||
+    input.requesterRole === "WORKSPACE_APP_ADMIN" ||
+    actor.memberships.some(
+      (membership) => membership.areaOfficeId === registrationApplication.areaOfficeId,
+    );
+
+  if (!hasAreaOfficeAccess) {
+    throw new Error("You do not have access to this Area Office registration.");
+  }
+
+  const accepted = input.action === "accept";
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.registrationApplication.update({
+      where: {
+        id: registrationApplication.id,
+      },
+      data: {
+        currentDesk: accepted ? "AREA_MANAGER" : "COMPANY",
+        status: accepted ? "IN_REVIEW" : "SUBMITTED",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        action: accepted ? "APPROVE" : "REQUEST_CHANGES",
+        reason: [
+          accepted
+            ? "AM accepted registration contribution payment receipt"
+            : "AM requested correction on registration contribution payment receipt",
+          input.reviewNote,
+        ]
+          .filter(Boolean)
+          .join(": "),
+      },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        sourceKey: `registration:${registrationApplication.id}:contribution-receipt-review`,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
+      },
+    });
+
+    return updated;
   });
 }

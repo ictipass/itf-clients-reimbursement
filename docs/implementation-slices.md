@@ -532,3 +532,22 @@ Expected files:
 - `app/(dashboard)/layout.tsx`
 - `app/(dashboard)/dashboard/page.tsx`
 - architecture/workflow docs
+
+### Slice 24: Registration Receipt Review Action
+
+Goal: let the Area Manager act on a contribution receipt attention item.
+
+Expected design:
+
+- AM can accept a submitted contribution receipt
+- AM can request correction on the receipt
+- Accepting the receipt resolves the AM attention item
+- Requesting correction returns the registration application to the company desk and resolves the AM attention item
+- Every review action creates a decision trail entry
+
+Expected files:
+
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/registration/actions.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

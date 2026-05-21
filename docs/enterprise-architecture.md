@@ -104,6 +104,8 @@ Operational attention is modeled separately from email delivery. When a workflow
 
 For registration contribution receipts, company upload returns the registration application to the Area Manager desk and opens an Area Manager attention item for the selected Area Office.
 
+Area Manager receipt review can accept the payment evidence or request correction. Acceptance resolves the Area Manager attention item and leaves the registration in review for the next registration-completion stage. Correction returns the workflow to the company desk for a replacement upload.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text
