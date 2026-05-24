@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { updateComplianceYearStatusAction } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
 import {
   assessRegistrationContributionAction,
+  completeRegistrationAtHeadquartersAction,
   confirmRegistrationContributionAction,
   notifyRegistrationHeadquartersAction,
   releaseRegistrationContributionAction,
@@ -522,6 +523,43 @@ export default async function CompanyDetailPage({
             <div>
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Notify Headquarters
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {company.registrationApplication?.currentDesk === "DIRECTOR_FSD" &&
+        company.registrationApplication.status === "IN_REVIEW" ? (
+          <form
+            action={completeRegistrationAtHeadquartersAction.bind(null, company.id)}
+            className="mt-4 grid gap-4 border-t border-zinc-100 pt-4"
+          >
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                ITF employer number
+                <input
+                  name="itfEmployerNumber"
+                  required
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Certificate reference
+                <input
+                  name="certificateReference"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+                />
+              </label>
+            </div>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              HQ completion note
+              <input
+                name="note"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <div>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Complete registration
               </button>
             </div>
           </form>

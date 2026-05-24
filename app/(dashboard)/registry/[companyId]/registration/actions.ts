@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import {
   assessRegistrationContribution,
+  completeRegistrationAtHeadquarters,
   confirmRegistrationContribution,
   getRegistrationDeskTransitions,
   getRecommendationReleaseChannels,
@@ -236,6 +237,31 @@ export async function notifyRegistrationHeadquartersAction(companyId: string, fo
   redirect(`/registry/${companyId}`);
 }
 
+export async function completeRegistrationAtHeadquartersAction(
+  companyId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await completeRegistrationAtHeadquarters({
+    companyId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    itfEmployerNumber: readRequiredString(formData, "itfEmployerNumber"),
+    certificateReference: readOptionalString(formData, "certificateReference"),
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath(`/dashboard`);
+  revalidatePath(`/registry`);
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
 function readReleaseChannel(formData: FormData): RecommendationReleaseChannel {
   const value = readOptionalString(formData, "releaseChannel");
   const channels = getRecommendationReleaseChannels();
@@ -256,6 +282,16 @@ function readReceiptReviewAction(formData: FormData): RegistrationReceiptReviewA
   }
 
   return value as RegistrationReceiptReviewAction;
+}
+
+function readRequiredString(formData: FormData, name: string) {
+  const value = readOptionalString(formData, name);
+
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+
+  return value;
 }
 
 function readRequiredFile(formData: FormData, name: string) {

@@ -108,6 +108,8 @@ Area Manager receipt review can accept the payment evidence or request correctio
 
 After receipt acceptance, the Area Manager can notify Headquarters. This moves the registration to the Director FSD desk and creates a `REGISTRATION_HQ_NOTIFICATION` attention item assigned to `DIRECTOR_FSD`. HQ number/certificate recording remains the next registration-completion stage.
 
+Director FSD can complete the registration by recording the ITF employer number. Completion activates the company, approves the registration application, records optional certificate reference text in the decision trail, and resolves the HQ attention item. A formal certificate entity/generation process remains a later slice.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

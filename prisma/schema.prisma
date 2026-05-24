@@ -285,6 +285,7 @@ model Company {
   decisions                           Decision[]
   comments                            Comment[]
 
+  @@unique([itfEmployerNumber])
   @@index([organizationId, status, recordTier])
   @@index([areaOfficeId, status, recordTier])
 }

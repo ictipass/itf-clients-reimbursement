@@ -78,6 +78,15 @@ export type NotifyRegistrationHeadquartersInput = {
   note?: string;
 };
 
+export type CompleteRegistrationAtHeadquartersInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  itfEmployerNumber: string;
+  certificateReference?: string;
+  note?: string;
+};
+
 const recommendationReleaseChannels = ["DASHBOARD", "DASHBOARD_AND_EMAIL"] as const;
 
 type RecommendationReleaseChannel = (typeof recommendationReleaseChannels)[number];
@@ -1217,6 +1226,145 @@ export async function notifyRegistrationHeadquarters(
       },
       select: {
         id: true,
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function completeRegistrationAtHeadquarters(
+  input: CompleteRegistrationAtHeadquartersInput,
+) {
+  if (!can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to complete employer registration.");
+  }
+
+  if (
+    input.requesterRole !== "DIRECTOR_FSD" &&
+    input.requesterRole !== "SYSTEM_ADMIN" &&
+    input.requesterRole !== "WORKSPACE_APP_ADMIN"
+  ) {
+    throw new Error("Only Director FSD can complete employer registration.");
+  }
+
+  const itfEmployerNumber = input.itfEmployerNumber.trim();
+
+  if (!itfEmployerNumber) {
+    throw new Error("ITF employer number is required.");
+  }
+
+  const db = getDb();
+  const registrationApplication = await db.registrationApplication.findFirst({
+    where: {
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "IN_REVIEW",
+      currentDesk: "DIRECTOR_FSD",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          id: true,
+          legalName: true,
+        },
+      },
+    },
+  });
+
+  if (!registrationApplication) {
+    throw new Error("A Headquarters registration awaiting completion was not found.");
+  }
+
+  const existingCompany = await db.company.findFirst({
+    where: {
+      itfEmployerNumber,
+      id: {
+        not: registrationApplication.companyId,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingCompany) {
+    throw new Error("This ITF employer number is already assigned to another company.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  return db.$transaction(async (tx) => {
+    await tx.company.update({
+      where: {
+        id: registrationApplication.companyId,
+      },
+      data: {
+        itfEmployerNumber,
+        status: "ACTIVE",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const updated = await tx.registrationApplication.update({
+      where: {
+        id: registrationApplication.id,
+      },
+      data: {
+        status: "APPROVED",
+        completedAt: new Date(),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        action: "CERTIFY",
+        reason: [
+          `HQ completed registration with ITF employer number: ${itfEmployerNumber}`,
+          input.certificateReference
+            ? `Certificate reference: ${input.certificateReference}`
+            : undefined,
+          input.note,
+        ]
+          .filter(Boolean)
+          .join(": "),
+      },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        sourceKey: `registration:${registrationApplication.id}:hq-notification`,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
       },
     });
 

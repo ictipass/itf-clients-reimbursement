@@ -573,3 +573,24 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/registration/actions.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 26: HQ Registration Number And Certificate Recording
+
+Goal: let Headquarters complete employer registration after Area Office verification.
+
+Expected design:
+
+- Director FSD records the ITF employer number
+- Optional certificate reference and HQ note are captured in the decision trail
+- Company moves to `ACTIVE`
+- Registration application moves to `APPROVED` and gets a completion timestamp
+- HQ attention item is resolved
+- ITF employer number is unique at database level
+
+Expected files:
+
+- `prisma/schema.prisma`
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/registration/actions.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs
