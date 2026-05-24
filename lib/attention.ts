@@ -113,6 +113,13 @@ function buildAssigneeScope(
     {
       assignedUserId: requester.id,
     },
+    ...(isHeadquartersRole(requesterRole)
+      ? [
+          {
+            assignedRole: requesterRole,
+          },
+        ]
+      : []),
     {
       assignedRole: requesterRole,
       areaOfficeId: {
@@ -136,4 +143,12 @@ function buildAssigneeScope(
 
 function uniqueDefined(values: Array<string | null>) {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+}
+
+function isHeadquartersRole(role: Role) {
+  return (
+    role === "DIRECTOR_FSD" ||
+    role === "HEAD_OF_DIVISION" ||
+    role === "HQ_REIMBURSEMENT_OFFICER"
+  );
 }

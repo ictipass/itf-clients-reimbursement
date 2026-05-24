@@ -1,0 +1,5 @@
+-- AlterEnum
+ALTER TYPE "RegistrationDesk" ADD VALUE 'DIRECTOR_FSD';
+
+-- AlterEnum
+ALTER TYPE "WorkItemKind" ADD VALUE 'REGISTRATION_HQ_NOTIFICATION';

@@ -5,6 +5,7 @@ import { updateComplianceYearStatusAction } from "@/app/(dashboard)/registry/[co
 import {
   assessRegistrationContributionAction,
   confirmRegistrationContributionAction,
+  notifyRegistrationHeadquartersAction,
   releaseRegistrationContributionAction,
   reviewRegistrationContributionReceiptAction,
   routeRegistrationApplicationAction,
@@ -367,6 +368,13 @@ export default async function CompanyDetailPage({
                 )}
               </div>
             ) : null}
+            {company.registrationApplication.currentDesk === "DIRECTOR_FSD" ? (
+              <div className="md:col-span-3">
+                <p className="rounded-md bg-[#800020]/10 px-3 py-2 text-sm font-semibold text-[#65001a]">
+                  Headquarters notification is pending with Director FSD.
+                </p>
+              </div>
+            ) : null}
           </div>
         ) : !company.areaOffice ? (
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -492,6 +500,28 @@ export default async function CompanyDetailPage({
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-900"
               >
                 Request correction
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {company.registrationApplication?.currentDesk === "AREA_MANAGER" &&
+        company.registrationApplication.status === "IN_REVIEW" &&
+        company.registrationApplication.contributionAssessment?.amReleasedAt &&
+        company.registrationApplication.documents.length > 0 ? (
+          <form
+            action={notifyRegistrationHeadquartersAction.bind(null, company.id)}
+            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+          >
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Headquarters notification note
+              <input
+                name="note"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <div>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Notify Headquarters
               </button>
             </div>
           </form>

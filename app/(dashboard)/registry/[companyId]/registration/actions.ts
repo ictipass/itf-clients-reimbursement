@@ -11,6 +11,7 @@ import {
   getRegistrationDeskTransitions,
   getRecommendationReleaseChannels,
   getRegistrationReceiptReviewActions,
+  notifyRegistrationHeadquarters,
   releaseRegistrationContribution,
   reviewRegistrationContributionReceipt,
   routeRegistrationApplication,
@@ -209,6 +210,25 @@ export async function reviewRegistrationContributionReceiptAction(
     requesterRole: session.user.role,
     action: readReceiptReviewAction(formData),
     reviewNote: readOptionalString(formData, "reviewNote"),
+  });
+
+  revalidatePath(`/dashboard`);
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+export async function notifyRegistrationHeadquartersAction(companyId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await notifyRegistrationHeadquarters({
+    companyId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    note: readOptionalString(formData, "note"),
   });
 
   revalidatePath(`/dashboard`);

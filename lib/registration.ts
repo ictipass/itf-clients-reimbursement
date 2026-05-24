@@ -71,6 +71,13 @@ export type ReviewRegistrationContributionReceiptInput = {
   reviewNote?: string;
 };
 
+export type NotifyRegistrationHeadquartersInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  note?: string;
+};
+
 const recommendationReleaseChannels = ["DASHBOARD", "DASHBOARD_AND_EMAIL"] as const;
 
 type RecommendationReleaseChannel = (typeof recommendationReleaseChannels)[number];
@@ -1054,6 +1061,162 @@ export async function reviewRegistrationContributionReceipt(
       data: {
         status: "RESOLVED",
         resolvedAt: new Date(),
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function notifyRegistrationHeadquarters(
+  input: NotifyRegistrationHeadquartersInput,
+) {
+  if (!can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to notify Headquarters for registration.");
+  }
+
+  if (
+    input.requesterRole !== "AREA_MANAGER" &&
+    input.requesterRole !== "SYSTEM_ADMIN" &&
+    input.requesterRole !== "WORKSPACE_APP_ADMIN"
+  ) {
+    throw new Error("Only Area Manager can notify Headquarters for registration.");
+  }
+
+  const db = getDb();
+  const registrationApplication = await db.registrationApplication.findFirst({
+    where: {
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "IN_REVIEW",
+      currentDesk: "AREA_MANAGER",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+      contributionAssessment: {
+        is: {
+          amReleasedAt: {
+            not: null,
+          },
+        },
+      },
+      documents: {
+        some: {
+          kind: "CONTRIBUTION_RECEIPT",
+          isActive: true,
+          recordTier: "HOT",
+          revokedAt: null,
+        },
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      areaOfficeId: true,
+      company: {
+        select: {
+          legalName: true,
+          organizationId: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!registrationApplication) {
+    throw new Error("A payment-verified registration ready for Headquarters was not found.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasAreaOfficeAccess =
+    input.requesterRole === "SYSTEM_ADMIN" ||
+    input.requesterRole === "WORKSPACE_APP_ADMIN" ||
+    actor.memberships.some(
+      (membership) => membership.areaOfficeId === registrationApplication.areaOfficeId,
+    );
+
+  if (!hasAreaOfficeAccess) {
+    throw new Error("You do not have access to this Area Office registration.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.registrationApplication.update({
+      where: {
+        id: registrationApplication.id,
+      },
+      data: {
+        currentDesk: "DIRECTOR_FSD",
+        status: "IN_REVIEW",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        action: "FORWARD",
+        reason: ["Area Office notified Headquarters for registration completion", input.note]
+          .filter(Boolean)
+          .join(": "),
+      },
+    });
+
+    await tx.workItem.upsert({
+      where: {
+        sourceKey: `registration:${registrationApplication.id}:hq-notification`,
+      },
+      create: {
+        workspaceId: registrationApplication.company.organization.workspaceId,
+        organizationId: registrationApplication.company.organizationId,
+        areaOfficeId: registrationApplication.areaOfficeId,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        assignedRole: "DIRECTOR_FSD",
+        app: "REIMBURSEMENT",
+        kind: "REGISTRATION_HQ_NOTIFICATION",
+        status: "OPEN",
+        priority: "HIGH",
+        title: "Process verified employer registration",
+        summary: `${registrationApplication.company.legalName} has payment verified by Area Office and is ready for HQ processing.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+        sourceKey: `registration:${registrationApplication.id}:hq-notification`,
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        priority: "HIGH",
+        summary: `${registrationApplication.company.legalName} has payment verified by Area Office and is ready for HQ processing.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+      },
+      select: {
+        id: true,
       },
     });
 

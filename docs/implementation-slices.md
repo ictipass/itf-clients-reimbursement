@@ -551,3 +551,25 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/registration/actions.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 25: Registration HQ Notification Foundation
+
+Goal: hand payment-verified employer registration from Area Office to Headquarters.
+
+Expected design:
+
+- Add `DIRECTOR_FSD` as a registration workflow desk
+- Add `REGISTRATION_HQ_NOTIFICATION` as an attention item kind
+- AM can notify Headquarters after accepting the contribution receipt
+- Registration moves to the Director FSD desk
+- Director FSD receives an open attention item
+- Company detail page shows that HQ notification is pending
+
+Expected files:
+
+- `prisma/schema.prisma`
+- `lib/registration.ts`
+- `lib/attention.ts`
+- `app/(dashboard)/registry/[companyId]/registration/actions.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

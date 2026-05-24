@@ -106,6 +106,8 @@ For registration contribution receipts, company upload returns the registration 
 
 Area Manager receipt review can accept the payment evidence or request correction. Acceptance resolves the Area Manager attention item and leaves the registration in review for the next registration-completion stage. Correction returns the workflow to the company desk for a replacement upload.
 
+After receipt acceptance, the Area Manager can notify Headquarters. This moves the registration to the Director FSD desk and creates a `REGISTRATION_HQ_NOTIFICATION` attention item assigned to `DIRECTOR_FSD`. HQ number/certificate recording remains the next registration-completion stage.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

@@ -88,6 +88,7 @@ enum RegistrationDesk {
   AREA_MANAGER
   HORIC
   REVENUE_ACCOUNTANT
+  DIRECTOR_FSD
 }
 
 enum RecommendationReleaseChannel {
@@ -101,6 +102,7 @@ enum WorkspaceApp {
 
 enum WorkItemKind {
   REGISTRATION_RECEIPT_REVIEW
+  REGISTRATION_HQ_NOTIFICATION
 }
 
 enum WorkItemStatus {
