@@ -120,6 +120,8 @@ Workspace-management users can create draft certificate template versions, activ
 
 Uploaded certificate template designs can be opened inline by workspace-management users for verification. The viewer keeps the document private and sends restrictive response headers so browser rendering does not become an execution surface for uploaded content.
 
+Certificate generation follows the template-as-background path. A certificate template can hold placement metadata for dynamic text such as company name, ITF employer number, certificate number, and issue date. Registration certificates can record when a downloadable certificate is generated and which generated document stores the PDF. Actual PDF rendering remains a later slice.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

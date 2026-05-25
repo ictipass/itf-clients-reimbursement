@@ -341,6 +341,7 @@ model RegistrationCertificate {
   itfEmployerNumber         String
   templateId                String?
   generatedDocumentId       String?
+  generatedAt               DateTime?
   status                    RegistrationCertificateStatus @default(ACTIVE)
   issuedAt                  DateTime                      @default(now())
   revokedAt                 DateTime?
@@ -360,22 +361,23 @@ model RegistrationCertificate {
 }
 
 model CertificateTemplate {
-  id               String                    @id @default(cuid())
-  workspaceId      String
-  name             String
-  code             String
-  version          String
-  status           CertificateTemplateStatus @default(DRAFT)
-  effectiveFrom    DateTime?
-  retiredAt        DateTime?
-  designDocumentId String?
-  notes            String?
-  recordTier       RecordTier                @default(HOT)
-  createdAt        DateTime                  @default(now())
-  updatedAt        DateTime                  @updatedAt
-  workspace        Workspace                 @relation(fields: [workspaceId], references: [id])
-  designDocument   Document?                 @relation("CertificateTemplateDesignDocument", fields: [designDocumentId], references: [id])
-  certificates     RegistrationCertificate[]
+  id                String                    @id @default(cuid())
+  workspaceId       String
+  name              String
+  code              String
+  version           String
+  status            CertificateTemplateStatus @default(DRAFT)
+  effectiveFrom     DateTime?
+  retiredAt         DateTime?
+  designDocumentId  String?
+  placementMetadata Json?
+  notes             String?
+  recordTier        RecordTier                @default(HOT)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  workspace         Workspace                 @relation(fields: [workspaceId], references: [id])
+  designDocument    Document?                 @relation("CertificateTemplateDesignDocument", fields: [designDocumentId], references: [id])
+  certificates      RegistrationCertificate[]
 
   @@unique([workspaceId, code, version])
   @@index([designDocumentId])

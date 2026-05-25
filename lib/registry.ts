@@ -177,11 +177,14 @@ export async function getEmployerCompany(companyId: string) {
           issuedAt: true,
           expiresAt: true,
           generatedDocumentId: true,
+          generatedAt: true,
           template: {
             select: {
               name: true,
               version: true,
               status: true,
+              designDocumentId: true,
+              placementMetadata: true,
             },
           },
           issuedBy: {

@@ -37,6 +37,21 @@ function formatMoney(value: { toString(): string } | null) {
   })}`;
 }
 
+const requiredCertificatePlacementFields = [
+  "companyName",
+  "itfEmployerNumber",
+  "certificateNumber",
+  "issuedAt",
+] as const;
+
+function getMissingCertificatePlacementFields(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [...requiredCertificatePlacementFields];
+  }
+
+  return requiredCertificatePlacementFields.filter((field) => !Object.hasOwn(value, field));
+}
+
 function DetailItem({
   label,
   value,
@@ -141,6 +156,16 @@ export default async function CompanyDetailPage({
     ? "Registered with ITF"
     : "Not yet registered with ITF";
   const latestCertificate = company.registrationCertificates[0];
+  const missingPlacementFields = latestCertificate?.template
+    ? getMissingCertificatePlacementFields(latestCertificate.template.placementMetadata)
+    : [...requiredCertificatePlacementFields];
+  const certificateGenerationMissing = [
+    latestCertificate?.template ? undefined : "certificate template",
+    latestCertificate?.template?.designDocumentId ? undefined : "certificate template design",
+    missingPlacementFields.length > 0
+      ? `placement metadata: ${missingPlacementFields.join(", ")}`
+      : undefined,
+  ].filter(Boolean);
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -224,11 +249,16 @@ export default async function CompanyDetailPage({
           </div>
           {latestCertificate.generatedDocumentId ? (
             <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-              Downloadable certificate document has been generated.
+              Downloadable certificate document has been generated
+              {latestCertificate.generatedAt ? ` on ${formatDate(latestCertificate.generatedAt)}` : ""}.
+            </p>
+          ) : certificateGenerationMissing.length === 0 ? (
+            <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+              Certificate is ready for PDF generation once the generator slice is added.
             </p>
           ) : (
             <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-              Downloadable certificate generation will be added in a later slice.
+              PDF generation is waiting for {certificateGenerationMissing.join("; ")}.
             </p>
           )}
         </section>

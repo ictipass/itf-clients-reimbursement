@@ -742,3 +742,27 @@ Expected files:
 - `app/(dashboard)/settings/certificates/[templateId]/design/route.ts`
 - `app/(dashboard)/settings/certificates/page.tsx`
 - workflow docs
+
+### Slice 34: Certificate Generation Metadata Foundation
+
+Goal: prepare downloadable certificate generation using the uploaded design as a background.
+
+Expected design:
+
+- Add template placement metadata for dynamic text positions
+- Add generated timestamp to registration certificates
+- Keep generated document linkage on registration certificates
+- Add a readiness check for certificate generation prerequisites
+- Show generation readiness on the registry certificate section
+- Show placement metadata status on the certificate template settings page
+- Defer actual PDF rendering and `pdf-lib` dependency to a later slice
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/certificates.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- `app/(dashboard)/settings/certificates/page.tsx`
+- workflow docs

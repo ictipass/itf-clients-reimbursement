@@ -32,6 +32,18 @@ export type DownloadCertificateTemplateDesignInput = {
   requesterRole: Role;
 };
 
+export type CheckCertificateGenerationReadinessInput = {
+  certificateId: string;
+  requesterRole: Role;
+};
+
+const requiredPlacementKeys = [
+  "companyName",
+  "itfEmployerNumber",
+  "certificateNumber",
+  "issuedAt",
+] as const;
+
 export async function findActiveCertificateTemplate(
   db: CertificateTemplateReader,
   workspaceId: string,
@@ -92,6 +104,7 @@ export async function listCertificateTemplates() {
       effectiveFrom: true,
       retiredAt: true,
       designDocumentId: true,
+      placementMetadata: true,
       designDocument: {
         select: {
           fileName: true,
@@ -115,6 +128,61 @@ export async function listCertificateTemplates() {
     },
     orderBy: [{ status: "asc" }, { effectiveFrom: "desc" }, { createdAt: "desc" }],
   });
+}
+
+export async function checkCertificateGenerationReadiness(
+  input: CheckCertificateGenerationReadinessInput,
+) {
+  if (!can(input.requesterRole, "workspace:manage") && !can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to check certificate generation readiness.");
+  }
+
+  const db = getDb();
+  const certificate = await db.registrationCertificate.findFirst({
+    where: {
+      id: input.certificateId,
+      recordTier: "HOT",
+    },
+    select: {
+      id: true,
+      generatedDocumentId: true,
+      template: {
+        select: {
+          id: true,
+          designDocumentId: true,
+          placementMetadata: true,
+        },
+      },
+    },
+  });
+
+  if (!certificate) {
+    throw new Error("Registration certificate was not found.");
+  }
+
+  const missing: string[] = [];
+
+  if (!certificate.template) {
+    missing.push("certificate template");
+  }
+
+  if (certificate.template && !certificate.template.designDocumentId) {
+    missing.push("certificate template design");
+  }
+
+  const missingPlacementKeys = certificate.template
+    ? getMissingPlacementKeys(certificate.template.placementMetadata)
+    : [...requiredPlacementKeys];
+
+  if (missingPlacementKeys.length > 0) {
+    missing.push(`placement metadata: ${missingPlacementKeys.join(", ")}`);
+  }
+
+  return {
+    ready: missing.length === 0,
+    missing,
+    generated: Boolean(certificate.generatedDocumentId),
+  };
 }
 
 export async function listCertificateTemplateWorkspaces() {
@@ -427,4 +495,12 @@ function normalizeTemplateCode(value: string) {
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "_")
     .replace(/^_+|_+$/g, "");
+}
+
+function getMissingPlacementKeys(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return [...requiredPlacementKeys];
+  }
+
+  return requiredPlacementKeys.filter((key) => !Object.hasOwn(value, key));
 }

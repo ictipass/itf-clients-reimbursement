@@ -21,6 +21,21 @@ function formatDate(date: Date | null) {
   }).format(date);
 }
 
+const requiredPlacementFields = [
+  "companyName",
+  "itfEmployerNumber",
+  "certificateNumber",
+  "issuedAt",
+] as const;
+
+function hasPlacementMetadata(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return false;
+  }
+
+  return requiredPlacementFields.every((field) => Object.hasOwn(value, field));
+}
+
 export default async function CertificateTemplatesPage() {
   const session = await getServerSession(authOptions);
   const role = session?.user?.role ?? "SYSTEM_ADMIN";
@@ -158,6 +173,7 @@ export default async function CertificateTemplatesPage() {
                   <th className="px-4 py-3">Template</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Effective</th>
+                  <th className="px-4 py-3">Placement</th>
                   <th className="px-4 py-3">Design</th>
                   <th className="px-4 py-3">Issued</th>
                   <th className="px-4 py-3">Actions</th>
@@ -184,6 +200,11 @@ export default async function CertificateTemplatesPage() {
                     </td>
                     <td className="px-4 py-4 align-top text-zinc-700">
                       {formatDate(template.effectiveFrom)}
+                    </td>
+                    <td className="px-4 py-4 align-top text-zinc-700">
+                      {hasPlacementMetadata(template.placementMetadata)
+                        ? "Configured"
+                        : "Not configured"}
                     </td>
                     <td className="px-4 py-4 align-top text-zinc-700">
                       <div className="grid gap-2">
