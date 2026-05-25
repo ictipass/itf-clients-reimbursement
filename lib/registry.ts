@@ -176,8 +176,14 @@ export async function getEmployerCompany(companyId: string) {
           status: true,
           issuedAt: true,
           expiresAt: true,
-          templateId: true,
           generatedDocumentId: true,
+          template: {
+            select: {
+              name: true,
+              version: true,
+              status: true,
+            },
+          },
           issuedBy: {
             select: {
               name: true,

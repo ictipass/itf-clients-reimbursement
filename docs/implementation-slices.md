@@ -637,3 +637,26 @@ Expected files:
 - `lib/registry.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 29: Certificate Template Foundation
+
+Goal: prepare registration certificates for future downloadable designs without generating PDFs yet.
+
+Expected design:
+
+- Add `CertificateTemplate` and template status values
+- Version templates by workspace using code and version
+- Store template lifecycle fields such as draft, active, retired, effective date, and optional design document reference
+- Link `RegistrationCertificate` to the template used at issue time
+- Attach the latest active template when Head of Reimbursement Division completes a registration
+- Show the attached template name/version on the registry detail page
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/certificates.ts`
+- `lib/registration.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

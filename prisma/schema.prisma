@@ -103,6 +103,12 @@ enum RegistrationCertificateStatus {
   EXPIRED
 }
 
+enum CertificateTemplateStatus {
+  DRAFT
+  ACTIVE
+  RETIRED
+}
+
 enum WorkspaceApp {
   REIMBURSEMENT
 }
@@ -167,18 +173,19 @@ enum AuditAction {
 }
 
 model Workspace {
-  id            String         @id @default(cuid())
-  name          String
-  slug          String         @unique
-  externalId    String?        @unique
-  isActive      Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
-  organizations Organization[]
-  areaOffices   AreaOffice[]
-  memberships   Membership[]
-  workItems     WorkItem[]
-  auditEvents   AuditEvent[]
+  id                   String                @id @default(cuid())
+  name                 String
+  slug                 String                @unique
+  externalId           String?               @unique
+  isActive             Boolean               @default(true)
+  createdAt            DateTime              @default(now())
+  updatedAt            DateTime              @updatedAt
+  organizations        Organization[]
+  areaOffices          AreaOffice[]
+  memberships          Membership[]
+  certificateTemplates CertificateTemplate[]
+  workItems            WorkItem[]
+  auditEvents          AuditEvent[]
 }
 
 model AreaOffice {
@@ -235,7 +242,7 @@ model User {
   registrationContributionAssessments              RegistrationContributionAssessment[] @relation("RegistrationContributionAssessments")
   horicReviewedRegistrationContributionAssessments RegistrationContributionAssessment[] @relation("HoricReviewedRegistrationContributionAssessments")
   amReleasedRegistrationContributionAssessments    RegistrationContributionAssessment[] @relation("AmReleasedRegistrationContributionAssessments")
-  issuedRegistrationCertificates                    RegistrationCertificate[]           @relation("IssuedRegistrationCertificates")
+  issuedRegistrationCertificates                   RegistrationCertificate[]            @relation("IssuedRegistrationCertificates")
   decisions                                        Decision[]
   comments                                         Comment[]
   assignedWorkItems                                WorkItem[]                           @relation("AssignedWorkItems")
@@ -343,10 +350,33 @@ model RegistrationCertificate {
   company                   Company                       @relation(fields: [companyId], references: [id])
   registrationApplication   RegistrationApplication       @relation(fields: [registrationApplicationId], references: [id])
   issuedBy                  User                          @relation("IssuedRegistrationCertificates", fields: [issuedById], references: [id])
+  template                  CertificateTemplate?          @relation(fields: [templateId], references: [id])
 
   @@index([companyId, status, recordTier])
   @@index([issuedById, recordTier])
+  @@index([templateId, status, recordTier])
   @@index([itfEmployerNumber])
+}
+
+model CertificateTemplate {
+  id               String                    @id @default(cuid())
+  workspaceId      String
+  name             String
+  code             String
+  version          String
+  status           CertificateTemplateStatus @default(DRAFT)
+  effectiveFrom    DateTime?
+  retiredAt        DateTime?
+  designDocumentId String?
+  notes            String?
+  recordTier       RecordTier                @default(HOT)
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  workspace        Workspace                 @relation(fields: [workspaceId], references: [id])
+  certificates     RegistrationCertificate[]
+
+  @@unique([workspaceId, code, version])
+  @@index([workspaceId, status, recordTier, effectiveFrom])
 }
 
 model RegistrationContributionAssessment {

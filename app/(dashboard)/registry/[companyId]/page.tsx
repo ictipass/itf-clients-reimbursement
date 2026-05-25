@@ -215,7 +215,11 @@ export default async function CompanyDetailPage({
             />
             <DetailItem
               label="Template"
-              value={latestCertificate.templateId ?? "Not attached yet"}
+              value={
+                latestCertificate.template
+                  ? `${latestCertificate.template.name} v${latestCertificate.template.version}`
+                  : "Not attached yet"
+              }
             />
           </div>
           {latestCertificate.generatedDocumentId ? (

@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { findActiveCertificateTemplate } from "@/lib/certificates";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -1459,6 +1460,11 @@ export async function completeRegistrationAtHeadquarters(
         select: {
           id: true,
           legalName: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
         },
       },
     },
@@ -1513,6 +1519,13 @@ export async function completeRegistrationAtHeadquarters(
     throw new Error("User account was not found.");
   }
 
+  const issuedAt = new Date();
+  const activeTemplate = await findActiveCertificateTemplate(
+    db,
+    registrationApplication.company.organization.workspaceId,
+    issuedAt,
+  );
+
   return db.$transaction(async (tx) => {
     await tx.company.update({
       where: {
@@ -1533,7 +1546,7 @@ export async function completeRegistrationAtHeadquarters(
       },
       data: {
         status: "APPROVED",
-        completedAt: new Date(),
+        completedAt: issuedAt,
       },
       select: {
         id: true,
@@ -1568,13 +1581,17 @@ export async function completeRegistrationAtHeadquarters(
         issuedById: actor.id,
         certificateNumber,
         itfEmployerNumber,
+        templateId: activeTemplate?.id,
         status: "ACTIVE",
+        issuedAt,
       },
       update: {
         issuedById: actor.id,
         certificateNumber,
         itfEmployerNumber,
+        templateId: activeTemplate?.id,
         status: "ACTIVE",
+        issuedAt,
         revokedAt: null,
       },
       select: {
