@@ -660,3 +660,23 @@ Expected files:
 - `lib/registry.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 30: Certificate Template Seed And Admin Visibility
+
+Goal: make the active certificate template visible before upload and PDF generation are added.
+
+Expected design:
+
+- Seed one active employer registration certificate template for local workflow testing
+- Add a read-only certificate template settings page
+- Restrict the page to workspace-management roles
+- Show template name, code, version, status, effective date, design attachment state, and issued certificate count
+- Link settings from the dashboard navigation
+
+Expected files:
+
+- `prisma/seed.ts`
+- `lib/certificates.ts`
+- `app/(dashboard)/settings/certificates/page.tsx`
+- `app/(dashboard)/layout.tsx`
+- workflow docs

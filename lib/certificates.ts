@@ -1,4 +1,4 @@
-import type { getDb } from "@/lib/db";
+import { getDb } from "@/lib/db";
 
 type CertificateTemplateReader = Pick<ReturnType<typeof getDb>, "certificateTemplate">;
 
@@ -43,5 +43,39 @@ export async function findActiveCertificateTemplate(
     orderBy: {
       createdAt: "desc",
     },
+  });
+}
+
+export async function listCertificateTemplates() {
+  const db = getDb();
+
+  return db.certificateTemplate.findMany({
+    where: {
+      recordTier: "HOT",
+    },
+    select: {
+      id: true,
+      name: true,
+      code: true,
+      version: true,
+      status: true,
+      effectiveFrom: true,
+      retiredAt: true,
+      designDocumentId: true,
+      notes: true,
+      createdAt: true,
+      updatedAt: true,
+      workspace: {
+        select: {
+          name: true,
+        },
+      },
+      _count: {
+        select: {
+          certificates: true,
+        },
+      },
+    },
+    orderBy: [{ status: "asc" }, { effectiveFrom: "desc" }, { createdAt: "desc" }],
   });
 }

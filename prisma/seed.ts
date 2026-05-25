@@ -196,6 +196,33 @@ async function main() {
 
     await client.query(
       `
+        insert into "CertificateTemplate" (
+          "id", "workspaceId", "name", "code", "version", "status", "effectiveFrom", "notes", "updatedAt"
+        )
+        values (
+          'certificate-template-employer-registration-2026-1',
+          $1,
+          'ITF Employer Registration Certificate',
+          'EMPLOYER_REGISTRATION',
+          '2026.1',
+          'ACTIVE',
+          date '2026-01-01',
+          'Default active employer registration certificate template seeded for local workflow testing.',
+          now()
+        )
+        on conflict ("workspaceId", "code", "version")
+        do update set
+          "name" = excluded."name",
+          "status" = excluded."status",
+          "effectiveFrom" = excluded."effectiveFrom",
+          "notes" = excluded."notes",
+          "updatedAt" = now()
+      `,
+      [seed.workspace.id],
+    );
+
+    await client.query(
+      `
         insert into "Organization" (
           "id", "workspaceId", "name", "slug", "organizationType", "updatedAt"
         )
@@ -377,6 +404,7 @@ async function main() {
     console.log(`- Bootstrap admin: ${seed.admin.email}`);
     console.log(`- Role: ${seed.admin.role}`);
     console.log(`- Test users: ${testUsers.length}`);
+    console.log("- Certificate template: ITF Employer Registration Certificate v2026.1");
   } catch (error) {
     await client.query("rollback");
     throw error;

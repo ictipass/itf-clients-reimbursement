@@ -10,6 +10,7 @@ const navItems = [
   { href: "/registry", label: "Registry" },
   { href: "/compliance", label: "Compliance" },
   { href: "/claims", label: "Claims" },
+  { href: "/settings/certificates", label: "Settings" },
 ];
 
 export default async function DashboardLayout({

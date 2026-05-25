@@ -114,6 +114,8 @@ Head of Reimbursement Division completes the registration by recording the ITF e
 
 Certificate templates are versioned by workspace. A template can be draft, active, or retired. New certificate records can point to the active template used at issue time so that future design changes do not rewrite historical certificate records.
 
+The foundation seed creates a default active employer registration certificate template for local workflow testing. Workspace-management users can view certificate templates from the settings area; upload/edit controls and PDF generation remain later slices.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text
