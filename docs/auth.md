@@ -60,6 +60,32 @@ http://localhost:3000/sign-in
 
 Use the bootstrap credentials from `.env.local`.
 
+For role-specific workflow testing, run the foundation seed and use the shared local-only
+password:
+
+```text
+password123
+```
+
+Seeded test accounts:
+
+| Email | Implemented app role |
+| --- | --- |
+| `am@itf.local` | `AREA_MANAGER` |
+| `horic@itf.local` | `HORIC` |
+| `ra@itf.local` | `REVENUE_ACCOUNTANT` |
+| `ro@itf.local` | `REIMBURSEMENT_OFFICER` |
+| `hqro@itf.local` | `HQ_REIMBURSEMENT_OFFICER` |
+| `hqra@itf.local` | `HQ_REIMBURSEMENT_OFFICER` |
+| `hqhod@itf.local` | `HEAD_OF_DIVISION` |
+| `dfsd@itf.local` | `DIRECTOR_FSD` |
+| `employer@itf.local` | `EMPLOYER_ADMIN` |
+
+The requested labels `REVENUE_OFFICER`, `HQ_REVENUE_OFFICER`,
+`HQ_REVENUE_ACCOUNTANT`, and `HEAD_REIMBURSEMENT_DIVISION` are mapped to the closest
+currently implemented app roles above. We can formalize those exact role names later if
+the workflow needs them as separate permissions.
+
 After sign-in, the app should redirect to:
 
 ```text
@@ -80,6 +106,7 @@ The seed creates:
 - `Industrial Training Fund` internal organization
 - Bootstrap admin user from the `BOOTSTRAP_ADMIN_*` environment variables
 - `SYSTEM_ADMIN` membership for the bootstrap admin
+- Local role test users with password `DEV_TEST_USER_PASSWORD` or `password123`
 
 The script is idempotent, so it can be run more than once.
 

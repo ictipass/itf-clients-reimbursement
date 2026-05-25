@@ -96,6 +96,83 @@ const seed = {
   },
 };
 
+const testUsers: {
+  id: string;
+  email: string;
+  name: string;
+  role: Role;
+  scope: "itf" | "area-office" | "employer";
+  requestedLabel?: string;
+}[] = [
+  {
+    id: "test-am",
+    email: "am@itf.local",
+    name: "Area Manager",
+    role: "AREA_MANAGER",
+    scope: "area-office",
+  },
+  {
+    id: "test-horic",
+    email: "horic@itf.local",
+    name: "HORIC",
+    role: "HORIC",
+    scope: "area-office",
+  },
+  {
+    id: "test-ra",
+    email: "ra@itf.local",
+    name: "Revenue Accountant",
+    role: "REVENUE_ACCOUNTANT",
+    scope: "area-office",
+  },
+  {
+    id: "test-ro",
+    email: "ro@itf.local",
+    name: "Reimbursement Officer",
+    role: "REIMBURSEMENT_OFFICER",
+    scope: "area-office",
+    requestedLabel: "REVENUE_OFFICER",
+  },
+  {
+    id: "test-hqro",
+    email: "hqro@itf.local",
+    name: "HQ Reimbursement Officer",
+    role: "HQ_REIMBURSEMENT_OFFICER",
+    scope: "itf",
+    requestedLabel: "HQ_REVENUE_OFFICER",
+  },
+  {
+    id: "test-hqra",
+    email: "hqra@itf.local",
+    name: "HQ Revenue Accountant",
+    role: "HQ_REIMBURSEMENT_OFFICER",
+    scope: "itf",
+    requestedLabel: "HQ_REVENUE_ACCOUNTANT",
+  },
+  {
+    id: "test-hqhod",
+    email: "hqhod@itf.local",
+    name: "Head of Reimbursement Division",
+    role: "HEAD_OF_DIVISION",
+    scope: "itf",
+    requestedLabel: "HEAD_REIMBURSEMENT_DIVISION",
+  },
+  {
+    id: "test-dfsd",
+    email: "dfsd@itf.local",
+    name: "Director FSD",
+    role: "DIRECTOR_FSD",
+    scope: "itf",
+  },
+  {
+    id: "test-employer",
+    email: "employer@itf.local",
+    name: "Employer Admin",
+    role: "EMPLOYER_ADMIN",
+    scope: "employer",
+  },
+];
+
 const client = new Client({
   connectionString: requiredEnv("DATABASE_URL"),
 });
@@ -144,9 +221,13 @@ async function main() {
     }
 
     const organizationId = organization.id;
+    let defaultAreaOfficeId: string | undefined;
 
     for (const name of areaOfficeNames) {
       const slug = slugify(name);
+      const areaOfficeId = `area-office-${slug}`;
+
+      defaultAreaOfficeId ??= areaOfficeId;
 
       await client.query(
         `
@@ -158,7 +239,7 @@ async function main() {
             "isActive" = true,
             "updatedAt" = now()
         `,
-        [`area-office-${slug}`, seed.workspace.id, name, slug],
+        [areaOfficeId, seed.workspace.id, name, slug],
       );
     }
 
@@ -181,6 +262,19 @@ async function main() {
         seed.employerOrganization.slug,
       ],
     );
+
+    const employerOrganizationResult = await client.query(
+      `select "id" from "Organization" where "workspaceId" = $1 and "slug" = $2 limit 1`,
+      [seed.workspace.id, seed.employerOrganization.slug],
+    );
+
+    const employerOrganization = employerOrganizationResult.rows[0] as IdRow | undefined;
+
+    if (!employerOrganization) {
+      throw new Error("Seed failed to create or find the demo employer organization.");
+    }
+
+    const employerOrganizationId = employerOrganization.id;
 
     await client.query(
       `
@@ -214,6 +308,53 @@ async function main() {
       [`${userId}-${seed.admin.role.toLowerCase()}`, userId, seed.workspace.id, organizationId, seed.admin.role],
     );
 
+    for (const testUser of testUsers) {
+      await client.query(
+        `
+          insert into "User" ("id", "email", "name", "updatedAt")
+          values ($1, $2, $3, now())
+          on conflict ("email")
+          do update set "name" = excluded."name", "updatedAt" = now()
+        `,
+        [testUser.id, testUser.email, testUser.name],
+      );
+
+      const testUserResult = await client.query(
+        `select "id" from "User" where "email" = $1 limit 1`,
+        [testUser.email],
+      );
+      const seededTestUser = testUserResult.rows[0] as IdRow | undefined;
+
+      if (!seededTestUser) {
+        throw new Error(`Seed failed to create or find ${testUser.email}.`);
+      }
+
+      const membershipOrganizationId =
+        testUser.scope === "employer" ? employerOrganizationId : organizationId;
+      const membershipAreaOfficeId =
+        testUser.scope === "area-office" ? (defaultAreaOfficeId ?? null) : null;
+      const membershipId = `${seededTestUser.id}-${testUser.role.toLowerCase()}`;
+
+      await client.query(
+        `
+          insert into "Membership" (
+            "id", "userId", "workspaceId", "organizationId", "areaOfficeId", "role"
+          )
+          values ($1, $2, $3, $4, $5, $6)
+          on conflict ("userId", "workspaceId", "organizationId", "role")
+          do update set "areaOfficeId" = excluded."areaOfficeId"
+        `,
+        [
+          membershipId,
+          seededTestUser.id,
+          seed.workspace.id,
+          membershipOrganizationId,
+          membershipAreaOfficeId,
+          testUser.role,
+        ],
+      );
+    }
+
     await client.query(
       `
         insert into "AuditEvent" (
@@ -235,6 +376,7 @@ async function main() {
     console.log(`- Area offices: ${areaOfficeNames.length}`);
     console.log(`- Bootstrap admin: ${seed.admin.email}`);
     console.log(`- Role: ${seed.admin.role}`);
+    console.log(`- Test users: ${testUsers.length}`);
   } catch (error) {
     await client.query("rollback");
     throw error;

@@ -594,3 +594,23 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/registration/actions.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 27: Role Test Accounts Seed
+
+Goal: make local workflow testing easier with predictable role-specific accounts.
+
+Expected design:
+
+- Seed ITF and employer test users with short email addresses
+- Use one local-only shared test password
+- Allow seeded users to sign in through the credentials provider outside production
+- Keep bootstrap admin login unchanged
+- Document exact accounts and any role-label mappings
+
+Expected files:
+
+- `prisma/seed.ts`
+- `lib/auth.ts`
+- `.env.example`
+- `docs/auth.md`
+- implementation checklist

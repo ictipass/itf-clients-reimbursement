@@ -1,6 +1,7 @@
 import type { NextAuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
+import { getDb } from "@/lib/db";
 import { seedRoles } from "@/lib/domain";
 import { roles, type Role } from "@/lib/rbac";
 
@@ -30,6 +31,48 @@ function getBootstrapUser(): User & { role: Role } {
   };
 }
 
+async function getDevelopmentTestUser(email: string, password: string) {
+  if (process.env.NODE_ENV === "production") {
+    return null;
+  }
+
+  const expectedPassword = process.env.DEV_TEST_USER_PASSWORD ?? "password123";
+
+  if (password !== expectedPassword) {
+    return null;
+  }
+
+  const db = getDb();
+  const user = await db.user.findUnique({
+    where: {
+      email: email.toLowerCase(),
+    },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      isActive: true,
+      memberships: {
+        select: {
+          role: true,
+        },
+        take: 1,
+      },
+    },
+  });
+
+  if (!user?.isActive || !user.memberships[0]) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.memberships[0].role,
+  };
+}
+
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
@@ -47,12 +90,18 @@ export const authOptions: NextAuthOptions = {
       async authorize(credentials) {
         const bootstrapUser = getBootstrapUser();
         const expectedPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "ChangeMe123!";
+        const email = credentials?.email?.toLowerCase();
+        const password = credentials?.password;
 
         if (
-          credentials?.email?.toLowerCase() === bootstrapUser.email?.toLowerCase() &&
-          credentials?.password === expectedPassword
+          email === bootstrapUser.email?.toLowerCase() &&
+          password === expectedPassword
         ) {
           return bootstrapUser;
+        }
+
+        if (email && password) {
+          return getDevelopmentTestUser(email, password);
         }
 
         return null;
