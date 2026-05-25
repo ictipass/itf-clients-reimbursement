@@ -1,8 +1,13 @@
 import { getServerSession } from "next-auth";
 
-import { uploadCertificateTemplateDesignAction } from "@/app/(dashboard)/settings/certificates/actions";
+import {
+  activateCertificateTemplateAction,
+  createCertificateTemplateAction,
+  retireCertificateTemplateAction,
+  uploadCertificateTemplateDesignAction,
+} from "@/app/(dashboard)/settings/certificates/actions";
 import { authOptions } from "@/lib/auth";
-import { listCertificateTemplates } from "@/lib/certificates";
+import { listCertificateTemplates, listCertificateTemplateWorkspaces } from "@/lib/certificates";
 import { can } from "@/lib/rbac";
 
 function formatDate(date: Date | null) {
@@ -38,7 +43,10 @@ export default async function CertificateTemplatesPage() {
     );
   }
 
-  const templates = await listCertificateTemplates();
+  const [templates, workspaces] = await Promise.all([
+    listCertificateTemplates(),
+    listCertificateTemplateWorkspaces(),
+  ]);
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -61,6 +69,82 @@ export default async function CertificateTemplatesPage() {
           </span>
         </div>
 
+        <form
+          action={createCertificateTemplateAction}
+          className="mt-6 grid gap-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4"
+        >
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Create template version</h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-600">
+              New templates start as drafts until an admin activates them.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-5">
+            <label className="grid gap-2 text-sm font-medium text-zinc-700 md:col-span-2">
+              Name
+              <input
+                name="name"
+                required
+                defaultValue="ITF Employer Registration Certificate"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Code
+              <input
+                name="code"
+                required
+                defaultValue="EMPLOYER_REGISTRATION"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Version
+              <input
+                name="version"
+                required
+                placeholder="2026.2"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Effective date
+              <input
+                name="effectiveFrom"
+                type="date"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-end">
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Workspace
+              <select
+                name="workspaceId"
+                required
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              >
+                {workspaces.map((workspace) => (
+                  <option key={workspace.id} value={workspace.id}>
+                    {workspace.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+              Create draft
+            </button>
+          </div>
+          <label className="grid gap-2 text-sm font-medium text-zinc-700">
+            Notes
+            <textarea
+              name="notes"
+              rows={2}
+              className="rounded-md border border-zinc-200 bg-white px-3 py-2"
+            />
+          </label>
+        </form>
+
         {templates.length === 0 ? (
           <p className="mt-5 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
             No certificate templates have been seeded yet.
@@ -75,6 +159,7 @@ export default async function CertificateTemplatesPage() {
                   <th className="px-4 py-3">Effective</th>
                   <th className="px-4 py-3">Design</th>
                   <th className="px-4 py-3">Issued</th>
+                  <th className="px-4 py-3">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 bg-white">
@@ -126,6 +211,26 @@ export default async function CertificateTemplatesPage() {
                     </td>
                     <td className="px-4 py-4 align-top text-zinc-700">
                       {template._count.certificates}
+                    </td>
+                    <td className="px-4 py-4 align-top">
+                      <div className="flex flex-wrap gap-2">
+                        {template.status !== "ACTIVE" ? (
+                          <form action={activateCertificateTemplateAction}>
+                            <input type="hidden" name="templateId" value={template.id} />
+                            <button className="min-h-8 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+                              Activate
+                            </button>
+                          </form>
+                        ) : null}
+                        {template.status !== "RETIRED" ? (
+                          <form action={retireCertificateTemplateAction}>
+                            <input type="hidden" name="templateId" value={template.id} />
+                            <button className="min-h-8 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800">
+                              Retire
+                            </button>
+                          </form>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}

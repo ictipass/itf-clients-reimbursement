@@ -704,3 +704,22 @@ Expected files:
 - `app/(dashboard)/settings/certificates/actions.ts`
 - `app/(dashboard)/settings/certificates/page.tsx`
 - workflow docs
+
+### Slice 32: Certificate Template Metadata Management
+
+Goal: let workspace admins control template versions before certificate PDF generation.
+
+Expected design:
+
+- Create new certificate template versions as drafts
+- Activate a draft or retired template
+- Retire active or draft templates
+- Activating a template retires other active templates with the same workspace and code
+- Keep already issued certificates tied to their original template version
+
+Expected files:
+
+- `lib/certificates.ts`
+- `app/(dashboard)/settings/certificates/actions.ts`
+- `app/(dashboard)/settings/certificates/page.tsx`
+- workflow docs

@@ -12,6 +12,21 @@ export type UploadCertificateTemplateDesignInput = {
   file: File;
 };
 
+export type CreateCertificateTemplateInput = {
+  requesterRole: Role;
+  workspaceId: string;
+  name: string;
+  code: string;
+  version: string;
+  effectiveFrom?: Date;
+  notes?: string;
+};
+
+export type UpdateCertificateTemplateStatusInput = {
+  requesterRole: Role;
+  templateId: string;
+};
+
 export async function findActiveCertificateTemplate(
   db: CertificateTemplateReader,
   workspaceId: string,
@@ -94,6 +109,142 @@ export async function listCertificateTemplates() {
       },
     },
     orderBy: [{ status: "asc" }, { effectiveFrom: "desc" }, { createdAt: "desc" }],
+  });
+}
+
+export async function listCertificateTemplateWorkspaces() {
+  const db = getDb();
+
+  return db.workspace.findMany({
+    where: {
+      isActive: true,
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+}
+
+export async function createCertificateTemplate(input: CreateCertificateTemplateInput) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to manage certificate templates.");
+  }
+
+  const name = input.name.trim();
+  const code = normalizeTemplateCode(input.code);
+  const version = input.version.trim();
+  const notes = input.notes?.trim() || undefined;
+
+  if (!name) {
+    throw new Error("Template name is required.");
+  }
+
+  if (!code) {
+    throw new Error("Template code is required.");
+  }
+
+  if (!version) {
+    throw new Error("Template version is required.");
+  }
+
+  const db = getDb();
+
+  return db.certificateTemplate.create({
+    data: {
+      workspaceId: input.workspaceId,
+      name,
+      code,
+      version,
+      status: "DRAFT",
+      effectiveFrom: input.effectiveFrom,
+      notes,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function activateCertificateTemplate(input: UpdateCertificateTemplateStatusInput) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to manage certificate templates.");
+  }
+
+  const db = getDb();
+  const template = await db.certificateTemplate.findFirst({
+    where: {
+      id: input.templateId,
+      recordTier: "HOT",
+    },
+    select: {
+      id: true,
+      workspaceId: true,
+      code: true,
+      effectiveFrom: true,
+    },
+  });
+
+  if (!template) {
+    throw new Error("Certificate template was not found.");
+  }
+
+  const now = new Date();
+
+  return db.$transaction(async (tx) => {
+    await tx.certificateTemplate.updateMany({
+      where: {
+        workspaceId: template.workspaceId,
+        code: template.code,
+        status: "ACTIVE",
+        recordTier: "HOT",
+        id: {
+          not: template.id,
+        },
+      },
+      data: {
+        status: "RETIRED",
+        retiredAt: now,
+      },
+    });
+
+    return tx.certificateTemplate.update({
+      where: {
+        id: template.id,
+      },
+      data: {
+        status: "ACTIVE",
+        effectiveFrom: template.effectiveFrom ?? now,
+        retiredAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+  });
+}
+
+export async function retireCertificateTemplate(input: UpdateCertificateTemplateStatusInput) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to manage certificate templates.");
+  }
+
+  const db = getDb();
+
+  return db.certificateTemplate.update({
+    where: {
+      id: input.templateId,
+    },
+    data: {
+      status: "RETIRED",
+      retiredAt: new Date(),
+    },
+    select: {
+      id: true,
+    },
   });
 }
 
@@ -202,4 +353,12 @@ export async function uploadCertificateTemplateDesign(
       },
     });
   });
+}
+
+function normalizeTemplateCode(value: string) {
+  return value
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
 }

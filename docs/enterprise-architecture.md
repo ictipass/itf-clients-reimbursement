@@ -116,6 +116,8 @@ Certificate templates are versioned by workspace. A template can be draft, activ
 
 The foundation seed creates a default active employer registration certificate template for local workflow testing. Workspace-management users can view certificate templates from the settings area and attach a PDF, PNG, or JPEG design file using the same private storage and upload validation used by evidence documents. Template metadata editing and PDF generation remain later slices.
 
+Workspace-management users can create draft certificate template versions, activate a version, or retire a version. Activating a template retires other active templates with the same workspace and template code, while already issued certificates continue to point to the template version used at issue time.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
-import { uploadCertificateTemplateDesign } from "@/lib/certificates";
+import {
+  activateCertificateTemplate,
+  createCertificateTemplate,
+  retireCertificateTemplate,
+  uploadCertificateTemplateDesign,
+} from "@/lib/certificates";
 
 function readRequiredString(formData: FormData, name: string) {
   const value = formData.get(name);
@@ -27,17 +32,95 @@ function readRequiredFile(formData: FormData, name: string) {
   return value;
 }
 
-export async function uploadCertificateTemplateDesignAction(formData: FormData) {
+function readOptionalString(formData: FormData, name: string) {
+  const value = formData.get(name);
+
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const trimmed = value.trim();
+
+  return trimmed.length > 0 ? trimmed : undefined;
+}
+
+function readOptionalDate(formData: FormData, name: string) {
+  const value = readOptionalString(formData, name);
+
+  if (!value) {
+    return undefined;
+  }
+
+  const date = new Date(`${value}T00:00:00.000Z`);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`${name} must be a valid date.`);
+  }
+
+  return date;
+}
+
+async function requireSession() {
   const session = await getServerSession(authOptions);
 
-  if (!session?.user?.email) {
+  if (!session?.user?.email || !session.user.role) {
     throw new Error("Authentication is required.");
   }
 
+  return {
+    email: session.user.email,
+    role: session.user.role,
+  };
+}
+
+export async function createCertificateTemplateAction(formData: FormData) {
+  const session = await requireSession();
+
+  await createCertificateTemplate({
+    requesterRole: session.role,
+    workspaceId: readRequiredString(formData, "workspaceId"),
+    name: readRequiredString(formData, "name"),
+    code: readRequiredString(formData, "code"),
+    version: readRequiredString(formData, "version"),
+    effectiveFrom: readOptionalDate(formData, "effectiveFrom"),
+    notes: readOptionalString(formData, "notes"),
+  });
+
+  revalidatePath("/settings/certificates");
+  redirect("/settings/certificates");
+}
+
+export async function activateCertificateTemplateAction(formData: FormData) {
+  const session = await requireSession();
+
+  await activateCertificateTemplate({
+    requesterRole: session.role,
+    templateId: readRequiredString(formData, "templateId"),
+  });
+
+  revalidatePath("/settings/certificates");
+  redirect("/settings/certificates");
+}
+
+export async function retireCertificateTemplateAction(formData: FormData) {
+  const session = await requireSession();
+
+  await retireCertificateTemplate({
+    requesterRole: session.role,
+    templateId: readRequiredString(formData, "templateId"),
+  });
+
+  revalidatePath("/settings/certificates");
+  redirect("/settings/certificates");
+}
+
+export async function uploadCertificateTemplateDesignAction(formData: FormData) {
+  const session = await requireSession();
+
   await uploadCertificateTemplateDesign({
     templateId: readRequiredString(formData, "templateId"),
-    uploadedByEmail: session.user.email,
-    requesterRole: session.user.role,
+    uploadedByEmail: session.email,
+    requesterRole: session.role,
     file: readRequiredFile(formData, "design"),
   });
 
