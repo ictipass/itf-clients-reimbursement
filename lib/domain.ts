@@ -83,7 +83,7 @@ export const seedRoles: { role: Role; scope: string; purpose: string }[] = [
   {
     role: "DIRECTOR_FSD",
     scope: "Headquarters",
-    purpose: "Receive HQ correspondence and approve field services reimbursement routing.",
+    purpose: "Receive HQ correspondence, complete employer registration, and approve field services reimbursement routing.",
   },
   {
     role: "HEAD_OF_DIVISION",

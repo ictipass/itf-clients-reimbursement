@@ -369,7 +369,8 @@ export default async function CompanyDetailPage({
                 )}
               </div>
             ) : null}
-            {company.registrationApplication.currentDesk === "DIRECTOR_FSD" ? (
+            {company.registrationApplication.currentDesk === "DIRECTOR_FSD" &&
+            company.registrationApplication.status === "IN_REVIEW" ? (
               <div className="md:col-span-3">
                 <p className="rounded-md bg-[#800020]/10 px-3 py-2 text-sm font-semibold text-[#65001a]">
                   Headquarters notification is pending with Director FSD.

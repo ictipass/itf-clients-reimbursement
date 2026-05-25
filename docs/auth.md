@@ -86,6 +86,11 @@ The requested labels `REVENUE_OFFICER`, `HQ_REVENUE_OFFICER`,
 currently implemented app roles above. We can formalize those exact role names later if
 the workflow needs them as separate permissions.
 
+For local development only, seeded `@itf.local` Area Office test accounts can act across
+Area Offices so that workflow testing is not blocked by whichever Area Office was selected
+on a demo company. Production keeps Area Office access restricted to assigned
+memberships.
+
 After sign-in, the app should redirect to:
 
 ```text
