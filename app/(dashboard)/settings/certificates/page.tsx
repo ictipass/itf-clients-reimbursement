@@ -1,4 +1,5 @@
 import { getServerSession } from "next-auth";
+import Link from "next/link";
 
 import {
   activateCertificateTemplateAction,
@@ -191,6 +192,16 @@ export default async function CertificateTemplatesPage() {
                             ? `${template.designDocument.fileName} · ${template.designDocument.mimeType}`
                             : "Not attached"}
                         </span>
+                        {template.designDocument ? (
+                          <Link
+                            href={`/settings/certificates/${template.id}/design`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-fit text-xs font-semibold text-[#800020]"
+                          >
+                            View design
+                          </Link>
+                        ) : null}
                         <form
                           action={uploadCertificateTemplateDesignAction}
                           className="grid max-w-xs gap-2"

@@ -723,3 +723,22 @@ Expected files:
 - `app/(dashboard)/settings/certificates/actions.ts`
 - `app/(dashboard)/settings/certificates/page.tsx`
 - workflow docs
+
+### Slice 33: Certificate Design Inline Viewer
+
+Goal: let workspace admins verify uploaded certificate template designs in the browser.
+
+Expected design:
+
+- Add a private route for viewing a template design document inline
+- Reuse storage download flow
+- Restrict access to workspace-management roles
+- Return no-store, nosniff, same-origin, and sandbox headers
+- Add a `View design` link beside attached template designs
+
+Expected files:
+
+- `lib/certificates.ts`
+- `app/(dashboard)/settings/certificates/[templateId]/design/route.ts`
+- `app/(dashboard)/settings/certificates/page.tsx`
+- workflow docs

@@ -118,6 +118,8 @@ The foundation seed creates a default active employer registration certificate t
 
 Workspace-management users can create draft certificate template versions, activate a version, or retire a version. Activating a template retires other active templates with the same workspace and template code, while already issued certificates continue to point to the template version used at issue time.
 
+Uploaded certificate template designs can be opened inline by workspace-management users for verification. The viewer keeps the document private and sends restrictive response headers so browser rendering does not become an execution surface for uploaded content.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

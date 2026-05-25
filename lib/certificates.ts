@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { can, type Role } from "@/lib/rbac";
-import { uploadObject } from "@/lib/storage";
+import { downloadObject, uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 
 type CertificateTemplateReader = Pick<ReturnType<typeof getDb>, "certificateTemplate">;
@@ -25,6 +25,11 @@ export type CreateCertificateTemplateInput = {
 export type UpdateCertificateTemplateStatusInput = {
   requesterRole: Role;
   templateId: string;
+};
+
+export type DownloadCertificateTemplateDesignInput = {
+  templateId: string;
+  requesterRole: Role;
 };
 
 export async function findActiveCertificateTemplate(
@@ -353,6 +358,67 @@ export async function uploadCertificateTemplateDesign(
       },
     });
   });
+}
+
+export async function downloadCertificateTemplateDesign(
+  input: DownloadCertificateTemplateDesignInput,
+) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to view certificate template designs.");
+  }
+
+  const db = getDb();
+  const template = await db.certificateTemplate.findFirst({
+    where: {
+      id: input.templateId,
+      recordTier: "HOT",
+      designDocumentId: {
+        not: null,
+      },
+    },
+    select: {
+      designDocument: {
+        select: {
+          id: true,
+          fileName: true,
+          storageProvider: true,
+          bucket: true,
+          objectKey: true,
+          mimeType: true,
+          fileSize: true,
+          access: true,
+          isActive: true,
+          recordTier: true,
+          revokedAt: true,
+        },
+      },
+    },
+  });
+
+  const document = template?.designDocument;
+
+  if (
+    !document ||
+    !document.isActive ||
+    document.recordTier !== "HOT" ||
+    document.revokedAt ||
+    document.access !== "PRIVATE"
+  ) {
+    return null;
+  }
+
+  const downloaded = await downloadObject({
+    storageProvider: document.storageProvider,
+    bucket: document.bucket,
+    objectKey: document.objectKey,
+  });
+
+  return {
+    buffer: downloaded.buffer,
+    fileName: document.fileName,
+    fileSize: downloaded.fileSize,
+    mimeType: document.mimeType,
+  };
 }
 
 function normalizeTemplateCode(value: string) {
