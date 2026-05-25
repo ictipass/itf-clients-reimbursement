@@ -1,196 +1,193 @@
-const readinessMetrics = [
-  { label: "Registration dossier", value: "4", detail: "CAC, TCC, audit, Form 7A" },
-  { label: "Claim evidence groups", value: "9", detail: "Forms, receipts, reports, proof" },
-  { label: "Deadline controls", value: "2", detail: "31 Mar plan, May claim close" },
-  { label: "Governance model", value: "RBAC", detail: "Workspace-ready access control" },
+import Link from "next/link";
+import Image from "next/image";
+
+import { appName } from "@/lib/domain";
+
+const entryLinks = [
+  { href: "/sign-in", label: "Sign in" },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/registry", label: "Employer registry" },
 ];
 
-const lifecycleStages = [
+const statutoryWorkflows = [
   {
-    stage: "01",
-    title: "Employer onboarding",
-    description:
-      "Capture legal identity, payroll basis, ITF employer number, registration documents, validation history, and company activation state.",
-    controls: ["No hard deletion", "Workspace organization link", "Document expiry tracking"],
+    href: "/registry",
+    title: "Employer registration",
+    scope: "Form 7A, Area Office review, contribution recommendation, receipt verification, HQ completion.",
   },
   {
-    stage: "02",
+    href: "/compliance",
     title: "Annual compliance",
-    description:
-      "Track statutory contribution payment, L&D policy, training policy, annual training plan, and deadline acceptance evidence.",
-    controls: ["31 March control", "Signed and stamped evidence", "Contribution eligibility gate"],
+    scope: "Contribution year records, statutory returns, L&D records, training plan evidence.",
   },
   {
-    stage: "03",
-    title: "Pre-training approval",
-    description:
-      "Package Form 4A requests before training begins, including provider, venue, participants, expected costs, and approval duplicates.",
-    controls: ["Prior approval required", "Versioned forms", "Reviewer decision trail"],
+    href: "/dashboard",
+    title: "Desk attention items",
+    scope: "Role-specific work items for Area Office and Headquarters officers.",
   },
   {
-    stage: "04",
-    title: "Reimbursement claim",
-    description:
-      "Assemble post-training evidence, ITF Forms 1A to 5A where applicable, receipts, attendance sheets, reports, photos, and certificates.",
-    controls: ["May submission target", "Completeness scoring", "Duplicate office records"],
-  },
-  {
-    stage: "05",
-    title: "Review and settlement",
-    description:
-      "Route claims through institutional review, exception handling, approval, reimbursement calculation, and final archive.",
-    controls: ["Segregation of duties", "Up to 50 percent eligibility", "Audit export"],
+    href: "/claims",
+    title: "Reimbursement claims",
+    scope: "Claim package, supporting evidence, review trail, and settlement preparation.",
   },
 ];
 
-const mvpChecklist = [
-  "Workspace-aware identity boundary and RBAC roles",
-  "Company registry with soft deactivation",
-  "Document vault metadata and expiry checks",
-  "Annual compliance cycle setup",
-  "Training plan and Form 4A workflow",
-  "Reimbursement claim checklist engine",
-  "Review queue, decisions, comments, and audit trail",
-  "Operational dashboards for management oversight",
+const rolePaths = [
+  "Employer",
+  "Area Manager",
+  "HORIC",
+  "Revenue Accountant",
+  "Reimbursement Officer",
+  "Director FSD",
+  "Head of Division",
+  "HQ Reimbursement Officer",
 ];
 
-const recommendedName = "ITF Reimbursement Gateway";
+const quickLinks = [
+  { href: "/registry/new", label: "Create employer profile" },
+  { href: "/registry", label: "Open registry queue" },
+  { href: "/dashboard", label: "Open attention queue" },
+  { href: "/sign-in", label: "Role test login" },
+];
+
+const testAccounts = [
+  "am@itf.local",
+  "horic@itf.local",
+  "ra@itf.local",
+  "dfsd@itf.local",
+  "employer@itf.local",
+];
 
 export default function Home() {
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,_rgba(128,0,32,0.12),_transparent_32rem),linear-gradient(180deg,#ffffff_0%,#f7f4f5_46%,#ffffff_100%)] text-zinc-950">
-      <section className="border-b border-zinc-200/80 bg-white/85">
-        <div className="mx-auto flex max-w-7xl flex-col gap-10 px-6 py-8 lg:px-8">
-          <header className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
-                Industrial Training Fund
-              </p>
-              <h1 className="mt-3 max-w-4xl text-4xl font-semibold tracking-tight text-zinc-950 sm:text-5xl">
-                {recommendedName}
-              </h1>
-            </div>
-            <div className="rounded-2xl border border-zinc-200 bg-white px-5 py-4 shadow-sm">
-              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-zinc-500">
-                Enterprise posture
-              </p>
-              <p className="mt-1 text-sm font-medium text-zinc-900">
-                Centralized governance, audit-first records, Workspace-ready access
-              </p>
-            </div>
-          </header>
-
-          <div className="grid gap-8 lg:grid-cols-[1.15fr_0.85fr] lg:items-end">
-            <div className="max-w-3xl">
-              <p className="text-xl leading-8 text-zinc-700">
-                A government-grade platform for registering employers, controlling ITF
-                compliance evidence, approving training requests, and packaging
-                reimbursement claims with complete institutional traceability.
-              </p>
-              <div className="mt-8 flex flex-wrap gap-3">
-                <a
-                  href="#workflow"
-                  className="inline-flex min-h-11 items-center rounded-full bg-[#800020] px-5 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#65001a]"
-                >
-                  View workflow model
-                </a>
-                <a
-                  href="#roadmap"
-                  className="inline-flex min-h-11 items-center rounded-full border border-zinc-300 bg-white px-5 py-2 text-sm font-semibold text-zinc-900 transition hover:border-zinc-500"
-                >
-                  MVP checklist
-                </a>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              {readinessMetrics.map((metric) => (
-                <div
-                  key={metric.label}
-                  className="rounded-2xl border border-zinc-200 bg-white p-5 shadow-sm"
-                >
-                  <p className="text-2xl font-semibold text-[#800020]">{metric.value}</p>
-                  <p className="mt-2 text-sm font-semibold text-zinc-950">{metric.label}</p>
-                  <p className="mt-1 text-xs leading-5 text-zinc-600">{metric.detail}</p>
+    <main className="min-h-screen bg-zinc-100 text-zinc-950">
+      <section
+        className="border-b border-zinc-800 bg-zinc-950 text-white"
+        style={{
+          backgroundImage:
+            "linear-gradient(90deg, rgba(9,9,11,0.94), rgba(9,9,11,0.78), rgba(9,9,11,0.42)), url('https://images.unsplash.com/photo-1450101499163-c8848c66ca85?auto=format&fit=crop&w=1800&q=80')",
+          backgroundPosition: "center",
+          backgroundSize: "cover",
+        }}
+      >
+        <header className="border-b border-white/15">
+          <div className="mx-auto flex max-w-7xl flex-col gap-4 px-6 py-5 lg:px-8">
+            <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+              <div className="flex items-center gap-3">
+                <Image
+                  src="/favicon.ico"
+                  alt="Industrial Training Fund logo"
+                  width={56}
+                  height={56}
+                  className="h-14 w-14 rounded-full bg-white p-1"
+                />
+                <div>
+                  <p className="text-sm font-semibold uppercase text-rose-100">
+                    Industrial Training Fund
+                  </p>
+                  <h1 className="mt-1 text-2xl font-semibold tracking-tight">{appName}</h1>
                 </div>
+              </div>
+              <nav className="flex flex-wrap gap-2">
+                {entryLinks.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className="inline-flex min-h-10 items-center rounded-md border border-white/20 bg-white/10 px-3 text-sm font-semibold text-white transition hover:bg-white hover:text-zinc-950"
+                  >
+                    {item.label}
+                  </Link>
+                ))}
+              </nav>
+            </div>
+          </div>
+        </header>
+
+        <div className="mx-auto grid max-w-7xl gap-8 px-6 py-14 lg:grid-cols-[0.72fr_1.28fr] lg:px-8">
+          <div>
+            <p className="text-sm font-semibold uppercase text-rose-100">Statutory workflow</p>
+            <h2 className="mt-3 max-w-2xl text-4xl font-semibold leading-tight">
+              Registration, compliance, training approval, and reimbursement processing.
+            </h2>
+            <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-100">
+              This portal supports employers of labour and ITF officers involved in the
+              reimbursement scheme workflow. Access is based on assigned role, organization, Area
+              Office, and Headquarters responsibility.
+            </p>
+          </div>
+          <div className="grid content-start gap-3 rounded-lg border border-white/15 bg-white/10 p-4 backdrop-blur">
+            <p className="text-sm font-semibold text-white">Primary actions</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {quickLinks.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  className="inline-flex min-h-11 items-center justify-between rounded-md border border-white/20 bg-white px-3 text-sm font-semibold text-zinc-950 transition hover:bg-zinc-200"
+                >
+                  {item.label}
+                  <span aria-hidden="true">-&gt;</span>
+                </Link>
               ))}
             </div>
           </div>
         </div>
       </section>
 
-      <section id="workflow" className="mx-auto max-w-7xl px-6 py-12 lg:px-8">
-        <div className="mb-8 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
-              Operating workflow
-            </p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight text-zinc-950">
-              From registration to reimbursed claim
-            </h2>
+      <section className="mx-auto grid max-w-7xl gap-8 px-6 py-10 lg:grid-cols-[1.1fr_0.9fr] lg:px-8">
+        <div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-sm font-semibold uppercase text-[#800020]">Workflow areas</p>
+              <h2 className="mt-2 text-2xl font-semibold">Operational modules</h2>
+            </div>
           </div>
-          <p className="max-w-xl text-sm leading-6 text-zinc-600">
-            Each stage should become a stateful workflow with assignments, due dates,
-            evidence requirements, validation rules, and immutable audit events.
-          </p>
-        </div>
-
-        <div className="grid gap-4">
-          {lifecycleStages.map((item) => (
-            <article
-              key={item.stage}
-              className="grid gap-5 rounded-2xl border border-zinc-200 bg-white p-6 shadow-sm md:grid-cols-[5rem_1fr_19rem]"
-            >
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-zinc-950 text-sm font-semibold text-white">
-                {item.stage}
-              </div>
-              <div>
-                <h3 className="text-xl font-semibold text-zinc-950">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-zinc-650">{item.description}</p>
-              </div>
-              <ul className="grid gap-2">
-                {item.controls.map((control) => (
-                  <li
-                    key={control}
-                    className="rounded-full border border-[#800020]/15 bg-[#800020]/5 px-3 py-2 text-xs font-semibold text-[#65001a]"
-                  >
-                    {control}
-                  </li>
-                ))}
-              </ul>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section id="roadmap" className="border-y border-zinc-200 bg-zinc-950 text-white">
-        <div className="mx-auto grid max-w-7xl gap-10 px-6 py-12 lg:grid-cols-[0.85fr_1.15fr] lg:px-8">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-rose-200">
-              Build direction
-            </p>
-            <h2 className="mt-2 text-3xl font-semibold tracking-tight">
-              MVP scope with production-grade foundations
-            </h2>
-            <p className="mt-4 text-sm leading-6 text-zinc-300">
-              PostgreSQL is appropriate for core transactional workflow, audit metadata,
-              RBAC, claims, approvals, and compliance records. Store document binaries
-              in object storage and keep hashes, classifications, expiry dates, and
-              retention metadata in PostgreSQL.
-            </p>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            {mvpChecklist.map((item) => (
-              <div
-                key={item}
-                className="rounded-2xl border border-white/10 bg-white/[0.06] p-4 text-sm font-medium leading-6 text-zinc-100"
+          <div className="mt-5 grid gap-3">
+            {statutoryWorkflows.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="grid gap-2 rounded-lg border border-zinc-200 bg-white p-4 transition hover:border-[#800020]/50"
               >
-                {item}
-              </div>
+                <p className="text-lg font-semibold text-zinc-950">{item.title}</p>
+                <p className="text-sm leading-6 text-zinc-600">{item.scope}</p>
+              </Link>
             ))}
           </div>
         </div>
+
+        <aside className="grid content-start gap-5">
+          <section className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-sm font-semibold uppercase text-[#800020]">User paths</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {rolePaths.map((role) => (
+                <span
+                  key={role}
+                  className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-700"
+                >
+                  {role}
+                </span>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-sm font-semibold uppercase text-[#800020]">Local test access</p>
+            <p className="mt-3 text-sm leading-6 text-zinc-600">
+              Use seeded role accounts for workflow testing. Shared local password:
+              <span className="ml-1 font-mono font-semibold text-zinc-950">password123</span>.
+            </p>
+            <div className="mt-4 grid gap-2">
+              {testAccounts.map((account) => (
+                <span
+                  key={account}
+                  className="rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 font-mono text-xs font-semibold text-zinc-700"
+                >
+                  {account}
+                </span>
+              ))}
+            </div>
+          </section>
+        </aside>
       </section>
     </main>
   );
