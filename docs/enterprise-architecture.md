@@ -110,7 +110,7 @@ After receipt acceptance, the Area Manager can notify Headquarters. This moves t
 
 Director FSD forwards the registration to the Head of Reimbursement Division. This resolves the Director FSD attention item and opens a Head of Division attention item for registration completion.
 
-Head of Reimbursement Division completes the registration by recording the ITF employer number. Completion activates the company, approves the registration application, records optional certificate reference text in the decision trail, and resolves HQ registration attention items. A formal certificate entity/generation process remains a later slice.
+Head of Reimbursement Division completes the registration by recording the ITF employer number. Completion activates the company, approves the registration application, creates a `RegistrationCertificate` record, records optional certificate reference text in the decision trail, and resolves HQ registration attention items. Certificate template management and downloadable PDF generation remain later slices.
 
 Headquarters Field Services Department routing follows this hierarchy:
 

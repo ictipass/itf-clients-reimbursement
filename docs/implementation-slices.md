@@ -615,3 +615,25 @@ Expected files:
 - `.env.example`
 - `docs/auth.md`
 - implementation checklist
+
+### Slice 28: Registration Certificate Record Foundation
+
+Goal: make issued employer registration certificates first-class records.
+
+Expected design:
+
+- Add `RegistrationCertificate` and certificate status values
+- Link each certificate to a company, registration application, and issuing user
+- Create the certificate record when Head of Reimbursement Division completes registration
+- Store certificate number, ITF employer number, issue date, and future template/document hooks
+- Show the latest certificate record on the company registry detail page
+- Leave template upload and downloadable PDF generation for later slices
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/registration.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

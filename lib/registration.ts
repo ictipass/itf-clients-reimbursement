@@ -1433,6 +1433,7 @@ export async function completeRegistrationAtHeadquarters(
   }
 
   const itfEmployerNumber = input.itfEmployerNumber.trim();
+  const certificateNumber = input.certificateReference?.trim() || itfEmployerNumber;
 
   if (!itfEmployerNumber) {
     throw new Error("ITF employer number is required.");
@@ -1481,6 +1482,22 @@ export async function completeRegistrationAtHeadquarters(
 
   if (existingCompany) {
     throw new Error("This ITF employer number is already assigned to another company.");
+  }
+
+  const existingCertificate = await db.registrationCertificate.findFirst({
+    where: {
+      certificateNumber,
+      registrationApplicationId: {
+        not: registrationApplication.id,
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingCertificate) {
+    throw new Error("This certificate reference is already assigned to another registration.");
   }
 
   const actor = await db.user.findUnique({
@@ -1538,6 +1555,30 @@ export async function completeRegistrationAtHeadquarters(
         ]
           .filter(Boolean)
           .join(": "),
+      },
+    });
+
+    await tx.registrationCertificate.upsert({
+      where: {
+        registrationApplicationId: registrationApplication.id,
+      },
+      create: {
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        issuedById: actor.id,
+        certificateNumber,
+        itfEmployerNumber,
+        status: "ACTIVE",
+      },
+      update: {
+        issuedById: actor.id,
+        certificateNumber,
+        itfEmployerNumber,
+        status: "ACTIVE",
+        revokedAt: null,
+      },
+      select: {
+        id: true,
       },
     });
 

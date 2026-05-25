@@ -97,6 +97,12 @@ enum RecommendationReleaseChannel {
   DASHBOARD_AND_EMAIL
 }
 
+enum RegistrationCertificateStatus {
+  ACTIVE
+  REVOKED
+  EXPIRED
+}
+
 enum WorkspaceApp {
   REIMBURSEMENT
 }
@@ -229,6 +235,7 @@ model User {
   registrationContributionAssessments              RegistrationContributionAssessment[] @relation("RegistrationContributionAssessments")
   horicReviewedRegistrationContributionAssessments RegistrationContributionAssessment[] @relation("HoricReviewedRegistrationContributionAssessments")
   amReleasedRegistrationContributionAssessments    RegistrationContributionAssessment[] @relation("AmReleasedRegistrationContributionAssessments")
+  issuedRegistrationCertificates                    RegistrationCertificate[]           @relation("IssuedRegistrationCertificates")
   decisions                                        Decision[]
   comments                                         Comment[]
   assignedWorkItems                                WorkItem[]                           @relation("AssignedWorkItems")
@@ -282,6 +289,7 @@ model Company {
   reimbursementClaims                 ReimbursementClaim[]
   registrationApplication             RegistrationApplication?
   registrationContributionAssessments RegistrationContributionAssessment[]
+  registrationCertificates            RegistrationCertificate[]
   workItems                           WorkItem[]
   decisions                           Decision[]
   comments                            Comment[]
@@ -310,9 +318,35 @@ model RegistrationApplication {
   documents              Document[]
   workItems              WorkItem[]
   contributionAssessment RegistrationContributionAssessment?
+  certificate            RegistrationCertificate?
 
   @@index([areaOfficeId, currentDesk, status, recordTier])
   @@index([submittedById, recordTier])
+}
+
+model RegistrationCertificate {
+  id                        String                        @id @default(cuid())
+  companyId                 String
+  registrationApplicationId String                        @unique
+  issuedById                String
+  certificateNumber         String                        @unique
+  itfEmployerNumber         String
+  templateId                String?
+  generatedDocumentId       String?
+  status                    RegistrationCertificateStatus @default(ACTIVE)
+  issuedAt                  DateTime                      @default(now())
+  revokedAt                 DateTime?
+  expiresAt                 DateTime?
+  recordTier                RecordTier                    @default(HOT)
+  createdAt                 DateTime                      @default(now())
+  updatedAt                 DateTime                      @updatedAt
+  company                   Company                       @relation(fields: [companyId], references: [id])
+  registrationApplication   RegistrationApplication       @relation(fields: [registrationApplicationId], references: [id])
+  issuedBy                  User                          @relation("IssuedRegistrationCertificates", fields: [issuedById], references: [id])
+
+  @@index([companyId, status, recordTier])
+  @@index([issuedById, recordTier])
+  @@index([itfEmployerNumber])
 }
 
 model RegistrationContributionAssessment {

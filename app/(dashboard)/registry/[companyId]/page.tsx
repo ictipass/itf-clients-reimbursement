@@ -140,6 +140,7 @@ export default async function CompanyDetailPage({
   const registrationState = company.itfEmployerNumber
     ? "Registered with ITF"
     : "Not yet registered with ITF";
+  const latestCertificate = company.registrationCertificates[0];
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -183,6 +184,51 @@ export default async function CompanyDetailPage({
         <DetailItem label="Postal address" value={company.postalAddress ?? "Not provided"} />
         <DetailItem label="Last updated" value={formatDate(company.updatedAt)} />
       </section>
+
+      {latestCertificate ? (
+        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">Registration certificate</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
+                Current certificate record for this employer registration.
+              </p>
+            </div>
+            <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              {latestCertificate.status}
+            </span>
+          </div>
+          <div className="mt-4 grid gap-4 border-t border-zinc-100 pt-4 text-sm md:grid-cols-3">
+            <DetailItem
+              label="Certificate number"
+              value={latestCertificate.certificateNumber}
+            />
+            <DetailItem
+              label="ITF employer number"
+              value={latestCertificate.itfEmployerNumber}
+            />
+            <DetailItem label="Issued by" value={latestCertificate.issuedBy.name} />
+            <DetailItem label="Issued date" value={formatDate(latestCertificate.issuedAt)} />
+            <DetailItem
+              label="Expiry date"
+              value={formatDate(latestCertificate.expiresAt)}
+            />
+            <DetailItem
+              label="Template"
+              value={latestCertificate.templateId ?? "Not attached yet"}
+            />
+          </div>
+          {latestCertificate.generatedDocumentId ? (
+            <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+              Downloadable certificate document has been generated.
+            </p>
+          ) : (
+            <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+              Downloadable certificate generation will be added in a later slice.
+            </p>
+          )}
+        </section>
+      ) : null}
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
