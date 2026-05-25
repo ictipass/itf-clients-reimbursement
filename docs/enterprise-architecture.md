@@ -106,9 +106,11 @@ For registration contribution receipts, company upload returns the registration 
 
 Area Manager receipt review can accept the payment evidence or request correction. Acceptance resolves the Area Manager attention item and leaves the registration in review for the next registration-completion stage. Correction returns the workflow to the company desk for a replacement upload.
 
-After receipt acceptance, the Area Manager can notify Headquarters. This moves the registration to the Director FSD desk and creates a `REGISTRATION_HQ_NOTIFICATION` attention item assigned to `DIRECTOR_FSD`. HQ number/certificate recording remains the next registration-completion stage.
+After receipt acceptance, the Area Manager can notify Headquarters. This moves the registration to the Director FSD desk and creates a `REGISTRATION_HQ_NOTIFICATION` attention item assigned to `DIRECTOR_FSD`.
 
-Director FSD can complete the registration by recording the ITF employer number. Completion activates the company, approves the registration application, records optional certificate reference text in the decision trail, and resolves the HQ attention item. A formal certificate entity/generation process remains a later slice.
+Director FSD forwards the registration to the Head of Reimbursement Division. This resolves the Director FSD attention item and opens a Head of Division attention item for registration completion.
+
+Head of Reimbursement Division completes the registration by recording the ITF employer number. Completion activates the company, approves the registration application, records optional certificate reference text in the decision trail, and resolves HQ registration attention items. A formal certificate entity/generation process remains a later slice.
 
 Headquarters Field Services Department routing follows this hierarchy:
 

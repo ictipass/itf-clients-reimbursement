@@ -89,6 +89,7 @@ enum RegistrationDesk {
   HORIC
   REVENUE_ACCOUNTANT
   DIRECTOR_FSD
+  HEAD_OF_DIVISION
 }
 
 enum RecommendationReleaseChannel {

@@ -73,7 +73,7 @@ const permissionsByRole: Record<Role, Permission[]> = {
   HEAD_OF_TRAINING: ["training:approve", "claims:review", "company:read", "audit:read"],
   REIMBURSEMENT_OFFICER: ["training:approve", "claims:review", "company:read", "audit:read"],
   DIRECTOR_FSD: ["registry:review", "claims:approve", "company:read", "audit:read"],
-  HEAD_OF_DIVISION: ["claims:review", "claims:approve", "company:read", "audit:read"],
+  HEAD_OF_DIVISION: ["registry:review", "claims:review", "claims:approve", "company:read", "audit:read"],
   HQ_REIMBURSEMENT_OFFICER: ["claims:review", "company:read", "audit:read"],
   EMPLOYER_ADMIN: [
     "registry:submit",

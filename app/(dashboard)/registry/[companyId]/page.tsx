@@ -6,6 +6,7 @@ import {
   assessRegistrationContributionAction,
   completeRegistrationAtHeadquartersAction,
   confirmRegistrationContributionAction,
+  forwardRegistrationToDivisionAction,
   notifyRegistrationHeadquartersAction,
   releaseRegistrationContributionAction,
   reviewRegistrationContributionReceiptAction,
@@ -377,6 +378,14 @@ export default async function CompanyDetailPage({
                 </p>
               </div>
             ) : null}
+            {company.registrationApplication.currentDesk === "HEAD_OF_DIVISION" &&
+            company.registrationApplication.status === "IN_REVIEW" ? (
+              <div className="md:col-span-3">
+                <p className="rounded-md bg-[#800020]/10 px-3 py-2 text-sm font-semibold text-[#65001a]">
+                  Employer registration completion is pending with Head of Reimbursement Division.
+                </p>
+              </div>
+            ) : null}
           </div>
         ) : !company.areaOffice ? (
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -531,6 +540,26 @@ export default async function CompanyDetailPage({
         {company.registrationApplication?.currentDesk === "DIRECTOR_FSD" &&
         company.registrationApplication.status === "IN_REVIEW" ? (
           <form
+            action={forwardRegistrationToDivisionAction.bind(null, company.id)}
+            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+          >
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Director forwarding note
+              <input
+                name="note"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <div>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Forward to Head of Division
+              </button>
+            </div>
+          </form>
+        ) : null}
+        {company.registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
+        company.registrationApplication.status === "IN_REVIEW" ? (
+          <form
             action={completeRegistrationAtHeadquartersAction.bind(null, company.id)}
             className="mt-4 grid gap-4 border-t border-zinc-100 pt-4"
           >
@@ -552,7 +581,7 @@ export default async function CompanyDetailPage({
               </label>
             </div>
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
-              HQ completion note
+              Head of Division completion note
               <input
                 name="note"
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
@@ -560,7 +589,7 @@ export default async function CompanyDetailPage({
             </label>
             <div>
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                Complete registration
+                Complete employer registration
               </button>
             </div>
           </form>

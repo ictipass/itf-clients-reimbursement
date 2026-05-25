@@ -9,6 +9,7 @@ import {
   assessRegistrationContribution,
   completeRegistrationAtHeadquarters,
   confirmRegistrationContribution,
+  forwardRegistrationToDivision,
   getRegistrationDeskTransitions,
   getRecommendationReleaseChannels,
   getRegistrationReceiptReviewActions,
@@ -226,6 +227,25 @@ export async function notifyRegistrationHeadquartersAction(companyId: string, fo
   }
 
   await notifyRegistrationHeadquarters({
+    companyId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath(`/dashboard`);
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+export async function forwardRegistrationToDivisionAction(companyId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await forwardRegistrationToDivision({
     companyId,
     requesterEmail: session.user.email,
     requesterRole: session.user.role,

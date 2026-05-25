@@ -78,6 +78,13 @@ export type NotifyRegistrationHeadquartersInput = {
   note?: string;
 };
 
+export type ForwardRegistrationToDivisionInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  note?: string;
+};
+
 export type CompleteRegistrationAtHeadquartersInput = {
   companyId: string;
   requesterEmail: string;
@@ -1269,6 +1276,147 @@ export async function notifyRegistrationHeadquarters(
   });
 }
 
+export async function forwardRegistrationToDivision(
+  input: ForwardRegistrationToDivisionInput,
+) {
+  if (!can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to forward employer registration.");
+  }
+
+  if (
+    input.requesterRole !== "DIRECTOR_FSD" &&
+    input.requesterRole !== "SYSTEM_ADMIN" &&
+    input.requesterRole !== "WORKSPACE_APP_ADMIN"
+  ) {
+    throw new Error("Only Director FSD can forward employer registration to the division.");
+  }
+
+  const db = getDb();
+  const registrationApplication = await db.registrationApplication.findFirst({
+    where: {
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "IN_REVIEW",
+      currentDesk: "DIRECTOR_FSD",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      areaOfficeId: true,
+      company: {
+        select: {
+          legalName: true,
+          organizationId: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!registrationApplication) {
+    throw new Error("A Headquarters registration awaiting Director FSD forwarding was not found.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.registrationApplication.update({
+      where: {
+        id: registrationApplication.id,
+      },
+      data: {
+        currentDesk: "HEAD_OF_DIVISION",
+        status: "IN_REVIEW",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        action: "FORWARD",
+        reason: [
+          "Director FSD forwarded employer registration to Head of Reimbursement Division",
+          input.note,
+        ]
+          .filter(Boolean)
+          .join(": "),
+      },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        sourceKey: `registration:${registrationApplication.id}:hq-notification`,
+        status: {
+          in: ["OPEN", "ACKNOWLEDGED"],
+        },
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
+      },
+    });
+
+    await tx.workItem.upsert({
+      where: {
+        sourceKey: `registration:${registrationApplication.id}:hq-division-completion`,
+      },
+      create: {
+        workspaceId: registrationApplication.company.organization.workspaceId,
+        organizationId: registrationApplication.company.organizationId,
+        areaOfficeId: registrationApplication.areaOfficeId,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        assignedRole: "HEAD_OF_DIVISION",
+        app: "REIMBURSEMENT",
+        kind: "REGISTRATION_HQ_NOTIFICATION",
+        status: "OPEN",
+        priority: "HIGH",
+        title: "Complete employer registration",
+        summary: `${registrationApplication.company.legalName} has been forwarded by Director FSD for registration completion.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+        sourceKey: `registration:${registrationApplication.id}:hq-division-completion`,
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        priority: "HIGH",
+        summary: `${registrationApplication.company.legalName} has been forwarded by Director FSD for registration completion.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return updated;
+  });
+}
+
 export async function completeRegistrationAtHeadquarters(
   input: CompleteRegistrationAtHeadquartersInput,
 ) {
@@ -1277,11 +1425,11 @@ export async function completeRegistrationAtHeadquarters(
   }
 
   if (
-    input.requesterRole !== "DIRECTOR_FSD" &&
+    input.requesterRole !== "HEAD_OF_DIVISION" &&
     input.requesterRole !== "SYSTEM_ADMIN" &&
     input.requesterRole !== "WORKSPACE_APP_ADMIN"
   ) {
-    throw new Error("Only Director FSD can complete employer registration.");
+    throw new Error("Only Head of Reimbursement Division can complete employer registration.");
   }
 
   const itfEmployerNumber = input.itfEmployerNumber.trim();
@@ -1296,7 +1444,7 @@ export async function completeRegistrationAtHeadquarters(
       companyId: input.companyId,
       recordTier: "HOT",
       status: "IN_REVIEW",
-      currentDesk: "DIRECTOR_FSD",
+      currentDesk: "HEAD_OF_DIVISION",
       company: {
         id: input.companyId,
         recordTier: "HOT",
@@ -1395,7 +1543,12 @@ export async function completeRegistrationAtHeadquarters(
 
     await tx.workItem.updateMany({
       where: {
-        sourceKey: `registration:${registrationApplication.id}:hq-notification`,
+        sourceKey: {
+          in: [
+            `registration:${registrationApplication.id}:hq-notification`,
+            `registration:${registrationApplication.id}:hq-division-completion`,
+          ],
+        },
         status: {
           in: ["OPEN", "ACKNOWLEDGED"],
         },

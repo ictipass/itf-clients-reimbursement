@@ -580,11 +580,12 @@ Goal: let Headquarters complete employer registration after Area Office verifica
 
 Expected design:
 
-- Director FSD records the ITF employer number
+- Director FSD forwards the registration to Head of Reimbursement Division
+- Head of Reimbursement Division records the ITF employer number
 - Optional certificate reference and HQ note are captured in the decision trail
 - Company moves to `ACTIVE`
 - Registration application moves to `APPROVED` and gets a completion timestamp
-- HQ attention item is resolved
+- HQ attention items are resolved
 - ITF employer number is unique at database level
 
 Expected files:
