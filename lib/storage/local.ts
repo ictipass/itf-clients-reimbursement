@@ -44,7 +44,7 @@ export async function uploadLocalObject(input: UploadObjectInput): Promise<Store
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const objectKey = path.posix.join(
-    "company-evidence",
+    input.namespace ?? "company-evidence",
     input.companyId,
     String(now.getFullYear()),
     month,

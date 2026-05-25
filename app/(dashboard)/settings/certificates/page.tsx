@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 
+import { uploadCertificateTemplateDesignAction } from "@/app/(dashboard)/settings/certificates/actions";
 import { authOptions } from "@/lib/auth";
 import { listCertificateTemplates } from "@/lib/certificates";
 import { can } from "@/lib/rbac";
@@ -99,7 +100,29 @@ export default async function CertificateTemplatesPage() {
                       {formatDate(template.effectiveFrom)}
                     </td>
                     <td className="px-4 py-4 align-top text-zinc-700">
-                      {template.designDocumentId ? "Attached" : "Not attached"}
+                      <div className="grid gap-2">
+                        <span>
+                          {template.designDocument
+                            ? `${template.designDocument.fileName} · ${template.designDocument.mimeType}`
+                            : "Not attached"}
+                        </span>
+                        <form
+                          action={uploadCertificateTemplateDesignAction}
+                          className="grid max-w-xs gap-2"
+                        >
+                          <input type="hidden" name="templateId" value={template.id} />
+                          <input
+                            name="design"
+                            type="file"
+                            accept="application/pdf,image/png,image/jpeg"
+                            required
+                            className="block w-full text-xs text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-zinc-700"
+                          />
+                          <button className="min-h-8 w-fit rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+                            {template.designDocument ? "Replace design" : "Attach design"}
+                          </button>
+                        </form>
+                      </div>
                     </td>
                     <td className="px-4 py-4 align-top text-zinc-700">
                       {template._count.certificates}

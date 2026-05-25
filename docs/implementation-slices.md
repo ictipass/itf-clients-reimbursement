@@ -680,3 +680,27 @@ Expected files:
 - `app/(dashboard)/settings/certificates/page.tsx`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 31: Certificate Template Design Upload
+
+Goal: let workspace admins attach the current official certificate design to a template.
+
+Expected design:
+
+- Add certificate template design as a document kind
+- Link template design documents to `CertificateTemplate`
+- Reuse storage provider upload flow and file security validation
+- Allow PDF, PNG, and JPEG only
+- Store uploaded designs as private official documents
+- Add an upload/replace form on the certificate templates settings page
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/certificates.ts`
+- `lib/storage/types.ts`
+- `lib/storage/local.ts`
+- `app/(dashboard)/settings/certificates/actions.ts`
+- `app/(dashboard)/settings/certificates/page.tsx`
+- workflow docs

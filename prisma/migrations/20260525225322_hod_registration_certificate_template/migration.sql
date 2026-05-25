@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "CertificateTemplate_workspaceId_status_recordTier_effectiveFrom" RENAME TO "CertificateTemplate_workspaceId_status_recordTier_effective_idx";

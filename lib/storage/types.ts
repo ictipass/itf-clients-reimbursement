@@ -17,6 +17,7 @@ export type UploadObjectInput = {
   companyId: string;
   extension: string;
   mimeType: string;
+  namespace?: string;
 };
 
 export type DownloadObjectInput = {
