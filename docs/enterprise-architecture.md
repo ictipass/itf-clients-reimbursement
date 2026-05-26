@@ -130,7 +130,7 @@ Certificate signatures are managed as versioned workspace assets. Workspace-mana
 
 ITF employer numbers and registration certificate numbers are managed through a formal number registry. Each number has a type, lifecycle status, policy code, batch code, notes, and metadata so future numbering policies can be adopted without redesigning the registration workflow. Head of Reimbursement Division completes employer registration by selecting available managed numbers; the selected numbers are atomically assigned to the company and generated registration certificate record.
 
-Public certificate verification and management statistics are planned as separate surfaces. Public verification should expose only safe certificate authenticity information, while management statistics should aggregate complied companies, revenue received, reimbursement paid, and workflow volumes.
+Public certificate verification exposes only safe certificate authenticity information: company name, ITF employer number, certificate number, status, issue date, and expiry date. Certificate QR codes point to this public verification surface. Management statistics remain a separate planned surface and should aggregate complied companies, revenue received, reimbursement paid, and workflow volumes.
 
 Headquarters Field Services Department routing follows this hierarchy:
 

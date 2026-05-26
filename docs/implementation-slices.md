@@ -890,12 +890,19 @@ Expected design:
 - Return limited public-safe information only
 - Show company name, status, certificate issue date, and certificate validity state
 - Avoid exposing internal workflow notes, evidence documents, or private metadata
-- Add abuse controls such as rate limiting or captcha if needed
+- Generate QR codes that point to the public verification URL
+- Render the QR code on generated certificates using certificate placement metadata
+- Add abuse controls such as rate limiting or captcha in a later hardening slice if needed
 
 Expected files:
 
-- public verification route/page
+- `app/verify/page.tsx`
+- `app/verify/qr/route.ts`
+- `lib/qr.ts`
 - `lib/public-verification.ts`
+- `lib/certificates.ts`
+- `app/(dashboard)/settings/certificates/page.tsx`
+- `app/(dashboard)/settings/certificates/actions.ts`
 - workflow docs
 
 ### Slice 41: Management Statistics Dashboard

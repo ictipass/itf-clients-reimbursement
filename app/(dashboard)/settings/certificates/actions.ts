@@ -179,6 +179,12 @@ export async function updateCertificatePlacementMetadataAction(formData: FormDat
         width: readRequiredNumber(formData, "directorRevenueSignatureWidth"),
         height: readRequiredNumber(formData, "directorRevenueSignatureHeight"),
       },
+      qrCode: {
+        x: readRequiredNumber(formData, "qrCodeX"),
+        y: readRequiredNumber(formData, "qrCodeY"),
+        width: readRequiredNumber(formData, "qrCodeWidth"),
+        height: readRequiredNumber(formData, "qrCodeHeight"),
+      },
     },
   });
 

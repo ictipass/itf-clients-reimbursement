@@ -5,6 +5,7 @@ import { appName } from "@/lib/domain";
 
 const entryLinks = [
   { href: "/sign-in", label: "Sign in" },
+  { href: "/verify", label: "Verify certificate" },
   { href: "/dashboard", label: "Dashboard" },
   { href: "/registry", label: "Employer registry" },
 ];

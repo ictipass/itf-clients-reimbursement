@@ -32,6 +32,7 @@ const requiredPlacementFields = [
 const requiredSignaturePlacementFields = [
   "directorGeneralSignature",
   "directorRevenueSignature",
+  "qrCode",
 ] as const;
 
 function hasPlacementMetadata(value: unknown) {

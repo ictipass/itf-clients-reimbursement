@@ -50,6 +50,7 @@ const requiredCertificatePlacementFields = [
   "issuedAt",
   "directorGeneralSignature",
   "directorRevenueSignature",
+  "qrCode",
 ] as const;
 
 function getMissingCertificatePlacementFields(value: unknown) {

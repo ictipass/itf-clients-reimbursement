@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { getVerificationUrl, renderQrPng } from "@/lib/qr";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { downloadObject, uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -73,7 +74,8 @@ export type CertificatePlacementMetadata = Record<
   (typeof requiredPlacementKeys)[number],
   CertificatePlacementPoint
 > &
-  Record<(typeof requiredSignaturePlacementKeys)[number], CertificateSignaturePlacementPoint>;
+  Record<(typeof requiredSignaturePlacementKeys)[number], CertificateSignaturePlacementPoint> &
+  Record<(typeof requiredQrPlacementKeys)[number], CertificateSignaturePlacementPoint>;
 
 export type UpdateCertificatePlacementMetadataInput = {
   requesterRole: Role;
@@ -92,6 +94,8 @@ const requiredSignaturePlacementKeys = [
   "directorGeneralSignature",
   "directorRevenueSignature",
 ] as const;
+
+const requiredQrPlacementKeys = ["qrCode"] as const;
 
 const requiredSignatureAssets = [
   "DIRECTOR_GENERAL_CE",
@@ -630,11 +634,13 @@ export async function previewCertificateTemplate(input: PreviewCertificateTempla
     objectKey: designDocument.objectKey,
   });
   const signatures = await getOptionalSignatureImages(template.workspaceId);
+  const qrCode = await renderQrPng(getVerificationUrl("CERT-2026-0001"));
   const buffer = await renderCertificatePdf({
     designBuffer: downloadedDesign.buffer,
     designMimeType: designDocument.mimeType,
     placementMetadata,
     signatures,
+    qrCode,
     values: {
       companyName: "ABC MANUFACTURING LIMITED",
       itfEmployerNumber: "ITF-XXX-12345",
@@ -748,11 +754,13 @@ export async function generateRegistrationCertificatePdf(
     objectKey: designDocument.objectKey,
   });
   const signatures = await getRequiredSignatureImages(template.workspaceId);
+  const qrCode = await renderQrPng(getVerificationUrl(certificate.certificateNumber));
   const generatedBuffer = await renderCertificatePdf({
     designBuffer: downloadedDesign.buffer,
     designMimeType: designDocument.mimeType,
     placementMetadata,
     signatures,
+    qrCode,
     values: {
       companyName: certificate.company.legalName,
       itfEmployerNumber: certificate.itfEmployerNumber,
@@ -930,10 +938,10 @@ function normalizeTemplateCode(value: string) {
 
 function getMissingPlacementKeys(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return [...requiredPlacementKeys, ...requiredSignaturePlacementKeys];
+    return [...requiredPlacementKeys, ...requiredSignaturePlacementKeys, ...requiredQrPlacementKeys];
   }
 
-  return [...requiredPlacementKeys, ...requiredSignaturePlacementKeys].filter(
+  return [...requiredPlacementKeys, ...requiredSignaturePlacementKeys, ...requiredQrPlacementKeys].filter(
     (key) => !Object.hasOwn(value, key),
   );
 }
@@ -985,6 +993,24 @@ function assertPlacementMetadata(value: CertificatePlacementMetadata) {
       throw new Error(`${key}.width and ${key}.height must be greater than zero.`);
     }
   }
+
+  for (const key of requiredQrPlacementKeys) {
+    const point = value[key];
+
+    if (!point) {
+      throw new Error(`${key} placement is required.`);
+    }
+
+    for (const property of ["x", "y", "width", "height"] as const) {
+      if (!Number.isFinite(point[property]) || point[property] < 0) {
+        throw new Error(`${key}.${property} must be a non-negative number.`);
+      }
+    }
+
+    if (point.width === 0 || point.height === 0) {
+      throw new Error(`${key}.width and ${key}.height must be greater than zero.`);
+    }
+  }
 }
 
 async function renderCertificatePdf(input: {
@@ -992,6 +1018,7 @@ async function renderCertificatePdf(input: {
   designMimeType: string;
   placementMetadata: CertificatePlacementMetadata;
   signatures?: Partial<Record<(typeof requiredSignatureAssets)[number], SignatureImage>>;
+  qrCode?: Buffer;
   values: Record<(typeof requiredPlacementKeys)[number], string>;
 }) {
   const pdfDocument = await createPdfFromTemplate(input.designBuffer, input.designMimeType);
@@ -1015,6 +1042,12 @@ async function renderCertificatePdf(input: {
     page,
     placementMetadata: input.placementMetadata,
     signatures: input.signatures,
+  });
+  await drawQrCode({
+    pdfDocument,
+    page,
+    qrCode: input.qrCode,
+    placement: input.placementMetadata.qrCode,
   });
 
   return Buffer.from(await pdfDocument.save());
@@ -1180,6 +1213,26 @@ async function drawSignatureImage(input: {
     input.signature.mimeType === "image/png"
       ? await input.pdfDocument.embedPng(input.signature.buffer)
       : await input.pdfDocument.embedJpg(input.signature.buffer);
+
+  input.page.drawImage(image, {
+    x: input.placement.x,
+    y: input.placement.y,
+    width: input.placement.width,
+    height: input.placement.height,
+  });
+}
+
+async function drawQrCode(input: {
+  pdfDocument: PDFDocument;
+  page: ReturnType<PDFDocument["getPages"]>[number];
+  qrCode?: Buffer;
+  placement: CertificateSignaturePlacementPoint;
+}) {
+  if (!input.qrCode) {
+    return;
+  }
+
+  const image = await input.pdfDocument.embedPng(input.qrCode);
 
   input.page.drawImage(image, {
     x: input.placement.x,
