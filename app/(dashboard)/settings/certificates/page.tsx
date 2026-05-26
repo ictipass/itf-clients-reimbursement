@@ -29,12 +29,19 @@ const requiredPlacementFields = [
   "issuedAt",
 ] as const;
 
+const requiredSignaturePlacementFields = [
+  "directorGeneralSignature",
+  "directorRevenueSignature",
+] as const;
+
 function hasPlacementMetadata(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
     return false;
   }
 
-  return requiredPlacementFields.every((field) => Object.hasOwn(value, field));
+  return [...requiredPlacementFields, ...requiredSignaturePlacementFields].every((field) =>
+    Object.hasOwn(value, field),
+  );
 }
 
 function getPlacementPoint(value: unknown, field: (typeof requiredPlacementFields)[number]) {
@@ -49,6 +56,23 @@ function getPlacementPoint(value: unknown, field: (typeof requiredPlacementField
   }
 
   return point as Partial<Record<"x" | "y" | "fontSize", number>>;
+}
+
+function getSignaturePlacementPoint(
+  value: unknown,
+  field: (typeof requiredSignaturePlacementFields)[number],
+) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const point = (value as Record<string, unknown>)[field];
+
+  if (!point || typeof point !== "object" || Array.isArray(point)) {
+    return undefined;
+  }
+
+  return point as Partial<Record<"x" | "y" | "width" | "height", number>>;
 }
 
 export default async function CertificateTemplatesPage() {
@@ -271,6 +295,62 @@ export default async function CertificateTemplatesPage() {
                               </div>
                             );
                           })}
+                          {requiredSignaturePlacementFields.map((field) => {
+                            const point = getSignaturePlacementPoint(
+                              template.placementMetadata,
+                              field,
+                            );
+
+                            return (
+                              <div key={field} className="grid gap-1">
+                                <p className="text-xs font-semibold text-zinc-700">
+                                  {field.replace(/([A-Z])/g, " $1")}
+                                </p>
+                                <div className="grid grid-cols-4 gap-2">
+                                  <input
+                                    name={`${field}X`}
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    required
+                                    placeholder="x"
+                                    defaultValue={point?.x}
+                                    className="min-h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs"
+                                  />
+                                  <input
+                                    name={`${field}Y`}
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    required
+                                    placeholder="y"
+                                    defaultValue={point?.y}
+                                    className="min-h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs"
+                                  />
+                                  <input
+                                    name={`${field}Width`}
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    required
+                                    placeholder="width"
+                                    defaultValue={point?.width}
+                                    className="min-h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs"
+                                  />
+                                  <input
+                                    name={`${field}Height`}
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    required
+                                    placeholder="height"
+                                    defaultValue={point?.height}
+                                    className="min-h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
                           <button className="min-h-8 w-fit rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800">
                             Save placement
                           </button>
@@ -285,14 +365,26 @@ export default async function CertificateTemplatesPage() {
                             : "Not attached"}
                         </span>
                         {template.designDocument ? (
-                          <Link
-                            href={`/settings/certificates/${template.id}/design`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="w-fit text-xs font-semibold text-[#800020]"
-                          >
-                            View design
-                          </Link>
+                          <div className="flex flex-wrap gap-3">
+                            <Link
+                              href={`/settings/certificates/${template.id}/design`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="w-fit text-xs font-semibold text-[#800020]"
+                            >
+                              View design
+                            </Link>
+                            {hasPlacementMetadata(template.placementMetadata) ? (
+                              <Link
+                                href={`/settings/certificates/${template.id}/preview`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="w-fit text-xs font-semibold text-[#800020]"
+                              >
+                                Preview PDF
+                              </Link>
+                            ) : null}
+                          </div>
                         ) : null}
                         <form
                           action={uploadCertificateTemplateDesignAction}

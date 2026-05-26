@@ -124,6 +124,10 @@ Certificate generation follows the template-as-background path. A certificate te
 
 Workspace-management users can edit placement metadata from certificate template settings. Each required text field stores an `x`, `y`, and `fontSize` value. The PDF generator uses these values to draw text over the uploaded design with `pdf-lib`, stores the generated result as a private `CERTIFICATE` document, and serves it inline through an authenticated route.
 
+Workspace-management users can also preview a certificate template with sample values before generating real employer certificates. Preview rendering uses the same `pdf-lib` path as real generation but does not create a `Document` record or write a generated certificate to storage.
+
+Certificate signatures are managed as versioned workspace assets. Workspace-management users upload active PNG or JPEG signature images for the Director-General/CE and the Director, Revenue, Inspectorate & Compliance. Uploading a replacement retires the previous active signature for that office, while certificates already generated remain preserved as their own private PDF documents. Certificate template placement metadata controls where each signature image is rendered.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

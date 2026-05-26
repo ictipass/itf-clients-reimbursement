@@ -17,6 +17,7 @@ import {
   uploadRegistrationContributionReceiptAction,
 } from "@/app/(dashboard)/registry/[companyId]/registration/actions";
 import { authOptions } from "@/lib/auth";
+import { checkCertificateGenerationReadiness } from "@/lib/certificates";
 import { can } from "@/lib/rbac";
 import { getEmployerCompany } from "@/lib/registry";
 
@@ -46,6 +47,8 @@ const requiredCertificatePlacementFields = [
   "itfEmployerNumber",
   "certificateNumber",
   "issuedAt",
+  "directorGeneralSignature",
+  "directorRevenueSignature",
 ] as const;
 
 function getMissingCertificatePlacementFields(value: unknown) {
@@ -164,7 +167,7 @@ export default async function CompanyDetailPage({
   const missingPlacementFields = latestCertificate?.template
     ? getMissingCertificatePlacementFields(latestCertificate.template.placementMetadata)
     : [...requiredCertificatePlacementFields];
-  const certificateGenerationMissing = [
+  const localCertificateGenerationMissing = [
     latestCertificate?.template ? undefined : "certificate template",
     latestCertificate?.template?.designDocumentId ? undefined : "certificate template design",
     missingPlacementFields.length > 0
@@ -174,6 +177,15 @@ export default async function CompanyDetailPage({
   const canGenerateCertificate = session?.user?.role
     ? can(session.user.role, "workspace:manage") || can(session.user.role, "registry:review")
     : false;
+  const certificateReadiness =
+    latestCertificate && session?.user?.role && canGenerateCertificate
+      ? await checkCertificateGenerationReadiness({
+          certificateId: latestCertificate.id,
+          requesterRole: session.user.role,
+        })
+      : null;
+  const certificateGenerationMissing =
+    certificateReadiness?.missing ?? localCertificateGenerationMissing;
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">

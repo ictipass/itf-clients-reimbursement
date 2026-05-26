@@ -33,6 +33,11 @@ export type DownloadCertificateTemplateDesignInput = {
   requesterRole: Role;
 };
 
+export type PreviewCertificateTemplateInput = {
+  templateId: string;
+  requesterRole: Role;
+};
+
 export type CheckCertificateGenerationReadinessInput = {
   certificateId: string;
   requesterRole: Role;
@@ -57,10 +62,18 @@ export type CertificatePlacementPoint = {
   fontSize: number;
 };
 
+export type CertificateSignaturePlacementPoint = {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+};
+
 export type CertificatePlacementMetadata = Record<
   (typeof requiredPlacementKeys)[number],
   CertificatePlacementPoint
->;
+> &
+  Record<(typeof requiredSignaturePlacementKeys)[number], CertificateSignaturePlacementPoint>;
 
 export type UpdateCertificatePlacementMetadataInput = {
   requesterRole: Role;
@@ -73,6 +86,16 @@ const requiredPlacementKeys = [
   "itfEmployerNumber",
   "certificateNumber",
   "issuedAt",
+] as const;
+
+const requiredSignaturePlacementKeys = [
+  "directorGeneralSignature",
+  "directorRevenueSignature",
+] as const;
+
+const requiredSignatureAssets = [
+  "DIRECTOR_GENERAL_CE",
+  "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
 ] as const;
 
 export async function findActiveCertificateTemplate(
@@ -180,6 +203,7 @@ export async function checkCertificateGenerationReadiness(
       template: {
         select: {
           id: true,
+          workspaceId: true,
           designDocumentId: true,
           placementMetadata: true,
         },
@@ -207,6 +231,14 @@ export async function checkCertificateGenerationReadiness(
 
   if (missingPlacementKeys.length > 0) {
     missing.push(`placement metadata: ${missingPlacementKeys.join(", ")}`);
+  }
+
+  if (certificate.template) {
+    const missingSignatureAssets = await getMissingSignatureAssets(certificate.template.workspaceId);
+
+    if (missingSignatureAssets.length > 0) {
+      missing.push(`signature assets: ${missingSignatureAssets.join(", ")}`);
+    }
   }
 
   return {
@@ -544,6 +576,81 @@ export async function downloadCertificateTemplateDesign(
   };
 }
 
+export async function previewCertificateTemplate(input: PreviewCertificateTemplateInput) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to preview certificate templates.");
+  }
+
+  const db = getDb();
+  const template = await db.certificateTemplate.findFirst({
+    where: {
+      id: input.templateId,
+      recordTier: "HOT",
+      designDocumentId: {
+        not: null,
+      },
+    },
+    select: {
+      name: true,
+      version: true,
+      workspaceId: true,
+      placementMetadata: true,
+      designDocument: {
+        select: {
+          storageProvider: true,
+          bucket: true,
+          objectKey: true,
+          mimeType: true,
+          access: true,
+          isActive: true,
+          recordTier: true,
+          revokedAt: true,
+        },
+      },
+    },
+  });
+
+  const designDocument = template?.designDocument;
+
+  if (
+    !template ||
+    !designDocument ||
+    !designDocument.isActive ||
+    designDocument.recordTier !== "HOT" ||
+    designDocument.revokedAt ||
+    designDocument.access !== "PRIVATE"
+  ) {
+    return null;
+  }
+
+  const placementMetadata = requirePlacementMetadata(template.placementMetadata);
+  const downloadedDesign = await downloadObject({
+    storageProvider: designDocument.storageProvider,
+    bucket: designDocument.bucket,
+    objectKey: designDocument.objectKey,
+  });
+  const signatures = await getOptionalSignatureImages(template.workspaceId);
+  const buffer = await renderCertificatePdf({
+    designBuffer: downloadedDesign.buffer,
+    designMimeType: designDocument.mimeType,
+    placementMetadata,
+    signatures,
+    values: {
+      companyName: "ABC MANUFACTURING LIMITED",
+      itfEmployerNumber: "ITF-XXX-12345",
+      certificateNumber: "CERT-2026-0001",
+      issuedAt: "26 May 2026",
+    },
+  });
+
+  return {
+    buffer,
+    fileName: sanitizeFileName(`${template.name}-v${template.version}-preview.pdf`),
+    fileSize: buffer.byteLength,
+    mimeType: "application/pdf",
+  };
+}
+
 export async function generateRegistrationCertificatePdf(
   input: GenerateRegistrationCertificatePdfInput,
 ) {
@@ -576,6 +683,7 @@ export async function generateRegistrationCertificatePdf(
       template: {
         select: {
           id: true,
+          workspaceId: true,
           designDocumentId: true,
           placementMetadata: true,
           designDocument: {
@@ -639,10 +747,12 @@ export async function generateRegistrationCertificatePdf(
     bucket: designDocument.bucket,
     objectKey: designDocument.objectKey,
   });
+  const signatures = await getRequiredSignatureImages(template.workspaceId);
   const generatedBuffer = await renderCertificatePdf({
     designBuffer: downloadedDesign.buffer,
     designMimeType: designDocument.mimeType,
     placementMetadata,
+    signatures,
     values: {
       companyName: certificate.company.legalName,
       itfEmployerNumber: certificate.itfEmployerNumber,
@@ -820,10 +930,12 @@ function normalizeTemplateCode(value: string) {
 
 function getMissingPlacementKeys(value: unknown) {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return [...requiredPlacementKeys];
+    return [...requiredPlacementKeys, ...requiredSignaturePlacementKeys];
   }
 
-  return requiredPlacementKeys.filter((key) => !Object.hasOwn(value, key));
+  return [...requiredPlacementKeys, ...requiredSignaturePlacementKeys].filter(
+    (key) => !Object.hasOwn(value, key),
+  );
 }
 
 function requirePlacementMetadata(value: unknown) {
@@ -855,12 +967,31 @@ function assertPlacementMetadata(value: CertificatePlacementMetadata) {
       throw new Error(`${key}.fontSize must be greater than zero.`);
     }
   }
+
+  for (const key of requiredSignaturePlacementKeys) {
+    const point = value[key];
+
+    if (!point) {
+      throw new Error(`${key} placement is required.`);
+    }
+
+    for (const property of ["x", "y", "width", "height"] as const) {
+      if (!Number.isFinite(point[property]) || point[property] < 0) {
+        throw new Error(`${key}.${property} must be a non-negative number.`);
+      }
+    }
+
+    if (point.width === 0 || point.height === 0) {
+      throw new Error(`${key}.width and ${key}.height must be greater than zero.`);
+    }
+  }
 }
 
 async function renderCertificatePdf(input: {
   designBuffer: Buffer;
   designMimeType: string;
   placementMetadata: CertificatePlacementMetadata;
+  signatures?: Partial<Record<(typeof requiredSignatureAssets)[number], SignatureImage>>;
   values: Record<(typeof requiredPlacementKeys)[number], string>;
 }) {
   const pdfDocument = await createPdfFromTemplate(input.designBuffer, input.designMimeType);
@@ -878,6 +1009,13 @@ async function renderCertificatePdf(input: {
       color: rgb(0, 0, 0),
     });
   }
+
+  await drawCertificateSignatures({
+    pdfDocument,
+    page,
+    placementMetadata: input.placementMetadata,
+    signatures: input.signatures,
+  });
 
   return Buffer.from(await pdfDocument.save());
 }
@@ -916,6 +1054,139 @@ async function createPdfFromTemplate(buffer: Buffer, mimeType: string) {
   }
 
   throw new Error("Certificate templates must be PDF, PNG, or JPEG files.");
+}
+
+type SignatureImage = {
+  buffer: Buffer;
+  mimeType: string;
+};
+
+async function getOptionalSignatureImages(workspaceId: string) {
+  const db = getDb();
+  const signatureAssets = await db.signatureAsset.findMany({
+    where: {
+      workspaceId,
+      kind: {
+        in: [...requiredSignatureAssets],
+      },
+      isActive: true,
+      recordTier: "HOT",
+      document: {
+        isActive: true,
+        recordTier: "HOT",
+        revokedAt: null,
+        access: "PRIVATE",
+      },
+    },
+    select: {
+      kind: true,
+      document: {
+        select: {
+          storageProvider: true,
+          bucket: true,
+          objectKey: true,
+          mimeType: true,
+        },
+      },
+    },
+  });
+
+  const signatures: Partial<Record<(typeof requiredSignatureAssets)[number], SignatureImage>> = {};
+
+  for (const signatureAsset of signatureAssets) {
+    const downloaded = await downloadObject({
+      storageProvider: signatureAsset.document.storageProvider,
+      bucket: signatureAsset.document.bucket,
+      objectKey: signatureAsset.document.objectKey,
+    });
+
+    signatures[signatureAsset.kind] = {
+      buffer: downloaded.buffer,
+      mimeType: signatureAsset.document.mimeType,
+    };
+  }
+
+  return signatures;
+}
+
+async function getRequiredSignatureImages(workspaceId: string) {
+  const signatures = await getOptionalSignatureImages(workspaceId);
+  const missing = requiredSignatureAssets.filter((kind) => !signatures[kind]);
+
+  if (missing.length > 0) {
+    throw new Error(`Active certificate signature assets are required: ${missing.join(", ")}.`);
+  }
+
+  return signatures;
+}
+
+async function getMissingSignatureAssets(workspaceId: string) {
+  const db = getDb();
+  const signatureAssets = await db.signatureAsset.findMany({
+    where: {
+      workspaceId,
+      kind: {
+        in: [...requiredSignatureAssets],
+      },
+      isActive: true,
+      recordTier: "HOT",
+      document: {
+        isActive: true,
+        recordTier: "HOT",
+        revokedAt: null,
+        access: "PRIVATE",
+      },
+    },
+    select: {
+      kind: true,
+    },
+  });
+  const availableKinds = new Set(signatureAssets.map((asset) => asset.kind));
+
+  return requiredSignatureAssets.filter((kind) => !availableKinds.has(kind));
+}
+
+async function drawCertificateSignatures(input: {
+  pdfDocument: PDFDocument;
+  page: ReturnType<PDFDocument["getPages"]>[number];
+  placementMetadata: CertificatePlacementMetadata;
+  signatures?: Partial<Record<(typeof requiredSignatureAssets)[number], SignatureImage>>;
+}) {
+  await drawSignatureImage({
+    pdfDocument: input.pdfDocument,
+    page: input.page,
+    signature: input.signatures?.DIRECTOR_GENERAL_CE,
+    placement: input.placementMetadata.directorGeneralSignature,
+  });
+  await drawSignatureImage({
+    pdfDocument: input.pdfDocument,
+    page: input.page,
+    signature: input.signatures?.DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE,
+    placement: input.placementMetadata.directorRevenueSignature,
+  });
+}
+
+async function drawSignatureImage(input: {
+  pdfDocument: PDFDocument;
+  page: ReturnType<PDFDocument["getPages"]>[number];
+  signature?: SignatureImage;
+  placement: CertificateSignaturePlacementPoint;
+}) {
+  if (!input.signature) {
+    return;
+  }
+
+  const image =
+    input.signature.mimeType === "image/png"
+      ? await input.pdfDocument.embedPng(input.signature.buffer)
+      : await input.pdfDocument.embedJpg(input.signature.buffer);
+
+  input.page.drawImage(image, {
+    x: input.placement.x,
+    y: input.placement.y,
+    width: input.placement.width,
+    height: input.placement.height,
+  });
 }
 
 function formatCertificateDate(date: Date) {

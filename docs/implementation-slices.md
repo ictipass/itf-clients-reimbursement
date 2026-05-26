@@ -807,3 +807,48 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/certificate/[certificateId]/route.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 37: Certificate Layout Preview
+
+Goal: let workspace admins test template placement metadata before generating real certificates.
+
+Expected design:
+
+- Render a sample certificate from a template design and placement metadata
+- Use fixed sample values for company name, ITF employer number, certificate number, and issue date
+- Serve the preview PDF inline without creating database documents
+- Restrict preview access to workspace-management users
+- Add a `Preview PDF` link beside configured certificate template designs
+
+Expected files:
+
+- `lib/certificates.ts`
+- `app/(dashboard)/settings/certificates/[templateId]/preview/route.ts`
+- `app/(dashboard)/settings/certificates/page.tsx`
+- workflow docs
+
+### Slice 38: Certificate Signature Assets
+
+Goal: manage official certificate signatures from system settings and render them on generated certificates.
+
+Expected design:
+
+- Add signature asset records for Director-General/CE and Director, Revenue, Inspectorate & Compliance
+- Upload signature images from settings as PNG or JPEG files
+- Make a newly uploaded signature active and retire the previous active signature of the same kind
+- Store signature images as private documents
+- Add signature placement metadata to certificate templates
+- Render active signature images on generated certificates and previews
+- Require both active signatures before official certificate generation
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/signatures.ts`
+- `lib/certificates.ts`
+- `app/(dashboard)/settings/signatures/page.tsx`
+- `app/(dashboard)/settings/signatures/actions.ts`
+- `app/(dashboard)/settings/signatures/[signatureAssetId]/image/route.ts`
+- `app/(dashboard)/settings/certificates/page.tsx`
+- workflow docs

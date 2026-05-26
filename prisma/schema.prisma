@@ -57,6 +57,7 @@ enum DocumentKind {
   TRAINING_PHOTO
   CERTIFICATE
   CERTIFICATE_TEMPLATE_DESIGN
+  SIGNATURE_IMAGE
   SIGNED_DECLARATION
   OFFICIAL_STAMPED_COPY
   OTHER_SUPPORTING_EVIDENCE
@@ -108,6 +109,11 @@ enum CertificateTemplateStatus {
   DRAFT
   ACTIVE
   RETIRED
+}
+
+enum SignatureAssetKind {
+  DIRECTOR_GENERAL_CE
+  DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE
 }
 
 enum WorkspaceApp {
@@ -185,6 +191,7 @@ model Workspace {
   areaOffices          AreaOffice[]
   memberships          Membership[]
   certificateTemplates CertificateTemplate[]
+  signatureAssets      SignatureAsset[]
   workItems            WorkItem[]
   auditEvents          AuditEvent[]
 }
@@ -382,6 +389,25 @@ model CertificateTemplate {
   @@unique([workspaceId, code, version])
   @@index([designDocumentId])
   @@index([workspaceId, status, recordTier, effectiveFrom])
+}
+
+model SignatureAsset {
+  id            String             @id @default(cuid())
+  workspaceId   String
+  documentId    String
+  kind          SignatureAssetKind
+  label         String
+  effectiveFrom DateTime?
+  retiredAt     DateTime?
+  isActive      Boolean            @default(true)
+  recordTier    RecordTier         @default(HOT)
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+  workspace     Workspace          @relation(fields: [workspaceId], references: [id])
+  document      Document           @relation("SignatureAssetDocument", fields: [documentId], references: [id])
+
+  @@index([workspaceId, kind, isActive, recordTier])
+  @@index([documentId])
 }
 
 model RegistrationContributionAssessment {
@@ -614,6 +640,7 @@ model Document {
   reimbursementClaim         ReimbursementClaim?      @relation(fields: [reimbursementClaimId], references: [id])
   uploadedBy                 User                     @relation("UploadedDocuments", fields: [uploadedById], references: [id])
   certificateTemplateDesigns CertificateTemplate[]    @relation("CertificateTemplateDesignDocument")
+  signatureAssets            SignatureAsset[]         @relation("SignatureAssetDocument")
   decisions                  Decision[]
   comments                   Comment[]
 

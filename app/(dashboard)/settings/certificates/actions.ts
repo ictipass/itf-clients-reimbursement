@@ -167,6 +167,18 @@ export async function updateCertificatePlacementMetadataAction(formData: FormDat
         y: readRequiredNumber(formData, "issuedAtY"),
         fontSize: readRequiredNumber(formData, "issuedAtFontSize"),
       },
+      directorGeneralSignature: {
+        x: readRequiredNumber(formData, "directorGeneralSignatureX"),
+        y: readRequiredNumber(formData, "directorGeneralSignatureY"),
+        width: readRequiredNumber(formData, "directorGeneralSignatureWidth"),
+        height: readRequiredNumber(formData, "directorGeneralSignatureHeight"),
+      },
+      directorRevenueSignature: {
+        x: readRequiredNumber(formData, "directorRevenueSignatureX"),
+        y: readRequiredNumber(formData, "directorRevenueSignatureY"),
+        width: readRequiredNumber(formData, "directorRevenueSignatureWidth"),
+        height: readRequiredNumber(formData, "directorRevenueSignatureHeight"),
+      },
     },
   });
 
