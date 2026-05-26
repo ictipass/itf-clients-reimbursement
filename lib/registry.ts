@@ -74,6 +74,7 @@ export async function getEmployerCompany(companyId: string) {
       updatedAt: true,
       organization: {
         select: {
+          workspaceId: true,
           name: true,
           slug: true,
           organizationType: true,

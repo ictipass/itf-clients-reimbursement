@@ -90,8 +90,8 @@ export type CompleteRegistrationAtHeadquartersInput = {
   companyId: string;
   requesterEmail: string;
   requesterRole: Role;
-  itfEmployerNumber: string;
-  certificateReference?: string;
+  itfEmployerNumberId: string;
+  certificateNumberId: string;
   note?: string;
 };
 
@@ -1433,13 +1433,6 @@ export async function completeRegistrationAtHeadquarters(
     throw new Error("Only Head of Reimbursement Division can complete employer registration.");
   }
 
-  const itfEmployerNumber = input.itfEmployerNumber.trim();
-  const certificateNumber = input.certificateReference?.trim() || itfEmployerNumber;
-
-  if (!itfEmployerNumber) {
-    throw new Error("ITF employer number is required.");
-  }
-
   const db = getDb();
   const registrationApplication = await db.registrationApplication.findFirst({
     where: {
@@ -1460,6 +1453,7 @@ export async function completeRegistrationAtHeadquarters(
         select: {
           id: true,
           legalName: true,
+          organizationId: true,
           organization: {
             select: {
               workspaceId: true,
@@ -1472,38 +1466,6 @@ export async function completeRegistrationAtHeadquarters(
 
   if (!registrationApplication) {
     throw new Error("A Headquarters registration awaiting completion was not found.");
-  }
-
-  const existingCompany = await db.company.findFirst({
-    where: {
-      itfEmployerNumber,
-      id: {
-        not: registrationApplication.companyId,
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (existingCompany) {
-    throw new Error("This ITF employer number is already assigned to another company.");
-  }
-
-  const existingCertificate = await db.registrationCertificate.findFirst({
-    where: {
-      certificateNumber,
-      registrationApplicationId: {
-        not: registrationApplication.id,
-      },
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (existingCertificate) {
-    throw new Error("This certificate reference is already assigned to another registration.");
   }
 
   const actor = await db.user.findUnique({
@@ -1527,6 +1489,46 @@ export async function completeRegistrationAtHeadquarters(
   );
 
   return db.$transaction(async (tx) => {
+    const [itfManagedNumber, certificateManagedNumber] = await Promise.all([
+      tx.managedRegistrationNumber.findFirst({
+        where: {
+          id: input.itfEmployerNumberId,
+          workspaceId: registrationApplication.company.organization.workspaceId,
+          type: "ITF_EMPLOYER_NUMBER",
+          status: "AVAILABLE",
+          recordTier: "HOT",
+        },
+        select: {
+          id: true,
+          value: true,
+        },
+      }),
+      tx.managedRegistrationNumber.findFirst({
+        where: {
+          id: input.certificateNumberId,
+          workspaceId: registrationApplication.company.organization.workspaceId,
+          type: "REGISTRATION_CERTIFICATE_NUMBER",
+          status: "AVAILABLE",
+          recordTier: "HOT",
+        },
+        select: {
+          id: true,
+          value: true,
+        },
+      }),
+    ]);
+
+    if (!itfManagedNumber) {
+      throw new Error("Selected ITF employer number is no longer available.");
+    }
+
+    if (!certificateManagedNumber) {
+      throw new Error("Selected certificate number is no longer available.");
+    }
+
+    const itfEmployerNumber = itfManagedNumber.value;
+    const certificateNumber = certificateManagedNumber.value;
+
     await tx.company.update({
       where: {
         id: registrationApplication.companyId,
@@ -1561,9 +1563,7 @@ export async function completeRegistrationAtHeadquarters(
         action: "CERTIFY",
         reason: [
           `HQ completed registration with ITF employer number: ${itfEmployerNumber}`,
-          input.certificateReference
-            ? `Certificate reference: ${input.certificateReference}`
-            : undefined,
+          `Certificate reference: ${certificateNumber}`,
           input.note,
         ]
           .filter(Boolean)
@@ -1571,7 +1571,7 @@ export async function completeRegistrationAtHeadquarters(
       },
     });
 
-    await tx.registrationCertificate.upsert({
+    const certificate = await tx.registrationCertificate.upsert({
       where: {
         registrationApplicationId: registrationApplication.id,
       },
@@ -1598,6 +1598,39 @@ export async function completeRegistrationAtHeadquarters(
         id: true,
       },
     });
+
+    const [itfNumberAssignment, certificateNumberAssignment] = await Promise.all([
+      tx.managedRegistrationNumber.updateMany({
+        where: {
+          id: itfManagedNumber.id,
+          status: "AVAILABLE",
+        },
+        data: {
+          status: "ASSIGNED",
+          assignedCompanyId: registrationApplication.companyId,
+          assignedCertificateId: certificate.id,
+          issuedById: actor.id,
+          issuedAt,
+        },
+      }),
+      tx.managedRegistrationNumber.updateMany({
+        where: {
+          id: certificateManagedNumber.id,
+          status: "AVAILABLE",
+        },
+        data: {
+          status: "ASSIGNED",
+          assignedCompanyId: registrationApplication.companyId,
+          assignedCertificateId: certificate.id,
+          issuedById: actor.id,
+          issuedAt,
+        },
+      }),
+    ]);
+
+    if (itfNumberAssignment.count !== 1 || certificateNumberAssignment.count !== 1) {
+      throw new Error("Selected registration numbers could not be assigned.");
+    }
 
     await tx.workItem.updateMany({
       where: {

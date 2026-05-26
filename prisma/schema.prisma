@@ -105,6 +105,18 @@ enum RegistrationCertificateStatus {
   EXPIRED
 }
 
+enum ManagedNumberType {
+  ITF_EMPLOYER_NUMBER
+  REGISTRATION_CERTIFICATE_NUMBER
+}
+
+enum ManagedNumberStatus {
+  AVAILABLE
+  RESERVED
+  ASSIGNED
+  VOIDED
+}
+
 enum CertificateTemplateStatus {
   DRAFT
   ACTIVE
@@ -192,6 +204,7 @@ model Workspace {
   memberships          Membership[]
   certificateTemplates CertificateTemplate[]
   signatureAssets      SignatureAsset[]
+  managedNumbers       ManagedRegistrationNumber[]
   workItems            WorkItem[]
   auditEvents          AuditEvent[]
 }
@@ -254,6 +267,10 @@ model User {
   decisions                                        Decision[]
   comments                                         Comment[]
   assignedWorkItems                                WorkItem[]                           @relation("AssignedWorkItems")
+  createdManagedNumbers                            ManagedRegistrationNumber[]          @relation("CreatedManagedNumbers")
+  reservedManagedNumbers                           ManagedRegistrationNumber[]          @relation("ReservedManagedNumbers")
+  issuedManagedNumbers                             ManagedRegistrationNumber[]          @relation("IssuedManagedNumbers")
+  voidedManagedNumbers                             ManagedRegistrationNumber[]          @relation("VoidedManagedNumbers")
   auditEvents                                      AuditEvent[]
 }
 
@@ -305,6 +322,7 @@ model Company {
   registrationApplication             RegistrationApplication?
   registrationContributionAssessments RegistrationContributionAssessment[]
   registrationCertificates            RegistrationCertificate[]
+  managedNumbers                       ManagedRegistrationNumber[]
   workItems                           WorkItem[]
   decisions                           Decision[]
   comments                            Comment[]
@@ -360,11 +378,49 @@ model RegistrationCertificate {
   registrationApplication   RegistrationApplication       @relation(fields: [registrationApplicationId], references: [id])
   issuedBy                  User                          @relation("IssuedRegistrationCertificates", fields: [issuedById], references: [id])
   template                  CertificateTemplate?          @relation(fields: [templateId], references: [id])
+  managedNumbers            ManagedRegistrationNumber[]
 
   @@index([companyId, status, recordTier])
   @@index([issuedById, recordTier])
   @@index([templateId, status, recordTier])
   @@index([itfEmployerNumber])
+}
+
+model ManagedRegistrationNumber {
+  id                    String                       @id @default(cuid())
+  workspaceId           String
+  type                  ManagedNumberType
+  value                 String
+  status                ManagedNumberStatus          @default(AVAILABLE)
+  policyCode            String?
+  batchCode             String?
+  metadata              Json?
+  notes                 String?
+  assignedCompanyId     String?
+  assignedCertificateId String?
+  createdById           String?
+  reservedById          String?
+  reservedAt            DateTime?
+  issuedById            String?
+  issuedAt              DateTime?
+  voidedById            String?
+  voidedAt              DateTime?
+  voidReason            String?
+  recordTier            RecordTier                   @default(HOT)
+  createdAt             DateTime                     @default(now())
+  updatedAt             DateTime                     @updatedAt
+  workspace             Workspace                    @relation(fields: [workspaceId], references: [id])
+  assignedCompany       Company?                     @relation(fields: [assignedCompanyId], references: [id])
+  assignedCertificate   RegistrationCertificate?     @relation(fields: [assignedCertificateId], references: [id])
+  createdBy             User?                        @relation("CreatedManagedNumbers", fields: [createdById], references: [id])
+  reservedBy            User?                        @relation("ReservedManagedNumbers", fields: [reservedById], references: [id])
+  issuedBy              User?                        @relation("IssuedManagedNumbers", fields: [issuedById], references: [id])
+  voidedBy              User?                        @relation("VoidedManagedNumbers", fields: [voidedById], references: [id])
+
+  @@unique([workspaceId, type, value])
+  @@index([workspaceId, type, status, recordTier])
+  @@index([assignedCompanyId, type, status])
+  @@index([assignedCertificateId])
 }
 
 model CertificateTemplate {

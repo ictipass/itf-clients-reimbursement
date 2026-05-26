@@ -128,6 +128,10 @@ Workspace-management users can also preview a certificate template with sample v
 
 Certificate signatures are managed as versioned workspace assets. Workspace-management users upload active PNG or JPEG signature images for the Director-General/CE and the Director, Revenue, Inspectorate & Compliance. Uploading a replacement retires the previous active signature for that office, while certificates already generated remain preserved as their own private PDF documents. Certificate template placement metadata controls where each signature image is rendered.
 
+ITF employer numbers and registration certificate numbers are managed through a formal number registry. Each number has a type, lifecycle status, policy code, batch code, notes, and metadata so future numbering policies can be adopted without redesigning the registration workflow. Head of Reimbursement Division completes employer registration by selecting available managed numbers; the selected numbers are atomically assigned to the company and generated registration certificate record.
+
+Public certificate verification and management statistics are planned as separate surfaces. Public verification should expose only safe certificate authenticity information, while management statistics should aggregate complied companies, revenue received, reimbursement paid, and workflow volumes.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

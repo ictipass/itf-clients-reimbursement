@@ -18,6 +18,7 @@ import {
 } from "@/app/(dashboard)/registry/[companyId]/registration/actions";
 import { authOptions } from "@/lib/auth";
 import { checkCertificateGenerationReadiness } from "@/lib/certificates";
+import { listAvailableManagedNumbers } from "@/lib/managed-numbers";
 import { can } from "@/lib/rbac";
 import { getEmployerCompany } from "@/lib/registry";
 
@@ -186,6 +187,23 @@ export default async function CompanyDetailPage({
       : null;
   const certificateGenerationMissing =
     certificateReadiness?.missing ?? localCertificateGenerationMissing;
+  const [availableItfEmployerNumbers, availableCertificateNumbers] =
+    session?.user?.role &&
+    company.registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
+    company.registrationApplication.status === "IN_REVIEW"
+      ? await Promise.all([
+          listAvailableManagedNumbers({
+            requesterRole: session.user.role,
+            workspaceId: company.organization.workspaceId,
+            type: "ITF_EMPLOYER_NUMBER",
+          }),
+          listAvailableManagedNumbers({
+            requesterRole: session.user.role,
+            workspaceId: company.organization.workspaceId,
+            type: "REGISTRATION_CERTIFICATE_NUMBER",
+          }),
+        ])
+      : [[], []];
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -707,20 +725,41 @@ export default async function CompanyDetailPage({
             <div className="grid gap-3 md:grid-cols-2">
               <label className="grid gap-2 text-sm font-medium text-zinc-700">
                 ITF employer number
-                <input
-                  name="itfEmployerNumber"
+                <select
+                  name="itfEmployerNumberId"
                   required
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
-                />
+                >
+                  <option value="">Select available ITF employer number</option>
+                  {availableItfEmployerNumbers.map((managedNumber) => (
+                    <option key={managedNumber.id} value={managedNumber.id}>
+                      {managedNumber.value}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label className="grid gap-2 text-sm font-medium text-zinc-700">
-                Certificate reference
-                <input
-                  name="certificateReference"
+                Certificate number
+                <select
+                  name="certificateNumberId"
+                  required
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
-                />
+                >
+                  <option value="">Select available certificate number</option>
+                  {availableCertificateNumbers.map((managedNumber) => (
+                    <option key={managedNumber.id} value={managedNumber.id}>
+                      {managedNumber.value}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
+            {availableItfEmployerNumbers.length === 0 || availableCertificateNumbers.length === 0 ? (
+              <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                Add available ITF employer and certificate numbers in Settings before completing
+                this registration.
+              </p>
+            ) : null}
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               Head of Division completion note
               <input

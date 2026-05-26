@@ -852,3 +852,67 @@ Expected files:
 - `app/(dashboard)/settings/signatures/[signatureAssetId]/image/route.ts`
 - `app/(dashboard)/settings/certificates/page.tsx`
 - workflow docs
+
+### Slice 39: Managed Registration Number Registry
+
+Goal: control ITF employer numbers and registration certificate numbers from a managed register.
+
+Expected design:
+
+- Add a flexible managed number model for ITF employer numbers and certificate numbers
+- Support available, reserved, assigned, and voided lifecycle states
+- Store policy code, batch code, notes, and JSON metadata for future numbering policy changes
+- Let workspace admins create or import numbers from settings
+- Show who created and issued each number, when it was issued, and which company received it
+- Replace manual HOD number entry with selected available managed numbers
+- Assign both selected numbers atomically during employer registration completion
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/managed-numbers.ts`
+- `lib/registration.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/settings/numbers/page.tsx`
+- `app/(dashboard)/settings/numbers/actions.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs
+
+### Slice 40: Public Certificate Verification
+
+Goal: let the public verify the authenticity of ITF employer numbers and certificate numbers.
+
+Expected design:
+
+- Add a public verification page outside the authenticated dashboard
+- Allow lookup by ITF employer number or certificate number
+- Return limited public-safe information only
+- Show company name, status, certificate issue date, and certificate validity state
+- Avoid exposing internal workflow notes, evidence documents, or private metadata
+- Add abuse controls such as rate limiting or captcha if needed
+
+Expected files:
+
+- public verification route/page
+- `lib/public-verification.ts`
+- workflow docs
+
+### Slice 41: Management Statistics Dashboard
+
+Goal: provide management with real-time operational and financial statistics.
+
+Expected design:
+
+- Show complied companies count
+- Show registration revenue received
+- Show reimbursement claims paid
+- Show pending desk/workflow counts
+- Add filters by year, area office, company status, and record tier
+- Keep aggregation logic separate from dashboard UI so it can later move to materialized views
+
+Expected files:
+
+- management dashboard route/page
+- `lib/management-dashboard.ts`
+- workflow docs
