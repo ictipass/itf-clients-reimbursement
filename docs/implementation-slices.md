@@ -785,3 +785,25 @@ Expected files:
 - `app/(dashboard)/settings/certificates/actions.ts`
 - `app/(dashboard)/settings/certificates/page.tsx`
 - workflow docs
+
+### Slice 36: Certificate PDF Generation Engine
+
+Goal: generate downloadable employer registration certificates from the active template design.
+
+Expected design:
+
+- Use the uploaded certificate template design as a PDF, PNG, or JPEG background
+- Draw company name, ITF employer number, certificate number, and issue date using placement metadata
+- Store the generated PDF as a private `CERTIFICATE` document
+- Link the generated document back to the registration certificate
+- Allow authorized reviewers to generate or regenerate the PDF from the company registry detail page
+- Allow authorized users to open the generated certificate inline in a new tab
+- Keep generated certificates behind the existing storage provider abstraction
+
+Expected files:
+
+- `lib/certificates.ts`
+- `app/(dashboard)/registry/[companyId]/certificate/actions.ts`
+- `app/(dashboard)/registry/[companyId]/certificate/[certificateId]/route.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

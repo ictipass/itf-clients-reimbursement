@@ -98,7 +98,7 @@ The Revenue Accountant records the registration contribution recommendation as a
 
 Area Manager release supports a dashboard-only notification path and a dashboard-plus-email path. The later email delivery slice should use Resend as the preferred transactional email provider.
 
-Remita integration and certificate generation remain later workflow stages.
+Remita integration remains a later workflow stage.
 
 Operational attention is modeled separately from email delivery. When a workflow reaches a desk, the app can create a `WorkItem` for a role, user, Area Office, organization, company, or specific workflow record. These work items power dashboard counts now and can later power workspace app-card badges and waffle launcher badges across the broader ITF Workspace.
 
@@ -110,19 +110,19 @@ After receipt acceptance, the Area Manager can notify Headquarters. This moves t
 
 Director FSD forwards the registration to the Head of Reimbursement Division. This resolves the Director FSD attention item and opens a Head of Division attention item for registration completion.
 
-Head of Reimbursement Division completes the registration by recording the ITF employer number. Completion activates the company, approves the registration application, creates a `RegistrationCertificate` record, attaches the latest active `CertificateTemplate` when one exists, records optional certificate reference text in the decision trail, and resolves HQ registration attention items. Downloadable PDF generation remains a later slice.
+Head of Reimbursement Division completes the registration by recording the ITF employer number. Completion activates the company, approves the registration application, creates a `RegistrationCertificate` record, attaches the latest active `CertificateTemplate` when one exists, records optional certificate reference text in the decision trail, and resolves HQ registration attention items.
 
 Certificate templates are versioned by workspace. A template can be draft, active, or retired. New certificate records can point to the active template used at issue time so that future design changes do not rewrite historical certificate records.
 
-The foundation seed creates a default active employer registration certificate template for local workflow testing. Workspace-management users can view certificate templates from the settings area and attach a PDF, PNG, or JPEG design file using the same private storage and upload validation used by evidence documents. Template metadata editing and PDF generation remain later slices.
+The foundation seed creates a default active employer registration certificate template for local workflow testing. Workspace-management users can view certificate templates from the settings area and attach a PDF, PNG, or JPEG design file using the same private storage and upload validation used by evidence documents.
 
 Workspace-management users can create draft certificate template versions, activate a version, or retire a version. Activating a template retires other active templates with the same workspace and template code, while already issued certificates continue to point to the template version used at issue time.
 
 Uploaded certificate template designs can be opened inline by workspace-management users for verification. The viewer keeps the document private and sends restrictive response headers so browser rendering does not become an execution surface for uploaded content.
 
-Certificate generation follows the template-as-background path. A certificate template can hold placement metadata for dynamic text such as company name, ITF employer number, certificate number, and issue date. Registration certificates can record when a downloadable certificate is generated and which generated document stores the PDF. Actual PDF rendering remains a later slice.
+Certificate generation follows the template-as-background path. A certificate template can hold placement metadata for dynamic text such as company name, ITF employer number, certificate number, and issue date. Registration certificates record when a downloadable certificate is generated and which generated document stores the PDF.
 
-Workspace-management users can edit placement metadata from certificate template settings. Each required text field stores an `x`, `y`, and `fontSize` value, which the later PDF generator will use to draw text over the uploaded design.
+Workspace-management users can edit placement metadata from certificate template settings. Each required text field stores an `x`, `y`, and `fontSize` value. The PDF generator uses these values to draw text over the uploaded design with `pdf-lib`, stores the generated result as a private `CERTIFICATE` document, and serves it inline through an authenticated route.
 
 Headquarters Field Services Department routing follows this hierarchy:
 

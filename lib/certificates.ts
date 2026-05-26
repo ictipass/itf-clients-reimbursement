@@ -1,7 +1,8 @@
 import { getDb } from "@/lib/db";
-import { can, type Role } from "@/lib/rbac";
+import { can, isItfRole, type Role } from "@/lib/rbac";
 import { downloadObject, uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
+import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
 type CertificateTemplateReader = Pick<ReturnType<typeof getDb>, "certificateTemplate">;
 
@@ -34,6 +35,19 @@ export type DownloadCertificateTemplateDesignInput = {
 
 export type CheckCertificateGenerationReadinessInput = {
   certificateId: string;
+  requesterRole: Role;
+};
+
+export type GenerateRegistrationCertificatePdfInput = {
+  certificateId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+};
+
+export type DownloadRegistrationCertificateInput = {
+  certificateId: string;
+  companyId: string;
+  requesterEmail: string;
   requesterRole: Role;
 };
 
@@ -530,6 +544,272 @@ export async function downloadCertificateTemplateDesign(
   };
 }
 
+export async function generateRegistrationCertificatePdf(
+  input: GenerateRegistrationCertificatePdfInput,
+) {
+  if (!can(input.requesterRole, "workspace:manage") && !can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to generate registration certificates.");
+  }
+
+  const db = getDb();
+  const certificate = await db.registrationCertificate.findFirst({
+    where: {
+      id: input.certificateId,
+      recordTier: "HOT",
+      status: "ACTIVE",
+    },
+    select: {
+      id: true,
+      companyId: true,
+      registrationApplicationId: true,
+      certificateNumber: true,
+      itfEmployerNumber: true,
+      issuedAt: true,
+      generatedDocumentId: true,
+      company: {
+        select: {
+          id: true,
+          legalName: true,
+          organizationId: true,
+        },
+      },
+      template: {
+        select: {
+          id: true,
+          designDocumentId: true,
+          placementMetadata: true,
+          designDocument: {
+            select: {
+              fileName: true,
+              storageProvider: true,
+              bucket: true,
+              objectKey: true,
+              mimeType: true,
+              fileSize: true,
+              access: true,
+              isActive: true,
+              recordTier: true,
+              revokedAt: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!certificate) {
+    throw new Error("Active registration certificate was not found.");
+  }
+
+  const template = certificate.template;
+
+  if (!template) {
+    throw new Error("Certificate template is required before PDF generation.");
+  }
+
+  const designDocument = template.designDocument;
+
+  if (
+    !template.designDocumentId ||
+    !designDocument ||
+    !designDocument.isActive ||
+    designDocument.recordTier !== "HOT" ||
+    designDocument.revokedAt ||
+    designDocument.access !== "PRIVATE"
+  ) {
+    throw new Error("Active certificate template design is required before PDF generation.");
+  }
+
+  const placementMetadata = requirePlacementMetadata(template.placementMetadata);
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!requester) {
+    throw new Error("Generator user was not found.");
+  }
+
+  const downloadedDesign = await downloadObject({
+    storageProvider: designDocument.storageProvider,
+    bucket: designDocument.bucket,
+    objectKey: designDocument.objectKey,
+  });
+  const generatedBuffer = await renderCertificatePdf({
+    designBuffer: downloadedDesign.buffer,
+    designMimeType: designDocument.mimeType,
+    placementMetadata,
+    values: {
+      companyName: certificate.company.legalName,
+      itfEmployerNumber: certificate.itfEmployerNumber,
+      certificateNumber: certificate.certificateNumber,
+      issuedAt: formatCertificateDate(certificate.issuedAt),
+    },
+  });
+  const fileName = sanitizeFileName(`${certificate.certificateNumber}-certificate.pdf`);
+  const stored = await uploadObject({
+    buffer: generatedBuffer,
+    companyId: certificate.companyId,
+    extension: ".pdf",
+    mimeType: "application/pdf",
+    namespace: "registration-certificates",
+  });
+  const generatedAt = new Date();
+
+  return db.$transaction(async (tx) => {
+    if (certificate.generatedDocumentId) {
+      await tx.document.updateMany({
+        where: {
+          id: certificate.generatedDocumentId,
+        },
+        data: {
+          isActive: false,
+          revokedAt: generatedAt,
+        },
+      });
+    }
+
+    const document = await tx.document.create({
+      data: {
+        organizationId: certificate.company.organizationId,
+        companyId: certificate.companyId,
+        registrationApplicationId: certificate.registrationApplicationId,
+        uploadedById: requester.id,
+        kind: "CERTIFICATE",
+        fileName,
+        storageProvider: stored.storageProvider,
+        bucket: stored.bucket,
+        objectKey: stored.objectKey,
+        url: stored.url,
+        etag: stored.etag,
+        versionId: stored.versionId,
+        checksum: stored.checksum,
+        mimeType: stored.mimeType,
+        fileSize: stored.fileSize,
+        access: "PRIVATE",
+        classification: "OFFICIAL",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return tx.registrationCertificate.update({
+      where: {
+        id: certificate.id,
+      },
+      data: {
+        generatedDocumentId: document.id,
+        generatedAt,
+      },
+      select: {
+        id: true,
+        generatedDocumentId: true,
+        generatedAt: true,
+      },
+    });
+  });
+}
+
+export async function downloadRegistrationCertificate(
+  input: DownloadRegistrationCertificateInput,
+) {
+  if (!can(input.requesterRole, "company:read")) {
+    throw new Error("You do not have permission to read registration certificates.");
+  }
+
+  const db = getDb();
+  const certificate = await db.registrationCertificate.findFirst({
+    where: {
+      id: input.certificateId,
+      companyId: input.companyId,
+      recordTier: "HOT",
+      generatedDocumentId: {
+        not: null,
+      },
+    },
+    select: {
+      generatedDocumentId: true,
+    },
+  });
+
+  if (!certificate?.generatedDocumentId) {
+    return null;
+  }
+
+  const document = await db.document.findFirst({
+    where: {
+      id: certificate.generatedDocumentId,
+      companyId: input.companyId,
+      kind: "CERTIFICATE",
+      isActive: true,
+      recordTier: "HOT",
+      revokedAt: null,
+    },
+    select: {
+      id: true,
+      organizationId: true,
+      fileName: true,
+      storageProvider: true,
+      bucket: true,
+      objectKey: true,
+      mimeType: true,
+      fileSize: true,
+      access: true,
+    },
+  });
+
+  if (!document) {
+    return null;
+  }
+
+  if (document.access !== "PRIVATE") {
+    throw new Error("Unsupported certificate document access policy.");
+  }
+
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    requester.memberships.some((membership) => membership.organizationId === document.organizationId);
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this registration certificate.");
+  }
+
+  const downloaded = await downloadObject({
+    storageProvider: document.storageProvider,
+    bucket: document.bucket,
+    objectKey: document.objectKey,
+  });
+
+  return {
+    buffer: downloaded.buffer,
+    fileName: document.fileName,
+    fileSize: downloaded.fileSize,
+    mimeType: document.mimeType,
+  };
+}
+
 function normalizeTemplateCode(value: string) {
   return value
     .trim()
@@ -544,6 +824,17 @@ function getMissingPlacementKeys(value: unknown) {
   }
 
   return requiredPlacementKeys.filter((key) => !Object.hasOwn(value, key));
+}
+
+function requirePlacementMetadata(value: unknown) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    throw new Error("Certificate placement metadata is required before PDF generation.");
+  }
+
+  const metadata = value as CertificatePlacementMetadata;
+  assertPlacementMetadata(metadata);
+
+  return metadata;
 }
 
 function assertPlacementMetadata(value: CertificatePlacementMetadata) {
@@ -564,4 +855,71 @@ function assertPlacementMetadata(value: CertificatePlacementMetadata) {
       throw new Error(`${key}.fontSize must be greater than zero.`);
     }
   }
+}
+
+async function renderCertificatePdf(input: {
+  designBuffer: Buffer;
+  designMimeType: string;
+  placementMetadata: CertificatePlacementMetadata;
+  values: Record<(typeof requiredPlacementKeys)[number], string>;
+}) {
+  const pdfDocument = await createPdfFromTemplate(input.designBuffer, input.designMimeType);
+  const [page] = pdfDocument.getPages();
+  const font = await pdfDocument.embedFont(StandardFonts.Helvetica);
+
+  for (const key of requiredPlacementKeys) {
+    const point = input.placementMetadata[key];
+
+    page.drawText(input.values[key], {
+      x: point.x,
+      y: point.y,
+      size: point.fontSize,
+      font,
+      color: rgb(0, 0, 0),
+    });
+  }
+
+  return Buffer.from(await pdfDocument.save());
+}
+
+async function createPdfFromTemplate(buffer: Buffer, mimeType: string) {
+  if (mimeType === "application/pdf") {
+    return PDFDocument.load(buffer);
+  }
+
+  const pdfDocument = await PDFDocument.create();
+
+  if (mimeType === "image/png") {
+    const image = await pdfDocument.embedPng(buffer);
+    const page = pdfDocument.addPage([image.width, image.height]);
+    page.drawImage(image, {
+      x: 0,
+      y: 0,
+      width: image.width,
+      height: image.height,
+    });
+
+    return pdfDocument;
+  }
+
+  if (mimeType === "image/jpeg") {
+    const image = await pdfDocument.embedJpg(buffer);
+    const page = pdfDocument.addPage([image.width, image.height]);
+    page.drawImage(image, {
+      x: 0,
+      y: 0,
+      width: image.width,
+      height: image.height,
+    });
+
+    return pdfDocument;
+  }
+
+  throw new Error("Certificate templates must be PDF, PNG, or JPEG files.");
+}
+
+function formatCertificateDate(date: Date) {
+  return new Intl.DateTimeFormat("en-NG", {
+    dateStyle: "long",
+  }).format(date);
 }

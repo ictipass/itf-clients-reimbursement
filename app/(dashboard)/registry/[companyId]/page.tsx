@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
+import { generateRegistrationCertificatePdfAction } from "@/app/(dashboard)/registry/[companyId]/certificate/actions";
 import { updateComplianceYearStatusAction } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
 import {
   assessRegistrationContributionAction,
@@ -14,6 +16,8 @@ import {
   submitRegistrationApplicationAction,
   uploadRegistrationContributionReceiptAction,
 } from "@/app/(dashboard)/registry/[companyId]/registration/actions";
+import { authOptions } from "@/lib/auth";
+import { can } from "@/lib/rbac";
 import { getEmployerCompany } from "@/lib/registry";
 
 function formatDate(date: Date | null) {
@@ -146,6 +150,7 @@ export default async function CompanyDetailPage({
   params: Promise<{ companyId: string }>;
 }>) {
   const { companyId } = await params;
+  const session = await getServerSession(authOptions);
   const company = await getEmployerCompany(companyId);
 
   if (!company) {
@@ -166,6 +171,9 @@ export default async function CompanyDetailPage({
       ? `placement metadata: ${missingPlacementFields.join(", ")}`
       : undefined,
   ].filter(Boolean);
+  const canGenerateCertificate = session?.user?.role
+    ? can(session.user.role, "workspace:manage") || can(session.user.role, "registry:review")
+    : false;
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -248,14 +256,55 @@ export default async function CompanyDetailPage({
             />
           </div>
           {latestCertificate.generatedDocumentId ? (
-            <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-              Downloadable certificate document has been generated
-              {latestCertificate.generatedAt ? ` on ${formatDate(latestCertificate.generatedAt)}` : ""}.
-            </p>
+            <div className="mt-4 flex flex-col gap-3 rounded-md bg-zinc-50 px-3 py-3 text-sm text-zinc-700 md:flex-row md:items-center md:justify-between">
+              <p>
+                Downloadable certificate document has been generated
+                {latestCertificate.generatedAt
+                  ? ` on ${formatDate(latestCertificate.generatedAt)}`
+                  : ""}
+                .
+              </p>
+              <div className="flex flex-wrap gap-2">
+                <Link
+                  href={`/registry/${company.id}/certificate/${latestCertificate.id}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800"
+                >
+                  View certificate
+                </Link>
+                {canGenerateCertificate && certificateGenerationMissing.length === 0 ? (
+                  <form
+                    action={generateRegistrationCertificatePdfAction.bind(
+                      null,
+                      company.id,
+                      latestCertificate.id,
+                    )}
+                  >
+                    <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+                      Regenerate PDF
+                    </button>
+                  </form>
+                ) : null}
+              </div>
+            </div>
           ) : certificateGenerationMissing.length === 0 ? (
-            <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
-              Certificate is ready for PDF generation once the generator slice is added.
-            </p>
+            <div className="mt-4 flex flex-col gap-3 rounded-md bg-emerald-50 px-3 py-3 text-sm text-emerald-800 md:flex-row md:items-center md:justify-between">
+              <p className="font-medium">Certificate is ready for PDF generation.</p>
+              {canGenerateCertificate ? (
+                <form
+                  action={generateRegistrationCertificatePdfAction.bind(
+                    null,
+                    company.id,
+                    latestCertificate.id,
+                  )}
+                >
+                  <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+                    Generate PDF
+                  </button>
+                </form>
+              ) : null}
+            </div>
           ) : (
             <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
               PDF generation is waiting for {certificateGenerationMissing.join("; ")}.
