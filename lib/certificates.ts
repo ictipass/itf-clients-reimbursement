@@ -37,6 +37,23 @@ export type CheckCertificateGenerationReadinessInput = {
   requesterRole: Role;
 };
 
+export type CertificatePlacementPoint = {
+  x: number;
+  y: number;
+  fontSize: number;
+};
+
+export type CertificatePlacementMetadata = Record<
+  (typeof requiredPlacementKeys)[number],
+  CertificatePlacementPoint
+>;
+
+export type UpdateCertificatePlacementMetadataInput = {
+  requesterRole: Role;
+  templateId: string;
+  placementMetadata: CertificatePlacementMetadata;
+};
+
 const requiredPlacementKeys = [
   "companyName",
   "itfEmployerNumber",
@@ -428,6 +445,30 @@ export async function uploadCertificateTemplateDesign(
   });
 }
 
+export async function updateCertificatePlacementMetadata(
+  input: UpdateCertificatePlacementMetadataInput,
+) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to manage certificate templates.");
+  }
+
+  assertPlacementMetadata(input.placementMetadata);
+
+  const db = getDb();
+
+  return db.certificateTemplate.update({
+    where: {
+      id: input.templateId,
+    },
+    data: {
+      placementMetadata: input.placementMetadata,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
 export async function downloadCertificateTemplateDesign(
   input: DownloadCertificateTemplateDesignInput,
 ) {
@@ -503,4 +544,24 @@ function getMissingPlacementKeys(value: unknown) {
   }
 
   return requiredPlacementKeys.filter((key) => !Object.hasOwn(value, key));
+}
+
+function assertPlacementMetadata(value: CertificatePlacementMetadata) {
+  for (const key of requiredPlacementKeys) {
+    const point = value[key];
+
+    if (!point) {
+      throw new Error(`${key} placement is required.`);
+    }
+
+    for (const property of ["x", "y", "fontSize"] as const) {
+      if (!Number.isFinite(point[property]) || point[property] < 0) {
+        throw new Error(`${key}.${property} must be a non-negative number.`);
+      }
+    }
+
+    if (point.fontSize === 0) {
+      throw new Error(`${key}.fontSize must be greater than zero.`);
+    }
+  }
 }

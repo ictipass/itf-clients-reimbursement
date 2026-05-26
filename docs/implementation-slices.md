@@ -766,3 +766,22 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - `app/(dashboard)/settings/certificates/page.tsx`
 - workflow docs
+
+### Slice 35: Certificate Placement Metadata Editor
+
+Goal: let workspace admins configure where generated certificate text should appear.
+
+Expected design:
+
+- Add placement editor fields for company name, ITF employer number, certificate number, and issue date
+- Capture `x`, `y`, and `fontSize` for each field
+- Validate all placement values as non-negative numbers
+- Store the result in `CertificateTemplate.placementMetadata`
+- Update certificate generation readiness once required placement metadata exists
+
+Expected files:
+
+- `lib/certificates.ts`
+- `app/(dashboard)/settings/certificates/actions.ts`
+- `app/(dashboard)/settings/certificates/page.tsx`
+- workflow docs

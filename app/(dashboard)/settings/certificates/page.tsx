@@ -5,6 +5,7 @@ import {
   activateCertificateTemplateAction,
   createCertificateTemplateAction,
   retireCertificateTemplateAction,
+  updateCertificatePlacementMetadataAction,
   uploadCertificateTemplateDesignAction,
 } from "@/app/(dashboard)/settings/certificates/actions";
 import { authOptions } from "@/lib/auth";
@@ -34,6 +35,20 @@ function hasPlacementMetadata(value: unknown) {
   }
 
   return requiredPlacementFields.every((field) => Object.hasOwn(value, field));
+}
+
+function getPlacementPoint(value: unknown, field: (typeof requiredPlacementFields)[number]) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return undefined;
+  }
+
+  const point = (value as Record<string, unknown>)[field];
+
+  if (!point || typeof point !== "object" || Array.isArray(point)) {
+    return undefined;
+  }
+
+  return point as Partial<Record<"x" | "y" | "fontSize", number>>;
 }
 
 export default async function CertificateTemplatesPage() {
@@ -202,9 +217,65 @@ export default async function CertificateTemplatesPage() {
                       {formatDate(template.effectiveFrom)}
                     </td>
                     <td className="px-4 py-4 align-top text-zinc-700">
-                      {hasPlacementMetadata(template.placementMetadata)
-                        ? "Configured"
-                        : "Not configured"}
+                      <div className="grid gap-2">
+                        <span>
+                          {hasPlacementMetadata(template.placementMetadata)
+                            ? "Configured"
+                            : "Not configured"}
+                        </span>
+                        <form
+                          action={updateCertificatePlacementMetadataAction}
+                          className="grid min-w-80 gap-2 rounded-md border border-zinc-100 bg-zinc-50 p-3"
+                        >
+                          <input type="hidden" name="templateId" value={template.id} />
+                          {requiredPlacementFields.map((field) => {
+                            const point = getPlacementPoint(template.placementMetadata, field);
+
+                            return (
+                              <div key={field} className="grid gap-1">
+                                <p className="text-xs font-semibold text-zinc-700">
+                                  {field.replace(/([A-Z])/g, " $1")}
+                                </p>
+                                <div className="grid grid-cols-3 gap-2">
+                                  <input
+                                    name={`${field}X`}
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    required
+                                    placeholder="x"
+                                    defaultValue={point?.x}
+                                    className="min-h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs"
+                                  />
+                                  <input
+                                    name={`${field}Y`}
+                                    type="number"
+                                    min="0"
+                                    step="0.01"
+                                    required
+                                    placeholder="y"
+                                    defaultValue={point?.y}
+                                    className="min-h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs"
+                                  />
+                                  <input
+                                    name={`${field}FontSize`}
+                                    type="number"
+                                    min="0.01"
+                                    step="0.01"
+                                    required
+                                    placeholder="font"
+                                    defaultValue={point?.fontSize}
+                                    className="min-h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs"
+                                  />
+                                </div>
+                              </div>
+                            );
+                          })}
+                          <button className="min-h-8 w-fit rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800">
+                            Save placement
+                          </button>
+                        </form>
+                      </div>
                     </td>
                     <td className="px-4 py-4 align-top text-zinc-700">
                       <div className="grid gap-2">

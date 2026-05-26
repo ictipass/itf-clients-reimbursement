@@ -122,6 +122,8 @@ Uploaded certificate template designs can be opened inline by workspace-manageme
 
 Certificate generation follows the template-as-background path. A certificate template can hold placement metadata for dynamic text such as company name, ITF employer number, certificate number, and issue date. Registration certificates can record when a downloadable certificate is generated and which generated document stores the PDF. Actual PDF rendering remains a later slice.
 
+Workspace-management users can edit placement metadata from certificate template settings. Each required text field stores an `x`, `y`, and `fontSize` value, which the later PDF generator will use to draw text over the uploaded design.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

@@ -9,6 +9,7 @@ import {
   activateCertificateTemplate,
   createCertificateTemplate,
   retireCertificateTemplate,
+  updateCertificatePlacementMetadata,
   uploadCertificateTemplateDesign,
 } from "@/lib/certificates";
 
@@ -58,6 +59,17 @@ function readOptionalDate(formData: FormData, name: string) {
   }
 
   return date;
+}
+
+function readRequiredNumber(formData: FormData, name: string) {
+  const value = readRequiredString(formData, name);
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 0) {
+    throw new Error(`${name} must be a non-negative number.`);
+  }
+
+  return parsed;
 }
 
 async function requireSession() {
@@ -122,6 +134,40 @@ export async function uploadCertificateTemplateDesignAction(formData: FormData) 
     uploadedByEmail: session.email,
     requesterRole: session.role,
     file: readRequiredFile(formData, "design"),
+  });
+
+  revalidatePath("/settings/certificates");
+  redirect("/settings/certificates");
+}
+
+export async function updateCertificatePlacementMetadataAction(formData: FormData) {
+  const session = await requireSession();
+
+  await updateCertificatePlacementMetadata({
+    requesterRole: session.role,
+    templateId: readRequiredString(formData, "templateId"),
+    placementMetadata: {
+      companyName: {
+        x: readRequiredNumber(formData, "companyNameX"),
+        y: readRequiredNumber(formData, "companyNameY"),
+        fontSize: readRequiredNumber(formData, "companyNameFontSize"),
+      },
+      itfEmployerNumber: {
+        x: readRequiredNumber(formData, "itfEmployerNumberX"),
+        y: readRequiredNumber(formData, "itfEmployerNumberY"),
+        fontSize: readRequiredNumber(formData, "itfEmployerNumberFontSize"),
+      },
+      certificateNumber: {
+        x: readRequiredNumber(formData, "certificateNumberX"),
+        y: readRequiredNumber(formData, "certificateNumberY"),
+        fontSize: readRequiredNumber(formData, "certificateNumberFontSize"),
+      },
+      issuedAt: {
+        x: readRequiredNumber(formData, "issuedAtX"),
+        y: readRequiredNumber(formData, "issuedAtY"),
+        fontSize: readRequiredNumber(formData, "issuedAtFontSize"),
+      },
+    },
   });
 
   revalidatePath("/settings/certificates");
