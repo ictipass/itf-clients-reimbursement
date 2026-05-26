@@ -10,6 +10,7 @@ const navItems = [
   { href: "/registry", label: "Registry" },
   { href: "/compliance", label: "Compliance" },
   { href: "/claims", label: "Claims" },
+  { href: "/management", label: "Management" },
   { href: "/settings/numbers", label: "Numbers" },
   { href: "/settings/certificates", label: "Certificates" },
   { href: "/settings/signatures", label: "Signatures" },

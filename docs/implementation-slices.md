@@ -917,9 +917,11 @@ Expected design:
 - Show pending desk/workflow counts
 - Add filters by year, area office, company status, and record tier
 - Keep aggregation logic separate from dashboard UI so it can later move to materialized views
+- Add an Area Office workload breakdown
 
 Expected files:
 
-- management dashboard route/page
+- `app/(dashboard)/management/page.tsx`
+- `app/(dashboard)/layout.tsx`
 - `lib/management-dashboard.ts`
 - workflow docs
