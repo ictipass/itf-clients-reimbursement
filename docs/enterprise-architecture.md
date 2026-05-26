@@ -134,6 +134,8 @@ Public certificate verification exposes only safe certificate authenticity infor
 
 Management statistics are exposed through a read-only management dashboard for authorized ITF roles. The dashboard aggregates live operational data for registered companies, complied companies, revenue generated, reimbursement paid, open work items, pending registrations, and Area Office workload. Aggregation logic is isolated so the system can later move expensive calculations to materialized views or scheduled summary tables.
 
+Management dashboard scope is derived from the logged-in user's role and memberships. HQ/workspace management users can see national totals and compare Area Offices, while Area Office management users are restricted to their assigned Area Office statistics. A custom management assignment model can be added later if management needs users whose reporting scope differs from their operational membership.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

@@ -925,3 +925,22 @@ Expected files:
 - `app/(dashboard)/layout.tsx`
 - `lib/management-dashboard.ts`
 - workflow docs
+
+### Slice 42: Management Scope and Breakdown
+
+Goal: scope management analytics by user role and Area Office responsibility.
+
+Expected design:
+
+- Derive HQ or Area Office scope from the logged-in user's role and memberships
+- Let HQ/workspace users see all Area Offices or filter to one Area Office
+- Restrict Area Office management users to their assigned Area Office
+- Add explicit HQ summary cards
+- Add Area Office performance breakdown for complied companies, revenue, and claims paid
+- Keep the scope logic schema-free until custom management assignments are required
+
+Expected files:
+
+- `lib/management-dashboard.ts`
+- `app/(dashboard)/management/page.tsx`
+- workflow docs

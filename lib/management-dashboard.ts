@@ -7,9 +7,19 @@ export type ManagementDashboardFilters = {
 };
 
 export type ManagementDashboardInput = {
+  requesterEmail: string;
   requesterRole: Role;
   filters?: ManagementDashboardFilters;
 };
+
+const hqManagementRoles: Role[] = [
+  "SYSTEM_ADMIN",
+  "WORKSPACE_APP_ADMIN",
+  "ITF_AUDITOR",
+  "DIRECTOR_FSD",
+  "HEAD_OF_DIVISION",
+  "HQ_REIMBURSEMENT_OFFICER",
+];
 
 function requireManagementAccess(role: Role) {
   if (!isItfRole(role) || (!can(role, "workspace:manage") && !can(role, "audit:read"))) {
@@ -36,11 +46,21 @@ function getYearRange(year?: number) {
   };
 }
 
-function companyAreaOfficeWhere(areaOfficeId?: string) {
-  return areaOfficeId
+function areaOfficeIdWhere(areaOfficeIds?: string[]) {
+  if (!areaOfficeIds) {
+    return undefined;
+  }
+
+  return {
+    in: areaOfficeIds,
+  };
+}
+
+function companyAreaOfficeWhere(areaOfficeIds?: string[]) {
+  return areaOfficeIds
     ? {
         company: {
-          areaOfficeId,
+          areaOfficeId: areaOfficeIdWhere(areaOfficeIds),
         },
       }
     : {};
@@ -63,18 +83,91 @@ export async function listManagementDashboardAreaOffices() {
   });
 }
 
+export async function getManagementDashboardScope(input: {
+  requesterEmail: string;
+  requesterRole: Role;
+  requestedAreaOfficeId?: string;
+}) {
+  requireManagementAccess(input.requesterRole);
+
+  const db = getDb();
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      memberships: {
+        select: {
+          areaOfficeId: true,
+          areaOffice: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  const isHqScope = can(input.requesterRole, "workspace:manage") || hqManagementRoles.includes(input.requesterRole);
+
+  if (isHqScope) {
+    return {
+      scopeType: "HQ" as const,
+      selectedAreaOfficeId: input.requestedAreaOfficeId,
+      allowedAreaOffices: undefined,
+      effectiveAreaOfficeIds: input.requestedAreaOfficeId ? [input.requestedAreaOfficeId] : undefined,
+    };
+  }
+
+  const allowedAreaOffices = requester.memberships
+    .map((membership) => membership.areaOffice)
+    .filter((areaOffice): areaOffice is { id: string; name: string } => Boolean(areaOffice));
+
+  if (allowedAreaOffices.length === 0) {
+    throw new Error("No Area Office management scope was found for this user.");
+  }
+
+  const requestedAreaOfficeIsAllowed = allowedAreaOffices.some(
+    (areaOffice) => areaOffice.id === input.requestedAreaOfficeId,
+  );
+  const selectedAreaOfficeId = requestedAreaOfficeIsAllowed
+    ? input.requestedAreaOfficeId
+    : allowedAreaOffices[0]?.id;
+
+  return {
+    scopeType: "AREA_OFFICE" as const,
+    selectedAreaOfficeId,
+    allowedAreaOffices,
+    effectiveAreaOfficeIds: selectedAreaOfficeId ? [selectedAreaOfficeId] : allowedAreaOffices.map((areaOffice) => areaOffice.id),
+  };
+}
+
 export async function getManagementDashboard(input: ManagementDashboardInput) {
   requireManagementAccess(input.requesterRole);
 
   const db = getDb();
   const filters = input.filters ?? {};
+  const scope = await getManagementDashboardScope({
+    requesterEmail: input.requesterEmail,
+    requesterRole: input.requesterRole,
+    requestedAreaOfficeId: filters.areaOfficeId,
+  });
   const yearRange = getYearRange(filters.year);
-  const areaOfficeFilter = filters.areaOfficeId ? { areaOfficeId: filters.areaOfficeId } : {};
-  const companyAreaFilter = companyAreaOfficeWhere(filters.areaOfficeId);
-  const complianceCompanyAreaFilter = filters.areaOfficeId
+  const effectiveAreaOfficeIds = scope.effectiveAreaOfficeIds;
+  const areaOfficeFilter = effectiveAreaOfficeIds
+    ? { areaOfficeId: areaOfficeIdWhere(effectiveAreaOfficeIds) }
+    : {};
+  const companyAreaFilter = companyAreaOfficeWhere(effectiveAreaOfficeIds);
+  const complianceCompanyAreaFilter = effectiveAreaOfficeIds
     ? {
         company: {
-          areaOfficeId: filters.areaOfficeId,
+          areaOfficeId: areaOfficeIdWhere(effectiveAreaOfficeIds),
         },
       }
     : {};
@@ -94,6 +187,7 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
     claimsRecommended,
     complianceApproved,
     areaOfficeBreakdown,
+    scopedAreaOffices,
   ] = await Promise.all([
     db.company.count({
       where: {
@@ -140,7 +234,7 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
         status: {
           in: ["OPEN", "ACKNOWLEDGED"],
         },
-        ...(filters.areaOfficeId ? { areaOfficeId: filters.areaOfficeId } : {}),
+        ...(effectiveAreaOfficeIds ? { areaOfficeId: areaOfficeIdWhere(effectiveAreaOfficeIds) } : {}),
       },
     }),
     db.workItem.count({
@@ -152,14 +246,14 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
         status: {
           in: ["OPEN", "ACKNOWLEDGED"],
         },
-        ...(filters.areaOfficeId ? { areaOfficeId: filters.areaOfficeId } : {}),
+        ...(effectiveAreaOfficeIds ? { areaOfficeId: areaOfficeIdWhere(effectiveAreaOfficeIds) } : {}),
       },
     }),
     db.registrationContributionAssessment.aggregate({
       where: {
         recordTier: "HOT",
         amReleasedAt: yearRange,
-        ...(filters.areaOfficeId ? { areaOfficeId: filters.areaOfficeId } : {}),
+        ...(effectiveAreaOfficeIds ? { areaOfficeId: areaOfficeIdWhere(effectiveAreaOfficeIds) } : {}),
       },
       _sum: {
         recommendedAmount: true,
@@ -218,7 +312,7 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
     db.areaOffice.findMany({
       where: {
         isActive: true,
-        ...(filters.areaOfficeId ? { id: filters.areaOfficeId } : {}),
+        ...(effectiveAreaOfficeIds ? { id: areaOfficeIdWhere(effectiveAreaOfficeIds) } : {}),
       },
       select: {
         id: true,
@@ -254,6 +348,19 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
       },
       take: 20,
     }),
+    db.areaOffice.findMany({
+      where: {
+        isActive: true,
+        ...(effectiveAreaOfficeIds ? { id: areaOfficeIdWhere(effectiveAreaOfficeIds) } : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    }),
   ]);
 
   const registrationRevenueValue = decimalToNumber(registrationRevenue._sum.recommendedAmount);
@@ -262,8 +369,78 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
   const claimsRecommendedValue = decimalToNumber(claimsRecommended._sum.claimRecommendedAmount);
   const claimsRequestedValue = decimalToNumber(claimsRecommended._sum.claimedAmount);
 
+  const financialBreakdown = await Promise.all(
+    scopedAreaOffices.map(async (areaOffice) => {
+      const [
+        officeRegistrationRevenue,
+        officeComplianceRevenue,
+        officeClaimsPaid,
+        officeComplianceApproved,
+      ] = await Promise.all([
+        db.registrationContributionAssessment.aggregate({
+          where: {
+            recordTier: "HOT",
+            areaOfficeId: areaOffice.id,
+            amReleasedAt: yearRange,
+          },
+          _sum: {
+            recommendedAmount: true,
+          },
+        }),
+        db.complianceYear.aggregate({
+          where: {
+            recordTier: "HOT",
+            year: filters.year,
+            company: {
+              areaOfficeId: areaOffice.id,
+            },
+          },
+          _sum: {
+            amountPaid: true,
+          },
+        }),
+        db.reimbursementClaim.aggregate({
+          where: {
+            recordTier: "HOT",
+            status: "SETTLED",
+            settledAt: yearRange,
+            company: {
+              areaOfficeId: areaOffice.id,
+            },
+          },
+          _sum: {
+            claimRecommendedAmount: true,
+          },
+        }),
+        db.complianceYear.count({
+          where: {
+            recordTier: "HOT",
+            status: "APPROVED",
+            year: filters.year,
+            company: {
+              areaOfficeId: areaOffice.id,
+            },
+          },
+        }),
+      ]);
+
+      return {
+        id: areaOffice.id,
+        name: areaOffice.name,
+        registrationRevenue: decimalToNumber(officeRegistrationRevenue._sum.recommendedAmount),
+        complianceRevenue: decimalToNumber(officeComplianceRevenue._sum.amountPaid),
+        claimsPaid: decimalToNumber(officeClaimsPaid._sum.claimRecommendedAmount),
+        complianceApproved: officeComplianceApproved,
+      };
+    }),
+  );
+
   return {
-    filters,
+    filters: {
+      ...filters,
+      areaOfficeId: scope.selectedAreaOfficeId,
+    },
+    scope,
     headline: {
       totalCompanies,
       activeCompanies,
@@ -288,5 +465,6 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
       pendingRegistrations: areaOffice._count.registrationApplications,
       openWorkItems: areaOffice._count.workItems,
     })),
+    financialBreakdown,
   };
 }

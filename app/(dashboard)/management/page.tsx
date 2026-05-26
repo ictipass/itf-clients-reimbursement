@@ -53,7 +53,10 @@ export default async function ManagementDashboardPage({
 }>) {
   const session = await getServerSession(authOptions);
   const role = session?.user?.role ?? "SYSTEM_ADMIN";
-  const hasManagementAccess = isItfRole(role) && (can(role, "workspace:manage") || can(role, "audit:read"));
+  const hasManagementAccess =
+    Boolean(session?.user?.email) &&
+    isItfRole(role) &&
+    (can(role, "workspace:manage") || can(role, "audit:read"));
 
   if (!hasManagementAccess) {
     return (
@@ -71,12 +74,19 @@ export default async function ManagementDashboardPage({
     );
   }
 
+  const requesterEmail = session?.user?.email;
+
+  if (!requesterEmail) {
+    throw new Error("Authentication is required.");
+  }
+
   const params = await searchParams;
   const year = parseYear(params?.year);
   const areaOfficeId = params?.areaOfficeId?.trim() || undefined;
   const [areaOffices, dashboard] = await Promise.all([
     listManagementDashboardAreaOffices(),
     getManagementDashboard({
+      requesterEmail,
       requesterRole: role,
       filters: {
         year,
@@ -84,6 +94,10 @@ export default async function ManagementDashboardPage({
       },
     }),
   ]);
+  const visibleAreaOffices = dashboard.scope.allowedAreaOffices ?? areaOffices;
+  const selectedAreaOfficeId = dashboard.filters.areaOfficeId ?? "";
+  const scopeLabel =
+    dashboard.scope.scopeType === "HQ" ? "HQ national scope" : "Area Office scope";
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -100,7 +114,7 @@ export default async function ManagementDashboardPage({
             </p>
           </div>
           <span className="w-fit rounded-full bg-[#800020]/10 px-3 py-1 text-sm font-semibold text-[#65001a]">
-            {year}
+            {scopeLabel} · {year}
           </span>
         </div>
 
@@ -120,11 +134,11 @@ export default async function ManagementDashboardPage({
             Area Office
             <select
               name="areaOfficeId"
-              defaultValue={areaOfficeId ?? ""}
+              defaultValue={selectedAreaOfficeId}
               className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
             >
-              <option value="">All Area Offices</option>
-              {areaOffices.map((areaOffice) => (
+              {dashboard.scope.scopeType === "HQ" ? <option value="">All Area Offices</option> : null}
+              {visibleAreaOffices.map((areaOffice) => (
                 <option key={areaOffice.id} value={areaOffice.id}>
                   {areaOffice.name}
                 </option>
@@ -135,6 +149,31 @@ export default async function ManagementDashboardPage({
             Apply filters
           </button>
         </form>
+      </section>
+
+      <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
+          HQ summary
+        </p>
+        <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <MetricCard
+            label="Total revenue"
+            value={formatMoney(dashboard.headline.totalRevenue)}
+            detail="Registration plus annual compliance revenue"
+          />
+          <MetricCard
+            label="Registration revenue"
+            value={formatMoney(dashboard.headline.registrationRevenue)}
+          />
+          <MetricCard
+            label="Compliance revenue"
+            value={formatMoney(dashboard.headline.complianceRevenue)}
+          />
+          <MetricCard
+            label="Claims paid"
+            value={formatMoney(dashboard.headline.claimsPaid)}
+          />
+        </div>
       </section>
 
       <section className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -208,6 +247,49 @@ export default async function ManagementDashboardPage({
                   <td className="px-4 py-4 text-zinc-700">{areaOffice.companies}</td>
                   <td className="px-4 py-4 text-zinc-700">{areaOffice.pendingRegistrations}</td>
                   <td className="px-4 py-4 text-zinc-700">{areaOffice.openWorkItems}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
+        <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
+              Area Office performance
+            </p>
+            <h2 className="mt-2 text-2xl font-semibold tracking-tight">
+              Revenue, compliance, and claims
+            </h2>
+          </div>
+        </div>
+        <div className="mt-5 overflow-hidden rounded-lg border border-zinc-200">
+          <table className="min-w-full divide-y divide-zinc-200 text-sm">
+            <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
+              <tr>
+                <th className="px-4 py-3">Area Office</th>
+                <th className="px-4 py-3">Complied</th>
+                <th className="px-4 py-3">Registration revenue</th>
+                <th className="px-4 py-3">Compliance revenue</th>
+                <th className="px-4 py-3">Claims paid</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-zinc-100 bg-white">
+              {dashboard.financialBreakdown.map((areaOffice) => (
+                <tr key={areaOffice.id}>
+                  <td className="px-4 py-4 font-semibold text-zinc-950">{areaOffice.name}</td>
+                  <td className="px-4 py-4 text-zinc-700">{areaOffice.complianceApproved}</td>
+                  <td className="px-4 py-4 text-zinc-700">
+                    {formatMoney(areaOffice.registrationRevenue)}
+                  </td>
+                  <td className="px-4 py-4 text-zinc-700">
+                    {formatMoney(areaOffice.complianceRevenue)}
+                  </td>
+                  <td className="px-4 py-4 text-zinc-700">
+                    {formatMoney(areaOffice.claimsPaid)}
+                  </td>
                 </tr>
               ))}
             </tbody>
