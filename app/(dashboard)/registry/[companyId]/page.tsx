@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import { generateRegistrationCertificatePdfAction } from "@/app/(dashboard)/registry/[companyId]/certificate/actions";
 import {
+  generateComplianceCertificatePdfAction,
   issueComplianceCertificateAction,
   updateComplianceYearStatusAction,
 } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
@@ -181,6 +182,9 @@ export default async function CompanyDetailPage({
   ].filter(Boolean);
   const canGenerateCertificate = session?.user?.role
     ? can(session.user.role, "workspace:manage") || can(session.user.role, "registry:review")
+    : false;
+  const canGenerateComplianceCertificate = session?.user?.role
+    ? can(session.user.role, "workspace:manage") || can(session.user.role, "compliance:review")
     : false;
   const certificateReadiness =
     latestCertificate && session?.user?.role && canGenerateCertificate
@@ -911,10 +915,56 @@ export default async function CompanyDetailPage({
                     <p>{formatMoney(complianceYear.amountPaid)}</p>
                   </div>
                   {complianceYear.certificate ? (
-                    <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
-                      Compliance certificate {complianceYear.certificate.certificateNumber} issued
-                      on {formatDate(complianceYear.certificate.issuedAt)}
-                    </p>
+                    <div className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
+                      <p className="font-semibold">
+                        Compliance certificate {complianceYear.certificate.certificateNumber} issued
+                        on {formatDate(complianceYear.certificate.issuedAt)}
+                      </p>
+                      {complianceYear.certificate.generatedDocumentId ? (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <Link
+                            href={`/registry/${company.id}/compliance/${complianceYear.id}/certificate/${complianceYear.certificate.id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex min-h-8 items-center rounded-md border border-emerald-200 bg-white px-2 font-semibold text-emerald-900"
+                          >
+                            View certificate
+                          </Link>
+                          {canGenerateComplianceCertificate ? (
+                            <form
+                              action={generateComplianceCertificatePdfAction.bind(
+                                null,
+                                company.id,
+                                complianceYear.certificate.id,
+                              )}
+                            >
+                              <button className="min-h-8 rounded-md border border-emerald-200 bg-white px-2 font-semibold text-emerald-900">
+                                Regenerate PDF
+                              </button>
+                            </form>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <div className="mt-2 flex flex-wrap items-center gap-2">
+                          <p className="font-medium">
+                            Certificate PDF is pending generation.
+                          </p>
+                          {canGenerateComplianceCertificate ? (
+                            <form
+                              action={generateComplianceCertificatePdfAction.bind(
+                                null,
+                                company.id,
+                                complianceYear.certificate.id,
+                              )}
+                            >
+                              <button className="min-h-8 rounded-md border border-emerald-200 bg-white px-2 font-semibold text-emerald-900">
+                                Generate PDF
+                              </button>
+                            </form>
+                          ) : null}
+                        </div>
+                      )}
+                    </div>
                   ) : null}
                   {complianceYear.decisions[0] ? (
                     <p className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs leading-5 text-zinc-600">

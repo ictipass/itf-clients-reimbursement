@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { generateComplianceCertificatePdf } from "@/lib/certificates";
 import {
   createComplianceYear,
   getComplianceTransitions,
@@ -182,6 +183,26 @@ export async function issueComplianceCertificateAction(
     requesterRole: session.user.role,
     certificateNumberId: readRequiredString(formData, "certificateNumberId"),
     note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+export async function generateComplianceCertificatePdfAction(
+  companyId: string,
+  certificateId: string,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await generateComplianceCertificatePdf({
+    certificateId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
   });
 
   revalidatePath(`/registry/${companyId}`);

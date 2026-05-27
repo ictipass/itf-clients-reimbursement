@@ -50,9 +50,23 @@ export type GenerateRegistrationCertificatePdfInput = {
   requesterRole: Role;
 };
 
+export type GenerateComplianceCertificatePdfInput = {
+  certificateId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+};
+
 export type DownloadRegistrationCertificateInput = {
   certificateId: string;
   companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+};
+
+export type DownloadComplianceCertificateInput = {
+  certificateId: string;
+  companyId: string;
+  complianceYearId: string;
   requesterEmail: string;
   requesterRole: Role;
 };
@@ -833,6 +847,182 @@ export async function generateRegistrationCertificatePdf(
   });
 }
 
+export async function generateComplianceCertificatePdf(
+  input: GenerateComplianceCertificatePdfInput,
+) {
+  if (!can(input.requesterRole, "workspace:manage") && !can(input.requesterRole, "compliance:review")) {
+    throw new Error("You do not have permission to generate compliance certificates.");
+  }
+
+  const db = getDb();
+  const certificate = await db.complianceCertificate.findFirst({
+    where: {
+      id: input.certificateId,
+      recordTier: "HOT",
+      status: "ACTIVE",
+    },
+    select: {
+      id: true,
+      companyId: true,
+      complianceYearId: true,
+      certificateNumber: true,
+      itfEmployerNumber: true,
+      issuedAt: true,
+      generatedDocumentId: true,
+      company: {
+        select: {
+          id: true,
+          legalName: true,
+          organizationId: true,
+        },
+      },
+      template: {
+        select: {
+          id: true,
+          workspaceId: true,
+          designDocumentId: true,
+          placementMetadata: true,
+          designDocument: {
+            select: {
+              fileName: true,
+              storageProvider: true,
+              bucket: true,
+              objectKey: true,
+              mimeType: true,
+              fileSize: true,
+              access: true,
+              isActive: true,
+              recordTier: true,
+              revokedAt: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!certificate) {
+    throw new Error("Active compliance certificate was not found.");
+  }
+
+  const template = certificate.template;
+
+  if (!template) {
+    throw new Error("Certificate template is required before PDF generation.");
+  }
+
+  const designDocument = template.designDocument;
+
+  if (
+    !template.designDocumentId ||
+    !designDocument ||
+    !designDocument.isActive ||
+    designDocument.recordTier !== "HOT" ||
+    designDocument.revokedAt ||
+    designDocument.access !== "PRIVATE"
+  ) {
+    throw new Error("Active certificate template design is required before PDF generation.");
+  }
+
+  const placementMetadata = requirePlacementMetadata(template.placementMetadata);
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!requester) {
+    throw new Error("Generator user was not found.");
+  }
+
+  const downloadedDesign = await downloadObject({
+    storageProvider: designDocument.storageProvider,
+    bucket: designDocument.bucket,
+    objectKey: designDocument.objectKey,
+  });
+  const signatures = await getRequiredSignatureImages(template.workspaceId);
+  const qrCode = await renderQrPng(getVerificationUrl(certificate.certificateNumber));
+  const generatedBuffer = await renderCertificatePdf({
+    designBuffer: downloadedDesign.buffer,
+    designMimeType: designDocument.mimeType,
+    placementMetadata,
+    signatures,
+    qrCode,
+    values: {
+      companyName: certificate.company.legalName,
+      itfEmployerNumber: certificate.itfEmployerNumber,
+      certificateNumber: certificate.certificateNumber,
+      issuedAt: formatCertificateDate(certificate.issuedAt),
+    },
+  });
+  const fileName = sanitizeFileName(`${certificate.certificateNumber}-compliance-certificate.pdf`);
+  const stored = await uploadObject({
+    buffer: generatedBuffer,
+    companyId: certificate.companyId,
+    extension: ".pdf",
+    mimeType: "application/pdf",
+    namespace: "compliance-certificates",
+  });
+  const generatedAt = new Date();
+
+  return db.$transaction(async (tx) => {
+    if (certificate.generatedDocumentId) {
+      await tx.document.updateMany({
+        where: {
+          id: certificate.generatedDocumentId,
+        },
+        data: {
+          isActive: false,
+          revokedAt: generatedAt,
+        },
+      });
+    }
+
+    const document = await tx.document.create({
+      data: {
+        organizationId: certificate.company.organizationId,
+        companyId: certificate.companyId,
+        complianceYearId: certificate.complianceYearId,
+        uploadedById: requester.id,
+        kind: "CERTIFICATE",
+        fileName,
+        storageProvider: stored.storageProvider,
+        bucket: stored.bucket,
+        objectKey: stored.objectKey,
+        url: stored.url,
+        etag: stored.etag,
+        versionId: stored.versionId,
+        checksum: stored.checksum,
+        mimeType: stored.mimeType,
+        fileSize: stored.fileSize,
+        access: "PRIVATE",
+        classification: "OFFICIAL",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return tx.complianceCertificate.update({
+      where: {
+        id: certificate.id,
+      },
+      data: {
+        generatedDocumentId: document.id,
+        generatedAt,
+      },
+      select: {
+        id: true,
+        generatedDocumentId: true,
+        generatedAt: true,
+      },
+    });
+  });
+}
+
 export async function downloadRegistrationCertificate(
   input: DownloadRegistrationCertificateInput,
 ) {
@@ -912,6 +1102,101 @@ export async function downloadRegistrationCertificate(
 
   if (!hasOrganizationAccess) {
     throw new Error("You do not have access to this registration certificate.");
+  }
+
+  const downloaded = await downloadObject({
+    storageProvider: document.storageProvider,
+    bucket: document.bucket,
+    objectKey: document.objectKey,
+  });
+
+  return {
+    buffer: downloaded.buffer,
+    fileName: document.fileName,
+    fileSize: downloaded.fileSize,
+    mimeType: document.mimeType,
+  };
+}
+
+export async function downloadComplianceCertificate(input: DownloadComplianceCertificateInput) {
+  if (!can(input.requesterRole, "company:read")) {
+    throw new Error("You do not have permission to read compliance certificates.");
+  }
+
+  const db = getDb();
+  const certificate = await db.complianceCertificate.findFirst({
+    where: {
+      id: input.certificateId,
+      companyId: input.companyId,
+      complianceYearId: input.complianceYearId,
+      recordTier: "HOT",
+      generatedDocumentId: {
+        not: null,
+      },
+    },
+    select: {
+      generatedDocumentId: true,
+    },
+  });
+
+  if (!certificate?.generatedDocumentId) {
+    return null;
+  }
+
+  const document = await db.document.findFirst({
+    where: {
+      id: certificate.generatedDocumentId,
+      companyId: input.companyId,
+      complianceYearId: input.complianceYearId,
+      kind: "CERTIFICATE",
+      isActive: true,
+      recordTier: "HOT",
+      revokedAt: null,
+    },
+    select: {
+      id: true,
+      organizationId: true,
+      fileName: true,
+      storageProvider: true,
+      bucket: true,
+      objectKey: true,
+      mimeType: true,
+      fileSize: true,
+      access: true,
+    },
+  });
+
+  if (!document) {
+    return null;
+  }
+
+  if (document.access !== "PRIVATE") {
+    throw new Error("Unsupported certificate document access policy.");
+  }
+
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    requester.memberships.some((membership) => membership.organizationId === document.organizationId);
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this compliance certificate.");
   }
 
   const downloaded = await downloadObject({

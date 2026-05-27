@@ -987,3 +987,26 @@ Expected files:
 - `lib/registration.ts`
 - registry/compliance UI
 - workflow docs
+
+### Slice 45: Automatic Compliance Certificate PDF Generation
+
+Goal: generate the employer's annual compliance certificate document as soon as ITF issues the annual certificate number.
+
+Expected design:
+
+- Reuse the certificate template, placement metadata, signature assets, and QR-code renderer
+- Generate a private PDF document immediately after annual compliance certificate issuance
+- Link the generated PDF back to `ComplianceCertificate`
+- Let employers and ITF users open the certificate inline from the compliance year card
+- Keep a manual generate/regenerate action for fallback when storage, signatures, or QR-code setup needs retry
+- Keep generated annual compliance certificates behind authenticated routes
+
+Expected files:
+
+- `lib/certificates.ts`
+- `lib/compliance.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/compliance/actions.ts`
+- `app/(dashboard)/registry/[companyId]/compliance/[complianceYearId]/certificate/[certificateId]/route.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

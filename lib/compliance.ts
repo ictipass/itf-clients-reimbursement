@@ -1,5 +1,8 @@
 import { getDb } from "@/lib/db";
-import { findActiveCertificateTemplate } from "@/lib/certificates";
+import {
+  findActiveCertificateTemplate,
+  generateComplianceCertificatePdf,
+} from "@/lib/certificates";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -517,7 +520,7 @@ export async function issueComplianceCertificate(input: IssueComplianceCertifica
     issuedAt,
   );
 
-  return db.$transaction(async (tx) => {
+  const certificate = await db.$transaction(async (tx) => {
     const managedNumber = await tx.managedRegistrationNumber.findFirst({
       where: {
         id: input.certificateNumberId,
@@ -587,4 +590,27 @@ export async function issueComplianceCertificate(input: IssueComplianceCertifica
 
     return certificate;
   });
+
+  try {
+    await generateComplianceCertificatePdf({
+      certificateId: certificate.id,
+      requesterEmail: input.requesterEmail,
+      requesterRole: input.requesterRole,
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Compliance certificate PDF generation failed.";
+
+    await db.comment.create({
+      data: {
+        actorId: actor.id,
+        companyId: complianceYear.companyId,
+        complianceYearId: complianceYear.id,
+        body: `Compliance certificate PDF generation is pending: ${message}`,
+        visibility: "INTERNAL",
+      },
+    });
+  }
+
+  return certificate;
 }

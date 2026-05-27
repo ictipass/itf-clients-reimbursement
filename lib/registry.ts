@@ -226,6 +226,8 @@ export async function getEmployerCompany(companyId: string) {
               certificateNumber: true,
               status: true,
               issuedAt: true,
+              generatedDocumentId: true,
+              generatedAt: true,
             },
           },
           decisions: {
