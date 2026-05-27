@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 import {
   createComplianceYear,
   getComplianceTransitions,
+  issueComplianceCertificate,
   updateComplianceYearStatus,
   type ComplianceTransition,
 } from "@/lib/compliance";
@@ -147,6 +148,40 @@ export async function updateComplianceYearStatusAction(
     requesterRole: session.user.role,
     transition: readComplianceTransition(formData),
     reason: readOptionalString(formData, "reason"),
+  });
+
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+function readRequiredString(formData: FormData, name: string) {
+  const value = readOptionalString(formData, name);
+
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+
+  return value;
+}
+
+export async function issueComplianceCertificateAction(
+  companyId: string,
+  complianceYearId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await issueComplianceCertificate({
+    companyId,
+    complianceYearId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    certificateNumberId: readRequiredString(formData, "certificateNumberId"),
+    note: readOptionalString(formData, "note"),
   });
 
   revalidatePath(`/registry/${companyId}`);

@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { findActiveCertificateTemplate } from "@/lib/certificates";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -63,6 +64,15 @@ export type UpdateComplianceYearStatusInput = {
   requesterRole: Role;
   transition: ComplianceTransition;
   reason?: string;
+};
+
+export type IssueComplianceCertificateInput = {
+  companyId: string;
+  complianceYearId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  certificateNumberId: string;
+  note?: string;
 };
 
 export function getComplianceEvidenceKinds() {
@@ -409,5 +419,172 @@ export async function updateComplianceYearStatus(input: UpdateComplianceYearStat
     });
 
     return updated;
+  });
+}
+
+export async function issueComplianceCertificate(input: IssueComplianceCertificateInput) {
+  if (!can(input.requesterRole, "compliance:review")) {
+    throw new Error("You do not have permission to issue compliance certificates.");
+  }
+
+  const db = getDb();
+  const complianceYear = await db.complianceYear.findFirst({
+    where: {
+      id: input.complianceYearId,
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "APPROVED",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+        status: "ACTIVE",
+        itfEmployerNumber: {
+          not: null,
+        },
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      year: true,
+      certificate: {
+        select: {
+          id: true,
+        },
+      },
+      company: {
+        select: {
+          id: true,
+          legalName: true,
+          organizationId: true,
+          itfEmployerNumber: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!complianceYear) {
+    throw new Error("An approved compliance year ready for certificate issuance was not found.");
+  }
+
+  if (complianceYear.certificate) {
+    throw new Error("A compliance certificate has already been issued for this year.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    actor.memberships.some(
+      (membership) => membership.organizationId === complianceYear.company.organizationId,
+    );
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this compliance year.");
+  }
+
+  if (!complianceYear.company.itfEmployerNumber) {
+    throw new Error("ITF employer number is required before issuing a compliance certificate.");
+  }
+
+  const itfEmployerNumber = complianceYear.company.itfEmployerNumber;
+  const issuedAt = new Date();
+  const activeTemplate = await findActiveCertificateTemplate(
+    db,
+    complianceYear.company.organization.workspaceId,
+    issuedAt,
+  );
+
+  return db.$transaction(async (tx) => {
+    const managedNumber = await tx.managedRegistrationNumber.findFirst({
+      where: {
+        id: input.certificateNumberId,
+        workspaceId: complianceYear.company.organization.workspaceId,
+        type: "COMPLIANCE_CERTIFICATE_NUMBER",
+        status: "AVAILABLE",
+        recordTier: "HOT",
+      },
+      select: {
+        id: true,
+        value: true,
+      },
+    });
+
+    if (!managedNumber) {
+      throw new Error("Selected compliance certificate number is no longer available.");
+    }
+
+    const certificate = await tx.complianceCertificate.create({
+      data: {
+        companyId: complianceYear.companyId,
+        complianceYearId: complianceYear.id,
+        issuedById: actor.id,
+        certificateNumber: managedNumber.value,
+        itfEmployerNumber,
+        templateId: activeTemplate?.id,
+        status: "ACTIVE",
+        issuedAt,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const assignment = await tx.managedRegistrationNumber.updateMany({
+      where: {
+        id: managedNumber.id,
+        status: "AVAILABLE",
+      },
+      data: {
+        status: "ASSIGNED",
+        assignedCompanyId: complianceYear.companyId,
+        assignedComplianceCertificateId: certificate.id,
+        issuedById: actor.id,
+        issuedAt,
+      },
+    });
+
+    if (assignment.count !== 1) {
+      throw new Error("Selected compliance certificate number could not be assigned.");
+    }
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: complianceYear.companyId,
+        complianceYearId: complianceYear.id,
+        action: "CERTIFY",
+        reason: [
+          `Issued annual compliance certificate ${managedNumber.value} for ${complianceYear.year}`,
+          input.note,
+        ]
+          .filter(Boolean)
+          .join(": "),
+      },
+    });
+
+    return certificate;
   });
 }

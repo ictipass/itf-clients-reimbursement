@@ -48,7 +48,7 @@ export default async function VerifyCertificatePage({
         <div className="rounded-lg border border-zinc-200 bg-white p-6">
           <h1 className="text-3xl font-semibold tracking-tight">Verify certificate authenticity</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-            Enter an ITF employer number or registration certificate number to confirm whether the
+            Enter an ITF employer number or annual compliance certificate number to confirm whether the
             record is active in the ITF reimbursement portal.
           </p>
 
@@ -126,7 +126,7 @@ export default async function VerifyCertificatePage({
               No active record found
             </p>
             <p className="mt-3 text-sm leading-6 text-zinc-600">
-              No active ITF employer registration certificate was found for{" "}
+              No active ITF employer or annual compliance certificate record was found for{" "}
               <span className="font-semibold text-zinc-950">{result.query}</span>.
             </p>
           </section>

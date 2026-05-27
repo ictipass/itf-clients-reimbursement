@@ -128,11 +128,11 @@ Workspace-management users can also preview a certificate template with sample v
 
 Certificate signatures are managed as versioned workspace assets. Workspace-management users upload active PNG or JPEG signature images for the Director-General/CE and the Director, Revenue, Inspectorate & Compliance. Uploading a replacement retires the previous active signature for that office, while certificates already generated remain preserved as their own private PDF documents. Certificate template placement metadata controls where each signature image is rendered.
 
-ITF employer numbers and registration certificate numbers are managed through a formal number registry. Each number has a type, lifecycle status, policy code, batch code, notes, and metadata so future numbering policies can be adopted without redesigning the registration workflow. Head of Reimbursement Division completes employer registration by selecting available managed numbers; the selected numbers are atomically assigned to the company and generated registration certificate record.
+ITF employer numbers and annual compliance certificate numbers are managed through a formal number registry. Each number has a type, lifecycle status, policy code, batch code, notes, and metadata so future numbering policies can be adopted without redesigning the registration or compliance workflow. Head of Reimbursement Division completes employer registration by selecting an available ITF employer number; annual compliance certificates receive certificate numbers during compliance certificate issuance.
 
 Employer registration is a one-time workflow. Once a company receives its ITF employer number and becomes active, subsequent yearly obligations should be handled through annual compliance, training plan submission, training approval, and claims workflows rather than submitting registration again.
 
-The ITF employer number is the permanent registration number. Certificate numbers belong to annual compliance certificates, not the one-time registration event. The current registration certificate-number foundation should be refactored into an annual compliance certificate model before compliance certificate issuance is finalized.
+The ITF employer number is the permanent registration number. Certificate numbers belong to annual compliance certificates, not the one-time registration event. Annual compliance certificates are tied to `ComplianceYear` records and can be issued only after compliance approval.
 
 Public certificate verification exposes only safe certificate authenticity information: company name, ITF employer number, certificate number, status, issue date, and expiry date. Certificate QR codes point to this public verification surface.
 

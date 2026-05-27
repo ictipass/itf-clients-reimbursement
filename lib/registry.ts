@@ -220,6 +220,14 @@ export async function getEmployerCompany(companyId: string) {
           status: true,
           amountPaid: true,
           contributionPaidAt: true,
+          certificate: {
+            select: {
+              id: true,
+              certificateNumber: true,
+              status: true,
+              issuedAt: true,
+            },
+          },
           decisions: {
             where: {
               recordTier: "HOT",

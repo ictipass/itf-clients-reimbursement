@@ -3,7 +3,10 @@ import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
 import { generateRegistrationCertificatePdfAction } from "@/app/(dashboard)/registry/[companyId]/certificate/actions";
-import { updateComplianceYearStatusAction } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
+import {
+  issueComplianceCertificateAction,
+  updateComplianceYearStatusAction,
+} from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
 import {
   assessRegistrationContributionAction,
   completeRegistrationAtHeadquartersAction,
@@ -188,23 +191,24 @@ export default async function CompanyDetailPage({
       : null;
   const certificateGenerationMissing =
     certificateReadiness?.missing ?? localCertificateGenerationMissing;
-  const [availableItfEmployerNumbers, availableCertificateNumbers] =
+  const availableItfEmployerNumbers =
     session?.user?.role &&
     company.registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
     company.registrationApplication.status === "IN_REVIEW"
-      ? await Promise.all([
-          listAvailableManagedNumbers({
-            requesterRole: session.user.role,
-            workspaceId: company.organization.workspaceId,
-            type: "ITF_EMPLOYER_NUMBER",
-          }),
-          listAvailableManagedNumbers({
-            requesterRole: session.user.role,
-            workspaceId: company.organization.workspaceId,
-            type: "REGISTRATION_CERTIFICATE_NUMBER",
-          }),
-        ])
-      : [[], []];
+      ? await listAvailableManagedNumbers({
+          requesterRole: session.user.role,
+          workspaceId: company.organization.workspaceId,
+          type: "ITF_EMPLOYER_NUMBER",
+        })
+      : [];
+  const availableComplianceCertificateNumbers =
+    session?.user?.role && can(session.user.role, "compliance:review")
+      ? await listAvailableManagedNumbers({
+          requesterRole: session.user.role,
+          workspaceId: company.organization.workspaceId,
+          type: "COMPLIANCE_CERTIFICATE_NUMBER",
+        })
+      : [];
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -749,26 +753,10 @@ export default async function CompanyDetailPage({
                   ))}
                 </select>
               </label>
-              <label className="grid gap-2 text-sm font-medium text-zinc-700">
-                Certificate number
-                <select
-                  name="certificateNumberId"
-                  required
-                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
-                >
-                  <option value="">Select available certificate number</option>
-                  {availableCertificateNumbers.map((managedNumber) => (
-                    <option key={managedNumber.id} value={managedNumber.id}>
-                      {managedNumber.value}
-                    </option>
-                  ))}
-                </select>
-              </label>
             </div>
-            {availableItfEmployerNumbers.length === 0 || availableCertificateNumbers.length === 0 ? (
+            {availableItfEmployerNumbers.length === 0 ? (
               <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                Add available ITF employer and certificate numbers in Settings before completing
-                this registration.
+                Add available ITF employer numbers in Settings before completing this registration.
               </p>
             ) : null}
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
@@ -922,6 +910,12 @@ export default async function CompanyDetailPage({
                     <p>{complianceYear.status.replaceAll("_", " ")}</p>
                     <p>{formatMoney(complianceYear.amountPaid)}</p>
                   </div>
+                  {complianceYear.certificate ? (
+                    <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                      Compliance certificate {complianceYear.certificate.certificateNumber} issued
+                      on {formatDate(complianceYear.certificate.issuedAt)}
+                    </p>
+                  ) : null}
                   {complianceYear.decisions[0] ? (
                     <p className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs leading-5 text-zinc-600">
                       Last decision:{" "}
@@ -976,6 +970,48 @@ export default async function CompanyDetailPage({
                           </button>
                         ))}
                       </div>
+                    </form>
+                  ) : null}
+                  {complianceYear.status === "APPROVED" && !complianceYear.certificate ? (
+                    <form
+                      action={issueComplianceCertificateAction.bind(
+                        null,
+                        company.id,
+                        complianceYear.id,
+                      )}
+                      className="mt-3 grid gap-3 rounded-md border border-zinc-100 bg-zinc-50 p-3"
+                    >
+                      <label className="grid gap-2 text-xs font-medium text-zinc-700">
+                        Annual compliance certificate number
+                        <select
+                          name="certificateNumberId"
+                          required
+                          className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                        >
+                          <option value="">Select available certificate number</option>
+                          {availableComplianceCertificateNumbers.map((managedNumber) => (
+                            <option key={managedNumber.id} value={managedNumber.id}>
+                              {managedNumber.value}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {availableComplianceCertificateNumbers.length === 0 ? (
+                        <p className="rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                          Add available compliance certificate numbers in Settings before issuing
+                          the annual certificate.
+                        </p>
+                      ) : null}
+                      <label className="grid gap-2 text-xs font-medium text-zinc-700">
+                        Issue note
+                        <input
+                          name="note"
+                          className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                        />
+                      </label>
+                      <button className="min-h-9 w-fit rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+                        Issue compliance certificate
+                      </button>
                     </form>
                   ) : null}
                   {complianceYear.documents.length > 0 ? (

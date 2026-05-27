@@ -3,7 +3,7 @@ import { can, type Role } from "@/lib/rbac";
 
 const managedNumberTypes = [
   "ITF_EMPLOYER_NUMBER",
-  "REGISTRATION_CERTIFICATE_NUMBER",
+  "COMPLIANCE_CERTIFICATE_NUMBER",
 ] as const;
 
 export type ManagedNumberType = (typeof managedNumberTypes)[number];
@@ -87,6 +87,17 @@ export async function listManagedNumbers(input: { requesterRole: Role }) {
           certificateNumber: true,
         },
       },
+      assignedComplianceCertificate: {
+        select: {
+          id: true,
+          certificateNumber: true,
+          complianceYear: {
+            select: {
+              year: true,
+            },
+          },
+        },
+      },
       createdBy: {
         select: {
           name: true,
@@ -103,8 +114,8 @@ export async function listManagedNumbers(input: { requesterRole: Role }) {
 }
 
 export async function listAvailableManagedNumbers(input: ListAvailableManagedNumbersInput) {
-  if (!can(input.requesterRole, "registry:review")) {
-    throw new Error("You do not have permission to select registration numbers.");
+  if (!can(input.requesterRole, "registry:review") && !can(input.requesterRole, "compliance:review")) {
+    throw new Error("You do not have permission to select managed numbers.");
   }
 
   const db = getDb();

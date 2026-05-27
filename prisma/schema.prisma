@@ -108,6 +108,7 @@ enum RegistrationCertificateStatus {
 enum ManagedNumberType {
   ITF_EMPLOYER_NUMBER
   REGISTRATION_CERTIFICATE_NUMBER
+  COMPLIANCE_CERTIFICATE_NUMBER
 }
 
 enum ManagedNumberStatus {
@@ -264,6 +265,7 @@ model User {
   horicReviewedRegistrationContributionAssessments RegistrationContributionAssessment[] @relation("HoricReviewedRegistrationContributionAssessments")
   amReleasedRegistrationContributionAssessments    RegistrationContributionAssessment[] @relation("AmReleasedRegistrationContributionAssessments")
   issuedRegistrationCertificates                   RegistrationCertificate[]            @relation("IssuedRegistrationCertificates")
+  issuedComplianceCertificates                     ComplianceCertificate[]              @relation("IssuedComplianceCertificates")
   decisions                                        Decision[]
   comments                                         Comment[]
   assignedWorkItems                                WorkItem[]                           @relation("AssignedWorkItems")
@@ -317,6 +319,7 @@ model Company {
   areaOffice                          AreaOffice?                          @relation(fields: [areaOfficeId], references: [id])
   documents                           Document[]
   complianceYears                     ComplianceYear[]
+  complianceCertificates              ComplianceCertificate[]
   trainingRequests                    TrainingRequest[]
   reimbursementClaims                 ReimbursementClaim[]
   registrationApplication             RegistrationApplication?
@@ -398,6 +401,7 @@ model ManagedRegistrationNumber {
   notes                 String?
   assignedCompanyId     String?
   assignedCertificateId String?
+  assignedComplianceCertificateId String?
   createdById           String?
   reservedById          String?
   reservedAt            DateTime?
@@ -412,6 +416,7 @@ model ManagedRegistrationNumber {
   workspace             Workspace                    @relation(fields: [workspaceId], references: [id])
   assignedCompany       Company?                     @relation(fields: [assignedCompanyId], references: [id])
   assignedCertificate   RegistrationCertificate?     @relation(fields: [assignedCertificateId], references: [id])
+  assignedComplianceCertificate ComplianceCertificate? @relation(fields: [assignedComplianceCertificateId], references: [id])
   createdBy             User?                        @relation("CreatedManagedNumbers", fields: [createdById], references: [id])
   reservedBy            User?                        @relation("ReservedManagedNumbers", fields: [reservedById], references: [id])
   issuedBy              User?                        @relation("IssuedManagedNumbers", fields: [issuedById], references: [id])
@@ -421,6 +426,7 @@ model ManagedRegistrationNumber {
   @@index([workspaceId, type, status, recordTier])
   @@index([assignedCompanyId, type, status])
   @@index([assignedCertificateId])
+  @@index([assignedComplianceCertificateId])
 }
 
 model CertificateTemplate {
@@ -441,6 +447,7 @@ model CertificateTemplate {
   workspace         Workspace                 @relation(fields: [workspaceId], references: [id])
   designDocument    Document?                 @relation("CertificateTemplateDesignDocument", fields: [designDocumentId], references: [id])
   certificates      RegistrationCertificate[]
+  complianceCertificates ComplianceCertificate[]
 
   @@unique([workspaceId, code, version])
   @@index([designDocumentId])
@@ -529,9 +536,39 @@ model ComplianceYear {
   branchReturns           ComplianceBranchReturn[]
   decisions               Decision[]
   comments                Comment[]
+  certificate             ComplianceCertificate?
 
   @@unique([companyId, year])
   @@index([companyId, status, recordTier])
+}
+
+model ComplianceCertificate {
+  id                  String                        @id @default(cuid())
+  companyId           String
+  complianceYearId    String                        @unique
+  issuedById          String
+  certificateNumber   String                        @unique
+  itfEmployerNumber   String
+  templateId          String?
+  generatedDocumentId String?
+  generatedAt         DateTime?
+  status              RegistrationCertificateStatus @default(ACTIVE)
+  issuedAt            DateTime                      @default(now())
+  revokedAt           DateTime?
+  expiresAt           DateTime?
+  recordTier          RecordTier                    @default(HOT)
+  createdAt           DateTime                      @default(now())
+  updatedAt           DateTime                      @updatedAt
+  company             Company                       @relation(fields: [companyId], references: [id])
+  complianceYear      ComplianceYear                @relation(fields: [complianceYearId], references: [id])
+  issuedBy            User                          @relation("IssuedComplianceCertificates", fields: [issuedById], references: [id])
+  template            CertificateTemplate?          @relation(fields: [templateId], references: [id])
+  managedNumbers      ManagedRegistrationNumber[]
+
+  @@index([companyId, status, recordTier])
+  @@index([issuedById, recordTier])
+  @@index([templateId, status, recordTier])
+  @@index([itfEmployerNumber])
 }
 
 model ComplianceBranchReturn {

@@ -77,8 +77,8 @@ export default async function ManagedNumbersPage() {
               Registration numbers
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-              Manage ITF employer numbers and certificate numbers before they are assigned to
-              completed registrations.
+              Manage permanent ITF employer numbers and annual compliance certificate numbers before
+              they are assigned.
             </p>
           </div>
           <Link

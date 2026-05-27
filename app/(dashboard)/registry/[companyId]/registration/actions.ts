@@ -272,7 +272,6 @@ export async function completeRegistrationAtHeadquartersAction(
     requesterEmail: session.user.email,
     requesterRole: session.user.role,
     itfEmployerNumberId: readRequiredString(formData, "itfEmployerNumberId"),
-    certificateNumberId: readRequiredString(formData, "certificateNumberId"),
     note: readOptionalString(formData, "note"),
   });
 

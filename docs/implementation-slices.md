@@ -971,17 +971,19 @@ Expected design:
 
 - Treat the ITF employer number as the permanent registration number issued once at registration
 - Treat certificate numbers as annual compliance certificate numbers
-- Add or refactor a compliance certificate model tied to `ComplianceYear`
-- Move certificate number allocation from registration completion to annual compliance/certificate issuance
+- Add a compliance certificate model tied to `ComplianceYear`
+- Move active certificate number allocation from registration completion to annual compliance/certificate issuance
 - Update public verification to verify ITF employer numbers and annual compliance certificate numbers
 - Keep generated PDFs historically stable after issue
+- Keep the older registration certificate number field as a legacy compatibility field until a data cleanup migration removes it
 
 Expected files:
 
 - `prisma/schema.prisma`
 - Prisma migration
 - `lib/compliance.ts`
-- `lib/certificates.ts`
 - `lib/public-verification.ts`
+- `lib/managed-numbers.ts`
+- `lib/registration.ts`
 - registry/compliance UI
 - workflow docs

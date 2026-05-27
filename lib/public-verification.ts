@@ -30,7 +30,7 @@ export async function verifyPublicCertificateNumber(query: string): Promise<Publ
   }
 
   const db = getDb();
-  const certificate = await db.registrationCertificate.findFirst({
+  const certificate = await db.complianceCertificate.findFirst({
     where: {
       recordTier: "HOT",
       status: "ACTIVE",
