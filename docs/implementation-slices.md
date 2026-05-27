@@ -944,3 +944,44 @@ Expected files:
 - `lib/management-dashboard.ts`
 - `app/(dashboard)/management/page.tsx`
 - workflow docs
+
+### Slice 43: Registration One-Time Guard
+
+Goal: enforce the rule that ITF employer registration happens once per company.
+
+Expected design:
+
+- Prevent submission of a new registration workflow when a company already has an ITF employer number
+- Prevent Headquarters completion when the company is already active/registered
+- Hide registration action buttons for already registered companies
+- Show guidance that subsequent yearly obligations belong to annual compliance and related workflows
+- Preserve annual compliance, training plan, training approval, and claims flows as recurring records
+
+Expected files:
+
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs
+
+### Slice 44: Annual Compliance Certificate Number Refactor
+
+Goal: move certificate numbering from employer registration to annual compliance.
+
+Expected design:
+
+- Treat the ITF employer number as the permanent registration number issued once at registration
+- Treat certificate numbers as annual compliance certificate numbers
+- Add or refactor a compliance certificate model tied to `ComplianceYear`
+- Move certificate number allocation from registration completion to annual compliance/certificate issuance
+- Update public verification to verify ITF employer numbers and annual compliance certificate numbers
+- Keep generated PDFs historically stable after issue
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/compliance.ts`
+- `lib/certificates.ts`
+- `lib/public-verification.ts`
+- registry/compliance UI
+- workflow docs

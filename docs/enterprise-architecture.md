@@ -130,6 +130,10 @@ Certificate signatures are managed as versioned workspace assets. Workspace-mana
 
 ITF employer numbers and registration certificate numbers are managed through a formal number registry. Each number has a type, lifecycle status, policy code, batch code, notes, and metadata so future numbering policies can be adopted without redesigning the registration workflow. Head of Reimbursement Division completes employer registration by selecting available managed numbers; the selected numbers are atomically assigned to the company and generated registration certificate record.
 
+Employer registration is a one-time workflow. Once a company receives its ITF employer number and becomes active, subsequent yearly obligations should be handled through annual compliance, training plan submission, training approval, and claims workflows rather than submitting registration again.
+
+The ITF employer number is the permanent registration number. Certificate numbers belong to annual compliance certificates, not the one-time registration event. The current registration certificate-number foundation should be refactored into an annual compliance certificate model before compliance certificate issuance is finalized.
+
 Public certificate verification exposes only safe certificate authenticity information: company name, ITF employer number, certificate number, status, issue date, and expiry date. Certificate QR codes point to this public verification surface.
 
 Management statistics are exposed through a read-only management dashboard for authorized ITF roles. The dashboard aggregates live operational data for registered companies, complied companies, revenue generated, reimbursement paid, open work items, pending registrations, and Area Office workload. Aggregation logic is isolated so the system can later move expensive calculations to materialized views or scheduled summary tables.

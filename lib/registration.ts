@@ -127,6 +127,7 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
       id: true,
       organizationId: true,
       areaOfficeId: true,
+      itfEmployerNumber: true,
       status: true,
       registrationApplication: {
         select: {
@@ -143,6 +144,10 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
 
   if (!company.areaOfficeId) {
     throw new Error("Select an Area Office before submitting registration.");
+  }
+
+  if (company.itfEmployerNumber || company.status === "ACTIVE") {
+    throw new Error("This company is already registered with ITF. Use annual compliance records for subsequent years.");
   }
 
   const areaOfficeId = company.areaOfficeId;
@@ -1454,6 +1459,8 @@ export async function completeRegistrationAtHeadquarters(
           id: true,
           legalName: true,
           organizationId: true,
+          itfEmployerNumber: true,
+          status: true,
           organization: {
             select: {
               workspaceId: true,
@@ -1466,6 +1473,13 @@ export async function completeRegistrationAtHeadquarters(
 
   if (!registrationApplication) {
     throw new Error("A Headquarters registration awaiting completion was not found.");
+  }
+
+  if (
+    registrationApplication.company.itfEmployerNumber ||
+    registrationApplication.company.status === "ACTIVE"
+  ) {
+    throw new Error("This company is already registered with ITF. Annual compliance should be used after registration.");
   }
 
   const actor = await db.user.findUnique({

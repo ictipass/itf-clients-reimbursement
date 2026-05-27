@@ -367,7 +367,8 @@ export default async function CompanyDetailPage({
               </p>
             )}
           </div>
-          {(!company.registrationApplication ||
+          {!company.itfEmployerNumber &&
+          (!company.registrationApplication ||
             (company.registrationApplication.currentDesk === "COMPANY" &&
               company.registrationApplication.status === "CHANGES_REQUESTED")) &&
           company.areaOffice ? (
@@ -547,12 +548,19 @@ export default async function CompanyDetailPage({
               </div>
             ) : null}
           </div>
+        ) : company.itfEmployerNumber ? (
+          <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+            This employer is already registered with ITF. Subsequent yearly obligations should be
+            handled through annual compliance, training plan submission, training approval, and
+            claims workflows.
+          </p>
         ) : !company.areaOffice ? (
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Select an Area Office before registration can be submitted.
           </p>
         ) : null}
-        {company.registrationApplication &&
+        {!company.itfEmployerNumber &&
+        company.registrationApplication &&
         getAvailableRegistrationTransitions(
           company.registrationApplication.currentDesk,
           company.registrationApplication.status,
@@ -697,7 +705,8 @@ export default async function CompanyDetailPage({
             </div>
           </form>
         ) : null}
-        {company.registrationApplication?.currentDesk === "DIRECTOR_FSD" &&
+        {!company.itfEmployerNumber &&
+        company.registrationApplication?.currentDesk === "DIRECTOR_FSD" &&
         company.registrationApplication.status === "IN_REVIEW" ? (
           <form
             action={forwardRegistrationToDivisionAction.bind(null, company.id)}
@@ -717,7 +726,8 @@ export default async function CompanyDetailPage({
             </div>
           </form>
         ) : null}
-        {company.registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
+        {!company.itfEmployerNumber &&
+        company.registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
         company.registrationApplication.status === "IN_REVIEW" ? (
           <form
             action={completeRegistrationAtHeadquartersAction.bind(null, company.id)}
