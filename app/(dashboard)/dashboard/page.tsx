@@ -3,8 +3,16 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { getAttentionSummary } from "@/lib/attention";
-import { dashboardMetrics, seedRoles, workflowStages } from "@/lib/domain";
-import { getPermissions } from "@/lib/rbac";
+import { listEmployerDashboardActions } from "@/lib/dashboard-work-queue";
+import { dashboardMetrics, workflowStages } from "@/lib/domain";
+
+function formatRole(value: string | null) {
+  return value ? value.replaceAll("_", " ") : "Unassigned";
+}
+
+function formatKind(value: string) {
+  return value.replaceAll("_", " ");
+}
 
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-NG", {
@@ -15,39 +23,43 @@ function formatDate(date: Date) {
 
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
+  const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
   const attentionSummary = await getAttentionSummary({
     requesterEmail: session?.user?.email,
-    requesterRole: session?.user?.role ?? "SYSTEM_ADMIN",
+    requesterRole: activeRole,
+    take: 8,
+  });
+  const employerActions = await listEmployerDashboardActions({
+    requesterEmail: session?.user?.email,
+    requesterRole: activeRole,
     take: 5,
   });
+  const hasWorkQueue = attentionSummary.items.length > 0 || employerActions.length > 0;
 
   return (
     <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:px-8">
-      <section className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+      <section className="grid gap-6 lg:grid-cols-[1fr_0.8fr]">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
-            Foundation
-          </p>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">Desk</p>
           <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight">
-            Workspace-aware reimbursement operations are now scaffolded.
+            Your reimbursement work queue
           </h1>
-          <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-650">
-            The first implementation layer defines the domain schema, role model, audit
-            contract, Auth.js bootstrap path, and dashboard routes needed before live
-            employer records and claim workflows are added.
+          <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-600">
+            Signed in as <span className="font-semibold text-zinc-950">{formatRole(activeRole)}</span>.
+            Items below are routed to your role, office, company, or workspace scope.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
-              href="/registry"
+              href={attentionSummary.items[0]?.targetHref ?? employerActions[0]?.targetHref ?? "/registry"}
               className="rounded-full bg-[#800020] px-5 py-2.5 text-sm font-semibold text-white"
             >
-              Registry queue
+              Continue next item
             </Link>
             <Link
-              href="/claims"
+              href="/registry"
               className="rounded-full border border-zinc-300 bg-white px-5 py-2.5 text-sm font-semibold"
             >
-              Claims desk
+              Open registry
             </Link>
           </div>
         </div>
@@ -65,16 +77,16 @@ export default async function DashboardPage() {
       <section className="rounded-lg border border-zinc-200 bg-white p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h2 className="text-2xl font-semibold tracking-tight">Needs attention</h2>
+            <h2 className="text-2xl font-semibold tracking-tight">My work queue</h2>
             <p className="mt-1 text-sm text-zinc-600">
-              Open desk items routed to your role, Area Office, or workspace scope.
+              Open workflow tasks and employer-side actions that need attention.
             </p>
           </div>
           <span className="inline-flex min-h-9 items-center rounded-full bg-[#800020]/10 px-3 text-sm font-semibold text-[#65001a]">
-            {attentionSummary.total} open
+            {attentionSummary.total + employerActions.length} open
           </span>
         </div>
-        {attentionSummary.items.length === 0 ? (
+        {!hasWorkQueue ? (
           <p className="mt-5 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
             No pending attention items for your desk.
           </p>
@@ -95,11 +107,37 @@ export default async function DashboardPage() {
                 <p className="text-sm leading-6 text-zinc-600">
                   {item.summary ?? item.company?.legalName ?? "Open workflow item"}
                 </p>
-                <p className="text-xs text-zinc-500">
-                  {item.areaOffice?.name ?? "Workspace"} · {formatDate(item.createdAt)}
+                <p className="text-xs leading-5 text-zinc-500">
+                  {formatKind(item.kind)} · {formatRole(item.assignedRole)} ·{" "}
+                  {item.areaOffice?.name ?? item.organization?.name ?? "Workspace"} ·{" "}
+                  {formatDate(item.createdAt)}
                 </p>
               </Link>
             ))}
+            {employerActions.map((item) => (
+              <Link
+                key={item.id}
+                href={item.targetHref}
+                className="grid gap-2 rounded-md border border-zinc-100 p-4 transition hover:border-[#800020]/40"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="font-semibold text-zinc-950">{item.title}</p>
+                  <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs font-semibold text-zinc-700">
+                    {item.priority}
+                  </span>
+                </div>
+                <p className="text-sm leading-6 text-zinc-600">{item.summary}</p>
+                <p className="text-xs leading-5 text-zinc-500">
+                  Employer action · {item.companyName} · {formatDate(item.createdAt)}
+                </p>
+              </Link>
+            ))}
+            {attentionSummary.total > attentionSummary.items.length ? (
+              <p className="rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                Showing {attentionSummary.items.length} of {attentionSummary.total} routed work
+                items.
+              </p>
+            ) : null}
           </div>
         )}
       </section>
@@ -141,23 +179,6 @@ export default async function DashboardPage() {
         </div>
       </section>
 
-      <section className="rounded-lg border border-zinc-200 bg-white p-6">
-        <h2 className="text-2xl font-semibold tracking-tight">Seed role model</h2>
-        <div className="mt-5 grid gap-3">
-          {seedRoles.map((item) => (
-            <div
-              key={item.role}
-              className="grid gap-3 border-t border-zinc-100 pt-3 md:grid-cols-[15rem_8rem_1fr]"
-            >
-              <p className="font-mono text-sm font-semibold text-[#800020]">{item.role}</p>
-              <p className="text-sm font-medium text-zinc-700">{item.scope}</p>
-              <p className="text-sm leading-6 text-zinc-600">
-                {item.purpose} Permissions: {getPermissions(item.role).join(", ")}.
-              </p>
-            </div>
-          ))}
-        </div>
-      </section>
     </div>
   );
 }

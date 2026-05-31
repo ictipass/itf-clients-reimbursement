@@ -1174,3 +1174,23 @@ Expected files:
 
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 53: Role-Aware Dashboard Work Queue
+
+Goal: make the dashboard landing page prioritize the logged-in user's active work.
+
+Expected design:
+
+- Replace scaffold-style dashboard hero copy with a desk/work-queue summary
+- Show open WorkItems routed to the user's role, Area Office, company, or workspace scope
+- Include assigned role, work item kind, scope, priority, and continue link
+- Add employer-side registration prompts where no WorkItem exists yet
+- Keep workflow module overview secondary
+- Keep attention scoping centralized in the existing attention helper
+
+Expected files:
+
+- `app/(dashboard)/dashboard/page.tsx`
+- `lib/attention.ts`
+- `lib/dashboard-work-queue.ts`
+- workflow docs

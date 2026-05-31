@@ -54,6 +54,7 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
         id: true,
         kind: true,
         priority: true,
+        assignedRole: true,
         title: true,
         summary: true,
         targetHref: true,
@@ -64,6 +65,11 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
           },
         },
         areaOffice: {
+          select: {
+            name: true,
+          },
+        },
+        organization: {
           select: {
             name: true,
           },
