@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import Link from "next/link";
 
 import { createDirectoryUserAction } from "@/app/(dashboard)/settings/users/actions";
+import { UserEditDialog } from "@/app/(dashboard)/settings/users/user-edit-dialog";
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/rbac";
 import { listDirectoryUsers } from "@/lib/user-directory";
@@ -171,6 +172,7 @@ export default async function UserDirectoryPage({
                 <th className="px-4 py-3">Staff details</th>
                 <th className="px-4 py-3">Assignments</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 bg-white">
@@ -199,7 +201,9 @@ export default async function UserDirectoryPage({
                           <p key={membership.id}>
                             <span className="font-semibold">{formatRole(membership.role)}</span>
                             {" · "}
-                            {membership.areaOffice?.name ?? membership.organization?.name ?? "Workspace"}
+                            {membership.areaOffice?.name ??
+                              membership.organization?.name ??
+                              "Workspace"}
                           </p>
                         ))}
                       </div>
@@ -215,6 +219,9 @@ export default async function UserDirectoryPage({
                     >
                       {user.isActive ? "Active" : "Inactive"}
                     </span>
+                  </td>
+                  <td className="px-4 py-4 text-right align-top">
+                    <UserEditDialog user={user} />
                   </td>
                 </tr>
               ))}

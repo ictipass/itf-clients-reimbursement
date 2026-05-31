@@ -21,6 +21,10 @@ export type CreateDirectoryUserInput = {
   jobTitle?: string;
 };
 
+export type UpdateDirectoryUserInput = CreateDirectoryUserInput & {
+  userId: string;
+};
+
 export type ImportDirectoryUsersInput = {
   requesterRole: Role;
   file: File;
@@ -115,6 +119,35 @@ export async function createDirectoryUser(input: CreateDirectoryUserInput) {
   });
 }
 
+export async function updateDirectoryUser(input: UpdateDirectoryUserInput) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to update users.");
+  }
+
+  const normalized = normalizeDirectoryUser(input);
+
+  await assertUserExists(input.userId);
+  await assertEmailAvailable(normalized.email, input.userId);
+  await assertStaffNumberAvailableForUser(normalized.staffNumber, input.userId);
+
+  return getDb().user.update({
+    where: {
+      id: input.userId,
+    },
+    data: {
+      email: normalized.email,
+      name: normalized.name,
+      staffNumber: normalized.staffNumber ?? null,
+      phoneNumber: normalized.phoneNumber ?? null,
+      department: normalized.department ?? null,
+      jobTitle: normalized.jobTitle ?? null,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
 export async function importDirectoryUsers(input: ImportDirectoryUsersInput) {
   if (!can(input.requesterRole, "workspace:manage")) {
     throw new Error("You do not have permission to import users.");
@@ -194,6 +227,55 @@ async function assertStaffNumberAvailable(staffNumber: string | undefined, email
   });
 
   if (existingUser && existingUser.email.toLowerCase() !== email) {
+    throw new Error(`Staff number ${staffNumber} already belongs to another user.`);
+  }
+}
+
+async function assertUserExists(userId: string) {
+  const user = await getDb().user.findUnique({
+    where: {
+      id: userId,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!user) {
+    throw new Error("Selected user was not found.");
+  }
+}
+
+async function assertEmailAvailable(email: string, userId: string) {
+  const existingUser = await getDb().user.findUnique({
+    where: {
+      email,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingUser && existingUser.id !== userId) {
+    throw new Error(`Email address ${email} already belongs to another user.`);
+  }
+}
+
+async function assertStaffNumberAvailableForUser(staffNumber: string | undefined, userId: string) {
+  if (!staffNumber) {
+    return;
+  }
+
+  const existingUser = await getDb().user.findUnique({
+    where: {
+      staffNumber,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (existingUser && existingUser.id !== userId) {
     throw new Error(`Staff number ${staffNumber} already belongs to another user.`);
   }
 }

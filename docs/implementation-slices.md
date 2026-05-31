@@ -1094,11 +1094,13 @@ Expected design:
 
 - Add staff metadata to users: staff number, phone number, department, and job title
 - Create individual users from a settings page
+- Edit staff user records after creation
 - Import users in bulk from CSV
 - Provide a downloadable user CSV template
 - Show user assignments and active status in the directory
 - Use created users in Area Office officer assignment dropdowns
 - Keep password/auth integration as a later Workspace identity slice; local development users continue using the shared dev password after assignment
+- Keep the user directory compatible with a future parent Workspace identity source; this child app owns reimbursement-specific office and workflow assignments
 
 Expected files:
 

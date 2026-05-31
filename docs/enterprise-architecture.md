@@ -144,6 +144,8 @@ Management dashboard scope is derived from the logged-in user's role and members
 
 Office administration is handled from a general Offices settings surface rather than an Area-Office-only screen. Workspace administrators can place officers either at Headquarters or at a specific Area Office. Headquarters assignments use ITF internal memberships with no `areaOfficeId`; Area Office assignments use the same membership model with `areaOfficeId` populated so existing workflow access checks continue to work.
 
+The reimbursement app currently stores staff directory records locally so development can proceed without a parent Workspace identity service. In the production workspace architecture, users should be inherited from the parent ITF Workspace identity layer, while this child app should keep reimbursement-specific memberships, office placement, workflow roles, work items, and audit events. That boundary avoids duplicate identities while preserving local authorization and workflow history.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

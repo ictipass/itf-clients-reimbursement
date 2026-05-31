@@ -5,7 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
-import { createDirectoryUser } from "@/lib/user-directory";
+import { createDirectoryUser, updateDirectoryUser } from "@/lib/user-directory";
 
 function readOptionalString(formData: FormData, name: string) {
   const value = formData.get(name);
@@ -55,4 +55,31 @@ export async function createDirectoryUserAction(formData: FormData) {
 
   revalidatePath("/settings/users");
   redirectToUsers("User saved.");
+}
+
+export async function updateDirectoryUserAction(formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  try {
+    await updateDirectoryUser({
+      requesterRole: session.user.role,
+      userId: readRequiredString(formData, "userId"),
+      name: readRequiredString(formData, "name"),
+      staffNumber: readOptionalString(formData, "staffNumber"),
+      email: readRequiredString(formData, "email"),
+      phoneNumber: readOptionalString(formData, "phoneNumber"),
+      department: readOptionalString(formData, "department"),
+      jobTitle: readOptionalString(formData, "jobTitle"),
+    });
+  } catch (error) {
+    redirectToUsers(error instanceof Error ? error.message : "User could not be updated.");
+  }
+
+  revalidatePath("/settings/users");
+  revalidatePath("/settings/offices");
+  redirectToUsers("User updated.");
 }
