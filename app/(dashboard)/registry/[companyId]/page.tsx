@@ -24,7 +24,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { checkCertificateGenerationReadiness } from "@/lib/certificates";
 import { listAvailableManagedNumbers } from "@/lib/managed-numbers";
-import { can } from "@/lib/rbac";
+import { can, type Role } from "@/lib/rbac";
 import { getEmployerCompany } from "@/lib/registry";
 
 function formatDate(date: Date | null) {
@@ -87,6 +87,35 @@ function DetailItem({
     <div className="rounded-lg border border-zinc-200 bg-white p-4">
       <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">{label}</p>
       <div className="mt-2 text-sm font-medium leading-6 text-zinc-950">{value}</div>
+    </div>
+  );
+}
+
+function ActionGroup({
+  title,
+  description,
+  isAdminOverride,
+  children,
+}: Readonly<{
+  title: string;
+  description: string;
+  isAdminOverride: boolean;
+  children: React.ReactNode;
+}>) {
+  return (
+    <div className="mt-4 grid gap-3 border-t border-zinc-100 pt-4">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h3 className="text-sm font-semibold text-zinc-950">{title}</h3>
+          <p className="mt-1 text-xs leading-5 text-zinc-500">{description}</p>
+        </div>
+        {isAdminOverride ? (
+          <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
+            Admin/testing override
+          </span>
+        ) : null}
+      </div>
+      {children}
     </div>
   );
 }
@@ -164,6 +193,46 @@ function getAvailableRegistrationTransitions(
   return [] as const;
 }
 
+function isAdminRole(role: Role) {
+  return role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
+}
+
+function isEmployerRole(role: Role) {
+  return role === "EMPLOYER_ADMIN" || role === "EMPLOYER_SUBMITTER";
+}
+
+function canActAsDesk(role: Role, desk: string | null | undefined) {
+  if (isAdminRole(role)) {
+    return true;
+  }
+
+  if (desk === "COMPANY") {
+    return isEmployerRole(role);
+  }
+
+  if (desk === "AREA_MANAGER") {
+    return role === "AREA_MANAGER";
+  }
+
+  if (desk === "HORIC") {
+    return role === "HORIC";
+  }
+
+  if (desk === "REVENUE_ACCOUNTANT") {
+    return role === "REVENUE_ACCOUNTANT";
+  }
+
+  if (desk === "DIRECTOR_FSD") {
+    return role === "DIRECTOR_FSD";
+  }
+
+  if (desk === "HEAD_OF_DIVISION") {
+    return role === "HEAD_OF_DIVISION";
+  }
+
+  return false;
+}
+
 export default async function CompanyDetailPage({
   params,
 }: Readonly<{
@@ -177,6 +246,8 @@ export default async function CompanyDetailPage({
     notFound();
   }
 
+  const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const adminOverride = isAdminRole(activeRole);
   const registrationState = company.itfEmployerNumber
     ? "Registered with ITF"
     : "Not yet registered with ITF";
@@ -191,39 +262,111 @@ export default async function CompanyDetailPage({
       ? `placement metadata: ${missingPlacementFields.join(", ")}`
       : undefined,
   ].filter(Boolean);
-  const canGenerateCertificate = session?.user?.role
-    ? can(session.user.role, "workspace:manage") || can(session.user.role, "registry:review")
-    : false;
-  const canGenerateComplianceCertificate = session?.user?.role
-    ? can(session.user.role, "workspace:manage") || can(session.user.role, "compliance:review")
-    : false;
+  const canGenerateCertificate =
+    can(activeRole, "workspace:manage") || can(activeRole, "registry:review");
+  const canGenerateComplianceCertificate =
+    can(activeRole, "workspace:manage") || can(activeRole, "compliance:review");
   const certificateReadiness =
-    latestCertificate && session?.user?.role && canGenerateCertificate
+    latestCertificate && canGenerateCertificate
       ? await checkCertificateGenerationReadiness({
           certificateId: latestCertificate.id,
-          requesterRole: session.user.role,
+          requesterRole: activeRole,
         })
       : null;
   const certificateGenerationMissing =
     certificateReadiness?.missing ?? localCertificateGenerationMissing;
   const availableItfEmployerNumbers =
-    session?.user?.role &&
     company.registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
     company.registrationApplication.status === "IN_REVIEW"
       ? await listAvailableManagedNumbers({
-          requesterRole: session.user.role,
+          requesterRole: activeRole,
           workspaceId: company.organization.workspaceId,
           type: "ITF_EMPLOYER_NUMBER",
         })
       : [];
   const availableComplianceCertificateNumbers =
-    session?.user?.role && can(session.user.role, "compliance:review")
+    can(activeRole, "compliance:review")
       ? await listAvailableManagedNumbers({
-          requesterRole: session.user.role,
+          requesterRole: activeRole,
           workspaceId: company.organization.workspaceId,
           type: "COMPLIANCE_CERTIFICATE_NUMBER",
         })
       : [];
+  const registrationApplication = company.registrationApplication;
+  const availableRegistrationTransitions = registrationApplication
+    ? getAvailableRegistrationTransitions(
+        registrationApplication.currentDesk,
+        registrationApplication.status,
+        Boolean(registrationApplication.contributionAssessment),
+        Boolean(registrationApplication.contributionAssessment?.horicReviewedAt),
+      )
+    : [];
+  const canSubmitRegistration =
+    !company.itfEmployerNumber &&
+    (!registrationApplication ||
+      (registrationApplication.currentDesk === "COMPANY" &&
+        registrationApplication.status === "CHANGES_REQUESTED")) &&
+    Boolean(company.areaOffice) &&
+    (isEmployerRole(activeRole) || adminOverride);
+  const canRouteRegistration =
+    !company.itfEmployerNumber &&
+    Boolean(registrationApplication) &&
+    availableRegistrationTransitions.length > 0 &&
+    canActAsDesk(activeRole, registrationApplication?.currentDesk);
+  const canConfirmContribution =
+    registrationApplication?.currentDesk === "HORIC" &&
+    registrationApplication.status === "SUBMITTED" &&
+    Boolean(registrationApplication.contributionAssessment) &&
+    !registrationApplication.contributionAssessment?.horicReviewedAt &&
+    canActAsDesk(activeRole, "HORIC");
+  const canReleaseContribution =
+    registrationApplication?.currentDesk === "AREA_MANAGER" &&
+    registrationApplication.status === "SUBMITTED" &&
+    Boolean(registrationApplication.contributionAssessment?.horicReviewedAt) &&
+    !registrationApplication.contributionAssessment?.amReleasedAt &&
+    canActAsDesk(activeRole, "AREA_MANAGER");
+  const canReviewReceipt =
+    registrationApplication?.currentDesk === "AREA_MANAGER" &&
+    registrationApplication.status === "SUBMITTED" &&
+    Boolean(registrationApplication.contributionAssessment?.amReleasedAt) &&
+    registrationApplication.documents.length > 0 &&
+    canActAsDesk(activeRole, "AREA_MANAGER");
+  const canNotifyHeadquarters =
+    registrationApplication?.currentDesk === "AREA_MANAGER" &&
+    registrationApplication.status === "IN_REVIEW" &&
+    Boolean(registrationApplication.contributionAssessment?.amReleasedAt) &&
+    registrationApplication.documents.length > 0 &&
+    canActAsDesk(activeRole, "AREA_MANAGER");
+  const canAssessContribution =
+    registrationApplication?.currentDesk === "REVENUE_ACCOUNTANT" &&
+    registrationApplication.status === "SUBMITTED" &&
+    canActAsDesk(activeRole, "REVENUE_ACCOUNTANT");
+  const canUploadReceipt =
+    registrationApplication?.currentDesk === "COMPANY" &&
+    registrationApplication.status === "SUBMITTED" &&
+    Boolean(registrationApplication.contributionAssessment?.amReleasedAt) &&
+    (isEmployerRole(activeRole) || adminOverride);
+  const canForwardToDivision =
+    !company.itfEmployerNumber &&
+    registrationApplication?.currentDesk === "DIRECTOR_FSD" &&
+    registrationApplication.status === "IN_REVIEW" &&
+    canActAsDesk(activeRole, "DIRECTOR_FSD");
+  const canCompleteAtHeadquarters =
+    !company.itfEmployerNumber &&
+    registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
+    registrationApplication.status === "IN_REVIEW" &&
+    canActAsDesk(activeRole, "HEAD_OF_DIVISION");
+  const hasVisibleRegistrationActions =
+    canSubmitRegistration ||
+    canRouteRegistration ||
+    canConfirmContribution ||
+    canReleaseContribution ||
+    canReviewReceipt ||
+    canNotifyHeadquarters ||
+    canAssessContribution ||
+    canUploadReceipt ||
+    canForwardToDivision ||
+    canCompleteAtHeadquarters;
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -386,17 +529,6 @@ export default async function CompanyDetailPage({
               </p>
             )}
           </div>
-          {!company.itfEmployerNumber &&
-          (!company.registrationApplication ||
-            (company.registrationApplication.currentDesk === "COMPANY" &&
-              company.registrationApplication.status === "CHANGES_REQUESTED")) &&
-          company.areaOffice ? (
-            <form action={submitRegistrationApplicationAction.bind(null, company.id)}>
-              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                {company.registrationApplication ? "Resubmit registration" : "Submit registration"}
-              </button>
-            </form>
-          ) : null}
         </div>
         {company.registrationApplication ? (
           <div className="mt-4 grid gap-3 border-t border-zinc-100 pt-4 text-sm md:grid-cols-3">
@@ -578,18 +710,35 @@ export default async function CompanyDetailPage({
             Select an Area Office before registration can be submitted.
           </p>
         ) : null}
-        {!company.itfEmployerNumber &&
-        company.registrationApplication &&
-        getAvailableRegistrationTransitions(
-          company.registrationApplication.currentDesk,
-          company.registrationApplication.status,
-          Boolean(company.registrationApplication.contributionAssessment),
-          Boolean(company.registrationApplication.contributionAssessment?.horicReviewedAt),
-        ).length > 0 ? (
-          <form
-            action={routeRegistrationApplicationAction.bind(null, company.id)}
-            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+        {!hasVisibleRegistrationActions && company.registrationApplication ? (
+          <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+            No registration action is currently assigned to your role. Current desk is{" "}
+            <span className="font-semibold text-zinc-900">
+              {formatDesk(company.registrationApplication.currentDesk)}
+            </span>
+            .
+          </p>
+        ) : null}
+        {canSubmitRegistration ? (
+          <ActionGroup
+            title="Employer actions"
+            description="Submit or resubmit the employer registration package to the selected Area Office."
+            isAdminOverride={adminOverride}
           >
+            <form action={submitRegistrationApplicationAction.bind(null, company.id)}>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                {company.registrationApplication ? "Resubmit registration" : "Submit registration"}
+              </button>
+            </form>
+          </ActionGroup>
+        ) : null}
+        {canRouteRegistration && company.registrationApplication ? (
+          <ActionGroup
+            title="Area Office routing"
+            description="Move this registration to the next desk in the Area Office review chain."
+            isAdminOverride={adminOverride}
+          >
+          <form action={routeRegistrationApplicationAction.bind(null, company.id)} className="grid gap-3">
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               Routing note
               <input
@@ -598,12 +747,7 @@ export default async function CompanyDetailPage({
               />
             </label>
             <div className="flex flex-wrap gap-2">
-              {getAvailableRegistrationTransitions(
-                company.registrationApplication.currentDesk,
-                company.registrationApplication.status,
-                Boolean(company.registrationApplication.contributionAssessment),
-                Boolean(company.registrationApplication.contributionAssessment?.horicReviewedAt),
-              ).map((transition) => (
+              {availableRegistrationTransitions.map((transition) => (
                 <button
                   key={transition}
                   name="transition"
@@ -615,14 +759,17 @@ export default async function CompanyDetailPage({
               ))}
             </div>
           </form>
+          </ActionGroup>
         ) : null}
-        {company.registrationApplication?.currentDesk === "HORIC" &&
-        company.registrationApplication.status === "SUBMITTED" &&
-        company.registrationApplication.contributionAssessment &&
-        !company.registrationApplication.contributionAssessment.horicReviewedAt ? (
+        {canConfirmContribution ? (
+          <ActionGroup
+            title="HORIC action"
+            description="Confirm the Revenue Accountant's recommendation before returning it to the Area Manager."
+            isAdminOverride={adminOverride}
+          >
           <form
             action={confirmRegistrationContributionAction.bind(null, company.id)}
-            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+            className="grid gap-3"
           >
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               HORIC review note
@@ -637,14 +784,17 @@ export default async function CompanyDetailPage({
               </button>
             </div>
           </form>
+          </ActionGroup>
         ) : null}
-        {company.registrationApplication?.currentDesk === "AREA_MANAGER" &&
-        company.registrationApplication.status === "SUBMITTED" &&
-        company.registrationApplication.contributionAssessment?.horicReviewedAt &&
-        !company.registrationApplication.contributionAssessment.amReleasedAt ? (
+        {canReleaseContribution ? (
+          <ActionGroup
+            title="Area Manager action"
+            description="Release the confirmed contribution recommendation to the employer dashboard or email."
+            isAdminOverride={adminOverride}
+          >
           <form
             action={releaseRegistrationContributionAction.bind(null, company.id)}
-            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+            className="grid gap-3"
           >
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               AM release note
@@ -668,14 +818,17 @@ export default async function CompanyDetailPage({
               </button>
             </div>
           </form>
+          </ActionGroup>
         ) : null}
-        {company.registrationApplication?.currentDesk === "AREA_MANAGER" &&
-        company.registrationApplication.status === "SUBMITTED" &&
-        company.registrationApplication.contributionAssessment?.amReleasedAt &&
-        company.registrationApplication.documents.length > 0 ? (
+        {canReviewReceipt ? (
+          <ActionGroup
+            title="Area Manager action"
+            description="Review the employer's uploaded contribution payment receipt."
+            isAdminOverride={adminOverride}
+          >
           <form
             action={reviewRegistrationContributionReceiptAction.bind(null, company.id)}
-            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+            className="grid gap-3"
           >
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               Receipt review note
@@ -701,14 +854,17 @@ export default async function CompanyDetailPage({
               </button>
             </div>
           </form>
+          </ActionGroup>
         ) : null}
-        {company.registrationApplication?.currentDesk === "AREA_MANAGER" &&
-        company.registrationApplication.status === "IN_REVIEW" &&
-        company.registrationApplication.contributionAssessment?.amReleasedAt &&
-        company.registrationApplication.documents.length > 0 ? (
+        {canNotifyHeadquarters ? (
+          <ActionGroup
+            title="Area Manager action"
+            description="Notify Headquarters that registration payment has been verified by the Area Office."
+            isAdminOverride={adminOverride}
+          >
           <form
             action={notifyRegistrationHeadquartersAction.bind(null, company.id)}
-            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+            className="grid gap-3"
           >
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               Headquarters notification note
@@ -723,13 +879,17 @@ export default async function CompanyDetailPage({
               </button>
             </div>
           </form>
+          </ActionGroup>
         ) : null}
-        {!company.itfEmployerNumber &&
-        company.registrationApplication?.currentDesk === "DIRECTOR_FSD" &&
-        company.registrationApplication.status === "IN_REVIEW" ? (
+        {canForwardToDivision ? (
+          <ActionGroup
+            title="Headquarters action"
+            description="Forward the verified employer registration from Director FSD to the reimbursement division."
+            isAdminOverride={adminOverride}
+          >
           <form
             action={forwardRegistrationToDivisionAction.bind(null, company.id)}
-            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+            className="grid gap-3"
           >
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               Director forwarding note
@@ -744,13 +904,17 @@ export default async function CompanyDetailPage({
               </button>
             </div>
           </form>
+          </ActionGroup>
         ) : null}
-        {!company.itfEmployerNumber &&
-        company.registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
-        company.registrationApplication.status === "IN_REVIEW" ? (
+        {canCompleteAtHeadquarters ? (
+          <ActionGroup
+            title="Headquarters action"
+            description="Complete employer registration by assigning a managed ITF employer number."
+            isAdminOverride={adminOverride}
+          >
           <form
             action={completeRegistrationAtHeadquartersAction.bind(null, company.id)}
-            className="mt-4 grid gap-4 border-t border-zinc-100 pt-4"
+            className="grid gap-4"
           >
             <div className="grid gap-3 md:grid-cols-2">
               <label className="grid gap-2 text-sm font-medium text-zinc-700">
@@ -787,12 +951,17 @@ export default async function CompanyDetailPage({
               </button>
             </div>
           </form>
+          </ActionGroup>
         ) : null}
-        {company.registrationApplication?.currentDesk === "REVENUE_ACCOUNTANT" &&
-        company.registrationApplication.status === "SUBMITTED" ? (
+        {canAssessContribution ? (
+          <ActionGroup
+            title="Revenue Accountant action"
+            description="Assess the submitted employer registration and recommend the contribution amount."
+            isAdminOverride={adminOverride}
+          >
           <form
             action={assessRegistrationContributionAction.bind(null, company.id)}
-            className="mt-4 grid gap-4 border-t border-zinc-100 pt-4"
+            className="grid gap-4"
           >
             <div className="grid gap-3 md:grid-cols-3">
               <label className="grid gap-2 text-sm font-medium text-zinc-700">
@@ -835,13 +1004,17 @@ export default async function CompanyDetailPage({
               </button>
             </div>
           </form>
+          </ActionGroup>
         ) : null}
-        {company.registrationApplication?.currentDesk === "COMPANY" &&
-        company.registrationApplication.status === "SUBMITTED" &&
-        company.registrationApplication.contributionAssessment?.amReleasedAt ? (
+        {canUploadReceipt ? (
+          <ActionGroup
+            title="Employer actions"
+            description="Upload proof of payment after the Area Manager releases the contribution recommendation."
+            isAdminOverride={adminOverride}
+          >
           <form
             action={uploadRegistrationContributionReceiptAction.bind(null, company.id)}
-            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+            className="grid gap-3"
           >
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               Contribution payment receipt
@@ -859,6 +1032,7 @@ export default async function CompanyDetailPage({
               </button>
             </div>
           </form>
+          </ActionGroup>
         ) : null}
       </section>
 

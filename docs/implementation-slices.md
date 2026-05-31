@@ -1136,3 +1136,22 @@ Expected files:
 - `app/(dashboard)/layout.tsx`
 - architecture docs
 - workflow docs
+
+### Slice 51: Role-Aware Registry Actions
+
+Goal: make the registration workflow page show actions according to the logged-in user's role and current desk.
+
+Expected design:
+
+- Compute available registration actions from current desk, status, and role
+- Show employer submission/payment actions only to employer roles or admin override
+- Show Area Office actions only to the matching Area Office desk role or admin override
+- Show Headquarters actions only to the matching HQ desk role or admin override
+- Label admin-visible workflow controls as admin/testing override
+- Show a clear note when the registration is on another user's desk
+- Keep server actions as the source of truth for authorization
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs
