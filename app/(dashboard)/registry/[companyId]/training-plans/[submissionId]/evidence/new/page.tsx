@@ -1,7 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { uploadTrainingPlanEvidenceAction } from "@/app/(dashboard)/registry/[companyId]/training-plans/[submissionId]/evidence/actions";
 import {
   getTrainingPlanEvidenceKinds,
   getTrainingPlanSubmissionForUpload,
@@ -25,7 +24,6 @@ export default async function NewTrainingPlanEvidencePage({
     notFound();
   }
 
-  const action = uploadTrainingPlanEvidenceAction.bind(null, companyId, submissionId);
   const evidenceKinds = getTrainingPlanEvidenceKinds();
 
   return (
@@ -49,7 +47,12 @@ export default async function NewTrainingPlanEvidencePage({
         Download CSV template
       </Link>
 
-      <form action={action} className="mt-6 grid gap-5 rounded-lg border border-zinc-200 bg-white p-6">
+      <form
+        action={`/registry/${companyId}/training-plans/${submissionId}/evidence/upload`}
+        method="post"
+        encType="multipart/form-data"
+        className="mt-6 grid gap-5 rounded-lg border border-zinc-200 bg-white p-6"
+      >
         <label className="grid gap-2 text-sm font-medium">
           Evidence type
           <select
