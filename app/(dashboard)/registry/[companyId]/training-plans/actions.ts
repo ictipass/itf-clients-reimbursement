@@ -78,6 +78,22 @@ function readStringEntry(value: FormDataEntryValue | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function redirectToCreateForm(input: {
+  companyId: string;
+  message: string;
+  year?: number;
+}) {
+  const searchParams = new URLSearchParams({
+    error: input.message.slice(0, 280),
+  });
+
+  if (input.year) {
+    searchParams.set("year", String(input.year));
+  }
+
+  redirect(`/registry/${input.companyId}/training-plans/new?${searchParams.toString()}`);
+}
+
 export async function createTrainingPlanSubmissionAction(
   companyId: string,
   formData: FormData,
@@ -88,14 +104,29 @@ export async function createTrainingPlanSubmissionAction(
     throw new Error("Authentication is required.");
   }
 
-  await createTrainingPlanSubmission({
-    companyId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    year: readRequiredInteger(formData, "year"),
-    personnel: readPersonnel(formData),
-    trainingPlanSummary: readOptionalString(formData, "trainingPlanSummary"),
-  });
+  let year: number | undefined;
+
+  try {
+    year = readRequiredInteger(formData, "year");
+
+    await createTrainingPlanSubmission({
+      companyId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      year,
+      personnel: readPersonnel(formData),
+      trainingPlanSummary: readOptionalString(formData, "trainingPlanSummary"),
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Training Plan submission could not be created.";
+
+    redirectToCreateForm({
+      companyId,
+      message,
+      year,
+    });
+  }
 
   revalidatePath(`/registry/${companyId}`);
   redirect(`/registry/${companyId}`);

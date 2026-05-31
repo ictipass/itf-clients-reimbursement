@@ -7,10 +7,13 @@ import { getEmployerCompany } from "@/lib/registry";
 
 export default async function NewTrainingPlanSubmissionPage({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ error?: string | string[]; year?: string | string[] }>;
 }>) {
   const { companyId } = await params;
+  const query = await searchParams;
   const company = await getEmployerCompany(companyId);
 
   if (!company) {
@@ -19,6 +22,11 @@ export default async function NewTrainingPlanSubmissionPage({
 
   const action = createTrainingPlanSubmissionAction.bind(null, company.id);
   const currentYear = new Date().getFullYear();
+  const createError = Array.isArray(query.error) ? query.error[0] : query.error;
+  const requestedYear = Array.isArray(query.year) ? query.year[0] : query.year;
+  const defaultYear = requestedYear && Number.isInteger(Number(requestedYear))
+    ? Number(requestedYear)
+    : currentYear;
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8 lg:px-8">
@@ -35,6 +43,23 @@ export default async function NewTrainingPlanSubmissionPage({
         </p>
       </div>
 
+      {createError ? (
+        <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="font-semibold">Submission was not created</p>
+              <p className="mt-1 leading-6">{createError}</p>
+            </div>
+            <Link
+              href={`/registry/${company.id}`}
+              className="inline-flex min-h-9 w-fit items-center rounded-md border border-amber-200 bg-white px-3 text-xs font-semibold text-amber-900"
+            >
+              View existing submissions
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
       <form action={action} className="grid gap-6 rounded-lg border border-zinc-200 bg-white p-6">
         <section className="grid gap-4">
           <label className="grid gap-2 text-sm font-medium">
@@ -45,7 +70,7 @@ export default async function NewTrainingPlanSubmissionPage({
               min="2000"
               max={currentYear + 1}
               required
-              defaultValue={currentYear}
+              defaultValue={defaultYear}
               className="min-h-11 rounded-md border border-zinc-300 px-3"
             />
           </label>

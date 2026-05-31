@@ -110,6 +110,25 @@ export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubm
     throw new Error("You do not have access to this company's training plan submissions.");
   }
 
+  const existingSubmission = await db.trainingPlanSubmission.findUnique({
+    where: {
+      companyId_year: {
+        companyId: company.id,
+        year: input.year,
+      },
+    },
+    select: {
+      id: true,
+      status: true,
+    },
+  });
+
+  if (existingSubmission) {
+    throw new Error(
+      `A Training Plan and L&D submission already exists for ${input.year}. Open the existing submission instead of creating another one for the same year.`,
+    );
+  }
+
   return db.trainingPlanSubmission.create({
     data: {
       companyId: company.id,
