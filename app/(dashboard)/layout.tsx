@@ -12,7 +12,7 @@ const navItems = [
   { href: "/claims", label: "Claims" },
   { href: "/management", label: "Management" },
   { href: "/settings/users", label: "Users" },
-  { href: "/settings/area-offices", label: "Area Offices" },
+  { href: "/settings/offices", label: "Offices" },
   { href: "/settings/numbers", label: "Numbers" },
   { href: "/settings/certificates", label: "Certificates" },
   { href: "/settings/signatures", label: "Signatures" },

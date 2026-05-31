@@ -1060,25 +1060,28 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/training-plans/[submissionId]/evidence/new/page.tsx`
 - workflow docs
 
-### Slice 48: Area Office Officer Management
+### Slice 48: Office Officer Management
 
-Goal: let workspace admins manage Area Office availability and officer assignments without reseeding.
+Goal: let workspace admins manage office placement and officer assignments without reseeding.
 
 Expected design:
 
-- List all Area Offices seeded from the Area Office register
+- Treat Headquarters and Area Offices as selectable office placement scopes
+- List Headquarters first, then all Area Offices seeded from the Area Office register
 - Show active/inactive status for each Area Office
 - Activate or deactivate an Area Office
-- Assign existing users to Area Office roles
-- Support `AREA_MANAGER`, `HORIC`, `REVENUE_ACCOUNTANT`, `HEAD_OF_TRAINING`, and `REIMBURSEMENT_OFFICER`
-- Show currently assigned officers per Area Office
+- Assign existing users to Area Office roles or Headquarters roles
+- Support Area Office roles: `AREA_MANAGER`, `HORIC`, `REVENUE_ACCOUNTANT`, `HEAD_OF_TRAINING`, and `REIMBURSEMENT_OFFICER`
+- Support Headquarters roles: `DIRECTOR_FSD`, `HEAD_OF_DIVISION`, `HQ_REIMBURSEMENT_OFFICER`, and specialist ITF workflow roles
+- Show currently assigned officers per office placement
 - Remove an officer assignment
 - Continue using `Membership.areaOfficeId` so existing workflow access checks respond immediately
 
 Expected files:
 
 - `lib/area-office-management.ts`
-- `app/(dashboard)/settings/area-offices/actions.ts`
+- `app/(dashboard)/settings/offices/actions.ts`
+- `app/(dashboard)/settings/offices/page.tsx`
 - `app/(dashboard)/settings/area-offices/page.tsx`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
@@ -1107,6 +1110,6 @@ Expected files:
 - `app/(dashboard)/settings/users/template/route.ts`
 - `app/(dashboard)/settings/users/import/route.ts`
 - `lib/area-office-management.ts`
-- `app/(dashboard)/settings/area-offices/page.tsx`
+- `app/(dashboard)/settings/offices/page.tsx`
 - `app/(dashboard)/layout.tsx`
 - workflow docs

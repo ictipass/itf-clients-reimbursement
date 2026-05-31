@@ -142,6 +142,8 @@ Management statistics are exposed through a read-only management dashboard for a
 
 Management dashboard scope is derived from the logged-in user's role and memberships. HQ/workspace management users can see national totals and compare Area Offices, while Area Office management users are restricted to their assigned Area Office statistics. A custom management assignment model can be added later if management needs users whose reporting scope differs from their operational membership.
 
+Office administration is handled from a general Offices settings surface rather than an Area-Office-only screen. Workspace administrators can place officers either at Headquarters or at a specific Area Office. Headquarters assignments use ITF internal memberships with no `areaOfficeId`; Area Office assignments use the same membership model with `areaOfficeId` populated so existing workflow access checks continue to work.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text
