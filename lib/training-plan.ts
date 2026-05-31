@@ -1,0 +1,460 @@
+import { getDb } from "@/lib/db";
+import { can, isItfRole, type Role } from "@/lib/rbac";
+import { uploadObject } from "@/lib/storage";
+import { maxUploadBytes, sanitizeFileName, validateUpload } from "@/lib/storage/security";
+
+const trainingPlanEvidenceKinds = ["TRAINING_PLAN_DOCUMENT", "LD_PERSONNEL_CV"] as const;
+const requiredTrainingPlanCsvColumns = [
+  "name of staff",
+  "department",
+  "gap identified",
+  "training title",
+  "estimated cost",
+  "date",
+  "location",
+  "trainer",
+] as const;
+
+export type TrainingPlanEvidenceKind = (typeof trainingPlanEvidenceKinds)[number];
+
+export type TrainingPlanPersonnelInput = {
+  name: string;
+  position?: string;
+  email?: string;
+  phone?: string;
+};
+
+export type CreateTrainingPlanSubmissionInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  year: number;
+  personnel: TrainingPlanPersonnelInput[];
+  trainingPlanSummary?: string;
+};
+
+export type SubmitTrainingPlanSubmissionInput = {
+  companyId: string;
+  submissionId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  note?: string;
+};
+
+export type UploadTrainingPlanEvidenceInput = {
+  companyId: string;
+  submissionId: string;
+  uploadedByEmail: string;
+  requesterRole: Role;
+  kind: TrainingPlanEvidenceKind;
+  file: File;
+};
+
+export function getTrainingPlanEvidenceKinds() {
+  return trainingPlanEvidenceKinds;
+}
+
+export function getTrainingPlanCsvTemplate() {
+  return `${requiredTrainingPlanCsvColumns.join(",")}\n`;
+}
+
+export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubmissionInput) {
+  if (!can(input.requesterRole, "training:submit")) {
+    throw new Error("You do not have permission to create training plan submissions.");
+  }
+
+  const db = getDb();
+  const company = await db.company.findFirst({
+    where: {
+      id: input.companyId,
+      recordTier: "HOT",
+      isActive: true,
+      status: "ACTIVE",
+      itfEmployerNumber: {
+        not: null,
+      },
+    },
+    select: {
+      id: true,
+      organizationId: true,
+    },
+  });
+
+  if (!company) {
+    throw new Error("A registered active company is required before training plan submission.");
+  }
+
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    requester.memberships.some((membership) => membership.organizationId === company.organizationId);
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this company's training plan submissions.");
+  }
+
+  return db.trainingPlanSubmission.create({
+    data: {
+      companyId: company.id,
+      year: input.year,
+      trainingPlanSummary: input.trainingPlanSummary,
+      dueDate: getTrainingPlanDueDate(input.year),
+      status: "DRAFT",
+      personnel: {
+        create: input.personnel.map((person) => ({
+          name: person.name,
+          position: person.position,
+          email: person.email,
+          phone: person.phone,
+        })),
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function getTrainingPlanSubmissionForUpload(companyId: string, submissionId: string) {
+  const db = getDb();
+
+  return db.trainingPlanSubmission.findFirst({
+    where: {
+      id: submissionId,
+      companyId,
+      recordTier: "HOT",
+      company: {
+        id: companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      year: true,
+      status: true,
+      company: {
+        select: {
+          id: true,
+          legalName: true,
+        },
+      },
+    },
+  });
+}
+
+export async function uploadTrainingPlanEvidence(input: UploadTrainingPlanEvidenceInput) {
+  if (!can(input.requesterRole, "training:submit")) {
+    throw new Error("You do not have permission to upload training plan evidence.");
+  }
+
+  const db = getDb();
+  const submission = await db.trainingPlanSubmission.findFirst({
+    where: {
+      id: input.submissionId,
+      companyId: input.companyId,
+      recordTier: "HOT",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!submission) {
+    throw new Error("Training plan submission was not found.");
+  }
+
+  const user = await db.user.findUnique({
+    where: {
+      email: input.uploadedByEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!user) {
+    throw new Error("Upload user was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    user.memberships.some((membership) => membership.organizationId === submission.company.organizationId);
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this training plan submission.");
+  }
+
+  const buffer = Buffer.from(await input.file.arrayBuffer());
+  const safeFileName = sanitizeFileName(input.file.name);
+  const validated =
+    input.kind === "TRAINING_PLAN_DOCUMENT"
+      ? validateTrainingPlanCsvUpload(buffer, safeFileName, input.file.type)
+      : validateUpload(buffer, safeFileName, input.file.type);
+  const stored = await uploadObject({
+    buffer,
+    companyId: submission.companyId,
+    extension: validated.extension,
+    mimeType: validated.mimeType,
+    namespace: "training-plan-submissions",
+  });
+
+  return db.document.create({
+    data: {
+      organizationId: submission.company.organizationId,
+      companyId: submission.companyId,
+      trainingPlanSubmissionId: submission.id,
+      uploadedById: user.id,
+      kind: input.kind,
+      fileName: safeFileName,
+      storageProvider: stored.storageProvider,
+      bucket: stored.bucket,
+      objectKey: stored.objectKey,
+      url: stored.url,
+      etag: stored.etag,
+      versionId: stored.versionId,
+      checksum: stored.checksum,
+      mimeType: stored.mimeType,
+      fileSize: stored.fileSize,
+      access: "PRIVATE",
+      classification: "OFFICIAL",
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubmissionInput) {
+  if (!can(input.requesterRole, "training:submit")) {
+    throw new Error("You do not have permission to submit training plans.");
+  }
+
+  const db = getDb();
+  const submission = await db.trainingPlanSubmission.findFirst({
+    where: {
+      id: input.submissionId,
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "DRAFT",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      dueDate: true,
+      documents: {
+        where: {
+          isActive: true,
+          recordTier: "HOT",
+        },
+        select: {
+          kind: true,
+        },
+      },
+      company: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!submission) {
+    throw new Error("Draft training plan submission was not found.");
+  }
+
+  const submittedKinds = new Set(submission.documents.map((document) => document.kind));
+  const missingKinds = trainingPlanEvidenceKinds.filter((kind) => !submittedKinds.has(kind));
+
+  if (missingKinds.length > 0) {
+    throw new Error(`Upload required evidence before submission: ${missingKinds.join(", ")}.`);
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    actor.memberships.some((membership) => membership.organizationId === submission.company.organizationId);
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this training plan submission.");
+  }
+
+  const submittedAt = new Date();
+  const promptSubmissionScore = submittedAt <= submission.dueDate ? "1.00" : "0.00";
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.trainingPlanSubmission.update({
+      where: {
+        id: submission.id,
+      },
+      data: {
+        status: "SUBMITTED",
+        submittedAt,
+        promptSubmissionScore,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: submission.companyId,
+        trainingPlanSubmissionId: submission.id,
+        action: "SUBMIT",
+        reason: input.note,
+      },
+    });
+
+    return updated;
+  });
+}
+
+function getTrainingPlanDueDate(year: number) {
+  return new Date(Date.UTC(year, 2, 31, 23, 59, 59, 999));
+}
+
+function validateTrainingPlanCsvUpload(buffer: Buffer, fileName: string, mimeType: string) {
+  if (buffer.byteLength === 0) {
+    throw new Error("Uploaded CSV file is empty.");
+  }
+
+  if (buffer.byteLength > maxUploadBytes) {
+    throw new Error("Uploaded CSV file exceeds the 10 MB limit.");
+  }
+
+  if (!fileName.toLowerCase().endsWith(".csv")) {
+    throw new Error("Training plan document must be a CSV file.");
+  }
+
+  const acceptedMimeTypes = new Set([
+    "text/csv",
+    "application/csv",
+    "application/vnd.ms-excel",
+    "text/plain",
+  ]);
+
+  if (mimeType && !acceptedMimeTypes.has(mimeType)) {
+    throw new Error("Training plan document must be uploaded as a CSV file.");
+  }
+
+  const content = buffer.toString("utf8").replace(/^\uFEFF/, "");
+
+  if (content.includes("\uFFFD")) {
+    throw new Error("Training plan CSV must be valid UTF-8 text.");
+  }
+
+  const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
+
+  if (lines.length < 2) {
+    throw new Error("Training plan CSV must include a header row and at least one training row.");
+  }
+
+  const headers = parseCsvLine(lines[0]).map(normalizeCsvHeader);
+  const missingColumns = requiredTrainingPlanCsvColumns.filter(
+    (column) => !headers.includes(column),
+  );
+
+  if (missingColumns.length > 0) {
+    throw new Error(`Training plan CSV is missing columns: ${missingColumns.join(", ")}.`);
+  }
+
+  return {
+    extension: ".csv",
+    mimeType: "text/csv",
+  };
+}
+
+function normalizeCsvHeader(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function parseCsvLine(line: string) {
+  const values: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    const nextCharacter = line[index + 1];
+
+    if (character === '"' && inQuotes && nextCharacter === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+
+    if (character === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (character === "," && !inQuotes) {
+      values.push(current);
+      current = "";
+      continue;
+    }
+
+    current += character;
+  }
+
+  values.push(current);
+
+  return values;
+}

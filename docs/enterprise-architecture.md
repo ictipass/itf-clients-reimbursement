@@ -150,6 +150,8 @@ Director FSD -> Head of Division -> HQ Reimbursement Officer -> Head of Division
 
 Training Plan and L&D Submission is modeled separately from annual compliance. It covers Form 3A, the annual training plan, and L&D personnel CV evidence. The training plan is due on or before 31 March and may contribute to scoring.
 
+The first Training Plan and L&D slice stores this process as a yearly `TrainingPlanSubmission` record. Employers can create a draft, capture as many L&D personnel records as their organization requires, upload the annual training plan as a CSV document, upload L&D personnel CV evidence, and submit the package. The downloadable CSV template requires these columns: name of staff, department, gap identified, training title, estimated cost, date, location, and trainer. Submission on or before 31 March earns the prompt submission score. The full Area Office, Head of Training, Reimbursement Officer, and Headquarters routing remains a later workflow slice.
+
 Training approval request routing:
 
 ```text

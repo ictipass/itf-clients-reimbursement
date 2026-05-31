@@ -51,6 +51,8 @@ enum DocumentKind {
   LEARNING_POLICY
   TRAINING_POLICY
   ANNUAL_TRAINING_PLAN
+  TRAINING_PLAN_DOCUMENT
+  LD_PERSONNEL_CV
   ATTENDANCE_SHEET
   PAYMENT_RECEIPT
   TRAINING_REPORT
@@ -193,13 +195,13 @@ enum AuditAction {
 }
 
 model Workspace {
-  id                   String                @id @default(cuid())
+  id                   String                      @id @default(cuid())
   name                 String
-  slug                 String                @unique
-  externalId           String?               @unique
-  isActive             Boolean               @default(true)
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
+  slug                 String                      @unique
+  externalId           String?                     @unique
+  isActive             Boolean                     @default(true)
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
   organizations        Organization[]
   areaOffices          AreaOffice[]
   memberships          Membership[]
@@ -320,12 +322,13 @@ model Company {
   documents                           Document[]
   complianceYears                     ComplianceYear[]
   complianceCertificates              ComplianceCertificate[]
+  trainingPlanSubmissions             TrainingPlanSubmission[]
   trainingRequests                    TrainingRequest[]
   reimbursementClaims                 ReimbursementClaim[]
   registrationApplication             RegistrationApplication?
   registrationContributionAssessments RegistrationContributionAssessment[]
   registrationCertificates            RegistrationCertificate[]
-  managedNumbers                       ManagedRegistrationNumber[]
+  managedNumbers                      ManagedRegistrationNumber[]
   workItems                           WorkItem[]
   decisions                           Decision[]
   comments                            Comment[]
@@ -390,37 +393,37 @@ model RegistrationCertificate {
 }
 
 model ManagedRegistrationNumber {
-  id                    String                       @id @default(cuid())
-  workspaceId           String
-  type                  ManagedNumberType
-  value                 String
-  status                ManagedNumberStatus          @default(AVAILABLE)
-  policyCode            String?
-  batchCode             String?
-  metadata              Json?
-  notes                 String?
-  assignedCompanyId     String?
-  assignedCertificateId String?
+  id                              String                   @id @default(cuid())
+  workspaceId                     String
+  type                            ManagedNumberType
+  value                           String
+  status                          ManagedNumberStatus      @default(AVAILABLE)
+  policyCode                      String?
+  batchCode                       String?
+  metadata                        Json?
+  notes                           String?
+  assignedCompanyId               String?
+  assignedCertificateId           String?
   assignedComplianceCertificateId String?
-  createdById           String?
-  reservedById          String?
-  reservedAt            DateTime?
-  issuedById            String?
-  issuedAt              DateTime?
-  voidedById            String?
-  voidedAt              DateTime?
-  voidReason            String?
-  recordTier            RecordTier                   @default(HOT)
-  createdAt             DateTime                     @default(now())
-  updatedAt             DateTime                     @updatedAt
-  workspace             Workspace                    @relation(fields: [workspaceId], references: [id])
-  assignedCompany       Company?                     @relation(fields: [assignedCompanyId], references: [id])
-  assignedCertificate   RegistrationCertificate?     @relation(fields: [assignedCertificateId], references: [id])
-  assignedComplianceCertificate ComplianceCertificate? @relation(fields: [assignedComplianceCertificateId], references: [id])
-  createdBy             User?                        @relation("CreatedManagedNumbers", fields: [createdById], references: [id])
-  reservedBy            User?                        @relation("ReservedManagedNumbers", fields: [reservedById], references: [id])
-  issuedBy              User?                        @relation("IssuedManagedNumbers", fields: [issuedById], references: [id])
-  voidedBy              User?                        @relation("VoidedManagedNumbers", fields: [voidedById], references: [id])
+  createdById                     String?
+  reservedById                    String?
+  reservedAt                      DateTime?
+  issuedById                      String?
+  issuedAt                        DateTime?
+  voidedById                      String?
+  voidedAt                        DateTime?
+  voidReason                      String?
+  recordTier                      RecordTier               @default(HOT)
+  createdAt                       DateTime                 @default(now())
+  updatedAt                       DateTime                 @updatedAt
+  workspace                       Workspace                @relation(fields: [workspaceId], references: [id])
+  assignedCompany                 Company?                 @relation(fields: [assignedCompanyId], references: [id])
+  assignedCertificate             RegistrationCertificate? @relation(fields: [assignedCertificateId], references: [id])
+  assignedComplianceCertificate   ComplianceCertificate?   @relation(fields: [assignedComplianceCertificateId], references: [id])
+  createdBy                       User?                    @relation("CreatedManagedNumbers", fields: [createdById], references: [id])
+  reservedBy                      User?                    @relation("ReservedManagedNumbers", fields: [reservedById], references: [id])
+  issuedBy                        User?                    @relation("IssuedManagedNumbers", fields: [issuedById], references: [id])
+  voidedBy                        User?                    @relation("VoidedManagedNumbers", fields: [voidedById], references: [id])
 
   @@unique([workspaceId, type, value])
   @@index([workspaceId, type, status, recordTier])
@@ -430,23 +433,23 @@ model ManagedRegistrationNumber {
 }
 
 model CertificateTemplate {
-  id                String                    @id @default(cuid())
-  workspaceId       String
-  name              String
-  code              String
-  version           String
-  status            CertificateTemplateStatus @default(DRAFT)
-  effectiveFrom     DateTime?
-  retiredAt         DateTime?
-  designDocumentId  String?
-  placementMetadata Json?
-  notes             String?
-  recordTier        RecordTier                @default(HOT)
-  createdAt         DateTime                  @default(now())
-  updatedAt         DateTime                  @updatedAt
-  workspace         Workspace                 @relation(fields: [workspaceId], references: [id])
-  designDocument    Document?                 @relation("CertificateTemplateDesignDocument", fields: [designDocumentId], references: [id])
-  certificates      RegistrationCertificate[]
+  id                     String                    @id @default(cuid())
+  workspaceId            String
+  name                   String
+  code                   String
+  version                String
+  status                 CertificateTemplateStatus @default(DRAFT)
+  effectiveFrom          DateTime?
+  retiredAt              DateTime?
+  designDocumentId       String?
+  placementMetadata      Json?
+  notes                  String?
+  recordTier             RecordTier                @default(HOT)
+  createdAt              DateTime                  @default(now())
+  updatedAt              DateTime                  @updatedAt
+  workspace              Workspace                 @relation(fields: [workspaceId], references: [id])
+  designDocument         Document?                 @relation("CertificateTemplateDesignDocument", fields: [designDocumentId], references: [id])
+  certificates           RegistrationCertificate[]
   complianceCertificates ComplianceCertificate[]
 
   @@unique([workspaceId, code, version])
@@ -584,6 +587,43 @@ model ComplianceBranchReturn {
   @@index([complianceYearId])
 }
 
+model TrainingPlanSubmission {
+  id                    String                  @id @default(cuid())
+  companyId             String
+  year                  Int
+  trainingPlanSummary   String?
+  dueDate               DateTime
+  promptSubmissionScore Decimal?                @db.Decimal(5, 2)
+  status                WorkflowStatus          @default(DRAFT)
+  submittedAt           DateTime?
+  approvedAt            DateTime?
+  recordTier            RecordTier              @default(HOT)
+  createdAt             DateTime                @default(now())
+  updatedAt             DateTime                @updatedAt
+  company               Company                 @relation(fields: [companyId], references: [id])
+  personnel             TrainingPlanPersonnel[]
+  documents             Document[]
+  decisions             Decision[]
+  comments              Comment[]
+
+  @@unique([companyId, year])
+  @@index([companyId, status, recordTier])
+}
+
+model TrainingPlanPersonnel {
+  id                       String                 @id @default(cuid())
+  trainingPlanSubmissionId String
+  name                     String
+  position                 String?
+  email                    String?
+  phone                    String?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  trainingPlanSubmission   TrainingPlanSubmission @relation(fields: [trainingPlanSubmissionId], references: [id])
+
+  @@index([trainingPlanSubmissionId])
+}
+
 model TrainingRequest {
   id                   String                @id @default(cuid())
   companyId            String
@@ -703,6 +743,7 @@ model Document {
   companyId                  String?
   registrationApplicationId  String?
   complianceYearId           String?
+  trainingPlanSubmissionId   String?
   trainingRequestId          String?
   reimbursementClaimId       String?
   uploadedById               String
@@ -729,6 +770,7 @@ model Document {
   company                    Company?                 @relation(fields: [companyId], references: [id])
   registrationApplication    RegistrationApplication? @relation(fields: [registrationApplicationId], references: [id])
   complianceYear             ComplianceYear?          @relation(fields: [complianceYearId], references: [id])
+  trainingPlanSubmission     TrainingPlanSubmission?  @relation(fields: [trainingPlanSubmissionId], references: [id])
   trainingRequest            TrainingRequest?         @relation(fields: [trainingRequestId], references: [id])
   reimbursementClaim         ReimbursementClaim?      @relation(fields: [reimbursementClaimId], references: [id])
   uploadedBy                 User                     @relation("UploadedDocuments", fields: [uploadedById], references: [id])
@@ -739,6 +781,7 @@ model Document {
 
   @@index([organizationId, kind, recordTier, isActive])
   @@index([registrationApplicationId, kind, recordTier, isActive])
+  @@index([trainingPlanSubmissionId, kind, recordTier, isActive])
 }
 
 model Decision {
@@ -747,6 +790,7 @@ model Decision {
   companyId                 String?
   registrationApplicationId String?
   complianceYearId          String?
+  trainingPlanSubmissionId  String?
   trainingRequestId         String?
   reimbursementClaimId      String?
   documentId                String?
@@ -758,32 +802,36 @@ model Decision {
   company                   Company?                 @relation(fields: [companyId], references: [id])
   registrationApplication   RegistrationApplication? @relation(fields: [registrationApplicationId], references: [id])
   complianceYear            ComplianceYear?          @relation(fields: [complianceYearId], references: [id])
+  trainingPlanSubmission    TrainingPlanSubmission?  @relation(fields: [trainingPlanSubmissionId], references: [id])
   trainingRequest           TrainingRequest?         @relation(fields: [trainingRequestId], references: [id])
   reimbursementClaim        ReimbursementClaim?      @relation(fields: [reimbursementClaimId], references: [id])
   document                  Document?                @relation(fields: [documentId], references: [id])
 
   @@index([actorId, recordTier, createdAt])
   @@index([registrationApplicationId, recordTier, createdAt])
+  @@index([trainingPlanSubmissionId, recordTier, createdAt])
 }
 
 model Comment {
-  id                   String              @id @default(cuid())
-  actorId              String
-  companyId            String?
-  complianceYearId     String?
-  trainingRequestId    String?
-  reimbursementClaimId String?
-  documentId           String?
-  body                 String
-  visibility           CommentVisibility   @default(INTERNAL)
-  recordTier           RecordTier          @default(HOT)
-  createdAt            DateTime            @default(now())
-  actor                User                @relation(fields: [actorId], references: [id])
-  company              Company?            @relation(fields: [companyId], references: [id])
-  complianceYear       ComplianceYear?     @relation(fields: [complianceYearId], references: [id])
-  trainingRequest      TrainingRequest?    @relation(fields: [trainingRequestId], references: [id])
-  reimbursementClaim   ReimbursementClaim? @relation(fields: [reimbursementClaimId], references: [id])
-  document             Document?           @relation(fields: [documentId], references: [id])
+  id                       String                  @id @default(cuid())
+  actorId                  String
+  companyId                String?
+  complianceYearId         String?
+  trainingPlanSubmissionId String?
+  trainingRequestId        String?
+  reimbursementClaimId     String?
+  documentId               String?
+  body                     String
+  visibility               CommentVisibility       @default(INTERNAL)
+  recordTier               RecordTier              @default(HOT)
+  createdAt                DateTime                @default(now())
+  actor                    User                    @relation(fields: [actorId], references: [id])
+  company                  Company?                @relation(fields: [companyId], references: [id])
+  complianceYear           ComplianceYear?         @relation(fields: [complianceYearId], references: [id])
+  trainingPlanSubmission   TrainingPlanSubmission? @relation(fields: [trainingPlanSubmissionId], references: [id])
+  trainingRequest          TrainingRequest?        @relation(fields: [trainingRequestId], references: [id])
+  reimbursementClaim       ReimbursementClaim?     @relation(fields: [reimbursementClaimId], references: [id])
+  document                 Document?               @relation(fields: [documentId], references: [id])
 
   @@index([actorId, recordTier, createdAt])
 }

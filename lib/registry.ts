@@ -270,6 +270,69 @@ export async function getEmployerCompany(companyId: string) {
           year: "desc",
         },
       },
+      trainingPlanSubmissions: {
+        where: {
+          recordTier: "HOT",
+        },
+        select: {
+          id: true,
+          year: true,
+          status: true,
+          dueDate: true,
+          submittedAt: true,
+          promptSubmissionScore: true,
+          personnel: {
+            select: {
+              id: true,
+              name: true,
+              position: true,
+              email: true,
+              phone: true,
+            },
+            orderBy: {
+              createdAt: "asc",
+            },
+          },
+          documents: {
+            where: {
+              isActive: true,
+              recordTier: "HOT",
+            },
+            select: {
+              id: true,
+              kind: true,
+              fileName: true,
+              createdAt: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
+          decisions: {
+            where: {
+              recordTier: "HOT",
+            },
+            select: {
+              id: true,
+              action: true,
+              reason: true,
+              createdAt: true,
+              actor: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
+          },
+        },
+        orderBy: {
+          year: "desc",
+        },
+      },
     },
   });
 }

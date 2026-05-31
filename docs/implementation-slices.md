@@ -1010,3 +1010,34 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/compliance/[complianceYearId]/certificate/[certificateId]/route.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 46: Training Plan and L&D Submission Foundation
+
+Goal: model the yearly mid-submission that happens before training approval requests.
+
+Expected design:
+
+- Add a `TrainingPlanSubmission` model tied to company and year
+- Capture Form 3A-style L&D personnel details as repeatable structured child records
+- Track the yearly due date as 31 March
+- Track prompt submission score as 1% when submitted on or before the due date
+- Add required evidence uploads for annual training plan CSV document and L&D personnel CV
+- Provide a downloadable CSV template with required training plan columns
+- Allow employers to create a draft, upload required evidence, and submit the package
+- Show submissions on the company registry detail page
+- Keep full Area Office/HOT/RO/HQ routing for a later workflow slice
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/training-plan.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/training-plans/actions.ts`
+- `app/(dashboard)/registry/[companyId]/training-plans/new/page.tsx`
+- `app/(dashboard)/registry/[companyId]/training-plans/new/personnel-fields.tsx`
+- `app/(dashboard)/registry/[companyId]/training-plans/template/route.ts`
+- `app/(dashboard)/registry/[companyId]/training-plans/[submissionId]/evidence/actions.ts`
+- `app/(dashboard)/registry/[companyId]/training-plans/[submissionId]/evidence/new/page.tsx`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

@@ -8,6 +8,7 @@ import {
   issueComplianceCertificateAction,
   updateComplianceYearStatusAction,
 } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
+import { submitTrainingPlanSubmissionAction } from "@/app/(dashboard)/registry/[companyId]/training-plans/actions";
 import {
   assessRegistrationContributionAction,
   completeRegistrationAtHeadquartersAction,
@@ -45,6 +46,16 @@ function formatMoney(value: { toString(): string } | null) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function formatPercent(value: { toString(): string } | null) {
+  if (!value) {
+    return "Not scored";
+  }
+
+  return `${Number(value.toString()).toLocaleString("en-NG", {
+    maximumFractionDigits: 2,
+  })}%`;
 }
 
 const requiredCertificatePlacementFields = [
@@ -1094,6 +1105,152 @@ export default async function CompanyDetailPage({
             </div>
           )}
         </div>
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">
+              Training Plan and L&amp;D submissions
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Yearly Form 3A personnel details, annual training plan evidence, and L&amp;D
+              personnel CV records.
+            </p>
+          </div>
+          <Link
+            href={`/registry/${company.id}/training-plans/new`}
+            className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
+          >
+            Create submission
+          </Link>
+        </div>
+
+        {company.trainingPlanSubmissions.length === 0 ? (
+          <p className="mt-4 text-sm leading-6 text-zinc-600">
+            No Training Plan and L&amp;D submission has been created for this company yet.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3">
+            {company.trainingPlanSubmissions.map((submission) => {
+              const submittedDocumentKinds = new Set(
+                submission.documents.map((document) => document.kind),
+              );
+              const missingRequiredEvidence = [
+                submittedDocumentKinds.has("TRAINING_PLAN_DOCUMENT")
+                  ? undefined
+                  : "training plan document",
+                submittedDocumentKinds.has("LD_PERSONNEL_CV") ? undefined : "L&D personnel CV",
+              ].filter(Boolean);
+
+              return (
+                <div key={submission.id} className="rounded-md border border-zinc-100 p-3 text-sm">
+                  <div className="grid gap-2 md:grid-cols-4">
+                    <p className="font-semibold">{submission.year}</p>
+                    <p>{submission.status.replaceAll("_", " ")}</p>
+                    <p>Due {formatDate(submission.dueDate)}</p>
+                    <p>Prompt score: {formatPercent(submission.promptSubmissionScore)}</p>
+                  </div>
+                  <div className="mt-3 grid gap-2 rounded-md bg-zinc-50 px-3 py-2 text-xs leading-5 text-zinc-600 md:grid-cols-2">
+                    <p>
+                      L&amp;D personnel count:{" "}
+                      <span className="font-semibold text-zinc-800">
+                        {submission.personnel.length}
+                      </span>
+                    </p>
+                    <p>Submitted: {formatDate(submission.submittedAt)}</p>
+                    {submission.decisions[0] ? (
+                      <p>
+                        Last decision:{" "}
+                        <span className="font-semibold text-zinc-800">
+                          {submission.decisions[0].action.replaceAll("_", " ")}
+                        </span>{" "}
+                        by {submission.decisions[0].actor.name} on{" "}
+                        {formatDate(submission.decisions[0].createdAt)}
+                      </p>
+                    ) : null}
+                  </div>
+                  {submission.personnel.length > 0 ? (
+                    <div className="mt-3 grid gap-2 rounded-md border border-zinc-100 p-3 text-xs leading-5 text-zinc-600 md:grid-cols-2">
+                      {submission.personnel.map((person) => (
+                        <p key={person.id}>
+                          <span className="font-semibold text-zinc-800">{person.name}</span>
+                          {person.position ? ` · ${person.position}` : ""}
+                          {person.email ? ` · ${person.email}` : ""}
+                          {person.phone ? ` · ${person.phone}` : ""}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+                  {missingRequiredEvidence.length > 0 ? (
+                    <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      Required before submission: {missingRequiredEvidence.join(", ")}.
+                    </p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3">
+                    <p className="text-xs text-zinc-500">
+                      {submission.documents.length === 0
+                        ? "No Training Plan evidence uploaded"
+                        : `${submission.documents.length} evidence document${submission.documents.length === 1 ? "" : "s"}`}
+                    </p>
+                    <Link
+                      href={`/registry/${company.id}/training-plans/${submission.id}/evidence/new`}
+                      className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+                    >
+                      Upload evidence
+                    </Link>
+                  </div>
+                  {submission.status === "DRAFT" && missingRequiredEvidence.length === 0 ? (
+                    <form
+                      action={submitTrainingPlanSubmissionAction.bind(
+                        null,
+                        company.id,
+                        submission.id,
+                      )}
+                      className="mt-3 grid gap-3 rounded-md border border-zinc-100 bg-zinc-50 p-3"
+                    >
+                      <label className="grid gap-2 text-xs font-medium text-zinc-700">
+                        Submission note
+                        <input
+                          name="note"
+                          className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                        />
+                      </label>
+                      <button className="min-h-9 w-fit rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+                        Submit Training Plan package
+                      </button>
+                    </form>
+                  ) : null}
+                  {submission.documents.length > 0 ? (
+                    <div className="mt-3 grid gap-2">
+                      {submission.documents.map((document) => (
+                        <div
+                          key={document.id}
+                          className="flex flex-wrap items-center justify-between gap-2 text-xs leading-5 text-zinc-600"
+                        >
+                          <p>
+                            <span className="font-semibold text-zinc-800">
+                              {document.fileName}
+                            </span>{" "}
+                            · {document.kind.replaceAll("_", " ")}
+                          </p>
+                          <Link
+                            href={`/registry/${company.id}/evidence/${document.id}?disposition=inline`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 px-2 font-semibold text-zinc-800"
+                          >
+                            View
+                          </Link>
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </section>
     </div>
   );
