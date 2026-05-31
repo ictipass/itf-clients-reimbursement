@@ -1059,3 +1059,26 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/training-plans/[submissionId]/evidence/upload/route.ts`
 - `app/(dashboard)/registry/[companyId]/training-plans/[submissionId]/evidence/new/page.tsx`
 - workflow docs
+
+### Slice 48: Area Office Officer Management
+
+Goal: let workspace admins manage Area Office availability and officer assignments without reseeding.
+
+Expected design:
+
+- List all Area Offices seeded from the Area Office register
+- Show active/inactive status for each Area Office
+- Activate or deactivate an Area Office
+- Assign existing users to Area Office roles
+- Support `AREA_MANAGER`, `HORIC`, `REVENUE_ACCOUNTANT`, `HEAD_OF_TRAINING`, and `REIMBURSEMENT_OFFICER`
+- Show currently assigned officers per Area Office
+- Remove an officer assignment
+- Continue using `Membership.areaOfficeId` so existing workflow access checks respond immediately
+
+Expected files:
+
+- `lib/area-office-management.ts`
+- `app/(dashboard)/settings/area-offices/actions.ts`
+- `app/(dashboard)/settings/area-offices/page.tsx`
+- `app/(dashboard)/layout.tsx`
+- workflow docs
