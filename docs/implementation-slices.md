@@ -1155,3 +1155,22 @@ Expected files:
 
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 52: Role-Aware Dashboard Navigation
+
+Goal: reduce dashboard clutter by showing navigation links according to the logged-in user's permissions.
+
+Expected design:
+
+- Always show Overview
+- Show Registry to users with company read, registry review, or registry submit access
+- Show Compliance to compliance reviewers or submitters
+- Show Claims to claims reviewers, approvers, or submitters
+- Show Management to ITF roles with workspace management or audit-read access
+- Show Users, Offices, Roles, Numbers, Certificates, and Signatures only to workspace managers
+- Keep page-level authorization checks as the source of truth
+
+Expected files:
+
+- `app/(dashboard)/layout.tsx`
+- workflow docs

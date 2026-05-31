@@ -4,19 +4,40 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getAttentionSummary } from "@/lib/attention";
 import { appName } from "@/lib/domain";
+import { can, isItfRole, type Role } from "@/lib/rbac";
 
-const navItems = [
-  { href: "/dashboard", label: "Overview" },
-  { href: "/registry", label: "Registry" },
-  { href: "/compliance", label: "Compliance" },
-  { href: "/claims", label: "Claims" },
-  { href: "/management", label: "Management" },
-  { href: "/settings/users", label: "Users" },
-  { href: "/settings/offices", label: "Offices" },
-  { href: "/settings/roles", label: "Roles" },
-  { href: "/settings/numbers", label: "Numbers" },
-  { href: "/settings/certificates", label: "Certificates" },
-  { href: "/settings/signatures", label: "Signatures" },
+type NavItem = {
+  href: string;
+  label: string;
+  isVisible: (role: Role) => boolean;
+};
+
+const canUseRegistry = (role: Role) =>
+  can(role, "company:read") || can(role, "registry:review") || can(role, "registry:submit");
+
+const canUseCompliance = (role: Role) =>
+  can(role, "compliance:review") || can(role, "compliance:submit");
+
+const canUseClaims = (role: Role) =>
+  can(role, "claims:review") || can(role, "claims:approve") || can(role, "claims:submit");
+
+const canUseManagement = (role: Role) =>
+  isItfRole(role) && (can(role, "workspace:manage") || can(role, "audit:read"));
+
+const canUseSettings = (role: Role) => can(role, "workspace:manage");
+
+const navItems: NavItem[] = [
+  { href: "/dashboard", label: "Overview", isVisible: () => true },
+  { href: "/registry", label: "Registry", isVisible: canUseRegistry },
+  { href: "/compliance", label: "Compliance", isVisible: canUseCompliance },
+  { href: "/claims", label: "Claims", isVisible: canUseClaims },
+  { href: "/management", label: "Management", isVisible: canUseManagement },
+  { href: "/settings/users", label: "Users", isVisible: canUseSettings },
+  { href: "/settings/offices", label: "Offices", isVisible: canUseSettings },
+  { href: "/settings/roles", label: "Roles", isVisible: canUseSettings },
+  { href: "/settings/numbers", label: "Numbers", isVisible: canUseSettings },
+  { href: "/settings/certificates", label: "Certificates", isVisible: canUseSettings },
+  { href: "/settings/signatures", label: "Signatures", isVisible: canUseSettings },
 ];
 
 export default async function DashboardLayout({
@@ -25,9 +46,11 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }>) {
   const session = await getServerSession(authOptions);
+  const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const visibleNavItems = navItems.filter((item) => item.isVisible(activeRole));
   const attentionSummary = await getAttentionSummary({
     requesterEmail: session?.user?.email,
-    requesterRole: session?.user?.role ?? "SYSTEM_ADMIN",
+    requesterRole: activeRole,
     take: 0,
   });
 
@@ -46,7 +69,7 @@ export default async function DashboardLayout({
             </Link>
             <div className="flex flex-wrap items-center gap-3 text-sm">
               <span className="rounded-full border border-zinc-200 px-3 py-1 font-medium text-zinc-700">
-                {session?.user?.role ?? "SYSTEM_ADMIN"}
+                {activeRole}
               </span>
               <Link
                 href="/api/auth/signin"
@@ -57,7 +80,7 @@ export default async function DashboardLayout({
             </div>
           </div>
           <nav className="flex flex-wrap gap-2">
-            {navItems.map((item) => (
+            {visibleNavItems.map((item) => (
               <Link
                 key={item.href}
                 href={item.href}
