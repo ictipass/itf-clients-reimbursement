@@ -136,6 +136,7 @@ export async function assessRegistrationContributionAction(companyId: string, fo
     assessmentNote: readOptionalString(formData, "assessmentNote"),
   });
 
+  revalidatePath(`/dashboard`);
   revalidatePath(`/registry/${companyId}`);
   redirect(`/registry/${companyId}`);
 }

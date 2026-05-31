@@ -44,7 +44,7 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
         OR: buildAssigneeScope(input.requesterRole, requester),
       };
 
-  const [total, items] = await db.$transaction([
+  const [workItemTotal, workItems] = await db.$transaction([
     db.workItem.count({
       where: scopedWhere,
     }),
@@ -59,6 +59,7 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
         summary: true,
         targetHref: true,
         createdAt: true,
+        registrationApplicationId: true,
         company: {
           select: {
             legalName: true,
@@ -79,11 +80,121 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
       take: input.take ?? 5,
     }),
   ]);
+  const derivedItems = await getDerivedRegistrationDeskItems({
+    requesterRole: input.requesterRole,
+    requester,
+    excludedRegistrationApplicationIds: workItems
+      .map((item) => item.registrationApplicationId)
+      .filter((value): value is string => Boolean(value)),
+    take: input.take ?? 5,
+  });
+  const items = [...workItems, ...derivedItems]
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+    .slice(0, input.take ?? 5);
 
   return {
-    total,
+    total: workItemTotal + derivedItems.length,
     items,
   };
+}
+
+async function getDerivedRegistrationDeskItems(input: {
+  requesterRole: Role;
+  requester: {
+    memberships: {
+      areaOfficeId: string | null;
+    }[];
+  } | null;
+  excludedRegistrationApplicationIds: string[];
+  take: number;
+}) {
+  if (
+    input.requesterRole !== "AREA_MANAGER" &&
+    input.requesterRole !== "HORIC" &&
+    input.requesterRole !== "REVENUE_ACCOUNTANT"
+  ) {
+    return [];
+  }
+
+  const areaOfficeIds = uniqueDefined(
+    input.requester?.memberships.map((membership) => membership.areaOfficeId) ?? [],
+  );
+
+  if (areaOfficeIds.length === 0) {
+    return [];
+  }
+
+  const registrations = await getDb().registrationApplication.findMany({
+    where: {
+      id: {
+        notIn: input.excludedRegistrationApplicationIds,
+      },
+      currentDesk: input.requesterRole,
+      status: "SUBMITTED",
+      recordTier: "HOT",
+      areaOfficeId: {
+        in: areaOfficeIds,
+      },
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      createdAt: true,
+      companyId: true,
+      currentDesk: true,
+      company: {
+        select: {
+          legalName: true,
+        },
+      },
+      areaOffice: {
+        select: {
+          name: true,
+        },
+      },
+    },
+    orderBy: {
+      updatedAt: "desc",
+    },
+    take: input.take,
+  });
+
+  return registrations.map((registration) => ({
+    id: `derived-registration-${registration.id}`,
+    kind:
+      registration.currentDesk === "AREA_MANAGER"
+        ? ("REGISTRATION_AREA_MANAGER_REVIEW" as const)
+        : ("REGISTRATION_AREA_OFFICE_REVIEW" as const),
+    priority: "NORMAL" as const,
+    assignedRole: input.requesterRole,
+    title: getDerivedRegistrationTitle(input.requesterRole),
+    summary: `${registration.company.legalName} is awaiting ${input.requesterRole.replaceAll("_", " ")} action.`,
+    targetHref: `/registry/${registration.companyId}`,
+    createdAt: registration.createdAt,
+    registrationApplicationId: registration.id,
+    company: {
+      legalName: registration.company.legalName,
+    },
+    areaOffice: {
+      name: registration.areaOffice.name,
+    },
+    organization: null,
+  }));
+}
+
+function getDerivedRegistrationTitle(role: Role) {
+  if (role === "HORIC") {
+    return "Review employer registration";
+  }
+
+  if (role === "REVENUE_ACCOUNTANT") {
+    return "Assess registration contribution";
+  }
+
+  return "Review employer registration";
 }
 
 function buildAssigneeScope(

@@ -582,6 +582,17 @@ export async function assessRegistrationContribution(input: AssessRegistrationCo
       id: true,
       companyId: true,
       areaOfficeId: true,
+      company: {
+        select: {
+          legalName: true,
+          organizationId: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -667,6 +678,49 @@ export async function assessRegistrationContribution(input: AssessRegistrationCo
         reason: [`Recommended contribution: ${input.recommendedAmount}`, input.assessmentNote]
           .filter(Boolean)
           .join(": "),
+      },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        registrationApplicationId: registrationApplication.id,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
+      },
+    });
+
+    await tx.workItem.upsert({
+      where: {
+        sourceKey: `registration:${registrationApplication.id}:horic`,
+      },
+      create: {
+        workspaceId: registrationApplication.company.organization.workspaceId,
+        organizationId: registrationApplication.company.organizationId,
+        areaOfficeId: registrationApplication.areaOfficeId,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        assignedRole: "HORIC",
+        app: "REIMBURSEMENT",
+        kind: "REGISTRATION_AREA_OFFICE_REVIEW",
+        status: "OPEN",
+        priority: "NORMAL",
+        title: "Confirm contribution recommendation",
+        summary: `${registrationApplication.company.legalName} is awaiting HORIC confirmation of RA contribution recommendation.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+        sourceKey: `registration:${registrationApplication.id}:horic`,
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        priority: "NORMAL",
+        summary: `${registrationApplication.company.legalName} is awaiting HORIC confirmation of RA contribution recommendation.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+      },
+      select: {
+        id: true,
       },
     });
 
