@@ -278,6 +278,7 @@ export async function getEmployerCompany(companyId: string) {
           id: true,
           year: true,
           status: true,
+          currentDesk: true,
           dueDate: true,
           submittedAt: true,
           promptSubmissionScore: true,

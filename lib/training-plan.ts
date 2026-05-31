@@ -41,6 +41,25 @@ export type SubmitTrainingPlanSubmissionInput = {
   note?: string;
 };
 
+const trainingPlanDeskTransitions = [
+  "am_to_hot",
+  "hot_to_ro",
+  "ro_to_hot",
+  "hot_to_am",
+  "am_to_company",
+] as const;
+
+export type TrainingPlanDeskTransition = (typeof trainingPlanDeskTransitions)[number];
+
+export type RouteTrainingPlanSubmissionInput = {
+  companyId: string;
+  submissionId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  transition: TrainingPlanDeskTransition;
+  note?: string;
+};
+
 export type UploadTrainingPlanEvidenceInput = {
   companyId: string;
   submissionId: string;
@@ -56,6 +75,10 @@ export function getTrainingPlanEvidenceKinds() {
 
 export function getTrainingPlanCsvTemplate() {
   return `${requiredTrainingPlanCsvColumns.join(",")}\n`;
+}
+
+export function getTrainingPlanDeskTransitions() {
+  return trainingPlanDeskTransitions;
 }
 
 export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubmissionInput) {
@@ -288,7 +311,9 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
       id: input.submissionId,
       companyId: input.companyId,
       recordTier: "HOT",
-      status: "DRAFT",
+      status: {
+        in: ["DRAFT", "CHANGES_REQUESTED"],
+      },
       company: {
         id: input.companyId,
         recordTier: "HOT",
@@ -297,6 +322,7 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
     },
     select: {
       id: true,
+      year: true,
       companyId: true,
       dueDate: true,
       documents: {
@@ -311,6 +337,13 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
       company: {
         select: {
           organizationId: true,
+          areaOfficeId: true,
+          legalName: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
         },
       },
     },
@@ -363,6 +396,7 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
       },
       data: {
         status: "SUBMITTED",
+        currentDesk: "AREA_MANAGER",
         submittedAt,
         promptSubmissionScore,
       },
@@ -381,8 +415,289 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
       },
     });
 
+    await tx.workItem.upsert({
+      where: {
+        sourceKey: `training-plan:${submission.id}:area-manager-review`,
+      },
+      create: {
+        workspaceId: submission.company.organization.workspaceId,
+        organizationId: submission.company.organizationId,
+        areaOfficeId: submission.company.areaOfficeId,
+        companyId: submission.companyId,
+        trainingPlanSubmissionId: submission.id,
+        assignedRole: "AREA_MANAGER",
+        app: "REIMBURSEMENT",
+        kind: "TRAINING_PLAN_REVIEW",
+        status: "OPEN",
+        priority: "NORMAL",
+        title: "Review Training Plan and L&D submission",
+        summary: `${submission.company.legalName} submitted the ${submission.year} Training Plan and L&D package.`,
+        targetHref: `/registry/${submission.companyId}`,
+        sourceKey: `training-plan:${submission.id}:area-manager-review`,
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        priority: "NORMAL",
+        summary: `${submission.company.legalName} submitted the ${submission.year} Training Plan and L&D package.`,
+        targetHref: `/registry/${submission.companyId}`,
+      },
+      select: {
+        id: true,
+      },
+    });
+
     return updated;
   });
+}
+
+export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmissionInput) {
+  if (!can(input.requesterRole, "training:approve")) {
+    throw new Error("You do not have permission to route training plan submissions.");
+  }
+
+  const transition = resolveTrainingPlanTransition(input.transition);
+
+  if (!hasTrainingPlanRoutingRole(input.requesterRole, transition.allowedRoles)) {
+    throw new Error(`Only ${transition.allowedRoles.join(" or ")} can perform this action.`);
+  }
+
+  const db = getDb();
+  const submission = await db.trainingPlanSubmission.findFirst({
+    where: {
+      id: input.submissionId,
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: {
+        in: [...transition.allowedStatuses],
+      },
+      currentDesk: transition.from,
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      year: true,
+      companyId: true,
+      currentDesk: true,
+      status: true,
+      company: {
+        select: {
+          legalName: true,
+          organizationId: true,
+          areaOfficeId: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!submission) {
+    throw new Error("A training plan submission awaiting this action was not found.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  if (
+    !hasAreaOfficeTrainingPlanAccess({
+      requesterRole: input.requesterRole,
+      areaOfficeId: submission.company.areaOfficeId,
+      memberships: actor.memberships,
+    })
+  ) {
+    throw new Error("You do not have access to this Area Office training plan submission.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.trainingPlanSubmission.update({
+      where: {
+        id: submission.id,
+      },
+      data: {
+        currentDesk: transition.to,
+        status: transition.nextStatus,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: submission.companyId,
+        trainingPlanSubmissionId: submission.id,
+        action: transition.action,
+        reason: [transition.reason, input.note].filter(Boolean).join(": "),
+      },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        trainingPlanSubmissionId: submission.id,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
+      },
+    });
+
+    if (transition.assignedRole) {
+      await tx.workItem.upsert({
+        where: {
+          sourceKey: `training-plan:${submission.id}:${transition.to.toLowerCase()}`,
+        },
+        create: {
+          workspaceId: submission.company.organization.workspaceId,
+          organizationId: submission.company.organizationId,
+          areaOfficeId: submission.company.areaOfficeId,
+          companyId: submission.companyId,
+          trainingPlanSubmissionId: submission.id,
+          assignedRole: transition.assignedRole,
+          app: "REIMBURSEMENT",
+          kind: "TRAINING_PLAN_REVIEW",
+          status: "OPEN",
+          priority: transition.priority,
+          title: transition.workItemTitle,
+          summary: `${submission.company.legalName} ${transition.workItemSummary}`,
+          targetHref: `/registry/${submission.companyId}`,
+          sourceKey: `training-plan:${submission.id}:${transition.to.toLowerCase()}`,
+        },
+        update: {
+          status: "OPEN",
+          resolvedAt: null,
+          priority: transition.priority,
+          summary: `${submission.company.legalName} ${transition.workItemSummary}`,
+          targetHref: `/registry/${submission.companyId}`,
+        },
+        select: {
+          id: true,
+        },
+      });
+    }
+
+    return updated;
+  });
+}
+
+function resolveTrainingPlanTransition(transition: TrainingPlanDeskTransition) {
+  const transitions = {
+    am_to_hot: {
+      from: "AREA_MANAGER",
+      to: "HEAD_OF_TRAINING",
+      allowedRoles: ["AREA_MANAGER"],
+      allowedStatuses: ["SUBMITTED", "IN_REVIEW"],
+      nextStatus: "IN_REVIEW",
+      assignedRole: "HEAD_OF_TRAINING",
+      action: "FORWARD",
+      reason: "AM forwarded Training Plan and L&D submission to Head of Training",
+      workItemTitle: "Review Training Plan and L&D submission",
+      workItemSummary: "is awaiting Head of Training review.",
+      priority: "NORMAL",
+    },
+    hot_to_ro: {
+      from: "HEAD_OF_TRAINING",
+      to: "REIMBURSEMENT_OFFICER",
+      allowedRoles: ["HEAD_OF_TRAINING"],
+      allowedStatuses: ["IN_REVIEW"],
+      nextStatus: "IN_REVIEW",
+      assignedRole: "REIMBURSEMENT_OFFICER",
+      action: "FORWARD",
+      reason: "HOT forwarded Training Plan and L&D submission to Reimbursement Officer",
+      workItemTitle: "Review Training Plan and L&D evidence",
+      workItemSummary: "is awaiting Reimbursement Officer review.",
+      priority: "NORMAL",
+    },
+    ro_to_hot: {
+      from: "REIMBURSEMENT_OFFICER",
+      to: "HEAD_OF_TRAINING",
+      allowedRoles: ["REIMBURSEMENT_OFFICER"],
+      allowedStatuses: ["IN_REVIEW"],
+      nextStatus: "IN_REVIEW",
+      assignedRole: "HEAD_OF_TRAINING",
+      action: "RECOMMEND",
+      reason: "Reimbursement Officer returned Training Plan and L&D submission to HOT",
+      workItemTitle: "Confirm Training Plan and L&D recommendation",
+      workItemSummary: "has been reviewed by the Reimbursement Officer.",
+      priority: "NORMAL",
+    },
+    hot_to_am: {
+      from: "HEAD_OF_TRAINING",
+      to: "AREA_MANAGER",
+      allowedRoles: ["HEAD_OF_TRAINING"],
+      allowedStatuses: ["IN_REVIEW"],
+      nextStatus: "IN_REVIEW",
+      assignedRole: "AREA_MANAGER",
+      action: "FORWARD",
+      reason: "HOT returned Training Plan and L&D submission to AM",
+      workItemTitle: "Finalize Area Office Training Plan review",
+      workItemSummary: "is awaiting Area Manager final Area Office action.",
+      priority: "NORMAL",
+    },
+    am_to_company: {
+      from: "AREA_MANAGER",
+      to: "COMPANY",
+      allowedRoles: ["AREA_MANAGER"],
+      allowedStatuses: ["SUBMITTED", "IN_REVIEW"],
+      nextStatus: "CHANGES_REQUESTED",
+      assignedRole: null,
+      action: "REQUEST_CHANGES",
+      reason: "AM requested correction on Training Plan and L&D submission",
+      workItemTitle: "",
+      workItemSummary: "",
+      priority: "HIGH",
+    },
+  } as const;
+
+  return transitions[transition];
+}
+
+function hasTrainingPlanRoutingRole(requesterRole: Role, allowedRoles: readonly Role[]) {
+  return (
+    requesterRole === "SYSTEM_ADMIN" ||
+    requesterRole === "WORKSPACE_APP_ADMIN" ||
+    allowedRoles.includes(requesterRole)
+  );
+}
+
+function hasAreaOfficeTrainingPlanAccess(input: {
+  requesterRole: Role;
+  areaOfficeId: string | null;
+  memberships: { areaOfficeId: string | null }[];
+}) {
+  if (input.requesterRole === "SYSTEM_ADMIN" || input.requesterRole === "WORKSPACE_APP_ADMIN") {
+    return true;
+  }
+
+  if (!input.areaOfficeId) {
+    return false;
+  }
+
+  return input.memberships.some((membership) => membership.areaOfficeId === input.areaOfficeId);
 }
 
 function getTrainingPlanDueDate(year: number) {

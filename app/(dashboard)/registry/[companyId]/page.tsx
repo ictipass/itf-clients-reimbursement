@@ -8,7 +8,10 @@ import {
   issueComplianceCertificateAction,
   updateComplianceYearStatusAction,
 } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
-import { submitTrainingPlanSubmissionAction } from "@/app/(dashboard)/registry/[companyId]/training-plans/actions";
+import {
+  routeTrainingPlanSubmissionAction,
+  submitTrainingPlanSubmissionAction,
+} from "@/app/(dashboard)/registry/[companyId]/training-plans/actions";
 import {
   assessRegistrationContributionAction,
   completeRegistrationAtHeadquartersAction,
@@ -136,6 +139,14 @@ const registrationTransitionLabels = {
   am_to_company: "Send to company",
 } as const;
 
+const trainingPlanTransitionLabels = {
+  am_to_hot: "Forward to HOT",
+  hot_to_ro: "Forward to Reimbursement Officer",
+  ro_to_hot: "Return to HOT",
+  hot_to_am: "Return to AM",
+  am_to_company: "Request employer correction",
+} as const;
+
 function getAvailableTransitions(status: string) {
   if (status === "DRAFT" || status === "CHANGES_REQUESTED") {
     return ["submit"] as const;
@@ -231,6 +242,50 @@ function canActAsDesk(role: Role, desk: string | null | undefined) {
   }
 
   return false;
+}
+
+function canActAsTrainingPlanDesk(role: Role, desk: string | null | undefined) {
+  if (isAdminRole(role)) {
+    return true;
+  }
+
+  if (desk === "COMPANY") {
+    return isEmployerRole(role);
+  }
+
+  if (desk === "AREA_MANAGER") {
+    return role === "AREA_MANAGER";
+  }
+
+  if (desk === "HEAD_OF_TRAINING") {
+    return role === "HEAD_OF_TRAINING";
+  }
+
+  if (desk === "REIMBURSEMENT_OFFICER") {
+    return role === "REIMBURSEMENT_OFFICER";
+  }
+
+  return false;
+}
+
+function getAvailableTrainingPlanTransitions(currentDesk: string, status: string) {
+  if (status !== "SUBMITTED" && status !== "IN_REVIEW") {
+    return [] as const;
+  }
+
+  if (currentDesk === "AREA_MANAGER") {
+    return ["am_to_hot", "am_to_company"] as const;
+  }
+
+  if (currentDesk === "HEAD_OF_TRAINING") {
+    return ["hot_to_ro", "hot_to_am"] as const;
+  }
+
+  if (currentDesk === "REIMBURSEMENT_OFFICER") {
+    return ["ro_to_hot"] as const;
+  }
+
+  return [] as const;
 }
 
 export default async function CompanyDetailPage({
@@ -1316,14 +1371,25 @@ export default async function CompanyDetailPage({
                   : "training plan document",
                 submittedDocumentKinds.has("LD_PERSONNEL_CV") ? undefined : "L&D personnel CV",
               ].filter(Boolean);
+              const availableTrainingPlanTransitions = getAvailableTrainingPlanTransitions(
+                submission.currentDesk,
+                submission.status,
+              );
+              const canRouteTrainingPlan =
+                availableTrainingPlanTransitions.length > 0 &&
+                canActAsTrainingPlanDesk(activeRole, submission.currentDesk);
+              const canSubmitTrainingPlan =
+                (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
+                missingRequiredEvidence.length === 0 &&
+                (isEmployerRole(activeRole) || adminOverride);
 
               return (
                 <div key={submission.id} className="rounded-md border border-zinc-100 p-3 text-sm">
                   <div className="grid gap-2 md:grid-cols-4">
                     <p className="font-semibold">{submission.year}</p>
                     <p>{submission.status.replaceAll("_", " ")}</p>
+                    <p>Desk: {formatDesk(submission.currentDesk)}</p>
                     <p>Due {formatDate(submission.dueDate)}</p>
-                    <p>Prompt score: {formatPercent(submission.promptSubmissionScore)}</p>
                   </div>
                   <div className="mt-3 grid gap-2 rounded-md bg-zinc-50 px-3 py-2 text-xs leading-5 text-zinc-600 md:grid-cols-2">
                     <p>
@@ -1333,6 +1399,7 @@ export default async function CompanyDetailPage({
                       </span>
                     </p>
                     <p>Submitted: {formatDate(submission.submittedAt)}</p>
+                    <p>Prompt score: {formatPercent(submission.promptSubmissionScore)}</p>
                     {submission.decisions[0] ? (
                       <p>
                         Last decision:{" "}
@@ -1374,7 +1441,7 @@ export default async function CompanyDetailPage({
                       Upload evidence
                     </Link>
                   </div>
-                  {submission.status === "DRAFT" && missingRequiredEvidence.length === 0 ? (
+                  {canSubmitTrainingPlan ? (
                     <form
                       action={submitTrainingPlanSubmissionAction.bind(
                         null,
@@ -1394,6 +1461,54 @@ export default async function CompanyDetailPage({
                         Submit Training Plan package
                       </button>
                     </form>
+                  ) : null}
+                  {canRouteTrainingPlan ? (
+                    <form
+                      action={routeTrainingPlanSubmissionAction.bind(
+                        null,
+                        company.id,
+                        submission.id,
+                      )}
+                      className="mt-3 grid gap-3 rounded-md border border-zinc-100 bg-zinc-50 p-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                          Training Plan workflow action
+                        </p>
+                        {adminOverride ? (
+                          <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
+                            Admin/testing override
+                          </span>
+                        ) : null}
+                      </div>
+                      <label className="grid gap-2 text-xs font-medium text-zinc-700">
+                        Routing note
+                        <input
+                          name="note"
+                          className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                        />
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {availableTrainingPlanTransitions.map((transition) => (
+                          <button
+                            key={transition}
+                            name="transition"
+                            value={transition}
+                            className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-900"
+                          >
+                            {trainingPlanTransitionLabels[transition]}
+                          </button>
+                        ))}
+                      </div>
+                    </form>
+                  ) : submission.status === "SUBMITTED" || submission.status === "IN_REVIEW" ? (
+                    <p className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                      No Training Plan action is currently assigned to your role. Current desk is{" "}
+                      <span className="font-semibold text-zinc-900">
+                        {formatDesk(submission.currentDesk)}
+                      </span>
+                      .
+                    </p>
                   ) : null}
                   {submission.documents.length > 0 ? (
                     <div className="mt-3 grid gap-2">

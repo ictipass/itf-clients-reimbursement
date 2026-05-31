@@ -7,7 +7,10 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import {
   createTrainingPlanSubmission,
+  getTrainingPlanDeskTransitions,
+  routeTrainingPlanSubmission,
   submitTrainingPlanSubmission,
+  type TrainingPlanDeskTransition,
   type TrainingPlanPersonnelInput,
 } from "@/lib/training-plan";
 
@@ -78,6 +81,17 @@ function readStringEntry(value: FormDataEntryValue | undefined) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function readTrainingPlanDeskTransition(formData: FormData): TrainingPlanDeskTransition {
+  const value = readOptionalString(formData, "transition");
+  const transitions = getTrainingPlanDeskTransitions();
+
+  if (!value || !transitions.includes(value as TrainingPlanDeskTransition)) {
+    throw new Error("Unsupported training plan desk transition.");
+  }
+
+  return value as TrainingPlanDeskTransition;
+}
+
 function redirectToCreateForm(input: {
   companyId: string;
   message: string;
@@ -132,6 +146,31 @@ export async function createTrainingPlanSubmissionAction(
   redirect(`/registry/${companyId}`);
 }
 
+export async function routeTrainingPlanSubmissionAction(
+  companyId: string,
+  submissionId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await routeTrainingPlanSubmission({
+    companyId,
+    submissionId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    transition: readTrainingPlanDeskTransition(formData),
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath(`/dashboard`);
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
 export async function submitTrainingPlanSubmissionAction(
   companyId: string,
   submissionId: string,
@@ -151,6 +190,7 @@ export async function submitTrainingPlanSubmissionAction(
     note: readOptionalString(formData, "note"),
   });
 
+  revalidatePath(`/dashboard`);
   revalidatePath(`/registry/${companyId}`);
   redirect(`/registry/${companyId}`);
 }

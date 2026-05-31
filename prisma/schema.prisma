@@ -96,6 +96,13 @@ enum RegistrationDesk {
   HEAD_OF_DIVISION
 }
 
+enum TrainingPlanDesk {
+  COMPANY
+  AREA_MANAGER
+  HEAD_OF_TRAINING
+  REIMBURSEMENT_OFFICER
+}
+
 enum RecommendationReleaseChannel {
   DASHBOARD
   DASHBOARD_AND_EMAIL
@@ -138,6 +145,7 @@ enum WorkspaceApp {
 enum WorkItemKind {
   REGISTRATION_RECEIPT_REVIEW
   REGISTRATION_HQ_NOTIFICATION
+  TRAINING_PLAN_REVIEW
 }
 
 enum WorkItemStatus {
@@ -599,6 +607,7 @@ model TrainingPlanSubmission {
   dueDate               DateTime
   promptSubmissionScore Decimal?                @db.Decimal(5, 2)
   status                WorkflowStatus          @default(DRAFT)
+  currentDesk           TrainingPlanDesk        @default(COMPANY)
   submittedAt           DateTime?
   approvedAt            DateTime?
   recordTier            RecordTier              @default(HOT)
@@ -609,9 +618,11 @@ model TrainingPlanSubmission {
   documents             Document[]
   decisions             Decision[]
   comments              Comment[]
+  workItems             WorkItem[]
 
   @@unique([companyId, year])
   @@index([companyId, status, recordTier])
+  @@index([currentDesk, status, recordTier])
 }
 
 model TrainingPlanPersonnel {
@@ -847,6 +858,7 @@ model WorkItem {
   areaOfficeId              String?
   companyId                 String?
   registrationApplicationId String?
+  trainingPlanSubmissionId  String?
   assignedUserId            String?
   assignedRole              Role?
   app                       WorkspaceApp             @default(REIMBURSEMENT)
@@ -866,11 +878,13 @@ model WorkItem {
   areaOffice                AreaOffice?              @relation(fields: [areaOfficeId], references: [id])
   company                   Company?                 @relation(fields: [companyId], references: [id])
   registrationApplication   RegistrationApplication? @relation(fields: [registrationApplicationId], references: [id])
+  trainingPlanSubmission    TrainingPlanSubmission?  @relation(fields: [trainingPlanSubmissionId], references: [id])
   assignedUser              User?                    @relation("AssignedWorkItems", fields: [assignedUserId], references: [id])
 
   @@index([workspaceId, app, status, recordTier, createdAt])
   @@index([areaOfficeId, assignedRole, status, recordTier])
   @@index([organizationId, status, recordTier])
+  @@index([trainingPlanSubmissionId, status, recordTier])
   @@index([assignedUserId, status, recordTier])
 }
 

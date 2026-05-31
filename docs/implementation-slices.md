@@ -1194,3 +1194,29 @@ Expected files:
 - `lib/attention.ts`
 - `lib/dashboard-work-queue.ts`
 - workflow docs
+
+### Slice 54: Training Plan Workflow Routing Foundation
+
+Goal: start the Training Plan and L&D Submission workflow with Area Office routing and dashboard work items.
+
+Expected design:
+
+- Add `TrainingPlanDesk` to persist the current desk for each submission
+- Route employer-submitted Training Plan packages to Area Manager
+- Support Area Office routing: AM -> HOT -> Reimbursement Officer -> HOT -> AM
+- Allow AM to request employer correction
+- Create and resolve WorkItems as the submission moves between desks
+- Show role-aware Training Plan workflow buttons on company registry detail
+- Add employer correction prompts to the dashboard work queue
+- Keep Headquarters continuation as a later slice
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/training-plan.ts`
+- `lib/registry.ts`
+- `lib/dashboard-work-queue.ts`
+- `app/(dashboard)/registry/[companyId]/training-plans/actions.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

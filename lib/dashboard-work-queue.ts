@@ -46,72 +46,103 @@ export async function listEmployerDashboardActions(input: {
     return [];
   }
 
-  const companies = await db.company.findMany({
-    where: {
-      organizationId: {
-        in: organizationIds,
-      },
-      recordTier: "HOT",
-      isActive: true,
-      itfEmployerNumber: null,
-      OR: [
-        {
-          areaOfficeId: {
-            not: null,
-          },
-          registrationApplication: null,
+  const [companies, trainingPlanSubmissions] = await Promise.all([
+    db.company.findMany({
+      where: {
+        organizationId: {
+          in: organizationIds,
         },
-        {
-          registrationApplication: {
-            is: {
-              currentDesk: "COMPANY",
-              status: "CHANGES_REQUESTED",
+        recordTier: "HOT",
+        isActive: true,
+        itfEmployerNumber: null,
+        OR: [
+          {
+            areaOfficeId: {
+              not: null,
+            },
+            registrationApplication: null,
+          },
+          {
+            registrationApplication: {
+              is: {
+                currentDesk: "COMPANY",
+                status: "CHANGES_REQUESTED",
+              },
             },
           },
-        },
-        {
-          registrationApplication: {
-            is: {
-              currentDesk: "COMPANY",
-              status: "SUBMITTED",
-              contributionAssessment: {
-                is: {
-                  amReleasedAt: {
-                    not: null,
+          {
+            registrationApplication: {
+              is: {
+                currentDesk: "COMPANY",
+                status: "SUBMITTED",
+                contributionAssessment: {
+                  is: {
+                    amReleasedAt: {
+                      not: null,
+                    },
                   },
                 },
               },
             },
           },
-        },
-      ],
-    },
-    select: {
-      id: true,
-      legalName: true,
-      createdAt: true,
-      registrationApplication: {
-        select: {
-          id: true,
-          status: true,
-          currentDesk: true,
-          updatedAt: true,
-          contributionAssessment: {
-            select: {
-              amReleasedAt: true,
-              recommendedAmount: true,
+        ],
+      },
+      select: {
+        id: true,
+        legalName: true,
+        createdAt: true,
+        registrationApplication: {
+          select: {
+            id: true,
+            status: true,
+            currentDesk: true,
+            updatedAt: true,
+            contributionAssessment: {
+              select: {
+                amReleasedAt: true,
+                recommendedAmount: true,
+              },
             },
           },
         },
       },
-    },
-    orderBy: {
-      updatedAt: "desc",
-    },
-    take: input.take ?? 5,
-  });
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: input.take ?? 5,
+    }),
+    db.trainingPlanSubmission.findMany({
+      where: {
+        recordTier: "HOT",
+        currentDesk: "COMPANY",
+        status: "CHANGES_REQUESTED",
+        company: {
+          organizationId: {
+            in: organizationIds,
+          },
+          recordTier: "HOT",
+          isActive: true,
+        },
+      },
+      select: {
+        id: true,
+        year: true,
+        updatedAt: true,
+        company: {
+          select: {
+            id: true,
+            legalName: true,
+          },
+        },
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: input.take ?? 5,
+    }),
+  ]);
 
-  return companies.map((company): EmployerDashboardAction => {
+  const registrationActions = companies.map((company): EmployerDashboardAction => {
     if (!company.registrationApplication) {
       return {
         id: `registration-submit-${company.id}`,
@@ -146,4 +177,20 @@ export async function listEmployerDashboardActions(input: {
       createdAt: company.registrationApplication.updatedAt,
     };
   });
+
+  const trainingPlanActions = trainingPlanSubmissions.map(
+    (submission): EmployerDashboardAction => ({
+      id: `training-plan-correction-${submission.id}`,
+      title: "Training Plan correction requested",
+      summary: `${submission.company.legalName} needs correction on the ${submission.year} Training Plan and L&D submission.`,
+      priority: "HIGH",
+      targetHref: `/registry/${submission.company.id}`,
+      companyName: submission.company.legalName,
+      createdAt: submission.updatedAt,
+    }),
+  );
+
+  return [...registrationActions, ...trainingPlanActions]
+    .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
+    .slice(0, input.take ?? 5);
 }
