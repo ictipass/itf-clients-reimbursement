@@ -1,5 +1,4 @@
 import { getServerSession } from "next-auth";
-import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
 import {
@@ -65,7 +64,12 @@ export async function POST(
       file: readRequiredFile(formData),
     });
 
-    return NextResponse.redirect(new URL(`/registry/${companyId}`, request.url), 303);
+    return new Response(null, {
+      status: 303,
+      headers: {
+        Location: `/registry/${companyId}`,
+      },
+    });
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Training plan evidence upload failed.";
