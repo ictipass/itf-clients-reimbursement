@@ -1082,3 +1082,31 @@ Expected files:
 - `app/(dashboard)/settings/area-offices/page.tsx`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 49: User Directory Management
+
+Goal: let workspace admins create real staff users before assigning them to Area Office or HQ workflow roles.
+
+Expected design:
+
+- Add staff metadata to users: staff number, phone number, department, and job title
+- Create individual users from a settings page
+- Import users in bulk from CSV
+- Provide a downloadable user CSV template
+- Show user assignments and active status in the directory
+- Use created users in Area Office officer assignment dropdowns
+- Keep password/auth integration as a later Workspace identity slice; local development users continue using the shared dev password after assignment
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/user-directory.ts`
+- `app/(dashboard)/settings/users/actions.ts`
+- `app/(dashboard)/settings/users/page.tsx`
+- `app/(dashboard)/settings/users/template/route.ts`
+- `app/(dashboard)/settings/users/import/route.ts`
+- `lib/area-office-management.ts`
+- `app/(dashboard)/settings/area-offices/page.tsx`
+- `app/(dashboard)/layout.tsx`
+- workflow docs

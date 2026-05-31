@@ -1,0 +1,323 @@
+import { getDb } from "@/lib/db";
+import { can, type Role } from "@/lib/rbac";
+import { maxUploadBytes, sanitizeFileName } from "@/lib/storage/security";
+
+const userCsvColumns = [
+  "full name",
+  "staff number",
+  "email address",
+  "phone number",
+  "department",
+  "job title",
+] as const;
+
+export type CreateDirectoryUserInput = {
+  requesterRole: Role;
+  name: string;
+  staffNumber?: string;
+  email: string;
+  phoneNumber?: string;
+  department?: string;
+  jobTitle?: string;
+};
+
+export type ImportDirectoryUsersInput = {
+  requesterRole: Role;
+  file: File;
+};
+
+type ParsedUserCsvRow = {
+  name: string;
+  staffNumber?: string;
+  email: string;
+  phoneNumber?: string;
+  department?: string;
+  jobTitle?: string;
+};
+
+export function getUserCsvTemplate() {
+  return `${userCsvColumns.join(",")}\n`;
+}
+
+export async function listDirectoryUsers(input: { requesterRole: Role }) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to manage users.");
+  }
+
+  return getDb().user.findMany({
+    orderBy: [{ isActive: "desc" }, { name: "asc" }],
+    select: {
+      id: true,
+      name: true,
+      staffNumber: true,
+      email: true,
+      phoneNumber: true,
+      department: true,
+      jobTitle: true,
+      isActive: true,
+      updatedAt: true,
+      memberships: {
+        select: {
+          id: true,
+          role: true,
+          areaOffice: {
+            select: {
+              name: true,
+            },
+          },
+          organization: {
+            select: {
+              name: true,
+            },
+          },
+        },
+        orderBy: {
+          role: "asc",
+        },
+      },
+    },
+  });
+}
+
+export async function createDirectoryUser(input: CreateDirectoryUserInput) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to create users.");
+  }
+
+  const normalized = normalizeDirectoryUser(input);
+
+  await assertStaffNumberAvailable(normalized.staffNumber, normalized.email);
+
+  return getDb().user.upsert({
+    where: {
+      email: normalized.email,
+    },
+    update: {
+      name: normalized.name,
+      staffNumber: normalized.staffNumber,
+      phoneNumber: normalized.phoneNumber,
+      department: normalized.department,
+      jobTitle: normalized.jobTitle,
+      isActive: true,
+    },
+    create: {
+      email: normalized.email,
+      name: normalized.name,
+      staffNumber: normalized.staffNumber,
+      phoneNumber: normalized.phoneNumber,
+      department: normalized.department,
+      jobTitle: normalized.jobTitle,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function importDirectoryUsers(input: ImportDirectoryUsersInput) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to import users.");
+  }
+
+  const parsedRows = await parseUserCsvFile(input.file);
+  const db = getDb();
+
+  return db.$transaction(async (tx) => {
+    for (const parsedRow of parsedRows) {
+      await assertStaffNumberAvailable(parsedRow.staffNumber, parsedRow.email);
+
+      await tx.user.upsert({
+        where: {
+          email: parsedRow.email,
+        },
+        update: {
+          name: parsedRow.name,
+          staffNumber: parsedRow.staffNumber,
+          phoneNumber: parsedRow.phoneNumber,
+          department: parsedRow.department,
+          jobTitle: parsedRow.jobTitle,
+          isActive: true,
+        },
+        create: {
+          email: parsedRow.email,
+          name: parsedRow.name,
+          staffNumber: parsedRow.staffNumber,
+          phoneNumber: parsedRow.phoneNumber,
+          department: parsedRow.department,
+          jobTitle: parsedRow.jobTitle,
+          isActive: true,
+        },
+      });
+    }
+
+    return {
+      imported: parsedRows.length,
+    };
+  });
+}
+
+function normalizeDirectoryUser(input: CreateDirectoryUserInput): ParsedUserCsvRow {
+  const name = input.name.trim();
+  const email = normalizeEmail(input.email);
+
+  if (!name) {
+    throw new Error("Full name is required.");
+  }
+
+  if (!email) {
+    throw new Error("Email address is required.");
+  }
+
+  return {
+    name,
+    email,
+    staffNumber: normalizeOptionalString(input.staffNumber),
+    phoneNumber: normalizeOptionalString(input.phoneNumber),
+    department: normalizeOptionalString(input.department),
+    jobTitle: normalizeOptionalString(input.jobTitle),
+  };
+}
+
+async function assertStaffNumberAvailable(staffNumber: string | undefined, email: string) {
+  if (!staffNumber) {
+    return;
+  }
+
+  const existingUser = await getDb().user.findUnique({
+    where: {
+      staffNumber,
+    },
+    select: {
+      email: true,
+    },
+  });
+
+  if (existingUser && existingUser.email.toLowerCase() !== email) {
+    throw new Error(`Staff number ${staffNumber} already belongs to another user.`);
+  }
+}
+
+async function parseUserCsvFile(file: File) {
+  const safeFileName = sanitizeFileName(file.name);
+
+  if (!safeFileName.toLowerCase().endsWith(".csv")) {
+    throw new Error("User import must be a CSV file.");
+  }
+
+  if (file.size === 0) {
+    throw new Error("User import CSV is empty.");
+  }
+
+  if (file.size > maxUploadBytes) {
+    throw new Error("User import CSV exceeds the 10 MB limit.");
+  }
+
+  const content = Buffer.from(await file.arrayBuffer()).toString("utf8").replace(/^\uFEFF/, "");
+
+  if (content.includes("\uFFFD")) {
+    throw new Error("User import CSV must be valid UTF-8 text.");
+  }
+
+  const lines = content.split(/\r?\n/).filter((line) => line.trim().length > 0);
+
+  if (lines.length < 2) {
+    throw new Error("User import CSV must include a header row and at least one user row.");
+  }
+
+  const headers = parseCsvLine(lines[0]).map(normalizeCsvHeader);
+  const missingColumns = userCsvColumns.filter((column) => !headers.includes(column));
+
+  if (missingColumns.length > 0) {
+    throw new Error(`User import CSV is missing columns: ${missingColumns.join(", ")}.`);
+  }
+
+  const rows = lines.slice(1).map((line, index) => {
+    const values = parseCsvLine(line);
+    const row = Object.fromEntries(headers.map((header, headerIndex) => [header, values[headerIndex] ?? ""]));
+    const parsedRow = normalizeDirectoryUser({
+      requesterRole: "SYSTEM_ADMIN",
+      name: row["full name"],
+      staffNumber: row["staff number"],
+      email: row["email address"],
+      phoneNumber: row["phone number"],
+      department: row.department,
+      jobTitle: row["job title"],
+    });
+
+    if (!parsedRow.email.includes("@")) {
+      throw new Error(`Row ${index + 2} has an invalid email address.`);
+    }
+
+    return parsedRow;
+  });
+
+  const seenEmails = new Set<string>();
+  const seenStaffNumbers = new Set<string>();
+
+  for (const row of rows) {
+    if (seenEmails.has(row.email)) {
+      throw new Error(`Duplicate email address in CSV: ${row.email}.`);
+    }
+
+    seenEmails.add(row.email);
+
+    if (row.staffNumber) {
+      if (seenStaffNumbers.has(row.staffNumber)) {
+        throw new Error(`Duplicate staff number in CSV: ${row.staffNumber}.`);
+      }
+
+      seenStaffNumbers.add(row.staffNumber);
+    }
+  }
+
+  return rows;
+}
+
+function normalizeEmail(value: string | undefined) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
+function normalizeOptionalString(value: string | undefined) {
+  const trimmed = value?.trim();
+
+  return trimmed ? trimmed : undefined;
+}
+
+function normalizeCsvHeader(value: string) {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+function parseCsvLine(line: string) {
+  const values: string[] = [];
+  let current = "";
+  let inQuotes = false;
+
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index];
+    const nextCharacter = line[index + 1];
+
+    if (character === '"' && inQuotes && nextCharacter === '"') {
+      current += '"';
+      index += 1;
+      continue;
+    }
+
+    if (character === '"') {
+      inQuotes = !inQuotes;
+      continue;
+    }
+
+    if (character === "," && !inQuotes) {
+      values.push(current);
+      current = "";
+      continue;
+    }
+
+    current += character;
+  }
+
+  values.push(current);
+
+  return values;
+}

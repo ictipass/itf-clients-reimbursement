@@ -82,11 +82,12 @@ export async function listAreaOfficeOfficerManagementData(input: { requesterRole
       where: {
         isActive: true,
       },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-      },
+        select: {
+          id: true,
+          name: true,
+          staffNumber: true,
+          email: true,
+        },
       orderBy: {
         name: "asc",
       },

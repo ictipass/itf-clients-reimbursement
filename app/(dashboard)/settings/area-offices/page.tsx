@@ -171,7 +171,7 @@ export default async function AreaOfficeSettingsPage({
                       <option value="">Select user</option>
                       {users.map((user) => (
                         <option key={user.id} value={user.id}>
-                          {user.name} · {user.email}
+                          {user.name} · {user.staffNumber ?? user.email}
                         </option>
                       ))}
                     </select>
