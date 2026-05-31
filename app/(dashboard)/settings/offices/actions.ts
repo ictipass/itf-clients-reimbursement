@@ -65,6 +65,11 @@ function redirectToOfficeSettings(message?: string) {
   redirect(`/settings/offices${suffix}`);
 }
 
+function revalidateOfficeSettings() {
+  revalidatePath("/settings/offices");
+  revalidatePath("/settings/users");
+}
+
 export async function assignOfficeOfficerAction(formData: FormData) {
   const session = await getServerSession(authOptions);
 
@@ -88,7 +93,7 @@ export async function assignOfficeOfficerAction(formData: FormData) {
     );
   }
 
-  revalidatePath("/settings/offices");
+  revalidateOfficeSettings();
   redirectToOfficeSettings("Officer assignment saved.");
 }
 
@@ -110,7 +115,7 @@ export async function removeOfficeOfficerAction(formData: FormData) {
     );
   }
 
-  revalidatePath("/settings/offices");
+  revalidateOfficeSettings();
   redirectToOfficeSettings("Officer assignment removed.");
 }
 
@@ -133,6 +138,6 @@ export async function updateOfficeStatusAction(formData: FormData) {
     );
   }
 
-  revalidatePath("/settings/offices");
+  revalidateOfficeSettings();
   redirectToOfficeSettings("Office status updated.");
 }

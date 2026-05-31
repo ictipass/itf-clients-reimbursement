@@ -53,8 +53,8 @@ export default async function UserDirectoryPage({
             </p>
             <h1 className="mt-3 text-3xl font-semibold tracking-tight">Users</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-              Create real staff users and import user records before assigning them to Area Office
-              or Headquarters workflow roles.
+              Manage staff directory records. Office assignments are attached or removed from the
+              Offices page; removing an assignment does not delete the staff user.
             </p>
           </div>
           <Link
@@ -79,7 +79,7 @@ export default async function UserDirectoryPage({
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Create user</h2>
               <p className="mt-1 text-sm leading-6 text-zinc-600">
-                User can be assigned to an Area Office or HQ role after creation.
+                User can be assigned to an Area Office or Headquarters role after creation.
               </p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
@@ -190,7 +190,9 @@ export default async function UserDirectoryPage({
                   </td>
                   <td className="px-4 py-4 align-top text-zinc-700">
                     {user.memberships.length === 0 ? (
-                      "No assignments"
+                      <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-600">
+                        No office assignment
+                      </span>
                     ) : (
                       <div className="grid gap-1">
                         {user.memberships.map((membership) => (
