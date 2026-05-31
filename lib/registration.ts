@@ -277,6 +277,8 @@ function resolveDeskTransition(transition: RegistrationDeskTransition) {
       to: "HORIC" as const,
       allowedRoles: ["AREA_MANAGER"] as const,
       label: "Forwarded from AM to HORIC",
+      workItemTitle: "Review employer registration",
+      workItemSummary: "is awaiting HORIC review.",
     };
   }
 
@@ -286,6 +288,8 @@ function resolveDeskTransition(transition: RegistrationDeskTransition) {
       to: "REVENUE_ACCOUNTANT" as const,
       allowedRoles: ["HORIC"] as const,
       label: "Forwarded from HORIC to RA",
+      workItemTitle: "Assess registration contribution",
+      workItemSummary: "is awaiting Revenue Accountant assessment.",
     };
   }
 
@@ -295,6 +299,8 @@ function resolveDeskTransition(transition: RegistrationDeskTransition) {
       to: "HORIC" as const,
       allowedRoles: ["REVENUE_ACCOUNTANT"] as const,
       label: "Forwarded from RA to HORIC",
+      workItemTitle: "Confirm contribution recommendation",
+      workItemSummary: "is awaiting HORIC confirmation.",
     };
   }
 
@@ -304,6 +310,8 @@ function resolveDeskTransition(transition: RegistrationDeskTransition) {
       to: "AREA_MANAGER" as const,
       allowedRoles: ["HORIC"] as const,
       label: "Forwarded from HORIC to AM",
+      workItemTitle: "Review HORIC registration recommendation",
+      workItemSummary: "is awaiting Area Manager review.",
     };
   }
 
@@ -312,7 +320,15 @@ function resolveDeskTransition(transition: RegistrationDeskTransition) {
     to: "COMPANY" as const,
     allowedRoles: ["AREA_MANAGER"] as const,
     label: "Forwarded from AM to company",
+    workItemTitle: "",
+    workItemSummary: "",
   };
+}
+
+function getRegistrationWorkItemKind(desk: "AREA_MANAGER" | "HORIC" | "REVENUE_ACCOUNTANT") {
+  return desk === "AREA_MANAGER"
+    ? "REGISTRATION_AREA_MANAGER_REVIEW"
+    : "REGISTRATION_AREA_OFFICE_REVIEW";
 }
 
 function hasDeskRoutingRole(role: Role, allowedRoles: readonly Role[]) {
@@ -387,6 +403,17 @@ export async function routeRegistrationApplication(input: RouteRegistrationAppli
       companyId: true,
       areaOfficeId: true,
       currentDesk: true,
+      company: {
+        select: {
+          legalName: true,
+          organizationId: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
       contributionAssessment: {
         select: {
           id: true,
@@ -475,6 +502,51 @@ export async function routeRegistrationApplication(input: RouteRegistrationAppli
         reason,
       },
     });
+
+    await tx.workItem.updateMany({
+      where: {
+        registrationApplicationId: registrationApplication.id,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
+      },
+    });
+
+    if (transition.to !== "COMPANY") {
+      await tx.workItem.upsert({
+        where: {
+          sourceKey: `registration:${registrationApplication.id}:${transition.to.toLowerCase()}`,
+        },
+        create: {
+          workspaceId: registrationApplication.company.organization.workspaceId,
+          organizationId: registrationApplication.company.organizationId,
+          areaOfficeId: registrationApplication.areaOfficeId,
+          companyId: registrationApplication.companyId,
+          registrationApplicationId: registrationApplication.id,
+          assignedRole: transition.to,
+          app: "REIMBURSEMENT",
+          kind: getRegistrationWorkItemKind(transition.to),
+          status: "OPEN",
+          priority: "NORMAL",
+          title: transition.workItemTitle,
+          summary: `${registrationApplication.company.legalName} ${transition.workItemSummary}`,
+          targetHref: `/registry/${registrationApplication.companyId}`,
+          sourceKey: `registration:${registrationApplication.id}:${transition.to.toLowerCase()}`,
+        },
+        update: {
+          status: "OPEN",
+          resolvedAt: null,
+          priority: "NORMAL",
+          summary: `${registrationApplication.company.legalName} ${transition.workItemSummary}`,
+          targetHref: `/registry/${registrationApplication.companyId}`,
+        },
+        select: {
+          id: true,
+        },
+      });
+    }
 
     return updated;
   });

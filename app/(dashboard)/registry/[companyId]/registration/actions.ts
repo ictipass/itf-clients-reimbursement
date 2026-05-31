@@ -80,6 +80,7 @@ export async function routeRegistrationApplicationAction(companyId: string, form
     reason: readOptionalString(formData, "reason"),
   });
 
+  revalidatePath(`/dashboard`);
   revalidatePath(`/registry/${companyId}`);
   redirect(`/registry/${companyId}`);
 }
