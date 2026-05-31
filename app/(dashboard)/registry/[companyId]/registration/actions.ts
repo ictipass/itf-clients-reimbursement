@@ -38,6 +38,7 @@ export async function submitRegistrationApplicationAction(companyId: string) {
     requesterRole: session.user.role,
   });
 
+  revalidatePath(`/dashboard`);
   revalidatePath(`/registry/${companyId}`);
   redirect(`/registry/${companyId}`);
 }

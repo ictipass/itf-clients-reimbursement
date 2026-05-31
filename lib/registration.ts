@@ -126,8 +126,14 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
       id: true,
       organizationId: true,
       areaOfficeId: true,
+      legalName: true,
       itfEmployerNumber: true,
       status: true,
+      organization: {
+        select: {
+          workspaceId: true,
+        },
+      },
       registrationApplication: {
         select: {
           id: true,
@@ -222,6 +228,38 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
       },
       data: {
         status: "PENDING_REVIEW",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.workItem.upsert({
+      where: {
+        sourceKey: `registration:${registrationApplication.id}:area-manager-review`,
+      },
+      create: {
+        workspaceId: company.organization.workspaceId,
+        organizationId: company.organizationId,
+        areaOfficeId,
+        companyId: company.id,
+        registrationApplicationId: registrationApplication.id,
+        assignedRole: "AREA_MANAGER",
+        app: "REIMBURSEMENT",
+        kind: "REGISTRATION_AREA_MANAGER_REVIEW",
+        status: "OPEN",
+        priority: "NORMAL",
+        title: "Review employer registration",
+        summary: `${company.legalName} submitted Form 7A registration for Area Manager review.`,
+        targetHref: `/registry/${company.id}`,
+        sourceKey: `registration:${registrationApplication.id}:area-manager-review`,
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        priority: "NORMAL",
+        summary: `${company.legalName} submitted Form 7A registration for Area Manager review.`,
+        targetHref: `/registry/${company.id}`,
       },
       select: {
         id: true,
