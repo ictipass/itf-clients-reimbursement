@@ -1041,3 +1041,21 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/training-plans/[submissionId]/evidence/new/page.tsx`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 47: Training Plan Upload Error UX
+
+Goal: keep failed Training Plan evidence uploads inside a usable product screen.
+
+Expected design:
+
+- Redirect failed uploads back to the evidence upload page
+- Show a styled error alert instead of a plain text route response
+- Preserve the selected evidence type where possible
+- Provide a retry button that returns focus to the upload form
+- Keep successful uploads redirecting back to the company registry detail page
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/training-plans/[submissionId]/evidence/upload/route.ts`
+- `app/(dashboard)/registry/[companyId]/training-plans/[submissionId]/evidence/new/page.tsx`
+- workflow docs

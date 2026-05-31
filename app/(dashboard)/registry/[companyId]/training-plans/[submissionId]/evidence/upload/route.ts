@@ -40,6 +40,37 @@ function readRequiredFile(formData: FormData) {
   return value;
 }
 
+function redirectToCompany(companyId: string) {
+  return new Response(null, {
+    status: 303,
+    headers: {
+      Location: `/registry/${companyId}`,
+    },
+  });
+}
+
+function redirectToUploadForm(input: {
+  companyId: string;
+  submissionId: string;
+  message: string;
+  kind?: string;
+}) {
+  const searchParams = new URLSearchParams({
+    error: input.message.slice(0, 280),
+  });
+
+  if (input.kind) {
+    searchParams.set("kind", input.kind);
+  }
+
+  return new Response(null, {
+    status: 303,
+    headers: {
+      Location: `/registry/${input.companyId}/training-plans/${input.submissionId}/evidence/new?${searchParams.toString()}`,
+    },
+  });
+}
+
 export async function POST(
   request: Request,
   context: RouteContext<"/registry/[companyId]/training-plans/[submissionId]/evidence/upload">,
@@ -51,9 +82,13 @@ export async function POST(
   }
 
   const { companyId, submissionId } = await context.params;
+  let selectedKind: string | undefined;
 
   try {
     const formData = await request.formData();
+    const kindValue = formData.get("kind");
+
+    selectedKind = typeof kindValue === "string" ? kindValue : undefined;
 
     await uploadTrainingPlanEvidence({
       companyId,
@@ -64,16 +99,16 @@ export async function POST(
       file: readRequiredFile(formData),
     });
 
-    return new Response(null, {
-      status: 303,
-      headers: {
-        Location: `/registry/${companyId}`,
-      },
-    });
+    return redirectToCompany(companyId);
   } catch (error) {
     const message =
       error instanceof Error ? error.message : "Training plan evidence upload failed.";
 
-    return new Response(message, { status: 400 });
+    return redirectToUploadForm({
+      companyId,
+      submissionId,
+      message,
+      kind: selectedKind,
+    });
   }
 }

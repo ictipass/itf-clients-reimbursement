@@ -14,10 +14,13 @@ const evidenceLabels: Record<TrainingPlanEvidenceKind, string> = {
 
 export default async function NewTrainingPlanEvidencePage({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ companyId: string; submissionId: string }>;
+  searchParams: Promise<{ error?: string | string[]; kind?: string | string[] }>;
 }>) {
   const { companyId, submissionId } = await params;
+  const query = await searchParams;
   const submission = await getTrainingPlanSubmissionForUpload(companyId, submissionId);
 
   if (!submission) {
@@ -25,6 +28,8 @@ export default async function NewTrainingPlanEvidencePage({
   }
 
   const evidenceKinds = getTrainingPlanEvidenceKinds();
+  const uploadError = Array.isArray(query.error) ? query.error[0] : query.error;
+  const selectedKind = Array.isArray(query.kind) ? query.kind[0] : query.kind;
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8 lg:px-8">
@@ -47,7 +52,29 @@ export default async function NewTrainingPlanEvidencePage({
         Download CSV template
       </Link>
 
+      {uploadError ? (
+        <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-950">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <p className="font-semibold">Upload was not accepted</p>
+              <p className="mt-1 leading-6">{uploadError}</p>
+              <p className="mt-2 text-xs leading-5 text-red-800">
+                Use CSV for annual training plans. Use PDF, JPEG, or PNG for L&amp;D personnel
+                CVs.
+              </p>
+            </div>
+            <a
+              href="#training-plan-evidence-form"
+              className="inline-flex min-h-9 w-fit items-center rounded-md border border-red-200 bg-white px-3 text-xs font-semibold text-red-900"
+            >
+              Retry upload
+            </a>
+          </div>
+        </div>
+      ) : null}
+
       <form
+        id="training-plan-evidence-form"
         action={`/registry/${companyId}/training-plans/${submissionId}/evidence/upload`}
         method="post"
         encType="multipart/form-data"
@@ -58,6 +85,7 @@ export default async function NewTrainingPlanEvidencePage({
           <select
             name="kind"
             required
+            defaultValue={evidenceKinds.includes(selectedKind as TrainingPlanEvidenceKind) ? selectedKind : ""}
             className="min-h-11 rounded-md border border-zinc-300 bg-white px-3"
           >
             <option value="">Select evidence type</option>
