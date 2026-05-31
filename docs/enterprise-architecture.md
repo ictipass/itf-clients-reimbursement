@@ -146,6 +146,8 @@ Office administration is handled from a general Offices settings surface rather 
 
 The reimbursement app currently stores staff directory records locally so development can proceed without a parent Workspace identity service. In the production workspace architecture, users should be inherited from the parent ITF Workspace identity layer, while this child app should keep reimbursement-specific memberships, office placement, workflow roles, work items, and audit events. That boundary avoids duplicate identities while preserving local authorization and workflow history.
 
+Roles are currently system-managed through the Prisma `Role` enum and the application permission map. The Roles settings surface exposes these roles by operational scope so administrators can understand current access boundaries. Fully configurable roles should be introduced later with an explicit role-definition model, permission catalog, and migration plan for workflow code that currently relies on fixed role constants.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text

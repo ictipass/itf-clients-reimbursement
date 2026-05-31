@@ -13,6 +13,7 @@ const navItems = [
   { href: "/management", label: "Management" },
   { href: "/settings/users", label: "Users" },
   { href: "/settings/offices", label: "Offices" },
+  { href: "/settings/roles", label: "Roles" },
   { href: "/settings/numbers", label: "Numbers" },
   { href: "/settings/certificates", label: "Certificates" },
   { href: "/settings/signatures", label: "Signatures" },

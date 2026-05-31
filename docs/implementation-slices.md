@@ -1115,3 +1115,24 @@ Expected files:
 - `app/(dashboard)/settings/offices/page.tsx`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 50: Role Management Foundation
+
+Goal: give workspace admins visibility into the current reimbursement roles before making roles configurable.
+
+Expected design:
+
+- Add a Roles settings page
+- Group roles by `SYSTEM`, `HEADQUARTERS`, `AREA_OFFICE`, and `EMPLOYER`
+- Show the current system-managed roles backed by the Prisma `Role` enum
+- Show role descriptions and current permissions
+- Mark roles as locked/system-managed for now
+- Keep custom role creation as a later authorization-model slice
+
+Expected files:
+
+- `lib/role-management.ts`
+- `app/(dashboard)/settings/roles/page.tsx`
+- `app/(dashboard)/layout.tsx`
+- architecture docs
+- workflow docs
