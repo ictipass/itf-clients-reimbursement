@@ -106,6 +106,8 @@ For registration contribution receipts, company upload returns the registration 
 
 Area Manager receipt review can accept the payment evidence or request correction. Acceptance resolves the Area Manager attention item and leaves the registration in review for the next registration-completion stage. Correction returns the workflow to the company desk for a replacement upload.
 
+Area Office review desks can request minor employer correction without restarting the full routing chain. When the Revenue Accountant returns a registration directly to the company, the registration stores the RA desk as the correction return desk. The employer can resubmit from the company dashboard, and the package returns directly to the Revenue Accountant desk with a fresh attention item.
+
 After receipt acceptance, the Area Manager can notify Headquarters. This moves the registration to the Director FSD desk and creates a `REGISTRATION_HQ_NOTIFICATION` attention item assigned to `DIRECTOR_FSD`.
 
 Director FSD forwards the registration to the Head of Reimbursement Division. This resolves the Director FSD attention item and opens a Head of Division attention item for registration completion.

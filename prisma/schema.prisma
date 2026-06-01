@@ -359,6 +359,7 @@ model RegistrationApplication {
   submittedById          String?
   status                 WorkflowStatus                      @default(DRAFT)
   currentDesk            RegistrationDesk                    @default(COMPANY)
+  correctionReturnDesk   RegistrationDesk?
   submittedAt            DateTime?
   completedAt            DateTime?
   recordTier             RecordTier                          @default(HOT)

@@ -13,6 +13,7 @@ const registrationDeskTransitions = [
   "am_to_horic",
   "horic_to_ra",
   "ra_to_horic",
+  "ra_to_company",
   "horic_to_am",
   "am_to_company",
 ] as const;
@@ -109,6 +110,22 @@ export function getRegistrationReceiptReviewActions() {
   return registrationReceiptReviewActions;
 }
 
+type RegistrationReviewDesk = "AREA_MANAGER" | "HORIC" | "REVENUE_ACCOUNTANT";
+
+function normalizeRegistrationReviewDesk(value: string | null | undefined): RegistrationReviewDesk {
+  if (value === "HORIC" || value === "REVENUE_ACCOUNTANT") {
+    return value;
+  }
+
+  return "AREA_MANAGER";
+}
+
+function getRegistrationWorkItemSourceKey(registrationApplicationId: string, desk: RegistrationReviewDesk) {
+  return desk === "AREA_MANAGER"
+    ? `registration:${registrationApplicationId}:area-manager-review`
+    : `registration:${registrationApplicationId}:${desk.toLowerCase()}`;
+}
+
 export async function submitRegistrationApplication(input: SubmitRegistrationApplicationInput) {
   if (!can(input.requesterRole, "registry:submit")) {
     throw new Error("You do not have permission to submit company registration.");
@@ -137,6 +154,7 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
         select: {
           id: true,
           status: true,
+          correctionReturnDesk: true,
         },
       },
     },
@@ -191,6 +209,21 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
   }
 
   return db.$transaction(async (tx) => {
+    const targetDesk = normalizeRegistrationReviewDesk(
+      company.registrationApplication?.correctionReturnDesk,
+    );
+    const workItemTitle =
+      targetDesk === "REVENUE_ACCOUNTANT"
+        ? "Resume registration contribution assessment"
+        : targetDesk === "HORIC"
+          ? "Resume employer registration review"
+          : "Review employer registration";
+    const workItemSummary =
+      targetDesk === "REVENUE_ACCOUNTANT"
+        ? `${company.legalName} resubmitted registration corrections for Revenue Accountant review.`
+        : targetDesk === "HORIC"
+          ? `${company.legalName} resubmitted registration corrections for HORIC review.`
+          : `${company.legalName} submitted Form 7A registration for Area Manager review.`;
     const registrationApplication = company.registrationApplication
       ? await tx.registrationApplication.update({
           where: {
@@ -200,7 +233,8 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
             areaOfficeId,
             submittedById: requester.id,
             status: "SUBMITTED",
-            currentDesk: "AREA_MANAGER",
+            currentDesk: targetDesk,
+            correctionReturnDesk: null,
             submittedAt: new Date(),
           },
           select: {
@@ -235,7 +269,7 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
 
     await tx.workItem.upsert({
       where: {
-        sourceKey: `registration:${registrationApplication.id}:area-manager-review`,
+        sourceKey: getRegistrationWorkItemSourceKey(registrationApplication.id, targetDesk),
       },
       create: {
         workspaceId: company.organization.workspaceId,
@@ -243,21 +277,21 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
         areaOfficeId,
         companyId: company.id,
         registrationApplicationId: registrationApplication.id,
-        assignedRole: "AREA_MANAGER",
+        assignedRole: targetDesk,
         app: "REIMBURSEMENT",
-        kind: "REGISTRATION_AREA_MANAGER_REVIEW",
+        kind: getRegistrationWorkItemKind(targetDesk),
         status: "OPEN",
         priority: "NORMAL",
-        title: "Review employer registration",
-        summary: `${company.legalName} submitted Form 7A registration for Area Manager review.`,
+        title: workItemTitle,
+        summary: workItemSummary,
         targetHref: `/registry/${company.id}`,
-        sourceKey: `registration:${registrationApplication.id}:area-manager-review`,
+        sourceKey: getRegistrationWorkItemSourceKey(registrationApplication.id, targetDesk),
       },
       update: {
         status: "OPEN",
         resolvedAt: null,
         priority: "NORMAL",
-        summary: `${company.legalName} submitted Form 7A registration for Area Manager review.`,
+        summary: workItemSummary,
         targetHref: `/registry/${company.id}`,
       },
       select: {
@@ -300,6 +334,17 @@ function resolveDeskTransition(transition: RegistrationDeskTransition) {
       label: "Forwarded from RA to HORIC",
       workItemTitle: "Confirm contribution recommendation",
       workItemSummary: "is awaiting HORIC confirmation.",
+    };
+  }
+
+  if (transition === "ra_to_company") {
+    return {
+      from: "REVENUE_ACCOUNTANT" as const,
+      to: "COMPANY" as const,
+      allowedRoles: ["REVENUE_ACCOUNTANT"] as const,
+      label: "Returned from RA to company for correction",
+      workItemTitle: "",
+      workItemSummary: "",
     };
   }
 
@@ -486,6 +531,7 @@ export async function routeRegistrationApplication(input: RouteRegistrationAppli
       data: {
         currentDesk: transition.to,
         status: transition.to === "COMPANY" ? "CHANGES_REQUESTED" : "SUBMITTED",
+        correctionReturnDesk: transition.to === "COMPANY" ? transition.from : null,
       },
       select: {
         id: true,

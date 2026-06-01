@@ -1298,3 +1298,24 @@ Expected files:
 - `lib/training-plan.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture and workflow docs
+
+### Slice 59: Registration RA Direct Correction Return
+
+Goal: allow the Revenue Accountant to return a registration directly to the company for minor corrections, then receive the corrected package back at the RA desk.
+
+Expected design:
+
+- Add a nullable correction return desk to registration applications
+- Add `ra_to_company` as a registration desk transition
+- Let RA request employer correction without routing back through HORIC or AM
+- When the employer resubmits, return the workflow to the stored RA desk
+- Reopen the appropriate RA work item after employer resubmission
+- Keep existing AM correction and receipt-review correction behavior intact
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- architecture and workflow docs
