@@ -25,6 +25,7 @@ const canUseManagement = (role: Role) =>
   isItfRole(role) && (can(role, "workspace:manage") || can(role, "audit:read"));
 
 const canUseSettings = (role: Role) => can(role, "workspace:manage");
+const canUseNumbers = (role: Role) => can(role, "numbers:manage");
 
 const navItems: NavItem[] = [
   { href: "/dashboard", label: "Overview", isVisible: () => true },
@@ -35,7 +36,7 @@ const navItems: NavItem[] = [
   { href: "/settings/users", label: "Users", isVisible: canUseSettings },
   { href: "/settings/offices", label: "Offices", isVisible: canUseSettings },
   { href: "/settings/roles", label: "Roles", isVisible: canUseSettings },
-  { href: "/settings/numbers", label: "Numbers", isVisible: canUseSettings },
+  { href: "/settings/numbers", label: "Numbers", isVisible: canUseNumbers },
   { href: "/settings/certificates", label: "Certificates", isVisible: canUseSettings },
   { href: "/settings/signatures", label: "Signatures", isVisible: canUseSettings },
 ];

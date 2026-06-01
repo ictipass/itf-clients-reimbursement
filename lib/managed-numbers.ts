@@ -47,7 +47,7 @@ export async function listManagedNumberWorkspaces() {
 }
 
 export async function listManagedNumbers(input: { requesterRole: Role }) {
-  if (!can(input.requesterRole, "workspace:manage")) {
+  if (!can(input.requesterRole, "numbers:manage")) {
     throw new Error("You do not have permission to manage registration numbers.");
   }
 
@@ -139,7 +139,7 @@ export async function listAvailableManagedNumbers(input: ListAvailableManagedNum
 }
 
 export async function createManagedNumbers(input: CreateManagedNumbersInput) {
-  if (!can(input.requesterRole, "workspace:manage")) {
+  if (!can(input.requesterRole, "numbers:manage")) {
     throw new Error("You do not have permission to manage registration numbers.");
   }
 

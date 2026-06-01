@@ -27,9 +27,9 @@ function formatType(value: string) {
 export default async function ManagedNumbersPage() {
   const session = await getServerSession(authOptions);
   const role = session?.user?.role ?? "SYSTEM_ADMIN";
-  const canManageWorkspace = can(role, "workspace:manage");
+  const canManageNumbers = can(role, "numbers:manage");
 
-  if (!canManageWorkspace) {
+  if (!canManageNumbers) {
     return (
       <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
         <section className="rounded-lg border border-zinc-200 bg-white p-6">

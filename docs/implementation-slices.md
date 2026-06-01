@@ -1242,3 +1242,23 @@ Expected files:
 - `lib/registry.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture and workflow docs
+
+### Slice 56: Head of Division Number Registry Access
+
+Goal: let Head of Reimbursement Division manage the number register needed to complete registrations and issue compliance certificates.
+
+Expected design:
+
+- Add a focused `numbers:manage` permission
+- Grant `numbers:manage` to System Admin, Workspace App Admin, and Head of Reimbursement Division
+- Use `numbers:manage` for `/settings/numbers` page access and server-side number creation/listing
+- Show the Numbers navigation link to roles with `numbers:manage`
+- Keep wider workspace settings restricted to workspace managers
+
+Expected files:
+
+- `lib/rbac.ts`
+- `lib/managed-numbers.ts`
+- `app/(dashboard)/layout.tsx`
+- `app/(dashboard)/settings/numbers/page.tsx`
+- architecture and workflow docs

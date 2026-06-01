@@ -24,6 +24,7 @@ export type Role = (typeof roles)[number];
 
 export type Permission =
   | "workspace:manage"
+  | "numbers:manage"
   | "registry:review"
   | "registry:submit"
   | "compliance:review"
@@ -40,6 +41,7 @@ export type Permission =
 const permissionsByRole: Record<Role, Permission[]> = {
   SYSTEM_ADMIN: [
     "workspace:manage",
+    "numbers:manage",
     "registry:review",
     "registry:submit",
     "compliance:review",
@@ -53,7 +55,7 @@ const permissionsByRole: Record<Role, Permission[]> = {
     "company:manage",
     "company:read",
   ],
-  WORKSPACE_APP_ADMIN: ["workspace:manage", "audit:read", "company:read"],
+  WORKSPACE_APP_ADMIN: ["workspace:manage", "numbers:manage", "audit:read", "company:read"],
   ITF_REGISTRATION_OFFICER: ["registry:review", "company:read", "audit:read"],
   ITF_COMPLIANCE_OFFICER: ["compliance:review", "company:read", "audit:read"],
   ITF_TRAINING_APPROVER: ["training:approve", "company:read", "audit:read"],
@@ -73,7 +75,14 @@ const permissionsByRole: Record<Role, Permission[]> = {
   HEAD_OF_TRAINING: ["training:approve", "claims:review", "company:read", "audit:read"],
   REIMBURSEMENT_OFFICER: ["training:approve", "claims:review", "company:read", "audit:read"],
   DIRECTOR_FSD: ["registry:review", "claims:approve", "company:read", "audit:read"],
-  HEAD_OF_DIVISION: ["registry:review", "claims:review", "claims:approve", "company:read", "audit:read"],
+  HEAD_OF_DIVISION: [
+    "numbers:manage",
+    "registry:review",
+    "claims:review",
+    "claims:approve",
+    "company:read",
+    "audit:read",
+  ],
   HQ_REIMBURSEMENT_OFFICER: ["claims:review", "company:read", "audit:read"],
   EMPLOYER_ADMIN: [
     "registry:submit",
