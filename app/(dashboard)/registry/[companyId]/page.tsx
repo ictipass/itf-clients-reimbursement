@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
+import { deleteCompanyEvidenceAction } from "@/app/(dashboard)/registry/[companyId]/evidence/actions";
 import {
   generateComplianceCertificatePdfAction,
   issueComplianceCertificateAction,
@@ -99,6 +100,36 @@ function ActionGroup({
         ) : null}
       </div>
       {children}
+    </div>
+  );
+}
+
+function EvidenceActions({
+  companyId,
+  documentId,
+  canDelete,
+}: Readonly<{
+  companyId: string;
+  documentId: string;
+  canDelete: boolean;
+}>) {
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Link
+        href={`/registry/${companyId}/evidence/${documentId}?disposition=inline`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800"
+      >
+        View
+      </Link>
+      {canDelete ? (
+        <form action={deleteCompanyEvidenceAction.bind(null, companyId, documentId)}>
+          <button className="inline-flex min-h-8 items-center rounded-md border border-red-200 bg-white px-2 text-xs font-semibold text-red-700">
+            Delete
+          </button>
+        </form>
+      ) : null}
     </div>
   );
 }
@@ -284,6 +315,12 @@ export default async function CompanyDetailPage({
 
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
   const adminOverride = isAdminRole(activeRole);
+  const canDeleteEvidence =
+    adminOverride ||
+    isEmployerRole(activeRole) ||
+    can(activeRole, "registry:review") ||
+    can(activeRole, "compliance:review") ||
+    can(activeRole, "training:approve");
   const currentYear = new Date().getFullYear();
   const certifiedComplianceYears = new Set(
     company.complianceYears
@@ -594,14 +631,11 @@ export default async function CompanyDetailPage({
                           <span className="font-semibold text-zinc-950">{document.fileName}</span>{" "}
                           · {formatDate(document.createdAt)}
                         </p>
-                        <Link
-                          href={`/registry/${company.id}/evidence/${document.id}?disposition=inline`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800"
-                        >
-                          View
-                        </Link>
+                        <EvidenceActions
+                          companyId={company.id}
+                          documentId={document.id}
+                          canDelete={canDeleteEvidence}
+                        />
                       </div>
                     ))}
                   </div>
@@ -972,14 +1006,13 @@ export default async function CompanyDetailPage({
                   <p className="mt-1 text-xs text-zinc-500">
                     {document.kind.replaceAll("_", " ")} · {formatDate(document.createdAt)}
                   </p>
-                  <Link
-                    href={`/registry/${company.id}/evidence/${document.id}?disposition=inline`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="mt-3 inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
-                  >
-                    View
-                  </Link>
+                  <div className="mt-3">
+                    <EvidenceActions
+                      companyId={company.id}
+                      documentId={document.id}
+                      canDelete={canDeleteEvidence}
+                    />
+                  </div>
                 </div>
               ))}
             </div>
@@ -1175,14 +1208,11 @@ export default async function CompanyDetailPage({
                             </span>{" "}
                             · {document.kind.replaceAll("_", " ")}
                           </p>
-                          <Link
-                            href={`/registry/${company.id}/evidence/${document.id}?disposition=inline`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 px-2 font-semibold text-zinc-800"
-                          >
-                            View
-                          </Link>
+                          <EvidenceActions
+                            companyId={company.id}
+                            documentId={document.id}
+                            canDelete={canDeleteEvidence}
+                          />
                         </div>
                       ))}
                     </div>
@@ -1431,14 +1461,11 @@ export default async function CompanyDetailPage({
                             </span>{" "}
                             · {document.kind.replaceAll("_", " ")}
                           </p>
-                          <Link
-                            href={`/registry/${company.id}/evidence/${document.id}?disposition=inline`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 px-2 font-semibold text-zinc-800"
-                          >
-                            View
-                          </Link>
+                          <EvidenceActions
+                            companyId={company.id}
+                            documentId={document.id}
+                            canDelete={canDeleteEvidence}
+                          />
                         </div>
                       ))}
                     </div>

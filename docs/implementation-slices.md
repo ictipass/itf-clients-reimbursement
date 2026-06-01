@@ -1319,3 +1319,23 @@ Expected files:
 - `lib/registration.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture and workflow docs
+
+### Slice 60: Evidence Soft Delete
+
+Goal: let users remove mistakenly uploaded evidence without destroying audit history.
+
+Expected design:
+
+- Add a delete action beside uploaded evidence documents on the company detail page
+- Soft-delete evidence by setting `isActive = false` and `revokedAt`
+- Keep inactive evidence hidden from existing document lists
+- Record an internal comment for audit context
+- Prevent deletion of generated certificates, certificate templates, and signature images through this evidence action
+- Keep the stored object intact for audit/recovery until a later retention policy decides physical deletion
+
+Expected files:
+
+- `lib/evidence.ts`
+- `app/(dashboard)/registry/[companyId]/evidence/actions.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

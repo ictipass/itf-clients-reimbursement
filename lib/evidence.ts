@@ -26,6 +26,13 @@ export type DownloadCompanyEvidenceInput = {
   requesterRole: Role;
 };
 
+export type DeleteCompanyEvidenceInput = {
+  companyId: string;
+  documentId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+};
+
 export function getCompanyEvidenceKinds() {
   return companyEvidenceKinds;
 }
@@ -172,4 +179,104 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
     fileSize: downloaded.fileSize,
     mimeType: document.mimeType,
   };
+}
+
+export async function deleteCompanyEvidence(input: DeleteCompanyEvidenceInput) {
+  if (
+    !can(input.requesterRole, "company:manage") &&
+    !can(input.requesterRole, "registry:submit") &&
+    !can(input.requesterRole, "compliance:submit") &&
+    !can(input.requesterRole, "training:submit") &&
+    !can(input.requesterRole, "registry:review") &&
+    !can(input.requesterRole, "compliance:review") &&
+    !can(input.requesterRole, "training:approve")
+  ) {
+    throw new Error("You do not have permission to remove evidence documents.");
+  }
+
+  const db = getDb();
+  const document = await db.document.findFirst({
+    where: {
+      id: input.documentId,
+      companyId: input.companyId,
+      isActive: true,
+      recordTier: "HOT",
+      revokedAt: null,
+      kind: {
+        notIn: ["CERTIFICATE", "CERTIFICATE_TEMPLATE_DESIGN", "SIGNATURE_IMAGE"],
+      },
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      organizationId: true,
+      companyId: true,
+      complianceYearId: true,
+      trainingPlanSubmissionId: true,
+      fileName: true,
+    },
+  });
+
+  if (!document) {
+    throw new Error("Evidence document was not found.");
+  }
+
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    requester.memberships.some((membership) => membership.organizationId === document.organizationId);
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this organization's evidence.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.document.update({
+      where: {
+        id: document.id,
+      },
+      data: {
+        isActive: false,
+        revokedAt: new Date(),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.comment.create({
+      data: {
+        actorId: requester.id,
+        companyId: document.companyId,
+        complianceYearId: document.complianceYearId,
+        trainingPlanSubmissionId: document.trainingPlanSubmissionId,
+        documentId: document.id,
+        body: `Evidence document removed from active view: ${document.fileName}`,
+        visibility: "INTERNAL",
+      },
+    });
+
+    return updated;
+  });
 }
