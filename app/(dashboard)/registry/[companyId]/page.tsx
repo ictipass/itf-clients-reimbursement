@@ -450,7 +450,7 @@ export default async function CompanyDetailPage({
             ) : (
               <p className="mt-2 text-sm leading-6 text-zinc-600">
                 This company profile has not been submitted into the Area Office registration
-                workflow yet.
+                workflow yet until relevant documents are provided and at least one compliance year created.
               </p>
             )}
           </div>
