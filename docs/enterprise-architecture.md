@@ -110,7 +110,7 @@ After receipt acceptance, the Area Manager can notify Headquarters. This moves t
 
 Director FSD forwards the registration to the Head of Reimbursement Division. This resolves the Director FSD attention item and opens a Head of Division attention item for registration completion.
 
-Head of Reimbursement Division completes the registration by recording the ITF employer number. Completion activates the company, approves the registration application, creates a `RegistrationCertificate` record, attaches the latest active `CertificateTemplate` when one exists, records optional certificate reference text in the decision trail, and resolves HQ registration attention items.
+Head of Reimbursement Division completes the registration by recording the ITF employer number. Completion activates the company, approves the registration application, opens the current-year annual compliance filing as a draft when one does not already exist, records the completion in the decision trail, and resolves HQ registration attention items. Registration does not issue a standalone certificate; the downloadable certificate belongs to annual compliance.
 
 Certificate templates are versioned by workspace. A template can be draft, active, or retired. New certificate records can point to the active template used at issue time so that future design changes do not rewrite historical certificate records.
 
@@ -120,7 +120,7 @@ Workspace-management users can create draft certificate template versions, activ
 
 Uploaded certificate template designs can be opened inline by workspace-management users for verification. The viewer keeps the document private and sends restrictive response headers so browser rendering does not become an execution surface for uploaded content.
 
-Certificate generation follows the template-as-background path. A certificate template can hold placement metadata for dynamic text such as company name, ITF employer number, certificate number, and issue date. Registration certificates record when a downloadable certificate is generated and which generated document stores the PDF.
+Certificate generation follows the template-as-background path. A certificate template can hold placement metadata for dynamic text such as company name, ITF employer number, certificate number, and issue date. Annual compliance certificates record when a downloadable certificate is generated and which generated document stores the PDF.
 
 Workspace-management users can edit placement metadata from certificate template settings. Each required text field stores an `x`, `y`, and `fontSize` value. The PDF generator uses these values to draw text over the uploaded design with `pdf-lib`, stores the generated result as a private `CERTIFICATE` document, and serves it inline through an authenticated route.
 

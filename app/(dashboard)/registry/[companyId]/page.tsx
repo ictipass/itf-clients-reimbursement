@@ -2,7 +2,6 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
-import { generateRegistrationCertificatePdfAction } from "@/app/(dashboard)/registry/[companyId]/certificate/actions";
 import {
   generateComplianceCertificatePdfAction,
   issueComplianceCertificateAction,
@@ -25,7 +24,6 @@ import {
   uploadRegistrationContributionReceiptAction,
 } from "@/app/(dashboard)/registry/[companyId]/registration/actions";
 import { authOptions } from "@/lib/auth";
-import { checkCertificateGenerationReadiness } from "@/lib/certificates";
 import { listAvailableManagedNumbers } from "@/lib/managed-numbers";
 import { can, type Role } from "@/lib/rbac";
 import { getEmployerCompany } from "@/lib/registry";
@@ -59,24 +57,6 @@ function formatPercent(value: { toString(): string } | null) {
   return `${Number(value.toString()).toLocaleString("en-NG", {
     maximumFractionDigits: 2,
   })}%`;
-}
-
-const requiredCertificatePlacementFields = [
-  "companyName",
-  "itfEmployerNumber",
-  "certificateNumber",
-  "issuedAt",
-  "directorGeneralSignature",
-  "directorRevenueSignature",
-  "qrCode",
-] as const;
-
-function getMissingCertificatePlacementFields(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return [...requiredCertificatePlacementFields];
-  }
-
-  return requiredCertificatePlacementFields.filter((field) => !Object.hasOwn(value, field));
 }
 
 function DetailItem({
@@ -306,30 +286,8 @@ export default async function CompanyDetailPage({
   const registrationState = company.itfEmployerNumber
     ? "Registered with ITF"
     : "Not yet registered with ITF";
-  const latestCertificate = company.registrationCertificates[0];
-  const missingPlacementFields = latestCertificate?.template
-    ? getMissingCertificatePlacementFields(latestCertificate.template.placementMetadata)
-    : [...requiredCertificatePlacementFields];
-  const localCertificateGenerationMissing = [
-    latestCertificate?.template ? undefined : "certificate template",
-    latestCertificate?.template?.designDocumentId ? undefined : "certificate template design",
-    missingPlacementFields.length > 0
-      ? `placement metadata: ${missingPlacementFields.join(", ")}`
-      : undefined,
-  ].filter(Boolean);
-  const canGenerateCertificate =
-    can(activeRole, "workspace:manage") || can(activeRole, "registry:review");
   const canGenerateComplianceCertificate =
     can(activeRole, "workspace:manage") || can(activeRole, "compliance:review");
-  const certificateReadiness =
-    latestCertificate && canGenerateCertificate
-      ? await checkCertificateGenerationReadiness({
-          certificateId: latestCertificate.id,
-          requesterRole: activeRole,
-        })
-      : null;
-  const certificateGenerationMissing =
-    certificateReadiness?.missing ?? localCertificateGenerationMissing;
   const availableItfEmployerNumbers =
     company.registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
     company.registrationApplication.status === "IN_REVIEW"
@@ -465,101 +423,6 @@ export default async function CompanyDetailPage({
         <DetailItem label="Postal address" value={company.postalAddress ?? "Not provided"} />
         <DetailItem label="Last updated" value={formatDate(company.updatedAt)} />
       </section>
-
-      {latestCertificate ? (
-        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
-          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-            <div>
-              <h2 className="text-xl font-semibold tracking-tight">Registration certificate</h2>
-              <p className="mt-2 text-sm leading-6 text-zinc-600">
-                Current certificate record for this employer registration.
-              </p>
-            </div>
-            <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-              {latestCertificate.status}
-            </span>
-          </div>
-          <div className="mt-4 grid gap-4 border-t border-zinc-100 pt-4 text-sm md:grid-cols-3">
-            <DetailItem
-              label="Certificate number"
-              value={latestCertificate.certificateNumber}
-            />
-            <DetailItem
-              label="ITF employer number"
-              value={latestCertificate.itfEmployerNumber}
-            />
-            <DetailItem label="Issued by" value={latestCertificate.issuedBy.name} />
-            <DetailItem label="Issued date" value={formatDate(latestCertificate.issuedAt)} />
-            <DetailItem
-              label="Expiry date"
-              value={formatDate(latestCertificate.expiresAt)}
-            />
-            <DetailItem
-              label="Template"
-              value={
-                latestCertificate.template
-                  ? `${latestCertificate.template.name} v${latestCertificate.template.version}`
-                  : "Not attached yet"
-              }
-            />
-          </div>
-          {latestCertificate.generatedDocumentId ? (
-            <div className="mt-4 flex flex-col gap-3 rounded-md bg-zinc-50 px-3 py-3 text-sm text-zinc-700 md:flex-row md:items-center md:justify-between">
-              <p>
-                Downloadable certificate document has been generated
-                {latestCertificate.generatedAt
-                  ? ` on ${formatDate(latestCertificate.generatedAt)}`
-                  : ""}
-                .
-              </p>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href={`/registry/${company.id}/certificate/${latestCertificate.id}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800"
-                >
-                  View certificate
-                </Link>
-                {canGenerateCertificate && certificateGenerationMissing.length === 0 ? (
-                  <form
-                    action={generateRegistrationCertificatePdfAction.bind(
-                      null,
-                      company.id,
-                      latestCertificate.id,
-                    )}
-                  >
-                    <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
-                      Regenerate PDF
-                    </button>
-                  </form>
-                ) : null}
-              </div>
-            </div>
-          ) : certificateGenerationMissing.length === 0 ? (
-            <div className="mt-4 flex flex-col gap-3 rounded-md bg-emerald-50 px-3 py-3 text-sm text-emerald-800 md:flex-row md:items-center md:justify-between">
-              <p className="font-medium">Certificate is ready for PDF generation.</p>
-              {canGenerateCertificate ? (
-                <form
-                  action={generateRegistrationCertificatePdfAction.bind(
-                    null,
-                    company.id,
-                    latestCertificate.id,
-                  )}
-                >
-                  <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
-                    Generate PDF
-                  </button>
-                </form>
-              ) : null}
-            </div>
-          ) : (
-            <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
-              PDF generation is waiting for {certificateGenerationMissing.join("; ")}.
-            </p>
-          )}
-        </section>
-      ) : null}
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

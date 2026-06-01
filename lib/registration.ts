@@ -1,5 +1,4 @@
 import { getDb } from "@/lib/db";
-import { findActiveCertificateTemplate } from "@/lib/certificates";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -1658,12 +1657,8 @@ export async function completeRegistrationAtHeadquarters(
     throw new Error("User account was not found.");
   }
 
-  const issuedAt = new Date();
-  const activeTemplate = await findActiveCertificateTemplate(
-    db,
-    registrationApplication.company.organization.workspaceId,
-    issuedAt,
-  );
+  const completedAt = new Date();
+  const complianceYear = completedAt.getFullYear();
 
   return db.$transaction(async (tx) => {
     const itfManagedNumber = await tx.managedRegistrationNumber.findFirst({
@@ -1705,7 +1700,7 @@ export async function completeRegistrationAtHeadquarters(
       },
       data: {
         status: "APPROVED",
-        completedAt: issuedAt,
+        completedAt,
       },
       select: {
         id: true,
@@ -1720,6 +1715,7 @@ export async function completeRegistrationAtHeadquarters(
         action: "CERTIFY",
         reason: [
           `HQ completed registration with ITF employer number: ${itfEmployerNumber}`,
+          `Opened ${complianceYear} annual compliance filing`,
           input.note,
         ]
           .filter(Boolean)
@@ -1727,32 +1723,19 @@ export async function completeRegistrationAtHeadquarters(
       },
     });
 
-    const certificate = await tx.registrationCertificate.upsert({
+    await tx.complianceYear.upsert({
       where: {
-        registrationApplicationId: registrationApplication.id,
+        companyId_year: {
+          companyId: registrationApplication.companyId,
+          year: complianceYear,
+        },
       },
       create: {
         companyId: registrationApplication.companyId,
-        registrationApplicationId: registrationApplication.id,
-        issuedById: actor.id,
-        certificateNumber: itfEmployerNumber,
-        itfEmployerNumber,
-        templateId: activeTemplate?.id,
-        status: "ACTIVE",
-        issuedAt,
+        year: complianceYear,
+        status: "DRAFT",
       },
-      update: {
-        issuedById: actor.id,
-        certificateNumber: itfEmployerNumber,
-        itfEmployerNumber,
-        templateId: activeTemplate?.id,
-        status: "ACTIVE",
-        issuedAt,
-        revokedAt: null,
-      },
-      select: {
-        id: true,
-      },
+      update: {},
     });
 
     const itfNumberAssignment = await tx.managedRegistrationNumber.updateMany({
@@ -1763,9 +1746,8 @@ export async function completeRegistrationAtHeadquarters(
       data: {
         status: "ASSIGNED",
         assignedCompanyId: registrationApplication.companyId,
-        assignedCertificateId: certificate.id,
         issuedById: actor.id,
-        issuedAt,
+        issuedAt: completedAt,
       },
     });
 

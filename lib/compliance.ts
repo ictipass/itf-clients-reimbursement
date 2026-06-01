@@ -101,11 +101,16 @@ export async function createComplianceYear(input: CreateComplianceYearInput) {
     select: {
       id: true,
       organizationId: true,
+      itfEmployerNumber: true,
     },
   });
 
   if (!company) {
     throw new Error("Company was not found.");
+  }
+
+  if (!company.itfEmployerNumber) {
+    throw new Error("Company registration must be completed before annual compliance can be filed.");
   }
 
   const requester = await db.user.findUnique({

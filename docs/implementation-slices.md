@@ -1220,3 +1220,25 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/training-plans/actions.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 55: Compliance-Driven Registration Policy
+
+Goal: align registration completion with the rule that registration is one-time, while certificates are issued from annual compliance.
+
+Expected design:
+
+- Complete employer registration by assigning only the managed ITF employer number
+- Stop creating a standalone registration certificate during registration completion
+- Automatically create the current-year compliance filing as a draft after registration completion
+- Require completed registration before an annual compliance filing can be created
+- Remove the registration-certificate card from the company detail page
+- Keep annual compliance certificates as the certificate-generation path
+- Keep older registration-certificate data structures available for legacy cleanup in a later slice
+
+Expected files:
+
+- `lib/registration.ts`
+- `lib/compliance.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- architecture and workflow docs

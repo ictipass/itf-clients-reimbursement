@@ -166,38 +166,6 @@ export async function getEmployerCompany(companyId: string) {
           },
         },
       },
-      registrationCertificates: {
-        where: {
-          recordTier: "HOT",
-        },
-        select: {
-          id: true,
-          certificateNumber: true,
-          itfEmployerNumber: true,
-          status: true,
-          issuedAt: true,
-          expiresAt: true,
-          generatedDocumentId: true,
-          generatedAt: true,
-          template: {
-            select: {
-              name: true,
-              version: true,
-              status: true,
-              designDocumentId: true,
-              placementMetadata: true,
-            },
-          },
-          issuedBy: {
-            select: {
-              name: true,
-            },
-          },
-        },
-        orderBy: {
-          issuedAt: "desc",
-        },
-      },
       documents: {
         where: {
           isActive: true,
