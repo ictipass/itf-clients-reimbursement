@@ -100,11 +100,30 @@ export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubm
     select: {
       id: true,
       organizationId: true,
+      complianceYears: {
+        where: {
+          year: input.year,
+          status: "APPROVED",
+          certificate: {
+            isNot: null,
+          },
+        },
+        select: {
+          id: true,
+        },
+        take: 1,
+      },
     },
   });
 
   if (!company) {
     throw new Error("A registered active company is required before training plan submission.");
+  }
+
+  if (company.complianceYears.length === 0) {
+    throw new Error(
+      `Approved ${input.year} compliance with an issued certificate is required before Training Plan and L&D submission.`,
+    );
   }
 
   const requester = await db.user.findUnique({
@@ -221,10 +240,23 @@ export async function uploadTrainingPlanEvidence(input: UploadTrainingPlanEviden
     },
     select: {
       id: true,
+      year: true,
       companyId: true,
       company: {
         select: {
           organizationId: true,
+          complianceYears: {
+            where: {
+              status: "APPROVED",
+              certificate: {
+                isNot: null,
+              },
+            },
+            select: {
+              id: true,
+              year: true,
+            },
+          },
         },
       },
     },
@@ -232,6 +264,16 @@ export async function uploadTrainingPlanEvidence(input: UploadTrainingPlanEviden
 
   if (!submission) {
     throw new Error("Training plan submission was not found.");
+  }
+
+  const hasCertifiedComplianceYear = submission.company.complianceYears.some(
+    (complianceYear) => complianceYear.year === submission.year,
+  );
+
+  if (!hasCertifiedComplianceYear) {
+    throw new Error(
+      `Approved ${submission.year} compliance with an issued certificate is required before uploading Training Plan evidence.`,
+    );
   }
 
   const user = await db.user.findUnique({
@@ -344,6 +386,18 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
               workspaceId: true,
             },
           },
+          complianceYears: {
+            where: {
+              status: "APPROVED",
+              certificate: {
+                isNot: null,
+              },
+            },
+            select: {
+              id: true,
+              year: true,
+            },
+          },
         },
       },
     },
@@ -351,6 +405,16 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
 
   if (!submission) {
     throw new Error("Draft training plan submission was not found.");
+  }
+
+  const hasCertifiedComplianceYear = submission.company.complianceYears.some(
+    (complianceYear) => complianceYear.year === submission.year,
+  );
+
+  if (!hasCertifiedComplianceYear) {
+    throw new Error(
+      `Approved ${submission.year} compliance with an issued certificate is required before Training Plan and L&D submission.`,
+    );
   }
 
   const submittedKinds = new Set(submission.documents.map((document) => document.kind));

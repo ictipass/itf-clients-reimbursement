@@ -283,6 +283,13 @@ export default async function CompanyDetailPage({
 
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
   const adminOverride = isAdminRole(activeRole);
+  const currentYear = new Date().getFullYear();
+  const certifiedComplianceYears = new Set(
+    company.complianceYears
+      .filter((complianceYear) => complianceYear.status === "APPROVED" && complianceYear.certificate)
+      .map((complianceYear) => complianceYear.year),
+  );
+  const hasCurrentYearCertifiedCompliance = certifiedComplianceYears.has(currentYear);
   const registrationState = company.itfEmployerNumber
     ? "Registered with ITF"
     : "Not yet registered with ITF";
@@ -1224,13 +1231,26 @@ export default async function CompanyDetailPage({
               personnel CV records.
             </p>
           </div>
-          <Link
-            href={`/registry/${company.id}/training-plans/new`}
-            className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
-          >
-            Create submission
-          </Link>
+          {hasCurrentYearCertifiedCompliance ? (
+            <Link
+              href={`/registry/${company.id}/training-plans/new`}
+              className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
+            >
+              Create submission
+            </Link>
+          ) : (
+            <span className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm font-semibold text-zinc-500">
+              Compliance required
+            </span>
+          )}
         </div>
+
+        {!hasCurrentYearCertifiedCompliance ? (
+          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Training Plan and L&amp;D submission is available after the company&apos;s {currentYear}{" "}
+            compliance is approved and its compliance certificate has been issued.
+          </p>
+        ) : null}
 
         {company.trainingPlanSubmissions.length === 0 ? (
           <p className="mt-4 text-sm leading-6 text-zinc-600">
@@ -1255,9 +1275,11 @@ export default async function CompanyDetailPage({
               const canRouteTrainingPlan =
                 availableTrainingPlanTransitions.length > 0 &&
                 canActAsTrainingPlanDesk(activeRole, submission.currentDesk);
+              const hasCertifiedSubmissionYear = certifiedComplianceYears.has(submission.year);
               const canSubmitTrainingPlan =
                 (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
                 missingRequiredEvidence.length === 0 &&
+                hasCertifiedSubmissionYear &&
                 (isEmployerRole(activeRole) || adminOverride);
 
               return (
@@ -1305,18 +1327,26 @@ export default async function CompanyDetailPage({
                       Required before submission: {missingRequiredEvidence.join(", ")}.
                     </p>
                   ) : null}
+                  {!hasCertifiedSubmissionYear ? (
+                    <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      Approved {submission.year} compliance with an issued certificate is required
+                      before evidence upload or submission.
+                    </p>
+                  ) : null}
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3">
                     <p className="text-xs text-zinc-500">
                       {submission.documents.length === 0
                         ? "No Training Plan evidence uploaded"
                         : `${submission.documents.length} evidence document${submission.documents.length === 1 ? "" : "s"}`}
                     </p>
-                    <Link
-                      href={`/registry/${company.id}/training-plans/${submission.id}/evidence/new`}
-                      className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
-                    >
-                      Upload evidence
-                    </Link>
+                    {hasCertifiedSubmissionYear ? (
+                      <Link
+                        href={`/registry/${company.id}/training-plans/${submission.id}/evidence/new`}
+                        className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+                      >
+                        Upload evidence
+                      </Link>
+                    ) : null}
                   </div>
                   {canSubmitTrainingPlan ? (
                     <form

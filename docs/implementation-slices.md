@@ -1279,3 +1279,22 @@ Expected files:
 
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 58: Training Plan Compliance Gate
+
+Goal: ensure only compliant companies can create, upload evidence for, or submit Training Plan and L&D packages.
+
+Expected design:
+
+- Treat a company as compliant for a training year only when that year's compliance return is approved and certified
+- Hide the current-year Training Plan create link until current-year compliance is approved and certified
+- Show a clear compliance-required notice on the company detail page
+- Prevent Training Plan evidence upload when the submission year is not certified
+- Prevent Training Plan package submission when the submission year is not certified
+- Keep routing of already submitted Training Plan packages unchanged
+
+Expected files:
+
+- `lib/training-plan.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- architecture and workflow docs

@@ -134,6 +134,8 @@ Employer registration is a one-time workflow. Once a company receives its ITF em
 
 The ITF employer number is the permanent registration number. Certificate numbers belong to annual compliance certificates, not the one-time registration event. Annual compliance certificates are tied to `ComplianceYear` records and can be issued only after compliance approval.
 
+Training Plan and L&D submissions are gated by annual compliance. A company can create, upload evidence for, or submit a Training Plan package only for a year where its compliance return has been approved and an annual compliance certificate has been issued. The company detail page also disables the current-year Training Plan entry point until the current-year compliance certificate exists.
+
 When an annual compliance certificate number is issued, the app attempts to generate the downloadable compliance certificate PDF immediately using the active certificate template, configured placement metadata, active signature assets, and QR-code verification URL. The generated PDF is stored as a private `CERTIFICATE` document linked to the `ComplianceCertificate`. A manual generate/regenerate action remains available to authorized ITF users as a fallback if certificate assets or storage configuration need correction.
 
 Public certificate verification exposes only safe certificate authenticity information: company name, ITF employer number, certificate number, status, issue date, and expiry date. Certificate QR codes point to this public verification surface.
