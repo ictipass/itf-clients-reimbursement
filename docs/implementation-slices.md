@@ -1262,3 +1262,20 @@ Expected files:
 - `app/(dashboard)/layout.tsx`
 - `app/(dashboard)/settings/numbers/page.tsx`
 - architecture and workflow docs
+
+### Slice 57: Registration Submit Placement
+
+Goal: make employer registration submission happen after the employer has reviewed evidence and compliance context.
+
+Expected design:
+
+- Remove the employer submit/resubmit action from the Registration Workflow card
+- Add a focused Registration Submission card below Evidence Summary and Compliance Years
+- Keep the existing submit/resubmit authorization and server action
+- Preserve the selected Area Office requirement before registration can be submitted
+- Keep reviewer workflow actions inside the Registration Workflow card
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

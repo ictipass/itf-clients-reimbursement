@@ -637,19 +637,6 @@ export default async function CompanyDetailPage({
             .
           </p>
         ) : null}
-        {canSubmitRegistration ? (
-          <ActionGroup
-            title="Employer actions"
-            description="Submit or resubmit the employer registration package to the selected Area Office."
-            isAdminOverride={adminOverride}
-          >
-            <form action={submitRegistrationApplicationAction.bind(null, company.id)}>
-              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                {company.registrationApplication ? "Resubmit registration" : "Submit registration"}
-              </button>
-            </form>
-          </ActionGroup>
-        ) : null}
         {canRouteRegistration && company.registrationApplication ? (
           <ActionGroup
             title="Area Office routing"
@@ -1198,6 +1185,33 @@ export default async function CompanyDetailPage({
           )}
         </div>
       </section>
+
+      {canSubmitRegistration ? (
+        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">Registration submission</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
+                Submit the employer registration package after confirming evidence and compliance
+                context.
+              </p>
+            </div>
+            {adminOverride ? (
+              <span className="w-fit rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
+                Admin/testing override
+              </span>
+            ) : null}
+          </div>
+          <form
+            action={submitRegistrationApplicationAction.bind(null, company.id)}
+            className="mt-4 border-t border-zinc-100 pt-4"
+          >
+            <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+              {company.registrationApplication ? "Resubmit registration" : "Submit registration"}
+            </button>
+          </form>
+        </section>
+      ) : null}
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
