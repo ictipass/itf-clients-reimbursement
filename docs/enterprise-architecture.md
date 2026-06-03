@@ -134,6 +134,8 @@ ITF employer numbers and annual compliance certificate numbers are managed throu
 
 Employer registration is a one-time workflow. Once a company receives its ITF employer number and becomes active, subsequent yearly obligations should be handled through annual compliance, training plan submission, training approval, and claims workflows rather than submitting registration again.
 
+Registered companies include both employers that completed registration in the portal and legacy employers that registered before the portal existed. In both cases, the operational rule is the same: once the company has an ITF employer number in the app, it should continue through annual compliance rather than repeating registration.
+
 The ITF employer number is the permanent registration number. Certificate numbers belong to annual compliance certificates, not the one-time registration event. Annual compliance certificates are tied to `ComplianceYear` records and can be issued only after compliance approval.
 
 Training Plan and L&D submissions are gated by annual compliance. A company can create, upload evidence for, or submit a Training Plan package only for a year where its compliance return has been approved and an annual compliance certificate has been issued. The company detail page also disables the current-year Training Plan entry point until the current-year compliance certificate exists.

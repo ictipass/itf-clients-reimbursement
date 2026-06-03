@@ -426,7 +426,7 @@ export default async function CompanyDetailPage({
     canUploadReceipt ||
     canForwardToDivision ||
     canCompleteAtHeadquarters;
-  const onboardingSteps = [
+  const newCompanySteps = [
     {
       title: "Company profile",
       status: "Done",
@@ -463,6 +463,39 @@ export default async function CompanyDetailPage({
       detail: company.itfEmployerNumber
         ? "Create or complete annual compliance."
         : "Available after registration completion.",
+    },
+  ];
+  const latestComplianceYear = company.complianceYears[0];
+  const registeredCompanySteps = [
+    {
+      title: "Registered",
+      status: "Done",
+      isDone: true,
+      detail: `ITF number ${company.itfEmployerNumber}`,
+    },
+    {
+      title: "Annual compliance",
+      status: latestComplianceYear ? "Started" : "Pending",
+      isDone: Boolean(latestComplianceYear),
+      detail: latestComplianceYear
+        ? `${latestComplianceYear.year} is ${latestComplianceYear.status.replaceAll("_", " ")}.`
+        : "Create the annual compliance year.",
+    },
+    {
+      title: "Payment evidence",
+      status: latestComplianceYear?.documents.length ? "Started" : "Pending",
+      isDone: Boolean(latestComplianceYear?.documents.length),
+      detail: latestComplianceYear?.documents.length
+        ? `${latestComplianceYear.documents.length} document${latestComplianceYear.documents.length === 1 ? "" : "s"} uploaded.`
+        : "Upload payment and compliance evidence.",
+    },
+    {
+      title: "Certificate",
+      status: hasCurrentYearCertifiedCompliance ? "Done" : "Pending",
+      isDone: hasCurrentYearCertifiedCompliance,
+      detail: hasCurrentYearCertifiedCompliance
+        ? `${currentYear} compliance certificate issued.`
+        : "Issued after compliance approval.",
     },
   ];
 
@@ -525,7 +558,7 @@ export default async function CompanyDetailPage({
             </span>
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-5">
-            {onboardingSteps.map((step, index) => (
+            {newCompanySteps.map((step, index) => (
               <div
                 key={step.title}
                 className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm"
@@ -550,7 +583,49 @@ export default async function CompanyDetailPage({
             ))}
           </div>
         </section>
-      ) : null}
+      ) : (
+        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">
+                Registered company annual compliance path
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
+                This company already has an ITF employer number, so registration is not repeated.
+                Continue with annual compliance for each year.
+              </p>
+            </div>
+            <span className="w-fit rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
+              Registered
+            </span>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-4">
+            {registeredCompanySteps.map((step, index) => (
+              <div
+                key={step.title}
+                className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex size-7 items-center justify-center rounded-full bg-white text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200">
+                    {index + 1}
+                  </span>
+                  <span
+                    className={
+                      step.isDone
+                        ? "rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700"
+                        : "rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800"
+                    }
+                  >
+                    {step.status}
+                  </span>
+                </div>
+                <p className="mt-3 font-semibold text-zinc-950">{step.title}</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-600">{step.detail}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

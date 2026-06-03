@@ -1359,3 +1359,21 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/compliance/new/page.tsx`
 - `app/(dashboard)/registry/[companyId]/compliance/actions.ts`
 - workflow docs
+
+### Slice 63: Registered Company Compliance Continuation Path
+
+Goal: clarify that companies with ITF employer numbers do not repeat registration and should continue through annual compliance.
+
+Expected design:
+
+- Treat registered companies as companies with an ITF employer number
+- Cover both legacy registered employers and employers registered through the portal in previous years
+- Show a registered-company annual compliance path on the company detail page
+- Keep the new-company registration path only for companies without ITF employer numbers
+- Explain that annual compliance, evidence, and certificate issuance are the next recurring steps
+- Avoid changing the registration workflow or legacy-number onboarding in this slice
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- architecture and workflow docs
