@@ -286,7 +286,8 @@ function canRecordLegacyRegistrationRole(role: Role) {
     role === "SYSTEM_ADMIN" ||
     role === "WORKSPACE_APP_ADMIN" ||
     role === "DIRECTOR_FSD" ||
-    role === "HEAD_OF_DIVISION"
+    role === "HEAD_OF_DIVISION" ||
+    role === "REVENUE_ACCOUNTANT"
   );
 }
 

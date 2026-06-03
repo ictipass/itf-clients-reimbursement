@@ -136,7 +136,7 @@ Employer registration is a one-time workflow. Once a company receives its ITF em
 
 Registered companies include both employers that completed registration in the portal and legacy employers that registered before the portal existed. In both cases, the operational rule is the same: once the company has an ITF employer number in the app, it should continue through annual compliance rather than repeating registration.
 
-Legacy registered employers can be onboarded by authorized Headquarters or system administrators by recording the existing ITF employer number with an audit note. This activates the company in the portal and opens the current-year compliance filing as a draft, but it does not issue a registration certificate. The downloadable certificate remains an annual compliance certificate.
+Legacy registered employers can be onboarded by authorized Headquarters or system administrators by recording the existing ITF employer number with an audit note. Area Office Revenue Accountants can also onboard legacy registered employers within their assigned Area Office jurisdiction. This activates the company in the portal and opens the current-year compliance filing as a draft, but it does not issue a registration certificate. The downloadable certificate remains an annual compliance certificate.
 
 The ITF employer number is the permanent registration number. Certificate numbers belong to annual compliance certificates, not the one-time registration event. Annual compliance certificates are tied to `ComplianceYear` records and can be issued only after compliance approval.
 

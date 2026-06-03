@@ -139,7 +139,8 @@ function canRecordLegacyRegistration(role: Role) {
     role === "SYSTEM_ADMIN" ||
     role === "WORKSPACE_APP_ADMIN" ||
     role === "DIRECTOR_FSD" ||
-    role === "HEAD_OF_DIVISION"
+    role === "HEAD_OF_DIVISION" ||
+    role === "REVENUE_ACCOUNTANT"
   );
 }
 
@@ -1846,7 +1847,9 @@ export async function recordLegacyRegistration(input: RecordLegacyRegistrationIn
   }
 
   if (!canRecordLegacyRegistration(input.requesterRole)) {
-    throw new Error("Only authorized Headquarters or system administrators can record legacy registration.");
+    throw new Error(
+      "Only authorized Headquarters, Area Office Revenue Accountant, or system administrators can record legacy registration.",
+    );
   }
 
   const itfEmployerNumber = input.itfEmployerNumber.trim();
@@ -1871,6 +1874,7 @@ export async function recordLegacyRegistration(input: RecordLegacyRegistrationIn
       id: true,
       legalName: true,
       organizationId: true,
+      areaOfficeId: true,
       itfEmployerNumber: true,
       status: true,
       organization: {
@@ -1896,6 +1900,10 @@ export async function recordLegacyRegistration(input: RecordLegacyRegistrationIn
     throw new Error("This company already has ITF registration recorded.");
   }
 
+  if (input.requesterRole === "REVENUE_ACCOUNTANT" && !company.areaOfficeId) {
+    throw new Error("Select the company's Area Office before Revenue Accountant legacy onboarding.");
+  }
+
   if (
     company.registrationApplication &&
     company.registrationApplication.status !== "DRAFT" &&
@@ -1913,6 +1921,11 @@ export async function recordLegacyRegistration(input: RecordLegacyRegistrationIn
       },
       select: {
         id: true,
+        memberships: {
+          select: {
+            areaOfficeId: true,
+          },
+        },
       },
     }),
     db.company.findFirst({
@@ -1931,6 +1944,15 @@ export async function recordLegacyRegistration(input: RecordLegacyRegistrationIn
 
   if (!actor) {
     throw new Error("User account was not found.");
+  }
+
+  if (
+    input.requesterRole === "REVENUE_ACCOUNTANT" &&
+    !actor.memberships.some((membership) => membership.areaOfficeId === company.areaOfficeId)
+  ) {
+    throw new Error(
+      "Revenue Accountant can only onboard legacy employers in their assigned Area Office.",
+    );
   }
 
   if (duplicateCompany) {

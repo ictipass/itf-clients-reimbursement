@@ -1398,3 +1398,23 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/registration/actions.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture and workflow docs
+
+### Slice 65: Area Office Scoped Legacy Employer Onboarding
+
+Goal: allow Area Office Revenue Accountants to help onboard legacy registered employers within their own jurisdiction.
+
+Expected design:
+
+- Add Revenue Accountant to the legacy onboarding action
+- Require the company to have an Area Office before RA legacy onboarding
+- Allow RA onboarding only when the user's membership is assigned to the company's Area Office
+- Keep Headquarters and system administrator override access unchanged
+- Preserve duplicate ITF employer number prevention
+- Preserve current-year compliance draft creation
+- Preserve the audit decision trail
+
+Expected files:
+
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- architecture and workflow docs
