@@ -94,6 +94,14 @@ export type CompleteRegistrationAtHeadquartersInput = {
   note?: string;
 };
 
+export type RecordLegacyRegistrationInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  itfEmployerNumber: string;
+  note: string;
+};
+
 const recommendationReleaseChannels = ["DASHBOARD", "DASHBOARD_AND_EMAIL"] as const;
 
 type RecommendationReleaseChannel = (typeof recommendationReleaseChannels)[number];
@@ -124,6 +132,15 @@ function getRegistrationWorkItemSourceKey(registrationApplicationId: string, des
   return desk === "AREA_MANAGER"
     ? `registration:${registrationApplicationId}:area-manager-review`
     : `registration:${registrationApplicationId}:${desk.toLowerCase()}`;
+}
+
+function canRecordLegacyRegistration(role: Role) {
+  return (
+    role === "SYSTEM_ADMIN" ||
+    role === "WORKSPACE_APP_ADMIN" ||
+    role === "DIRECTOR_FSD" ||
+    role === "HEAD_OF_DIVISION"
+  );
 }
 
 export async function submitRegistrationApplication(input: SubmitRegistrationApplicationInput) {
@@ -1820,5 +1837,189 @@ export async function completeRegistrationAtHeadquarters(
     });
 
     return updated;
+  });
+}
+
+export async function recordLegacyRegistration(input: RecordLegacyRegistrationInput) {
+  if (!can(input.requesterRole, "registry:review") && !can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to record legacy employer registration.");
+  }
+
+  if (!canRecordLegacyRegistration(input.requesterRole)) {
+    throw new Error("Only authorized Headquarters or system administrators can record legacy registration.");
+  }
+
+  const itfEmployerNumber = input.itfEmployerNumber.trim();
+  const note = input.note.trim();
+
+  if (!itfEmployerNumber) {
+    throw new Error("ITF employer number is required.");
+  }
+
+  if (!note) {
+    throw new Error("A legacy onboarding note is required.");
+  }
+
+  const db = getDb();
+  const company = await db.company.findFirst({
+    where: {
+      id: input.companyId,
+      recordTier: "HOT",
+      isActive: true,
+    },
+    select: {
+      id: true,
+      legalName: true,
+      organizationId: true,
+      itfEmployerNumber: true,
+      status: true,
+      organization: {
+        select: {
+          workspaceId: true,
+        },
+      },
+      registrationApplication: {
+        select: {
+          id: true,
+          status: true,
+          currentDesk: true,
+        },
+      },
+    },
+  });
+
+  if (!company) {
+    throw new Error("Company was not found.");
+  }
+
+  if (company.itfEmployerNumber || company.status === "ACTIVE") {
+    throw new Error("This company already has ITF registration recorded.");
+  }
+
+  if (
+    company.registrationApplication &&
+    company.registrationApplication.status !== "DRAFT" &&
+    company.registrationApplication.status !== "CHANGES_REQUESTED"
+  ) {
+    throw new Error(
+      "This company already has an active registration workflow. Complete or resolve that workflow instead.",
+    );
+  }
+
+  const [actor, duplicateCompany] = await Promise.all([
+    db.user.findUnique({
+      where: {
+        email: input.requesterEmail,
+      },
+      select: {
+        id: true,
+      },
+    }),
+    db.company.findFirst({
+      where: {
+        id: {
+          not: company.id,
+        },
+        itfEmployerNumber,
+        recordTier: "HOT",
+      },
+      select: {
+        legalName: true,
+      },
+    }),
+  ]);
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  if (duplicateCompany) {
+    throw new Error(
+      `ITF employer number is already recorded for ${duplicateCompany.legalName}.`,
+    );
+  }
+
+  const recordedAt = new Date();
+  const complianceYear = recordedAt.getFullYear();
+
+  return db.$transaction(async (tx) => {
+    await tx.company.update({
+      where: {
+        id: company.id,
+      },
+      data: {
+        itfEmployerNumber,
+        status: "ACTIVE",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (company.registrationApplication) {
+      await tx.registrationApplication.update({
+        where: {
+          id: company.registrationApplication.id,
+        },
+        data: {
+          status: "APPROVED",
+          currentDesk: "COMPANY",
+          completedAt: recordedAt,
+        },
+        select: {
+          id: true,
+        },
+      });
+    }
+
+    await tx.complianceYear.upsert({
+      where: {
+        companyId_year: {
+          companyId: company.id,
+          year: complianceYear,
+        },
+      },
+      create: {
+        companyId: company.id,
+        year: complianceYear,
+        status: "DRAFT",
+      },
+      update: {},
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: company.id,
+        registrationApplicationId: company.registrationApplication?.id,
+        action: "CERTIFY",
+        reason: [
+          `Recorded legacy ITF employer number: ${itfEmployerNumber}`,
+          `Opened ${complianceYear} annual compliance filing`,
+          note,
+        ].join(": "),
+      },
+    });
+
+    if (company.registrationApplication) {
+      await tx.workItem.updateMany({
+        where: {
+          registrationApplicationId: company.registrationApplication.id,
+          status: {
+            in: ["OPEN", "ACKNOWLEDGED"],
+          },
+        },
+        data: {
+          status: "RESOLVED",
+          resolvedAt: recordedAt,
+        },
+      });
+    }
+
+    return {
+      companyId: company.id,
+      complianceYear,
+      itfEmployerNumber,
+    };
   });
 }

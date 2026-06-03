@@ -1377,3 +1377,24 @@ Expected files:
 
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture and workflow docs
+
+### Slice 64: Legacy Registered Employer Onboarding Action
+
+Goal: let authorized ITF users record employers that registered with ITF before the portal existed.
+
+Expected design:
+
+- Add a legacy registration action for System Admin, Workspace App Admin, Director FSD, and Head of Reimbursement Division
+- Require an existing ITF employer number and onboarding note
+- Prevent duplicate ITF employer numbers
+- Activate the company after the legacy number is recorded
+- Automatically open the current-year compliance filing as a draft
+- Record the action in the decision trail for audit visibility
+- Do not create a standalone registration certificate
+
+Expected files:
+
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/registration/actions.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- architecture and workflow docs

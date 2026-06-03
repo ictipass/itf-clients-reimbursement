@@ -18,6 +18,7 @@ import {
   confirmRegistrationContributionAction,
   forwardRegistrationToDivisionAction,
   notifyRegistrationHeadquartersAction,
+  recordLegacyRegistrationAction,
   releaseRegistrationContributionAction,
   reviewRegistrationContributionReceiptAction,
   routeRegistrationApplicationAction,
@@ -280,6 +281,15 @@ function canActAsTrainingPlanDesk(role: Role, desk: string | null | undefined) {
   return false;
 }
 
+function canRecordLegacyRegistrationRole(role: Role) {
+  return (
+    role === "SYSTEM_ADMIN" ||
+    role === "WORKSPACE_APP_ADMIN" ||
+    role === "DIRECTOR_FSD" ||
+    role === "HEAD_OF_DIVISION"
+  );
+}
+
 function getAvailableTrainingPlanTransitions(currentDesk: string, status: string) {
   if (status !== "SUBMITTED" && status !== "IN_REVIEW") {
     return [] as const;
@@ -414,6 +424,12 @@ export default async function CompanyDetailPage({
     registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
     registrationApplication.status === "IN_REVIEW" &&
     canActAsDesk(activeRole, "HEAD_OF_DIVISION");
+  const canRecordLegacyRegistration =
+    !company.itfEmployerNumber &&
+    canRecordLegacyRegistrationRole(activeRole) &&
+    (!registrationApplication ||
+      registrationApplication.status === "DRAFT" ||
+      registrationApplication.status === "CHANGES_REQUESTED");
   const canCreateComplianceYear = Boolean(company.itfEmployerNumber);
   const hasVisibleRegistrationActions =
     canSubmitRegistration ||
@@ -425,7 +441,8 @@ export default async function CompanyDetailPage({
     canAssessContribution ||
     canUploadReceipt ||
     canForwardToDivision ||
-    canCompleteAtHeadquarters;
+    canCompleteAtHeadquarters ||
+    canRecordLegacyRegistration;
   const newCompanySteps = [
     {
       title: "Company profile",
@@ -836,6 +853,44 @@ export default async function CompanyDetailPage({
             </span>
             .
           </p>
+        ) : null}
+        {canRecordLegacyRegistration ? (
+          <ActionGroup
+            title="Legacy registration action"
+            description="Record an existing ITF employer number for a company that registered before the portal, then open the current annual compliance filing."
+            isAdminOverride={adminOverride}
+          >
+            <form
+              action={recordLegacyRegistrationAction.bind(null, company.id)}
+              className="grid gap-4"
+            >
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                  Existing ITF employer number
+                  <input
+                    name="itfEmployerNumber"
+                    required
+                    className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+                  />
+                </label>
+              </div>
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Onboarding note
+                <textarea
+                  name="note"
+                  rows={3}
+                  required
+                  placeholder="Record the source or reason for treating this company as already registered."
+                  className="rounded-md border border-zinc-200 bg-white px-3 py-2"
+                />
+              </label>
+              <div>
+                <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                  Record existing ITF number
+                </button>
+              </div>
+            </form>
+          </ActionGroup>
         ) : null}
         {canRouteRegistration && company.registrationApplication ? (
           <ActionGroup

@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 61: Registration-to-Compliance UX Guide
+- Slice 64: Legacy Registered Employer Onboarding Action
 
 Recent completed slices include:
 
@@ -17,11 +17,14 @@ Recent completed slices include:
 - Slice 59: Registration RA direct correction return
 - Slice 60: Evidence soft delete
 - Slice 61: Registration-to-compliance UX guide and friendly compliance-blocked feedback
+- Slice 63: Registered company compliance continuation path
+- Slice 64: Legacy registered employer onboarding action
 
 ## Important Current Rules
 
 - New companies must complete registration before compliance filing.
 - Registration completion assigns the ITF employer number and opens the current-year compliance draft.
+- Legacy registered employers can be activated by authorized ITF users by recording the existing ITF employer number with an audit note.
 - Annual compliance certificates, not registration certificates, are the downloadable certificate path.
 - Training Plan and L&D submission requires approved/certified compliance for that training year.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.

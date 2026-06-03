@@ -14,6 +14,7 @@ import {
   getRecommendationReleaseChannels,
   getRegistrationReceiptReviewActions,
   notifyRegistrationHeadquarters,
+  recordLegacyRegistration,
   releaseRegistrationContribution,
   reviewRegistrationContributionReceipt,
   routeRegistrationApplication,
@@ -276,6 +277,27 @@ export async function completeRegistrationAtHeadquartersAction(
     requesterRole: session.user.role,
     itfEmployerNumberId: readRequiredString(formData, "itfEmployerNumberId"),
     note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath(`/dashboard`);
+  revalidatePath(`/registry`);
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+export async function recordLegacyRegistrationAction(companyId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await recordLegacyRegistration({
+    companyId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    itfEmployerNumber: readRequiredString(formData, "itfEmployerNumber"),
+    note: readRequiredString(formData, "note"),
   });
 
   revalidatePath(`/dashboard`);
