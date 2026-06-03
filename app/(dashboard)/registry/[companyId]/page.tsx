@@ -25,6 +25,7 @@ import {
   submitRegistrationApplicationAction,
   uploadRegistrationContributionReceiptAction,
 } from "@/app/(dashboard)/registry/[companyId]/registration/actions";
+import { RegistrationSubmissionFields } from "@/app/(dashboard)/registry/[companyId]/registration/RegistrationSubmissionFields";
 import { authOptions } from "@/lib/auth";
 import { listAvailableManagedNumbers } from "@/lib/managed-numbers";
 import { can, type Role } from "@/lib/rbac";
@@ -1496,28 +1497,14 @@ export default async function CompanyDetailPage({
             action={submitRegistrationApplicationAction.bind(null, company.id)}
             className="mt-4 grid gap-4 border-t border-zinc-100 pt-4"
           >
-            <div className="grid gap-3 md:grid-cols-2">
-              <label className="grid gap-2 text-sm font-medium text-zinc-700">
-                Registration type
-                <select
-                  name="registrationKind"
-                  defaultValue={company.registrationApplication?.registrationKind ?? "NEW_EMPLOYER"}
-                  required
-                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
-                >
-                  <option value="NEW_EMPLOYER">New employer registration</option>
-                  <option value="LEGACY_EMPLOYER">Already registered with ITF</option>
-                </select>
-              </label>
-              <label className="grid gap-2 text-sm font-medium text-zinc-700">
-                Existing ITF registration number
-                <input
-                  name="claimedItfEmployerNumber"
-                  defaultValue={company.registrationApplication?.claimedItfEmployerNumber ?? ""}
-                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
-                />
-              </label>
-            </div>
+            <RegistrationSubmissionFields
+              initialRegistrationKind={
+                company.registrationApplication?.registrationKind ?? "NEW_EMPLOYER"
+              }
+              initialClaimedItfEmployerNumber={
+                company.registrationApplication?.claimedItfEmployerNumber ?? ""
+              }
+            />
             <div>
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 {company.registrationApplication ? "Resubmit registration" : "Submit registration"}

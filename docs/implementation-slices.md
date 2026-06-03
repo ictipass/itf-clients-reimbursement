@@ -1428,6 +1428,7 @@ Expected design:
 - Add registration application type: new employer or legacy employer
 - Store the legacy employer's claimed ITF registration number separately from the confirmed company ITF employer number
 - Require a claimed ITF registration number when the employer selects the legacy path
+- Disable the claimed ITF registration number field when the employer selects the new-registration path
 - Keep new employer registration behavior unchanged
 - Show registration type and claimed ITF number on the company detail workflow card
 - Route submitted legacy packages into the existing Area Office registration review queue
