@@ -29,7 +29,7 @@ import {
 import { RegistrationSubmissionFields } from "@/app/(dashboard)/registry/[companyId]/registration/RegistrationSubmissionFields";
 import { authOptions } from "@/lib/auth";
 import { listAvailableManagedNumbers } from "@/lib/managed-numbers";
-import { can, type Role } from "@/lib/rbac";
+import { can, canManageAnnualCompliance, type Role } from "@/lib/rbac";
 import { getEmployerCompany } from "@/lib/registry";
 
 function formatDate(date: Date | null) {
@@ -161,6 +161,20 @@ const trainingPlanTransitionLabels = {
   hot_to_am: "Return to AM",
   am_to_company: "Request employer correction",
 } as const;
+
+function getRoleAvailableComplianceTransitions(
+  status: string,
+  role: Role,
+  adminOverride: boolean,
+) {
+  return getAvailableTransitions(status).filter((transition) => {
+    if (transition === "submit") {
+      return isEmployerRole(role) || adminOverride;
+    }
+
+    return canManageAnnualCompliance(role);
+  });
+}
 
 function getAvailableTransitions(status: string) {
   if (status === "DRAFT" || status === "CHANGES_REQUESTED") {
@@ -356,8 +370,7 @@ export default async function CompanyDetailPage({
   const registrationState = company.itfEmployerNumber
     ? "Registered with ITF"
     : "Not yet registered with ITF";
-  const canGenerateComplianceCertificate =
-    can(activeRole, "workspace:manage") || can(activeRole, "compliance:review");
+  const canManageComplianceCertificate = canManageAnnualCompliance(activeRole);
   const availableItfEmployerNumbers =
     company.registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
     company.registrationApplication.status === "IN_REVIEW"
@@ -368,7 +381,7 @@ export default async function CompanyDetailPage({
         })
       : [];
   const availableComplianceCertificateNumbers =
-    can(activeRole, "compliance:review")
+    canManageComplianceCertificate
       ? await listAvailableManagedNumbers({
           requesterRole: activeRole,
           workspaceId: company.organization.workspaceId,
@@ -1382,7 +1395,7 @@ export default async function CompanyDetailPage({
                           >
                             View certificate
                           </Link>
-                          {canGenerateComplianceCertificate ? (
+                          {canManageComplianceCertificate ? (
                             <form
                               action={generateComplianceCertificatePdfAction.bind(
                                 null,
@@ -1401,7 +1414,7 @@ export default async function CompanyDetailPage({
                           <p className="font-medium">
                             Certificate PDF is pending generation.
                           </p>
-                          {canGenerateComplianceCertificate ? (
+                          {canManageComplianceCertificate ? (
                             <form
                               action={generateComplianceCertificatePdfAction.bind(
                                 null,
@@ -1444,7 +1457,11 @@ export default async function CompanyDetailPage({
                       Upload evidence
                     </Link>
                   </div>
-                  {getAvailableTransitions(complianceYear.status).length > 0 ? (
+                  {getRoleAvailableComplianceTransitions(
+                    complianceYear.status,
+                    activeRole,
+                    adminOverride,
+                  ).length > 0 ? (
                     <form
                       action={updateComplianceYearStatusAction.bind(
                         null,
@@ -1461,20 +1478,26 @@ export default async function CompanyDetailPage({
                         />
                       </label>
                       <div className="flex flex-wrap gap-2">
-                        {getAvailableTransitions(complianceYear.status).map((transition) => (
-                          <button
-                            key={transition}
-                            name="transition"
-                            value={transition}
-                            className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-900"
-                          >
-                            {transitionLabels[transition]}
-                          </button>
-                        ))}
+                        {getRoleAvailableComplianceTransitions(
+                          complianceYear.status,
+                          activeRole,
+                          adminOverride,
+                        ).map((transition) => (
+                            <button
+                              key={transition}
+                              name="transition"
+                              value={transition}
+                              className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-900"
+                            >
+                              {transitionLabels[transition]}
+                            </button>
+                          ))}
                       </div>
                     </form>
                   ) : null}
-                  {complianceYear.status === "APPROVED" && !complianceYear.certificate ? (
+                  {canManageComplianceCertificate &&
+                  complianceYear.status === "APPROVED" &&
+                  !complianceYear.certificate ? (
                     <form
                       action={issueComplianceCertificateAction.bind(
                         null,

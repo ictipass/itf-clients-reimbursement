@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { can, type Role } from "@/lib/rbac";
+import { can, canManageAnnualCompliance, type Role } from "@/lib/rbac";
 
 const managedNumberTypes = [
   "ITF_EMPLOYER_NUMBER",
@@ -114,7 +114,11 @@ export async function listManagedNumbers(input: { requesterRole: Role }) {
 }
 
 export async function listAvailableManagedNumbers(input: ListAvailableManagedNumbersInput) {
-  if (!can(input.requesterRole, "registry:review") && !can(input.requesterRole, "compliance:review")) {
+  if (
+    !can(input.requesterRole, "registry:review") &&
+    !can(input.requesterRole, "compliance:review") &&
+    !canManageAnnualCompliance(input.requesterRole)
+  ) {
     throw new Error("You do not have permission to select managed numbers.");
   }
 

@@ -1,6 +1,6 @@
 import { getDb } from "@/lib/db";
 import { getVerificationUrl, renderQrPng } from "@/lib/qr";
-import { can, isItfRole, type Role } from "@/lib/rbac";
+import { can, canManageAnnualCompliance, isItfRole, type Role } from "@/lib/rbac";
 import { downloadObject, uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
@@ -850,7 +850,7 @@ export async function generateRegistrationCertificatePdf(
 export async function generateComplianceCertificatePdf(
   input: GenerateComplianceCertificatePdfInput,
 ) {
-  if (!can(input.requesterRole, "workspace:manage") && !can(input.requesterRole, "compliance:review")) {
+  if (!canManageAnnualCompliance(input.requesterRole)) {
     throw new Error("You do not have permission to generate compliance certificates.");
   }
 

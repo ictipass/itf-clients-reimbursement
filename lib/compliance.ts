@@ -3,7 +3,7 @@ import {
   findActiveCertificateTemplate,
   generateComplianceCertificatePdf,
 } from "@/lib/certificates";
-import { can, isItfRole, type Role } from "@/lib/rbac";
+import { can, canManageAnnualCompliance, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 
@@ -337,7 +337,17 @@ function resolveTransition(transition: ComplianceTransition) {
 export async function updateComplianceYearStatus(input: UpdateComplianceYearStatusInput) {
   const transition = resolveTransition(input.transition);
 
-  if (!can(input.requesterRole, transition.permission)) {
+  if (
+    transition.permission === "compliance:review" &&
+    !canManageAnnualCompliance(input.requesterRole)
+  ) {
+    throw new Error("Only Head of Division or HQ Revenue Accountant can review compliance returns.");
+  }
+
+  if (
+    transition.permission !== "compliance:review" &&
+    !can(input.requesterRole, transition.permission)
+  ) {
     throw new Error("You do not have permission to update this compliance return.");
   }
 
@@ -431,8 +441,8 @@ export async function updateComplianceYearStatus(input: UpdateComplianceYearStat
 }
 
 export async function issueComplianceCertificate(input: IssueComplianceCertificateInput) {
-  if (!can(input.requesterRole, "compliance:review")) {
-    throw new Error("You do not have permission to issue compliance certificates.");
+  if (!canManageAnnualCompliance(input.requesterRole)) {
+    throw new Error("Only Head of Division or HQ Revenue Accountant can issue compliance certificates.");
   }
 
   const db = getDb();

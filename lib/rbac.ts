@@ -110,6 +110,15 @@ export function can(role: Role, permission: Permission) {
   return permissionsByRole[role].includes(permission);
 }
 
+export function canManageAnnualCompliance(role: Role) {
+  return (
+    role === "SYSTEM_ADMIN" ||
+    role === "WORKSPACE_APP_ADMIN" ||
+    role === "HEAD_OF_DIVISION" ||
+    role === "HQ_REIMBURSEMENT_OFFICER"
+  );
+}
+
 export function isItfRole(role: Role) {
   return (
     role.startsWith("ITF_") ||

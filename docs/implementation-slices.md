@@ -1466,3 +1466,25 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/registration/actions.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture and workflow docs
+
+### Slice 68: HQ-Only Annual Compliance Certification
+
+Goal: prevent Area Office roles from approving annual compliance returns or issuing annual compliance certificates.
+
+Expected design:
+
+- Restrict annual compliance review transitions to Head of Reimbursement Division, HQ reimbursement/accountant role, and system/workspace administrators
+- Restrict annual compliance certificate issuance to the same HQ/system roles
+- Restrict compliance certificate PDF generation/regeneration to the same HQ/system roles
+- Hide review, issue, and certificate-number controls from Area Office roles
+- Keep employer compliance submission available to employer users
+- Preserve existing evidence upload behavior
+
+Expected files:
+
+- `lib/rbac.ts`
+- `lib/compliance.ts`
+- `lib/certificates.ts`
+- `lib/managed-numbers.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- architecture and workflow docs

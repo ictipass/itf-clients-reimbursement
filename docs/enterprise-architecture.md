@@ -144,6 +144,8 @@ Legacy employer validation is reviewed at the Area Office Revenue Accountant des
 
 The ITF employer number is the permanent registration number. Certificate numbers belong to annual compliance certificates, not the one-time registration event. Annual compliance certificates are tied to `ComplianceYear` records and can be issued only after compliance approval.
 
+Annual compliance review and certificate issuance are Headquarters-controlled responsibilities. Head of Reimbursement Division and the HQ reimbursement/accountant role can review annual compliance returns and issue annual compliance certificates. Area Office roles can participate in earlier registration and local workflows but cannot approve annual compliance returns or issue compliance certificates.
+
 Training Plan and L&D submissions are gated by annual compliance. A company can create, upload evidence for, or submit a Training Plan package only for a year where its compliance return has been approved and an annual compliance certificate has been issued. The company detail page also disables the current-year Training Plan entry point until the current-year compliance certificate exists.
 
 When an annual compliance certificate number is issued, the app attempts to generate the downloadable compliance certificate PDF immediately using the active certificate template, configured placement metadata, active signature assets, and QR-code verification URL. The generated PDF is stored as a private `CERTIFICATE` document linked to the `ComplianceCertificate`. A manual generate/regenerate action remains available to authorized ITF users as a fallback if certificate assets or storage configuration need correction.
