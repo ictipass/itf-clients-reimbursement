@@ -90,6 +90,8 @@ export async function getEmployerCompany(companyId: string) {
         select: {
           id: true,
           status: true,
+          registrationKind: true,
+          claimedItfEmployerNumber: true,
           currentDesk: true,
           submittedAt: true,
           completedAt: true,

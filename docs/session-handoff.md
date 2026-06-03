@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 65: Area Office Scoped Legacy Employer Onboarding
+- Slice 66: Employer Onboarding Type Selection
 
 Recent completed slices include:
 
@@ -20,6 +20,7 @@ Recent completed slices include:
 - Slice 63: Registered company compliance continuation path
 - Slice 64: Legacy registered employer onboarding action
 - Slice 65: Area Office scoped legacy employer onboarding for Revenue Accountants
+- Slice 66: Employer onboarding type selection for new vs legacy registration submissions
 
 ## Important Current Rules
 
@@ -27,6 +28,7 @@ Recent completed slices include:
 - Registration completion assigns the ITF employer number and opens the current-year compliance draft.
 - Legacy registered employers can be activated by authorized ITF users by recording the existing ITF employer number with an audit note.
 - Area Office Revenue Accountants can record legacy ITF employer numbers only for companies in their assigned Area Office.
+- Employer-submitted legacy registrations store the claimed ITF number on the registration application until ITF validates it.
 - Annual compliance certificates, not registration certificates, are the downloadable certificate path.
 - Training Plan and L&D submission requires approved/certified compliance for that training year.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.

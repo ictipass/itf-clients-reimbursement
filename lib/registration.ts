@@ -7,7 +7,13 @@ export type SubmitRegistrationApplicationInput = {
   companyId: string;
   requesterEmail: string;
   requesterRole: Role;
+  registrationKind: RegistrationApplicationKind;
+  claimedItfEmployerNumber?: string;
 };
+
+const registrationApplicationKinds = ["NEW_EMPLOYER", "LEGACY_EMPLOYER"] as const;
+
+export type RegistrationApplicationKind = (typeof registrationApplicationKinds)[number];
 
 const registrationDeskTransitions = [
   "am_to_horic",
@@ -114,6 +120,10 @@ export function getRegistrationDeskTransitions() {
   return registrationDeskTransitions;
 }
 
+export function getRegistrationApplicationKinds() {
+  return registrationApplicationKinds;
+}
+
 export function getRegistrationReceiptReviewActions() {
   return registrationReceiptReviewActions;
 }
@@ -149,6 +159,12 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
     throw new Error("You do not have permission to submit company registration.");
   }
 
+  const claimedItfEmployerNumber = input.claimedItfEmployerNumber?.trim();
+
+  if (input.registrationKind === "LEGACY_EMPLOYER" && !claimedItfEmployerNumber) {
+    throw new Error("Existing ITF registration number is required for legacy employer validation.");
+  }
+
   const db = getDb();
   const company = await db.company.findFirst({
     where: {
@@ -172,6 +188,7 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
         select: {
           id: true,
           status: true,
+          registrationKind: true,
           correctionReturnDesk: true,
         },
       },
@@ -191,6 +208,27 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
   }
 
   const areaOfficeId = company.areaOfficeId;
+
+  if (claimedItfEmployerNumber) {
+    const duplicateCompany = await db.company.findFirst({
+      where: {
+        id: {
+          not: company.id,
+        },
+        itfEmployerNumber: claimedItfEmployerNumber,
+        recordTier: "HOT",
+      },
+      select: {
+        legalName: true,
+      },
+    });
+
+    if (duplicateCompany) {
+      throw new Error(
+        `This ITF employer number is already recorded for ${duplicateCompany.legalName}.`,
+      );
+    }
+  }
 
   if (
     company.registrationApplication &&
@@ -230,18 +268,23 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
     const targetDesk = normalizeRegistrationReviewDesk(
       company.registrationApplication?.correctionReturnDesk,
     );
+    const isLegacySubmission = input.registrationKind === "LEGACY_EMPLOYER";
     const workItemTitle =
       targetDesk === "REVENUE_ACCOUNTANT"
         ? "Resume registration contribution assessment"
         : targetDesk === "HORIC"
           ? "Resume employer registration review"
-          : "Review employer registration";
+          : isLegacySubmission
+            ? "Review legacy employer validation"
+            : "Review employer registration";
     const workItemSummary =
       targetDesk === "REVENUE_ACCOUNTANT"
         ? `${company.legalName} resubmitted registration corrections for Revenue Accountant review.`
         : targetDesk === "HORIC"
           ? `${company.legalName} resubmitted registration corrections for HORIC review.`
-          : `${company.legalName} submitted Form 7A registration for Area Manager review.`;
+          : isLegacySubmission
+            ? `${company.legalName} submitted legacy ITF registration number ${claimedItfEmployerNumber} for Area Manager review.`
+            : `${company.legalName} submitted Form 7A registration for Area Manager review.`;
     const registrationApplication = company.registrationApplication
       ? await tx.registrationApplication.update({
           where: {
@@ -250,6 +293,9 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
           data: {
             areaOfficeId,
             submittedById: requester.id,
+            registrationKind: input.registrationKind,
+            claimedItfEmployerNumber:
+              input.registrationKind === "LEGACY_EMPLOYER" ? claimedItfEmployerNumber : null,
             status: "SUBMITTED",
             currentDesk: targetDesk,
             correctionReturnDesk: null,
@@ -264,6 +310,9 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
             companyId: company.id,
             areaOfficeId,
             submittedById: requester.id,
+            registrationKind: input.registrationKind,
+            claimedItfEmployerNumber:
+              input.registrationKind === "LEGACY_EMPLOYER" ? claimedItfEmployerNumber : null,
             status: "SUBMITTED",
             currentDesk: "AREA_MANAGER",
             submittedAt: new Date(),

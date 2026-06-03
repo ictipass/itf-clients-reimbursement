@@ -1418,3 +1418,27 @@ Expected files:
 - `lib/registration.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture and workflow docs
+
+### Slice 66: Employer Onboarding Type Selection
+
+Goal: let employers choose whether they are registering as new employers or submitting an already registered ITF number for validation.
+
+Expected design:
+
+- Add registration application type: new employer or legacy employer
+- Store the legacy employer's claimed ITF registration number separately from the confirmed company ITF employer number
+- Require a claimed ITF registration number when the employer selects the legacy path
+- Keep new employer registration behavior unchanged
+- Show registration type and claimed ITF number on the company detail workflow card
+- Route submitted legacy packages into the existing Area Office registration review queue
+- Avoid activating legacy companies until a later validation slice approves the claim
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/registration.ts`
+- `lib/registry.ts`
+- `app/(dashboard)/registry/[companyId]/registration/actions.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- architecture and workflow docs

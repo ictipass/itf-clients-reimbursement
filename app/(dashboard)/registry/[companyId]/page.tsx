@@ -184,6 +184,14 @@ function formatDesk(value: string | null | undefined) {
   return value.replaceAll("_", " ");
 }
 
+function formatRegistrationKind(value: string | null | undefined) {
+  if (value === "LEGACY_EMPLOYER") {
+    return "Already registered with ITF";
+  }
+
+  return "New employer registration";
+}
+
 function getAvailableRegistrationTransitions(
   currentDesk: string,
   status: string,
@@ -671,6 +679,24 @@ export default async function CompanyDetailPage({
         </div>
         {company.registrationApplication ? (
           <div className="mt-4 grid gap-3 border-t border-zinc-100 pt-4 text-sm md:grid-cols-3">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                Registration type
+              </p>
+              <p className="mt-1 font-medium text-zinc-950">
+                {formatRegistrationKind(company.registrationApplication.registrationKind)}
+              </p>
+            </div>
+            {company.registrationApplication.claimedItfEmployerNumber ? (
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                  Claimed ITF number
+                </p>
+                <p className="mt-1 font-medium text-zinc-950">
+                  {company.registrationApplication.claimedItfEmployerNumber}
+                </p>
+              </div>
+            ) : null}
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
                 Submitted by
@@ -1468,11 +1494,35 @@ export default async function CompanyDetailPage({
           </div>
           <form
             action={submitRegistrationApplicationAction.bind(null, company.id)}
-            className="mt-4 border-t border-zinc-100 pt-4"
+            className="mt-4 grid gap-4 border-t border-zinc-100 pt-4"
           >
-            <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-              {company.registrationApplication ? "Resubmit registration" : "Submit registration"}
-            </button>
+            <div className="grid gap-3 md:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Registration type
+                <select
+                  name="registrationKind"
+                  defaultValue={company.registrationApplication?.registrationKind ?? "NEW_EMPLOYER"}
+                  required
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+                >
+                  <option value="NEW_EMPLOYER">New employer registration</option>
+                  <option value="LEGACY_EMPLOYER">Already registered with ITF</option>
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Existing ITF registration number
+                <input
+                  name="claimedItfEmployerNumber"
+                  defaultValue={company.registrationApplication?.claimedItfEmployerNumber ?? ""}
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+                />
+              </label>
+            </div>
+            <div>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                {company.registrationApplication ? "Resubmit registration" : "Submit registration"}
+              </button>
+            </div>
           </form>
         </section>
       ) : null}

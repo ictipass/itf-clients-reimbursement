@@ -87,6 +87,11 @@ enum WorkflowStatus {
   ARCHIVED
 }
 
+enum RegistrationApplicationKind {
+  NEW_EMPLOYER
+  LEGACY_EMPLOYER
+}
+
 enum RegistrationDesk {
   COMPANY
   AREA_MANAGER
@@ -357,6 +362,8 @@ model RegistrationApplication {
   companyId              String                              @unique
   areaOfficeId           String
   submittedById          String?
+  registrationKind       RegistrationApplicationKind          @default(NEW_EMPLOYER)
+  claimedItfEmployerNumber String?
   status                 WorkflowStatus                      @default(DRAFT)
   currentDesk            RegistrationDesk                    @default(COMPANY)
   correctionReturnDesk   RegistrationDesk?
@@ -375,6 +382,7 @@ model RegistrationApplication {
   certificate            RegistrationCertificate?
 
   @@index([areaOfficeId, currentDesk, status, recordTier])
+  @@index([registrationKind, status, recordTier])
   @@index([submittedById, recordTier])
 }
 

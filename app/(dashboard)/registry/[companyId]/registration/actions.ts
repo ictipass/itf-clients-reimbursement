@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 import {
   assessRegistrationContribution,
   completeRegistrationAtHeadquarters,
+  getRegistrationApplicationKinds,
   confirmRegistrationContribution,
   forwardRegistrationToDivision,
   getRegistrationDeskTransitions,
@@ -21,12 +22,13 @@ import {
   submitRegistrationApplication,
   uploadRegistrationContributionReceipt,
   type RegistrationReceiptReviewAction,
+  type RegistrationApplicationKind,
   type RegistrationDeskTransition,
 } from "@/lib/registration";
 
 type RecommendationReleaseChannel = ReturnType<typeof getRecommendationReleaseChannels>[number];
 
-export async function submitRegistrationApplicationAction(companyId: string) {
+export async function submitRegistrationApplicationAction(companyId: string, formData: FormData) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.email) {
@@ -37,6 +39,8 @@ export async function submitRegistrationApplicationAction(companyId: string) {
     companyId,
     requesterEmail: session.user.email,
     requesterRole: session.user.role,
+    registrationKind: readRegistrationApplicationKind(formData),
+    claimedItfEmployerNumber: readOptionalString(formData, "claimedItfEmployerNumber"),
   });
 
   revalidatePath(`/dashboard`);
@@ -64,6 +68,17 @@ function readDeskTransition(formData: FormData): RegistrationDeskTransition {
   }
 
   return value as RegistrationDeskTransition;
+}
+
+function readRegistrationApplicationKind(formData: FormData): RegistrationApplicationKind {
+  const value = readOptionalString(formData, "registrationKind") ?? "NEW_EMPLOYER";
+  const kinds = getRegistrationApplicationKinds();
+
+  if (!kinds.includes(value as RegistrationApplicationKind)) {
+    throw new Error("Unsupported registration type.");
+  }
+
+  return value as RegistrationApplicationKind;
 }
 
 export async function routeRegistrationApplicationAction(companyId: string, formData: FormData) {
