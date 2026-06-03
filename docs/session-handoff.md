@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 68: HQ-Only Annual Compliance Certification
+- Slice 69: Compliance Filing Awareness and HQ Review Queue
 
 Recent completed slices include:
 
@@ -23,6 +23,7 @@ Recent completed slices include:
 - Slice 66: Employer onboarding type selection for new vs legacy registration submissions
 - Slice 67: Legacy employer validation workflow at Revenue Accountant desk
 - Slice 68: HQ-only annual compliance review and certificate issuance
+- Slice 69: Compliance filing awareness for Area Office and HQ review work queue
 
 ## Important Current Rules
 
@@ -33,6 +34,7 @@ Recent completed slices include:
 - Employer-submitted legacy registrations store the claimed ITF number on the registration application until ITF validates it.
 - Validating an employer-submitted legacy claim activates the company, records the ITF employer number, and opens the current-year compliance draft.
 - Annual compliance review and certificate issuance are restricted to Head of Reimbursement Division, HQ reimbursement/accountant role, and system/workspace administrators.
+- Annual compliance submission creates awareness work items for AM, HORIC, and RA in the company's Area Office, plus actionable HQ review items for HOD and HQ reimbursement/accountant role.
 - Annual compliance certificates, not registration certificates, are the downloadable certificate path.
 - Training Plan and L&D submission requires approved/certified compliance for that training year.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.

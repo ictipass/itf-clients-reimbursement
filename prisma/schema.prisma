@@ -152,6 +152,8 @@ enum WorkItemKind {
   REGISTRATION_AREA_OFFICE_REVIEW
   REGISTRATION_RECEIPT_REVIEW
   REGISTRATION_HQ_NOTIFICATION
+  COMPLIANCE_AWARENESS
+  COMPLIANCE_REVIEW
   TRAINING_PLAN_REVIEW
 }
 
@@ -563,6 +565,7 @@ model ComplianceYear {
   decisions               Decision[]
   comments                Comment[]
   certificate             ComplianceCertificate?
+  workItems               WorkItem[]
 
   @@unique([companyId, year])
   @@index([companyId, status, recordTier])
@@ -869,6 +872,7 @@ model WorkItem {
   areaOfficeId              String?
   companyId                 String?
   registrationApplicationId String?
+  complianceYearId          String?
   trainingPlanSubmissionId  String?
   assignedUserId            String?
   assignedRole              Role?
@@ -889,12 +893,14 @@ model WorkItem {
   areaOffice                AreaOffice?              @relation(fields: [areaOfficeId], references: [id])
   company                   Company?                 @relation(fields: [companyId], references: [id])
   registrationApplication   RegistrationApplication? @relation(fields: [registrationApplicationId], references: [id])
+  complianceYear            ComplianceYear?          @relation(fields: [complianceYearId], references: [id])
   trainingPlanSubmission    TrainingPlanSubmission?  @relation(fields: [trainingPlanSubmissionId], references: [id])
   assignedUser              User?                    @relation("AssignedWorkItems", fields: [assignedUserId], references: [id])
 
   @@index([workspaceId, app, status, recordTier, createdAt])
   @@index([areaOfficeId, assignedRole, status, recordTier])
   @@index([organizationId, status, recordTier])
+  @@index([complianceYearId, status, recordTier])
   @@index([trainingPlanSubmissionId, status, recordTier])
   @@index([assignedUserId, status, recordTier])
 }

@@ -1488,3 +1488,24 @@ Expected files:
 - `lib/managed-numbers.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture and workflow docs
+
+### Slice 69: Compliance Filing Awareness and HQ Review Queue
+
+Goal: notify Area Office officers when companies in their jurisdiction file compliance while keeping review and certification authority at Headquarters.
+
+Expected design:
+
+- Add compliance-specific work item kinds for awareness and review
+- Link work items directly to compliance years
+- On employer compliance submission, create Area Office awareness items for Area Manager, HORIC, and Revenue Accountant
+- On employer compliance submission, create HQ review items for Head of Reimbursement Division and HQ reimbursement/accountant role
+- Resolve compliance awareness and review work items when HQ acts on the compliance return
+- Keep Area Office items informational; they do not grant review or certificate issuance rights
+- Preserve Slice 68 backend restrictions for annual compliance approval and certificate issuance
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/compliance.ts`
+- architecture and workflow docs

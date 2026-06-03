@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import {
   findActiveCertificateTemplate,
   generateComplianceCertificatePdf,
@@ -84,6 +85,118 @@ export function getComplianceEvidenceKinds() {
 
 export function getComplianceTransitions() {
   return complianceTransitions;
+}
+
+const complianceAwarenessRoles = ["AREA_MANAGER", "HORIC", "REVENUE_ACCOUNTANT"] as const;
+const complianceReviewRoles = ["HEAD_OF_DIVISION", "HQ_REIMBURSEMENT_OFFICER"] as const;
+
+type ComplianceWorkItemContext = {
+  workspaceId: string;
+  organizationId: string;
+  areaOfficeId: string | null;
+  companyId: string;
+  complianceYearId: string;
+  companyName: string;
+  year: number;
+};
+
+async function createComplianceSubmissionWorkItems(
+  tx: Prisma.TransactionClient,
+  context: ComplianceWorkItemContext,
+) {
+  const awarenessItems = context.areaOfficeId
+    ? complianceAwarenessRoles.map((role) =>
+        tx.workItem.upsert({
+          where: {
+            sourceKey: `compliance:${context.complianceYearId}:awareness:${role}`,
+          },
+          create: {
+            workspaceId: context.workspaceId,
+            organizationId: context.organizationId,
+            areaOfficeId: context.areaOfficeId,
+            companyId: context.companyId,
+            complianceYearId: context.complianceYearId,
+            assignedRole: role,
+            app: "REIMBURSEMENT",
+            kind: "COMPLIANCE_AWARENESS",
+            status: "OPEN",
+            priority: "NORMAL",
+            title: "Compliance filed in your Area Office",
+            summary: `${context.companyName} filed ${context.year} annual compliance. HQ will review and issue any certificate.`,
+            targetHref: `/registry/${context.companyId}`,
+            sourceKey: `compliance:${context.complianceYearId}:awareness:${role}`,
+          },
+          update: {
+            status: "OPEN",
+            resolvedAt: null,
+            priority: "NORMAL",
+            summary: `${context.companyName} filed ${context.year} annual compliance. HQ will review and issue any certificate.`,
+            targetHref: `/registry/${context.companyId}`,
+          },
+          select: {
+            id: true,
+          },
+        }),
+      )
+    : [];
+
+  const reviewItems = complianceReviewRoles.map((role) =>
+    tx.workItem.upsert({
+      where: {
+        sourceKey: `compliance:${context.complianceYearId}:review:${role}`,
+      },
+      create: {
+        workspaceId: context.workspaceId,
+        organizationId: context.organizationId,
+        areaOfficeId: null,
+        companyId: context.companyId,
+        complianceYearId: context.complianceYearId,
+        assignedRole: role,
+        app: "REIMBURSEMENT",
+        kind: "COMPLIANCE_REVIEW",
+        status: "OPEN",
+        priority: "HIGH",
+        title: "Review annual compliance return",
+        summary: `${context.companyName} filed ${context.year} annual compliance for HQ review.`,
+        targetHref: `/registry/${context.companyId}`,
+        sourceKey: `compliance:${context.complianceYearId}:review:${role}`,
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        priority: "HIGH",
+        summary: `${context.companyName} filed ${context.year} annual compliance for HQ review.`,
+        targetHref: `/registry/${context.companyId}`,
+      },
+      select: {
+        id: true,
+      },
+    }),
+  );
+
+  await Promise.all([...awarenessItems, ...reviewItems]);
+}
+
+async function resolveComplianceReviewWorkItems(
+  tx: Prisma.TransactionClient,
+  complianceYearId: string,
+  resolvedAt: Date,
+) {
+  await tx.workItem.updateMany({
+    where: {
+      complianceYearId,
+      kind: {
+        in: ["COMPLIANCE_AWARENESS", "COMPLIANCE_REVIEW"],
+      },
+      status: {
+        in: ["OPEN", "ACKNOWLEDGED"],
+      },
+    },
+    data: {
+      status: "RESOLVED",
+      resolvedAt,
+    },
+  });
 }
 
 export async function createComplianceYear(input: CreateComplianceYearInput) {
@@ -216,6 +329,13 @@ export async function uploadComplianceEvidence(input: UploadComplianceEvidenceIn
       company: {
         select: {
           organizationId: true,
+          areaOfficeId: true,
+          legalName: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
         },
       },
     },
@@ -366,10 +486,18 @@ export async function updateComplianceYearStatus(input: UpdateComplianceYearStat
     select: {
       id: true,
       companyId: true,
+      year: true,
       status: true,
       company: {
         select: {
           organizationId: true,
+          areaOfficeId: true,
+          legalName: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
         },
       },
     },
@@ -413,6 +541,8 @@ export async function updateComplianceYearStatus(input: UpdateComplianceYearStat
     throw new Error("You do not have access to this compliance return.");
   }
 
+  const decidedAt = new Date();
+
   return db.$transaction(async (tx) => {
     const updated = await tx.complianceYear.update({
       where: {
@@ -435,6 +565,20 @@ export async function updateComplianceYearStatus(input: UpdateComplianceYearStat
         reason: input.reason,
       },
     });
+
+    if (input.transition === "submit") {
+      await createComplianceSubmissionWorkItems(tx, {
+        workspaceId: complianceYear.company.organization.workspaceId,
+        organizationId: complianceYear.company.organizationId,
+        areaOfficeId: complianceYear.company.areaOfficeId,
+        companyId: complianceYear.companyId,
+        complianceYearId: complianceYear.id,
+        companyName: complianceYear.company.legalName,
+        year: complianceYear.year,
+      });
+    } else {
+      await resolveComplianceReviewWorkItems(tx, complianceYear.id, decidedAt);
+    }
 
     return updated;
   });
