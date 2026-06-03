@@ -108,6 +108,18 @@ export type RecordLegacyRegistrationInput = {
   note: string;
 };
 
+const legacyRegistrationReviewActions = ["validate", "request_changes", "reject"] as const;
+
+export type LegacyRegistrationReviewAction = (typeof legacyRegistrationReviewActions)[number];
+
+export type ReviewLegacyRegistrationClaimInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  action: LegacyRegistrationReviewAction;
+  note?: string;
+};
+
 const recommendationReleaseChannels = ["DASHBOARD", "DASHBOARD_AND_EMAIL"] as const;
 
 type RecommendationReleaseChannel = (typeof recommendationReleaseChannels)[number];
@@ -126,6 +138,10 @@ export function getRegistrationApplicationKinds() {
 
 export function getRegistrationReceiptReviewActions() {
   return registrationReceiptReviewActions;
+}
+
+export function getLegacyRegistrationReviewActions() {
+  return legacyRegistrationReviewActions;
 }
 
 type RegistrationReviewDesk = "AREA_MANAGER" | "HORIC" | "REVENUE_ACCOUNTANT";
@@ -2091,6 +2107,262 @@ export async function recordLegacyRegistration(input: RecordLegacyRegistrationIn
       companyId: company.id,
       complianceYear,
       itfEmployerNumber,
+    };
+  });
+}
+
+export async function reviewLegacyRegistrationClaim(input: ReviewLegacyRegistrationClaimInput) {
+  if (!can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to review legacy employer registration.");
+  }
+
+  if (!canRecordLegacyRegistration(input.requesterRole)) {
+    throw new Error(
+      "Only Revenue Accountant, authorized Headquarters, or system administrators can review legacy registration claims.",
+    );
+  }
+
+  const db = getDb();
+  const registrationApplication = await db.registrationApplication.findFirst({
+    where: {
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "SUBMITTED",
+      currentDesk: "REVENUE_ACCOUNTANT",
+      registrationKind: "LEGACY_EMPLOYER",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      areaOfficeId: true,
+      claimedItfEmployerNumber: true,
+      company: {
+        select: {
+          id: true,
+          legalName: true,
+          organizationId: true,
+          itfEmployerNumber: true,
+          status: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!registrationApplication) {
+    throw new Error("A legacy registration claim awaiting Revenue Accountant review was not found.");
+  }
+
+  const claimedItfEmployerNumber = registrationApplication.claimedItfEmployerNumber?.trim();
+
+  if (!claimedItfEmployerNumber) {
+    throw new Error("Legacy registration claim does not include an ITF employer number.");
+  }
+
+  if (
+    registrationApplication.company.itfEmployerNumber ||
+    registrationApplication.company.status === "ACTIVE"
+  ) {
+    throw new Error("This company already has ITF registration recorded.");
+  }
+
+  const [actor, duplicateCompany] = await Promise.all([
+    db.user.findUnique({
+      where: {
+        email: input.requesterEmail,
+      },
+      select: {
+        id: true,
+        memberships: {
+          select: {
+            areaOfficeId: true,
+          },
+        },
+      },
+    }),
+    input.action === "validate"
+      ? db.company.findFirst({
+          where: {
+            id: {
+              not: registrationApplication.company.id,
+            },
+            itfEmployerNumber: claimedItfEmployerNumber,
+            recordTier: "HOT",
+          },
+          select: {
+            legalName: true,
+          },
+        })
+      : Promise.resolve(null),
+  ]);
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const isHeadquartersOverride =
+    input.requesterRole === "DIRECTOR_FSD" || input.requesterRole === "HEAD_OF_DIVISION";
+  const hasAreaOfficeAccess =
+    isHeadquartersOverride ||
+    hasAreaOfficeRegistrationAccess({
+      requesterEmail: input.requesterEmail,
+      requesterRole: input.requesterRole,
+      areaOfficeId: registrationApplication.areaOfficeId,
+      memberships: actor.memberships,
+    });
+
+  if (!hasAreaOfficeAccess) {
+    throw new Error("You do not have access to this Area Office legacy registration claim.");
+  }
+
+  if (duplicateCompany) {
+    throw new Error(
+      `ITF employer number is already recorded for ${duplicateCompany.legalName}.`,
+    );
+  }
+
+  const reviewedAt = new Date();
+  const complianceYear = reviewedAt.getFullYear();
+  const actionReason = [
+    input.action === "validate"
+      ? `Validated legacy ITF employer number: ${claimedItfEmployerNumber}`
+      : input.action === "request_changes"
+        ? "Requested correction on legacy ITF registration claim"
+        : `Rejected legacy ITF employer number claim: ${claimedItfEmployerNumber}`,
+    input.action === "validate" ? `Opened ${complianceYear} annual compliance filing` : undefined,
+    input.note,
+  ]
+    .filter(Boolean)
+    .join(": ");
+
+  return db.$transaction(async (tx) => {
+    if (input.action === "validate") {
+      await tx.company.update({
+        where: {
+          id: registrationApplication.companyId,
+        },
+        data: {
+          itfEmployerNumber: claimedItfEmployerNumber,
+          status: "ACTIVE",
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      await tx.registrationApplication.update({
+        where: {
+          id: registrationApplication.id,
+        },
+        data: {
+          status: "APPROVED",
+          currentDesk: "COMPANY",
+          correctionReturnDesk: null,
+          completedAt: reviewedAt,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      await tx.complianceYear.upsert({
+        where: {
+          companyId_year: {
+            companyId: registrationApplication.companyId,
+            year: complianceYear,
+          },
+        },
+        create: {
+          companyId: registrationApplication.companyId,
+          year: complianceYear,
+          status: "DRAFT",
+        },
+        update: {},
+      });
+    } else if (input.action === "request_changes") {
+      await tx.registrationApplication.update({
+        where: {
+          id: registrationApplication.id,
+        },
+        data: {
+          status: "CHANGES_REQUESTED",
+          currentDesk: "COMPANY",
+          correctionReturnDesk: "REVENUE_ACCOUNTANT",
+        },
+        select: {
+          id: true,
+        },
+      });
+    } else {
+      await tx.company.update({
+        where: {
+          id: registrationApplication.companyId,
+        },
+        data: {
+          status: "REJECTED",
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      await tx.registrationApplication.update({
+        where: {
+          id: registrationApplication.id,
+        },
+        data: {
+          status: "REJECTED",
+          currentDesk: "COMPANY",
+          correctionReturnDesk: null,
+          completedAt: reviewedAt,
+        },
+        select: {
+          id: true,
+        },
+      });
+    }
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        action:
+          input.action === "validate"
+            ? "CERTIFY"
+            : input.action === "request_changes"
+              ? "REQUEST_CHANGES"
+              : "REJECT",
+        reason: actionReason,
+      },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        registrationApplicationId: registrationApplication.id,
+        status: {
+          in: ["OPEN", "ACKNOWLEDGED"],
+        },
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: reviewedAt,
+      },
+    });
+
+    return {
+      companyId: registrationApplication.companyId,
+      action: input.action,
+      itfEmployerNumber: claimedItfEmployerNumber,
     };
   });
 }

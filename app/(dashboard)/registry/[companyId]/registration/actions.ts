@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 import {
   assessRegistrationContribution,
   completeRegistrationAtHeadquarters,
+  getLegacyRegistrationReviewActions,
   getRegistrationApplicationKinds,
   confirmRegistrationContribution,
   forwardRegistrationToDivision,
@@ -17,10 +18,12 @@ import {
   notifyRegistrationHeadquarters,
   recordLegacyRegistration,
   releaseRegistrationContribution,
+  reviewLegacyRegistrationClaim,
   reviewRegistrationContributionReceipt,
   routeRegistrationApplication,
   submitRegistrationApplication,
   uploadRegistrationContributionReceipt,
+  type LegacyRegistrationReviewAction,
   type RegistrationReceiptReviewAction,
   type RegistrationApplicationKind,
   type RegistrationDeskTransition,
@@ -81,6 +84,17 @@ function readRegistrationApplicationKind(formData: FormData): RegistrationApplic
   return value as RegistrationApplicationKind;
 }
 
+function readLegacyRegistrationReviewAction(formData: FormData): LegacyRegistrationReviewAction {
+  const value = readOptionalString(formData, "action");
+  const actions = getLegacyRegistrationReviewActions();
+
+  if (!value || !actions.includes(value as LegacyRegistrationReviewAction)) {
+    throw new Error("Unsupported legacy registration review action.");
+  }
+
+  return value as LegacyRegistrationReviewAction;
+}
+
 export async function routeRegistrationApplicationAction(companyId: string, formData: FormData) {
   const session = await getServerSession(authOptions);
 
@@ -97,6 +111,30 @@ export async function routeRegistrationApplicationAction(companyId: string, form
   });
 
   revalidatePath(`/dashboard`);
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+export async function reviewLegacyRegistrationClaimAction(
+  companyId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await reviewLegacyRegistrationClaim({
+    companyId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    action: readLegacyRegistrationReviewAction(formData),
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath(`/dashboard`);
+  revalidatePath(`/registry`);
   revalidatePath(`/registry/${companyId}`);
   redirect(`/registry/${companyId}`);
 }

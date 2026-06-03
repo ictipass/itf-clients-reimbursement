@@ -140,6 +140,8 @@ Legacy registered employers can be onboarded by authorized Headquarters or syste
 
 Employers can also submit their own registration package as either a new employer registration or a legacy employer validation request. Legacy employer submissions must include the claimed existing ITF registration number, stored separately from the confirmed company ITF employer number until ITF validates it.
 
+Legacy employer validation is reviewed at the Area Office Revenue Accountant desk, with authorized Headquarters and system administrator override access. Validation copies the claimed ITF number into the company record, activates the company, approves the registration application, and opens the current-year annual compliance filing as a draft. Reviewers can also request employer correction or reject the claim without activating the company.
+
 The ITF employer number is the permanent registration number. Certificate numbers belong to annual compliance certificates, not the one-time registration event. Annual compliance certificates are tied to `ComplianceYear` records and can be issued only after compliance approval.
 
 Training Plan and L&D submissions are gated by annual compliance. A company can create, upload evidence for, or submit a Training Plan package only for a year where its compliance return has been approved and an annual compliance certificate has been issued. The company detail page also disables the current-year Training Plan entry point until the current-year compliance certificate exists.

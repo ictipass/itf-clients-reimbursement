@@ -1443,3 +1443,26 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/registration/actions.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture and workflow docs
+
+### Slice 67: Legacy Employer Validation Workflow
+
+Goal: let ITF validate employer-submitted legacy registration claims before activating the company.
+
+Expected design:
+
+- Show a dedicated legacy validation action at the Revenue Accountant desk
+- Allow Revenue Accountant, authorized Headquarters roles, and system administrators to validate, request correction, or reject a legacy claim
+- Keep Revenue Accountant access scoped to the company's Area Office
+- Copy the claimed ITF number to the company only when validation succeeds
+- Activate the company and approve the registration application on validation
+- Open the current-year compliance filing as a draft on validation
+- Return correction requests directly to the company and back to the RA desk on resubmission
+- Reject invalid claims without activating the company
+- Keep registration certificates out of the legacy validation path
+
+Expected files:
+
+- `lib/registration.ts`
+- `app/(dashboard)/registry/[companyId]/registration/actions.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- architecture and workflow docs

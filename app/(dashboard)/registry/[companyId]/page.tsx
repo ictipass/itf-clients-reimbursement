@@ -20,6 +20,7 @@ import {
   notifyRegistrationHeadquartersAction,
   recordLegacyRegistrationAction,
   releaseRegistrationContributionAction,
+  reviewLegacyRegistrationClaimAction,
   reviewRegistrationContributionReceiptAction,
   routeRegistrationApplicationAction,
   submitRegistrationApplicationAction,
@@ -300,6 +301,10 @@ function canRecordLegacyRegistrationRole(role: Role) {
   );
 }
 
+function canReviewLegacyRegistrationClaimRole(role: Role) {
+  return canRecordLegacyRegistrationRole(role);
+}
+
 function getAvailableTrainingPlanTransitions(currentDesk: string, status: string) {
   if (status !== "SUBMITTED" && status !== "IN_REVIEW") {
     return [] as const;
@@ -390,7 +395,11 @@ export default async function CompanyDetailPage({
     !company.itfEmployerNumber &&
     Boolean(registrationApplication) &&
     availableRegistrationTransitions.length > 0 &&
-    canActAsDesk(activeRole, registrationApplication?.currentDesk);
+    canActAsDesk(activeRole, registrationApplication?.currentDesk) &&
+    !(
+      registrationApplication?.registrationKind === "LEGACY_EMPLOYER" &&
+      registrationApplication.currentDesk === "REVENUE_ACCOUNTANT"
+    );
   const canConfirmContribution =
     registrationApplication?.currentDesk === "HORIC" &&
     registrationApplication.status === "SUBMITTED" &&
@@ -418,7 +427,15 @@ export default async function CompanyDetailPage({
   const canAssessContribution =
     registrationApplication?.currentDesk === "REVENUE_ACCOUNTANT" &&
     registrationApplication.status === "SUBMITTED" &&
+    registrationApplication.registrationKind !== "LEGACY_EMPLOYER" &&
     canActAsDesk(activeRole, "REVENUE_ACCOUNTANT");
+  const canReviewLegacyRegistrationClaim =
+    !company.itfEmployerNumber &&
+    registrationApplication?.registrationKind === "LEGACY_EMPLOYER" &&
+    registrationApplication.currentDesk === "REVENUE_ACCOUNTANT" &&
+    registrationApplication.status === "SUBMITTED" &&
+    Boolean(registrationApplication.claimedItfEmployerNumber) &&
+    canReviewLegacyRegistrationClaimRole(activeRole);
   const canUploadReceipt =
     registrationApplication?.currentDesk === "COMPANY" &&
     registrationApplication.status === "SUBMITTED" &&
@@ -449,6 +466,7 @@ export default async function CompanyDetailPage({
     canReviewReceipt ||
     canNotifyHeadquarters ||
     canAssessContribution ||
+    canReviewLegacyRegistrationClaim ||
     canUploadReceipt ||
     canForwardToDivision ||
     canCompleteAtHeadquarters ||
@@ -947,6 +965,56 @@ export default async function CompanyDetailPage({
               ))}
             </div>
           </form>
+          </ActionGroup>
+        ) : null}
+        {canReviewLegacyRegistrationClaim ? (
+          <ActionGroup
+            title="Legacy employer validation"
+            description="Validate, reject, or return the claimed existing ITF registration number to the employer for correction."
+            isAdminOverride={adminOverride}
+          >
+            <form
+              action={reviewLegacyRegistrationClaimAction.bind(null, company.id)}
+              className="grid gap-3"
+            >
+              <div className="rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+                Claimed ITF number:{" "}
+                <span className="font-semibold text-zinc-950">
+                  {company.registrationApplication?.claimedItfEmployerNumber}
+                </span>
+              </div>
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Review note
+                <textarea
+                  name="note"
+                  rows={3}
+                  className="rounded-md border border-zinc-200 bg-white px-3 py-2"
+                />
+              </label>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  name="action"
+                  value="validate"
+                  className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
+                >
+                  Validate legacy registration
+                </button>
+                <button
+                  name="action"
+                  value="request_changes"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-900"
+                >
+                  Request correction
+                </button>
+                <button
+                  name="action"
+                  value="reject"
+                  className="min-h-10 rounded-md border border-red-200 bg-white px-4 text-sm font-semibold text-red-700"
+                >
+                  Reject claim
+                </button>
+              </div>
+            </form>
           </ActionGroup>
         ) : null}
         {canConfirmContribution ? (
