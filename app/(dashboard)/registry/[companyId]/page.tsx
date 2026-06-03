@@ -414,6 +414,7 @@ export default async function CompanyDetailPage({
     registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
     registrationApplication.status === "IN_REVIEW" &&
     canActAsDesk(activeRole, "HEAD_OF_DIVISION");
+  const canCreateComplianceYear = Boolean(company.itfEmployerNumber);
   const hasVisibleRegistrationActions =
     canSubmitRegistration ||
     canRouteRegistration ||
@@ -425,6 +426,45 @@ export default async function CompanyDetailPage({
     canUploadReceipt ||
     canForwardToDivision ||
     canCompleteAtHeadquarters;
+  const onboardingSteps = [
+    {
+      title: "Company profile",
+      status: "Done",
+      isDone: true,
+      detail: "Employer record created.",
+    },
+    {
+      title: "Area Office",
+      status: company.areaOffice ? "Done" : "Pending",
+      isDone: Boolean(company.areaOffice),
+      detail: company.areaOffice ? company.areaOffice.name : "Select preferred Area Office.",
+    },
+    {
+      title: "Evidence",
+      status: company.documents.length > 0 ? "Done" : "Pending",
+      isDone: company.documents.length > 0,
+      detail:
+        company.documents.length > 0
+          ? `${company.documents.length} document${company.documents.length === 1 ? "" : "s"} uploaded.`
+          : "Upload registration evidence.",
+    },
+    {
+      title: "Registration",
+      status: company.itfEmployerNumber ? "Done" : "Pending",
+      isDone: Boolean(company.itfEmployerNumber),
+      detail: company.itfEmployerNumber
+        ? `ITF number ${company.itfEmployerNumber}`
+        : "Submit registration for ITF review.",
+    },
+    {
+      title: "Compliance year",
+      status: company.complianceYears.length > 0 ? "Started" : "Locked",
+      isDone: company.complianceYears.length > 0,
+      detail: company.itfEmployerNumber
+        ? "Create or complete annual compliance."
+        : "Available after registration completion.",
+    },
+  ];
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -468,6 +508,49 @@ export default async function CompanyDetailPage({
         <DetailItem label="Postal address" value={company.postalAddress ?? "Not provided"} />
         <DetailItem label="Last updated" value={formatDate(company.updatedAt)} />
       </section>
+
+      {!company.itfEmployerNumber ? (
+        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">
+                New employer registration path
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
+                Complete these steps in order before annual compliance filing becomes available.
+              </p>
+            </div>
+            <span className="w-fit rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700">
+              New company
+            </span>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-5">
+            {onboardingSteps.map((step, index) => (
+              <div
+                key={step.title}
+                className="rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="flex size-7 items-center justify-center rounded-full bg-white text-xs font-semibold text-zinc-700 ring-1 ring-zinc-200">
+                    {index + 1}
+                  </span>
+                  <span
+                    className={
+                      step.isDone
+                        ? "rounded-full bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-700"
+                        : "rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800"
+                    }
+                  >
+                    {step.status}
+                  </span>
+                </div>
+                <p className="mt-3 font-semibold text-zinc-950">{step.title}</p>
+                <p className="mt-1 text-xs leading-5 text-zinc-600">{step.detail}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
@@ -1022,13 +1105,25 @@ export default async function CompanyDetailPage({
         <div className="rounded-lg border border-zinc-200 bg-white p-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-xl font-semibold tracking-tight">Compliance years</h2>
-            <Link
-              href={`/registry/${company.id}/compliance/new`}
-              className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
-            >
-              Create year
-            </Link>
+            {canCreateComplianceYear ? (
+              <Link
+                href={`/registry/${company.id}/compliance/new`}
+                className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
+              >
+                Create year
+              </Link>
+            ) : (
+              <span className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm font-semibold text-zinc-500">
+                Registration required
+              </span>
+            )}
           </div>
+          {!canCreateComplianceYear ? (
+            <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+              Compliance year creation opens after ITF completes registration and assigns the ITF
+              employer number.
+            </p>
+          ) : null}
           {company.complianceYears.length === 0 ? (
             <p className="mt-3 text-sm leading-6 text-zinc-600">
               No annual compliance returns have been created for this company yet.

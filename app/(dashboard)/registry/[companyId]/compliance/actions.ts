@@ -85,6 +85,7 @@ export async function createComplianceYearAction(companyId: string, formData: Fo
     throw new Error("Authentication is required.");
   }
 
+  const year = readRequiredInteger(formData, "year");
   const nigerianEmployeeCount = readOptionalInteger(formData, "nigerianEmployeeCount");
   const expatriateEmployeeCount = readOptionalInteger(formData, "expatriateEmployeeCount");
   const suppliedTotalEmployeeCount = readOptionalInteger(formData, "totalEmployeeCount");
@@ -94,27 +95,38 @@ export async function createComplianceYearAction(companyId: string, formData: Fo
       : undefined;
   const totalEmployeeCount = suppliedTotalEmployeeCount ?? calculatedTotal;
 
-  await createComplianceYear({
-    companyId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    year: readRequiredInteger(formData, "year"),
-    nigerianEmployeeCount,
-    expatriateEmployeeCount,
-    totalEmployeeCount,
-    turnover: readOptionalMoney(formData, "turnover"),
-    payrollTotal: readOptionalMoney(formData, "payrollTotal"),
-    contributionAmount: readOptionalMoney(formData, "contributionAmount"),
-    amountPaid: readOptionalMoney(formData, "amountPaid"),
-    amountPaidInWords: readOptionalString(formData, "amountPaidInWords"),
-    paymentMode: readOptionalString(formData, "paymentMode"),
-    contributionPaidAt: readOptionalDate(formData, "contributionPaidAt"),
-    annualPlanSubmittedAt: readOptionalDate(formData, "annualPlanSubmittedAt"),
-    declarationName: readOptionalString(formData, "declarationName"),
-    declarationPosition: readOptionalString(formData, "declarationPosition"),
-    declarationPhone: readOptionalString(formData, "declarationPhone"),
-    declaredAt: readOptionalDate(formData, "declaredAt"),
-  });
+  try {
+    await createComplianceYear({
+      companyId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      year,
+      nigerianEmployeeCount,
+      expatriateEmployeeCount,
+      totalEmployeeCount,
+      turnover: readOptionalMoney(formData, "turnover"),
+      payrollTotal: readOptionalMoney(formData, "payrollTotal"),
+      contributionAmount: readOptionalMoney(formData, "contributionAmount"),
+      amountPaid: readOptionalMoney(formData, "amountPaid"),
+      amountPaidInWords: readOptionalString(formData, "amountPaidInWords"),
+      paymentMode: readOptionalString(formData, "paymentMode"),
+      contributionPaidAt: readOptionalDate(formData, "contributionPaidAt"),
+      annualPlanSubmittedAt: readOptionalDate(formData, "annualPlanSubmittedAt"),
+      declarationName: readOptionalString(formData, "declarationName"),
+      declarationPosition: readOptionalString(formData, "declarationPosition"),
+      declarationPhone: readOptionalString(formData, "declarationPhone"),
+      declaredAt: readOptionalDate(formData, "declaredAt"),
+    });
+  } catch (error) {
+    const message =
+      error instanceof Error ? error.message : "Compliance year could not be created.";
+    const searchParams = new URLSearchParams({
+      error: message.slice(0, 280),
+      year: String(year),
+    });
+
+    redirect(`/registry/${companyId}/compliance/new?${searchParams.toString()}`);
+  }
 
   revalidatePath(`/registry/${companyId}`);
   redirect(`/registry/${companyId}`);

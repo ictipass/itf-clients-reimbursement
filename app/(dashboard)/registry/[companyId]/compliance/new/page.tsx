@@ -6,10 +6,13 @@ import { getEmployerCompany } from "@/lib/registry";
 
 export default async function NewComplianceYearPage({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ error?: string; year?: string }>;
 }>) {
   const { companyId } = await params;
+  const query = await searchParams;
   const company = await getEmployerCompany(companyId);
 
   if (!company) {
@@ -18,6 +21,9 @@ export default async function NewComplianceYearPage({
 
   const action = createComplianceYearAction.bind(null, company.id);
   const currentYear = new Date().getFullYear();
+  const selectedYear = query.year ? Number.parseInt(query.year, 10) : currentYear;
+  const defaultYear = Number.isInteger(selectedYear) ? selectedYear : currentYear;
+  const registrationComplete = Boolean(company.itfEmployerNumber);
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8 lg:px-8">
@@ -33,6 +39,31 @@ export default async function NewComplianceYearPage({
         </p>
       </div>
 
+      {query.error ? (
+        <div className="mb-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-900">
+          {query.error}
+        </div>
+      ) : null}
+
+      {!registrationComplete ? (
+        <section className="rounded-lg border border-zinc-200 bg-white p-6">
+          <h2 className="text-xl font-semibold tracking-tight">Registration required</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Compliance filing becomes available after ITF completes employer registration and
+            assigns the ITF employer number. For a new company, upload registration evidence and
+            submit registration first.
+          </p>
+          <div className="mt-5">
+            <Link
+              href={`/registry/${company.id}`}
+              className="inline-flex min-h-10 items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
+            >
+              Back to registration
+            </Link>
+          </div>
+        </section>
+      ) : (
+
       <form action={action} className="grid gap-6 rounded-lg border border-zinc-200 bg-white p-6">
         <section className="grid gap-4 md:grid-cols-3">
           <label className="grid gap-2 text-sm font-medium">
@@ -43,7 +74,7 @@ export default async function NewComplianceYearPage({
               min="2000"
               max={currentYear + 1}
               required
-              defaultValue={currentYear}
+              defaultValue={defaultYear}
               className="min-h-11 rounded-md border border-zinc-300 px-3"
             />
           </label>
@@ -182,6 +213,7 @@ export default async function NewComplianceYearPage({
           </button>
         </div>
       </form>
+      )}
     </div>
   );
 }

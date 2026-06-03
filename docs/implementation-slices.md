@@ -1339,3 +1339,23 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/evidence/actions.ts`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 61: Registration-to-Compliance UX Guide
+
+Goal: make the new-company order of operations clear and replace pre-registration compliance errors with friendly UI feedback.
+
+Expected design:
+
+- Show a compact new-employer registration path on the company detail page
+- Indicate profile, Area Office, evidence, registration, and compliance-year steps
+- Disable the Compliance Years create link until the ITF employer number exists
+- Show a registration-required notice beside the disabled compliance action
+- Catch compliance creation errors and redirect back to the form with a friendly message
+- Show a dedicated registration-required state on the compliance creation page
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- `app/(dashboard)/registry/[companyId]/compliance/new/page.tsx`
+- `app/(dashboard)/registry/[companyId]/compliance/actions.ts`
+- workflow docs
