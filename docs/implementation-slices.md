@@ -1685,3 +1685,22 @@ Expected files:
 - `app/(dashboard)/training-plans/page.tsx`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 80: Training Plan Detail Page
+
+Goal: move Training Plan/L&D review and routing into a focused submission detail page.
+
+Expected design:
+
+- Add `/training-plans/[submissionId]` route
+- Show company, year, status, current desk, due date, prompt score, Area Office, personnel, evidence, summary, and decision trail
+- Reuse existing submit and routing server actions
+- Link from the Training Plan list and company detail page to the focused detail route
+- Keep company detail as a summary view
+
+Expected files:
+
+- `app/(dashboard)/training-plans/[submissionId]/page.tsx`
+- `app/(dashboard)/training-plans/page.tsx`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

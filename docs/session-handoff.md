@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 79: Training Plan Submission List Page
+- Slice 80: Training Plan Detail Page
 
 Recent completed slices include:
 
@@ -34,6 +34,7 @@ Recent completed slices include:
 - Slice 77: Compliance Area Office visibility panel
 - Slice 78: Focused compliance review detail page
 - Slice 79: Training Plan/L&D submission list page
+- Slice 80: Focused Training Plan/L&D submission detail page
 
 ## Important Current Rules
 
@@ -57,6 +58,7 @@ Recent completed slices include:
 - Compliance card shows Area Office awareness roles separately from HQ certificate action roles.
 - Annual compliance years link to `/registry/[companyId]/compliance/[complianceYearId]/review` for focused HQ review.
 - `/training-plans` lists Training Plan/L&D submissions with filters by company, year, status, and desk.
+- `/training-plans/[submissionId]` shows focused Training Plan personnel, evidence, decisions, and workflow actions.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

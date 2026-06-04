@@ -1991,6 +1991,13 @@ export default async function CompanyDetailPage({
                         ? "No Training Plan evidence uploaded"
                         : `${submission.documents.length} evidence document${submission.documents.length === 1 ? "" : "s"}`}
                     </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/training-plans/${submission.id}`}
+                        className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+                      >
+                        View detail
+                      </Link>
                     {hasCertifiedSubmissionYear ? (
                       <Link
                         href={`/registry/${company.id}/training-plans/${submission.id}/evidence/new`}
@@ -1999,6 +2006,7 @@ export default async function CompanyDetailPage({
                         Upload evidence
                       </Link>
                     ) : null}
+                    </div>
                   </div>
                   {canSubmitTrainingPlan ? (
                     <form
