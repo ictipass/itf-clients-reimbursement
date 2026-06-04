@@ -1564,3 +1564,20 @@ Expected files:
 
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 73: Compliance Year Pagination
+
+Goal: keep company detail pages usable when a company has many years of compliance history.
+
+Expected design:
+
+- Paginate compliance year cards inside the Compliance Years card
+- Keep five compliance years visible per page
+- Use route search parameters so pagination is linkable and browser-friendly
+- Preserve the collapsible behavior from Slice 72 within each page
+- Keep all compliance actions available for years visible on the current page
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

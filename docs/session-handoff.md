@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 72: Collapsible Compliance Year Cards
+- Slice 73: Compliance Year Pagination
 
 Recent completed slices include:
 
@@ -27,6 +27,7 @@ Recent completed slices include:
 - Slice 70: Dashboard distinction between action-required and awareness-only work items
 - Slice 71: Current-year compliance gate for Training Plan and L&D submission
 - Slice 72: Collapsible compliance year cards on company detail page
+- Slice 73: Compliance year pagination on company detail page
 
 ## Important Current Rules
 
@@ -43,6 +44,7 @@ Recent completed slices include:
 - Training Plan and L&D submission requires approved/certified compliance for that training year.
 - The company detail page and Training Plan create page use current-year compliance to unlock current-year Training Plan entry.
 - Compliance years are displayed as collapsible cards, with the most recent year open by default.
+- Compliance years are paginated inside the company detail page using `compliancePage`.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

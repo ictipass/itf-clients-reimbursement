@@ -63,6 +63,34 @@ function formatPercent(value: { toString(): string } | null) {
   })}%`;
 }
 
+function readPositiveInteger(value: string | string[] | undefined, fallback = 1) {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  const parsed = rawValue ? Number.parseInt(rawValue, 10) : fallback;
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function clampPage(page: number, totalPages: number) {
+  return Math.min(Math.max(page, 1), Math.max(totalPages, 1));
+}
+
+function buildCompanyPageHref(
+  companyId: string,
+  searchParams: Record<string, string | number | undefined>,
+) {
+  const params = new URLSearchParams();
+
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (value !== undefined) {
+      params.set(key, String(value));
+    }
+  });
+
+  const queryString = params.toString();
+
+  return queryString ? `/registry/${companyId}?${queryString}` : `/registry/${companyId}`;
+}
+
 function DetailItem({
   label,
   value,
@@ -341,10 +369,13 @@ function getAvailableTrainingPlanTransitions(currentDesk: string, status: string
 
 export default async function CompanyDetailPage({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ companyId: string }>;
+  searchParams: Promise<{ compliancePage?: string | string[] }>;
 }>) {
   const { companyId } = await params;
+  const query = await searchParams;
   const session = await getServerSession(authOptions);
   const company = await getEmployerCompany(companyId);
 
@@ -361,6 +392,18 @@ export default async function CompanyDetailPage({
     can(activeRole, "compliance:review") ||
     can(activeRole, "training:approve");
   const currentYear = new Date().getFullYear();
+  const complianceYearsPerPage = 5;
+  const complianceYearTotalPages = Math.ceil(
+    company.complianceYears.length / complianceYearsPerPage,
+  );
+  const compliancePage = clampPage(
+    readPositiveInteger(query.compliancePage),
+    complianceYearTotalPages,
+  );
+  const visibleComplianceYears = company.complianceYears.slice(
+    (compliancePage - 1) * complianceYearsPerPage,
+    compliancePage * complianceYearsPerPage,
+  );
   const certifiedComplianceYears = new Set(
     company.complianceYears
       .filter((complianceYear) => complianceYear.status === "APPROVED" && complianceYear.certificate)
@@ -1371,7 +1414,7 @@ export default async function CompanyDetailPage({
             </p>
           ) : (
             <div className="mt-4 grid gap-3">
-              {company.complianceYears.map((complianceYear, index) => (
+              {visibleComplianceYears.map((complianceYear, index) => (
                 <details
                   key={complianceYear.id}
                   open={index === 0}
@@ -1574,6 +1617,37 @@ export default async function CompanyDetailPage({
                   </div>
                 </details>
               ))}
+              {complianceYearTotalPages > 1 ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                  <p>
+                    Page {compliancePage} of {complianceYearTotalPages} · Showing{" "}
+                    {visibleComplianceYears.length} of {company.complianceYears.length} compliance
+                    years
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {compliancePage > 1 ? (
+                      <Link
+                        href={buildCompanyPageHref(company.id, {
+                          compliancePage: compliancePage - 1,
+                        })}
+                        className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                      >
+                        Previous
+                      </Link>
+                    ) : null}
+                    {compliancePage < complianceYearTotalPages ? (
+                      <Link
+                        href={buildCompanyPageHref(company.id, {
+                          compliancePage: compliancePage + 1,
+                        })}
+                        className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                      >
+                        Next
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
