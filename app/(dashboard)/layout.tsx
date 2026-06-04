@@ -98,6 +98,22 @@ export default async function DashboardLayout({
                 Sign in
               </Link>
             )}
+            <details className="rounded-lg border border-zinc-200 bg-white p-3 text-sm">
+              <summary className="cursor-pointer list-none font-semibold text-zinc-950">
+                Workspace apps
+              </summary>
+              <Link
+                href="/dashboard"
+                className="mt-3 flex items-center justify-between rounded-md border border-zinc-100 bg-zinc-50 px-3 py-3 text-sm font-semibold text-zinc-800 transition hover:border-[#800020]/40"
+              >
+                <span>Reimbursement</span>
+                {attentionSummary.total > 0 ? (
+                  <span className="rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white">
+                    {attentionSummary.total}
+                  </span>
+                ) : null}
+              </Link>
+            </details>
           </div>
           <nav className="grid gap-5 overflow-x-auto pb-1 lg:overflow-y-auto lg:pb-6">
             {visibleNavGroups.map((group) => (

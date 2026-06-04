@@ -2309,3 +2309,19 @@ Files:
 
 - `app/(dashboard)/claims/[claimId]/page.tsx`
 - workflow docs
+
+### Slice 114: Workspace Waffle Launcher Foundation
+
+Goal: add the first workspace app launcher surface inside the production shell.
+
+Implemented design:
+
+- Added a collapsible Workspace apps launcher to the sidebar
+- Added Reimbursement app card linking to `/dashboard`
+- Added total attention badge support on the Reimbursement app card
+- Kept the launcher lightweight until additional ITF workspace apps exist
+
+Files:
+
+- `app/(dashboard)/layout.tsx`
+- workflow docs
