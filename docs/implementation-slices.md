@@ -2126,3 +2126,21 @@ Files:
 - `app/(dashboard)/claims/[claimId]/actions.ts`
 - `app/(dashboard)/claims/[claimId]/page.tsx`
 - workflow docs
+
+### Slice 103: Claim Supporting Evidence Upload
+
+Goal: attach the required reimbursement evidence documents directly to a claim.
+
+Implemented design:
+
+- Added claim evidence kinds for attendance, receipt, report, photo, certificate, and other evidence
+- Added secure upload logic scoped to `ReimbursementClaim`
+- Added upload server action on the claim detail route
+- Displayed claim evidence with inline viewer links
+
+Files:
+
+- `lib/claims.ts`
+- `app/(dashboard)/claims/[claimId]/actions.ts`
+- `app/(dashboard)/claims/[claimId]/page.tsx`
+- workflow docs

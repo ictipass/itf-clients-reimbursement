@@ -1,5 +1,18 @@
 import { getDb } from "@/lib/db";
 import { can, isItfRole, type Role } from "@/lib/rbac";
+import { uploadObject } from "@/lib/storage";
+import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
+
+const claimEvidenceKinds = [
+  "ATTENDANCE_SHEET",
+  "PAYMENT_RECEIPT",
+  "TRAINING_REPORT",
+  "TRAINING_PHOTO",
+  "CERTIFICATE",
+  "OTHER_SUPPORTING_EVIDENCE",
+] as const;
+
+export type ClaimEvidenceKind = (typeof claimEvidenceKinds)[number];
 
 export type CreateClaimFromTrainingRequestInput = {
   trainingRequestId: string;
@@ -23,6 +36,18 @@ export type UpdateClaimFormInput = {
   employerOfficerRank?: string;
   chiefExecutiveName?: string;
 };
+
+export type UploadClaimEvidenceInput = {
+  claimId: string;
+  uploadedByEmail: string;
+  requesterRole: Role;
+  kind: ClaimEvidenceKind;
+  file: File;
+};
+
+export function getClaimEvidenceKinds() {
+  return claimEvidenceKinds;
+}
 
 export async function createClaimFromTrainingRequest(
   input: CreateClaimFromTrainingRequestInput,
@@ -206,6 +231,101 @@ export async function updateClaimForm(input: UpdateClaimFormInput) {
       employerOfficerRank: input.employerOfficerRank,
       chiefExecutiveName: input.chiefExecutiveName,
       employerDeclaredAt: new Date(),
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
+  if (!can(input.requesterRole, "claims:submit") && !can(input.requesterRole, "claims:review")) {
+    throw new Error("You do not have permission to upload claim evidence.");
+  }
+
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Reimbursement claim was not found.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.uploadedByEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    actor.memberships.some(
+      (membership) => membership.organizationId === claim.company.organizationId,
+    );
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to upload evidence for this claim.");
+  }
+
+  const buffer = Buffer.from(await input.file.arrayBuffer());
+  const safeFileName = sanitizeFileName(input.file.name);
+  const validated = validateUpload(buffer, safeFileName, input.file.type);
+  const stored = await uploadObject({
+    buffer,
+    companyId: claim.companyId,
+    extension: validated.extension,
+    mimeType: validated.mimeType,
+    namespace: "claims",
+  });
+
+  return db.document.create({
+    data: {
+      organizationId: claim.company.organizationId,
+      companyId: claim.companyId,
+      reimbursementClaimId: claim.id,
+      uploadedById: actor.id,
+      kind: input.kind,
+      fileName: safeFileName,
+      storageProvider: stored.storageProvider,
+      bucket: stored.bucket,
+      objectKey: stored.objectKey,
+      url: stored.url,
+      etag: stored.etag,
+      versionId: stored.versionId,
+      checksum: stored.checksum,
+      mimeType: stored.mimeType,
+      fileSize: stored.fileSize,
+      access: "PRIVATE",
+      classification: "OFFICIAL",
     },
     select: {
       id: true,

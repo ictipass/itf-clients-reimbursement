@@ -5,7 +5,12 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
-import { updateClaimForm } from "@/lib/claims";
+import {
+  getClaimEvidenceKinds,
+  updateClaimForm,
+  uploadClaimEvidence,
+  type ClaimEvidenceKind,
+} from "@/lib/claims";
 
 function readOptionalString(formData: FormData, name: string) {
   const value = formData.get(name);
@@ -44,6 +49,17 @@ function readRequiredNumber(formData: FormData, name: string) {
   return number;
 }
 
+function readEvidenceKind(formData: FormData): ClaimEvidenceKind {
+  const value = readOptionalString(formData, "kind");
+  const kinds = getClaimEvidenceKinds();
+
+  if (!value || !kinds.includes(value as ClaimEvidenceKind)) {
+    throw new Error("Unsupported claim evidence kind.");
+  }
+
+  return value as ClaimEvidenceKind;
+}
+
 export async function updateClaimFormAction(claimId: string, formData: FormData) {
   const session = await getServerSession(authOptions);
 
@@ -69,6 +85,31 @@ export async function updateClaimFormAction(claimId: string, formData: FormData)
   });
 
   revalidatePath(`/claims`);
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}`);
+}
+
+export async function uploadClaimEvidenceAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  const file = formData.get("evidence");
+
+  if (!(file instanceof File)) {
+    throw new Error("Evidence file is required.");
+  }
+
+  await uploadClaimEvidence({
+    claimId,
+    uploadedByEmail: session.user.email,
+    requesterRole: session.user.role,
+    kind: readEvidenceKind(formData),
+    file,
+  });
+
   revalidatePath(`/claims/${claimId}`);
   redirect(`/claims/${claimId}`);
 }

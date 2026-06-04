@@ -1,7 +1,11 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { updateClaimFormAction } from "@/app/(dashboard)/claims/[claimId]/actions";
+import {
+  updateClaimFormAction,
+  uploadClaimEvidenceAction,
+} from "@/app/(dashboard)/claims/[claimId]/actions";
+import { getClaimEvidenceKinds } from "@/lib/claims";
 import { getDb } from "@/lib/db";
 
 function formatMoney(value: { toString(): string } | null) {
@@ -25,6 +29,7 @@ export default async function ClaimDetailPage({
   params: Promise<{ claimId: string }>;
 }>) {
   const { claimId } = await params;
+  const evidenceKinds = getClaimEvidenceKinds();
   const claim = await getDb().reimbursementClaim.findFirst({
     where: {
       id: claimId,
@@ -46,6 +51,21 @@ export default async function ClaimDetailPage({
       chiefExecutiveName: true,
       employerDeclaredAt: true,
       status: true,
+      documents: {
+        where: {
+          isActive: true,
+          recordTier: "HOT",
+        },
+        select: {
+          id: true,
+          kind: true,
+          fileName: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
       company: {
         select: {
           id: true,
@@ -215,6 +235,63 @@ export default async function ClaimDetailPage({
               Save Claim Form 1
             </button>
           </div>
+        </form>
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <h2 className="text-xl font-semibold tracking-tight">Supporting evidence</h2>
+        {claim.documents.length === 0 ? (
+          <p className="mt-3 text-sm leading-6 text-zinc-600">
+            No supporting evidence has been uploaded for this claim yet.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {claim.documents.map((document) => (
+              <div key={document.id} className="rounded-md border border-zinc-100 p-3 text-sm">
+                <p className="font-semibold text-zinc-950">{document.fileName}</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {document.kind.replaceAll("_", " ")} ·{" "}
+                  {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(
+                    document.createdAt,
+                  )}
+                </p>
+                <Link
+                  href={`/registry/${claim.company.id}/evidence/${document.id}?disposition=inline`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-3 inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800"
+                >
+                  View evidence
+                </Link>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form
+          action={uploadClaimEvidenceAction.bind(null, claim.id)}
+          className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 md:grid-cols-[240px_1fr_auto]"
+        >
+          <select
+            name="kind"
+            className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+          >
+            {evidenceKinds.map((kind) => (
+              <option key={kind} value={kind}>
+                {kind.replaceAll("_", " ")}
+              </option>
+            ))}
+          </select>
+          <input
+            name="evidence"
+            type="file"
+            accept=".pdf,.jpg,.jpeg,.png,.csv"
+            required
+            className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm"
+          />
+          <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+            Upload evidence
+          </button>
         </form>
       </section>
     </div>
