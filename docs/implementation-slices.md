@@ -2390,3 +2390,19 @@ Files:
 
 - `lib/workspace-apps.ts`
 - workflow docs
+
+### Slice 119: Feature Gate Registry
+
+Goal: centralize module and route access rules.
+
+Implemented design:
+
+- Added `lib/feature-gates.ts`
+- Defined route-prefix gates for dashboard, registry, compliance, training, claims, management, and settings
+- Added helpers to resolve a path to a feature gate
+- Added helpers to test if a role can access a path
+
+Files:
+
+- `lib/feature-gates.ts`
+- workflow docs
