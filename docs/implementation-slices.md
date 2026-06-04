@@ -1744,3 +1744,23 @@ Expected files:
 - `app/(dashboard)/training-plans/[submissionId]/actions.ts`
 - `app/(dashboard)/training-plans/[submissionId]/page.tsx`
 - workflow docs
+
+### Slice 83: Training Approval Request Foundation
+
+Goal: start the Form 4A Training Approval Request area by linking requests to structured Training Plan line items and adding a list page.
+
+Expected design:
+
+- Link `TrainingRequest` optionally to `TrainingPlanLineItem`
+- Add a Training Approval Requests list page
+- Show company, Area Office, training title, provider, dates, cost, and status
+- Add dashboard navigation for training-capable roles
+- Keep creation workflow for the next slice
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `app/(dashboard)/training-requests/page.tsx`
+- `app/(dashboard)/layout.tsx`
+- workflow docs

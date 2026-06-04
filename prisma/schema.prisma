@@ -669,6 +669,7 @@ model TrainingPlanLineItem {
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
   trainingPlanSubmission   TrainingPlanSubmission @relation(fields: [trainingPlanSubmissionId], references: [id])
+  trainingRequests         TrainingRequest[]
 
   @@index([trainingPlanSubmissionId])
 }
@@ -676,6 +677,7 @@ model TrainingPlanLineItem {
 model TrainingRequest {
   id                   String                @id @default(cuid())
   companyId            String
+  trainingPlanLineItemId String?
   title                String
   description          String?
   trainingType         String?
@@ -696,6 +698,7 @@ model TrainingRequest {
   createdAt            DateTime              @default(now())
   updatedAt            DateTime              @updatedAt
   company              Company               @relation(fields: [companyId], references: [id])
+  trainingPlanLineItem TrainingPlanLineItem?  @relation(fields: [trainingPlanLineItemId], references: [id])
   documents            Document[]
   participants         TrainingParticipant[]
   claims               ReimbursementClaim[]
@@ -703,6 +706,7 @@ model TrainingRequest {
   comments             Comment[]
 
   @@index([companyId, status, recordTier])
+  @@index([trainingPlanLineItemId])
 }
 
 model TrainingParticipant {
