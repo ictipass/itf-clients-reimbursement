@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 81: Training Plan CSV Parser Preview
+- Slice 82: Training Plan CSV Import Persistence
 
 Recent completed slices include:
 
@@ -36,6 +36,7 @@ Recent completed slices include:
 - Slice 79: Training Plan/L&D submission list page
 - Slice 80: Focused Training Plan/L&D submission detail page
 - Slice 81: Training Plan CSV parser preview
+- Slice 82: Training Plan CSV import persistence
 
 ## Important Current Rules
 
@@ -61,6 +62,7 @@ Recent completed slices include:
 - `/training-plans` lists Training Plan/L&D submissions with filters by company, year, status, and desk.
 - `/training-plans/[submissionId]` shows focused Training Plan personnel, evidence, decisions, and workflow actions.
 - `/training-plans/csv-preview` validates and previews Training Plan CSV files in the browser without saving rows.
+- Training Plan CSV imports are stored as `TrainingPlanLineItem` rows linked to the submission.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

@@ -1723,3 +1723,24 @@ Expected files:
 - `app/(dashboard)/training-plans/csv-preview/csv-preview-client.tsx`
 - `app/(dashboard)/training-plans/page.tsx`
 - workflow docs
+
+### Slice 82: Training Plan CSV Import Persistence
+
+Goal: persist validated annual training plan CSV rows as structured data against a Training Plan submission.
+
+Expected design:
+
+- Add a `TrainingPlanLineItem` model linked to `TrainingPlanSubmission`
+- Store staff name, department, gap, training title, estimated cost, date, location, trainer, and CSV row number
+- Add server-side CSV validation/import logic
+- Replace existing line items for the submission when a new CSV is imported
+- Show imported line items on the Training Plan detail page
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/training-plan.ts`
+- `app/(dashboard)/training-plans/[submissionId]/actions.ts`
+- `app/(dashboard)/training-plans/[submissionId]/page.tsx`
+- workflow docs

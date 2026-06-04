@@ -629,6 +629,7 @@ model TrainingPlanSubmission {
   updatedAt             DateTime                @updatedAt
   company               Company                 @relation(fields: [companyId], references: [id])
   personnel             TrainingPlanPersonnel[]
+  lineItems             TrainingPlanLineItem[]
   documents             Document[]
   decisions             Decision[]
   comments              Comment[]
@@ -646,6 +647,25 @@ model TrainingPlanPersonnel {
   position                 String?
   email                    String?
   phone                    String?
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  trainingPlanSubmission   TrainingPlanSubmission @relation(fields: [trainingPlanSubmissionId], references: [id])
+
+  @@index([trainingPlanSubmissionId])
+}
+
+model TrainingPlanLineItem {
+  id                       String                 @id @default(cuid())
+  trainingPlanSubmissionId String
+  staffName                String
+  department               String
+  gapIdentified            String
+  trainingTitle            String
+  estimatedCost            Decimal                @db.Decimal(14, 2)
+  plannedDate              DateTime?
+  location                 String
+  trainer                  String
+  rowNumber                Int
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
   trainingPlanSubmission   TrainingPlanSubmission @relation(fields: [trainingPlanSubmissionId], references: [id])

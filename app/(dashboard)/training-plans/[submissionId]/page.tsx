@@ -6,6 +6,7 @@ import {
   routeTrainingPlanSubmissionAction,
   submitTrainingPlanSubmissionAction,
 } from "@/app/(dashboard)/registry/[companyId]/training-plans/actions";
+import { importTrainingPlanCsvAction } from "@/app/(dashboard)/training-plans/[submissionId]/actions";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { type Role } from "@/lib/rbac";
@@ -155,6 +156,23 @@ export default async function TrainingPlanDetailPage({
           createdAt: "desc",
         },
       },
+      lineItems: {
+        select: {
+          id: true,
+          staffName: true,
+          department: true,
+          gapIdentified: true,
+          trainingTitle: true,
+          estimatedCost: true,
+          plannedDate: true,
+          location: true,
+          trainer: true,
+          rowNumber: true,
+        },
+        orderBy: {
+          rowNumber: "asc",
+        },
+      },
       decisions: {
         where: {
           recordTier: "HOT",
@@ -196,6 +214,9 @@ export default async function TrainingPlanDetailPage({
   const canSubmitTrainingPlan =
     (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
     missingRequiredEvidence.length === 0 &&
+    (isEmployerRole(activeRole) || adminOverride);
+  const canImportLineItems =
+    (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
     (isEmployerRole(activeRole) || adminOverride);
 
   return (
@@ -279,6 +300,30 @@ export default async function TrainingPlanDetailPage({
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="text-xl font-semibold tracking-tight">Evidence</h2>
+            {canImportLineItems ? (
+              <form
+                action={importTrainingPlanCsvAction.bind(
+                  null,
+                  submission.company.id,
+                  submission.id,
+                )}
+                className="mt-4 grid gap-3 rounded-md border border-zinc-100 bg-zinc-50 p-3"
+              >
+                <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                  Import structured training plan CSV
+                  <input
+                    name="trainingPlanCsv"
+                    type="file"
+                    accept=".csv,text/csv"
+                    required
+                    className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2"
+                  />
+                </label>
+                <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                  Import CSV rows
+                </button>
+              </form>
+            ) : null}
             {missingRequiredEvidence.length > 0 ? (
               <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 Required before submission: {missingRequiredEvidence.join(", ")}.
@@ -320,6 +365,46 @@ export default async function TrainingPlanDetailPage({
         </div>
 
         <div className="grid gap-6">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <h2 className="text-xl font-semibold tracking-tight">Structured training plan rows</h2>
+            {submission.lineItems.length === 0 ? (
+              <p className="mt-3 text-sm leading-6 text-zinc-600">
+                No structured CSV rows have been imported yet.
+              </p>
+            ) : (
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full divide-y divide-zinc-100 text-sm">
+                  <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
+                    <tr>
+                      <th className="px-3 py-2">Staff</th>
+                      <th className="px-3 py-2">Training</th>
+                      <th className="px-3 py-2">Cost</th>
+                      <th className="px-3 py-2">Date</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {submission.lineItems.slice(0, 10).map((item) => (
+                      <tr key={item.id}>
+                        <td className="px-3 py-3">
+                          <p className="font-semibold text-zinc-950">{item.staffName}</p>
+                          <p className="mt-1 text-xs text-zinc-500">{item.department}</p>
+                        </td>
+                        <td className="px-3 py-3">
+                          <p>{item.trainingTitle}</p>
+                          <p className="mt-1 text-xs text-zinc-500">{item.gapIdentified}</p>
+                        </td>
+                        <td className="px-3 py-3">
+                          NGN {Number(item.estimatedCost.toString()).toLocaleString("en-NG")}
+                        </td>
+                        <td className="px-3 py-3">{formatDate(item.plannedDate)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="text-xl font-semibold tracking-tight">Summary</h2>
             <p className="mt-3 text-sm leading-6 text-zinc-600">

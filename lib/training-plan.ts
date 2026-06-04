@@ -69,6 +69,14 @@ export type UploadTrainingPlanEvidenceInput = {
   file: File;
 };
 
+export type ImportTrainingPlanCsvInput = {
+  companyId: string;
+  submissionId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  file: File;
+};
+
 export function getTrainingPlanEvidenceKinds() {
   return trainingPlanEvidenceKinds;
 }
@@ -79,6 +87,56 @@ export function getTrainingPlanCsvTemplate() {
 
 export function getTrainingPlanDeskTransitions() {
   return trainingPlanDeskTransitions;
+}
+
+function parseTrainingPlanCsv(text: string) {
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+  if (lines.length < 2) {
+    throw new Error("CSV must include a header row and at least one training plan row.");
+  }
+
+  const headers = parseCsvLine(lines[0]).map(normalizeCsvHeader);
+  const missingColumns = requiredTrainingPlanCsvColumns.filter((column) => !headers.includes(column));
+
+  if (missingColumns.length > 0) {
+    throw new Error(`Missing required CSV column(s): ${missingColumns.join(", ")}.`);
+  }
+
+  return lines.slice(1).map((line, index) => {
+    const values = parseCsvLine(line).map((value) => value.trim());
+
+    if (values.length !== headers.length) {
+      throw new Error(`CSV row ${index + 2} has ${values.length} columns instead of ${headers.length}.`);
+    }
+
+    const row = Object.fromEntries(headers.map((header, headerIndex) => [header, values[headerIndex]]));
+    const estimatedCost = Number(row["estimated cost"]);
+    const plannedDate = row.date ? new Date(row.date) : null;
+
+    if (!Number.isFinite(estimatedCost) || estimatedCost < 0) {
+      throw new Error(`CSV row ${index + 2} has an invalid estimated cost.`);
+    }
+
+    if (plannedDate && Number.isNaN(plannedDate.getTime())) {
+      throw new Error(`CSV row ${index + 2} has an invalid date.`);
+    }
+
+    return {
+      staffName: row["name of staff"],
+      department: row.department,
+      gapIdentified: row["gap identified"],
+      trainingTitle: row["training title"],
+      estimatedCost,
+      plannedDate,
+      location: row.location,
+      trainer: row.trainer,
+      rowNumber: index + 2,
+    };
+  });
 }
 
 export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubmissionInput) {
@@ -190,6 +248,100 @@ export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubm
     select: {
       id: true,
     },
+  });
+}
+
+export async function importTrainingPlanCsv(input: ImportTrainingPlanCsvInput) {
+  if (!can(input.requesterRole, "training:submit")) {
+    throw new Error("You do not have permission to import training plan rows.");
+  }
+
+  if (!input.file.name.toLowerCase().endsWith(".csv")) {
+    throw new Error("Upload a CSV file.");
+  }
+
+  const rows = parseTrainingPlanCsv(await input.file.text());
+  const db = getDb();
+  const submission = await db.trainingPlanSubmission.findFirst({
+    where: {
+      id: input.submissionId,
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: {
+        in: ["DRAFT", "CHANGES_REQUESTED"],
+      },
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      company: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!submission) {
+    throw new Error("Training Plan submission was not found or is no longer editable.");
+  }
+
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      memberships: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    requester.memberships.some(
+      (membership) => membership.organizationId === submission.company.organizationId,
+    );
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this Training Plan submission.");
+  }
+
+  return db.$transaction(async (tx) => {
+    await tx.trainingPlanLineItem.deleteMany({
+      where: {
+        trainingPlanSubmissionId: submission.id,
+      },
+    });
+
+    await tx.trainingPlanLineItem.createMany({
+      data: rows.map((row) => ({
+        trainingPlanSubmissionId: submission.id,
+        staffName: row.staffName,
+        department: row.department,
+        gapIdentified: row.gapIdentified,
+        trainingTitle: row.trainingTitle,
+        estimatedCost: row.estimatedCost,
+        plannedDate: row.plannedDate,
+        location: row.location,
+        trainer: row.trainer,
+        rowNumber: row.rowNumber,
+      })),
+    });
+
+    return {
+      importedRows: rows.length,
+    };
   });
 }
 
