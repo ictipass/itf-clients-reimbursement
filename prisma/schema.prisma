@@ -108,6 +108,13 @@ enum TrainingPlanDesk {
   REIMBURSEMENT_OFFICER
 }
 
+enum TrainingRequestDesk {
+  COMPANY
+  AREA_MANAGER
+  HEAD_OF_TRAINING
+  REIMBURSEMENT_OFFICER
+}
+
 enum RecommendationReleaseChannel {
   DASHBOARD
   DASHBOARD_AND_EMAIL
@@ -692,6 +699,7 @@ model TrainingRequest {
   approvedOriginalRef  String?
   approvedDuplicateRef String?
   status               WorkflowStatus        @default(DRAFT)
+  currentDesk          TrainingRequestDesk    @default(COMPANY)
   recordTier           RecordTier            @default(HOT)
   submittedAt          DateTime?
   approvedAt           DateTime?
@@ -706,6 +714,7 @@ model TrainingRequest {
   comments             Comment[]
 
   @@index([companyId, status, recordTier])
+  @@index([currentDesk, status, recordTier])
   @@index([trainingPlanLineItemId])
 }
 

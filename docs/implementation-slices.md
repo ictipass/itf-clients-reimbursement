@@ -1764,3 +1764,22 @@ Expected files:
 - `app/(dashboard)/training-requests/page.tsx`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 84: Training Approval Area Office Workflow
+
+Goal: add durable desk tracking for the Training Approval Request workflow.
+
+Expected design:
+
+- Add `TrainingRequestDesk`
+- Track the current desk on each Training Request
+- Support the intended workflow path: Company, Area Manager, Head of Training, Reimbursement Officer, Head of Training, Area Manager, Company
+- Show the current desk in the Training Requests list
+- Leave transition buttons for a later workflow action slice
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `app/(dashboard)/training-requests/page.tsx`
+- workflow docs

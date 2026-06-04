@@ -36,6 +36,7 @@ export default async function TrainingRequestsPage() {
       endsAt: true,
       estimatedCost: true,
       status: true,
+      currentDesk: true,
       company: {
         select: {
           id: true,
@@ -96,6 +97,7 @@ export default async function TrainingRequestsPage() {
                   <th className="px-4 py-3">Provider</th>
                   <th className="px-4 py-3">Dates</th>
                   <th className="px-4 py-3">Cost</th>
+                  <th className="px-4 py-3">Desk</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Action</th>
                 </tr>
@@ -122,6 +124,7 @@ export default async function TrainingRequestsPage() {
                       {formatDate(request.startsAt)} - {formatDate(request.endsAt)}
                     </td>
                     <td className="px-4 py-4">{formatMoney(request.estimatedCost)}</td>
+                    <td className="px-4 py-4">{request.currentDesk.replaceAll("_", " ")}</td>
                     <td className="px-4 py-4">{request.status.replaceAll("_", " ")}</td>
                     <td className="px-4 py-4">
                       <Link
