@@ -2374,3 +2374,19 @@ Files:
 - `lib/workspace-apps.ts`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 118: Workspace App Registry
+
+Goal: make workspace app definitions reusable outside the waffle UI.
+
+Implemented design:
+
+- Kept workspace app definitions centralized in `lib/workspace-apps.ts`
+- Added lookup helper by app key
+- Added available-app helper that excludes coming-soon apps
+- Preserved role-aware app visibility
+
+Files:
+
+- `lib/workspace-apps.ts`
+- workflow docs

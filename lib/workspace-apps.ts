@@ -41,3 +41,11 @@ export const workspaceApps: WorkspaceAppDefinition[] = [
 export function getVisibleWorkspaceApps(role: Role) {
   return workspaceApps.filter((app) => app.isVisible(role));
 }
+
+export function getWorkspaceApp(key: string) {
+  return workspaceApps.find((app) => app.key === key) ?? null;
+}
+
+export function getAvailableWorkspaceApps(role: Role) {
+  return getVisibleWorkspaceApps(role).filter((app) => app.status === "AVAILABLE");
+}
