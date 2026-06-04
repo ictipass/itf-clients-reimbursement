@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 80: Training Plan Detail Page
+- Slice 81: Training Plan CSV Parser Preview
 
 Recent completed slices include:
 
@@ -35,6 +35,7 @@ Recent completed slices include:
 - Slice 78: Focused compliance review detail page
 - Slice 79: Training Plan/L&D submission list page
 - Slice 80: Focused Training Plan/L&D submission detail page
+- Slice 81: Training Plan CSV parser preview
 
 ## Important Current Rules
 
@@ -59,6 +60,7 @@ Recent completed slices include:
 - Annual compliance years link to `/registry/[companyId]/compliance/[complianceYearId]/review` for focused HQ review.
 - `/training-plans` lists Training Plan/L&D submissions with filters by company, year, status, and desk.
 - `/training-plans/[submissionId]` shows focused Training Plan personnel, evidence, decisions, and workflow actions.
+- `/training-plans/csv-preview` validates and previews Training Plan CSV files in the browser without saving rows.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

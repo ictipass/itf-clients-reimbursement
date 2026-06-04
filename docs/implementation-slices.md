@@ -1704,3 +1704,22 @@ Expected files:
 - `app/(dashboard)/training-plans/page.tsx`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 81: Training Plan CSV Parser Preview
+
+Goal: let users validate a Training Plan CSV before any rows are saved.
+
+Expected design:
+
+- Add a CSV preview page under Training Plans
+- Validate required columns: name of staff, department, gap identified, training title, estimated cost, date, location, trainer
+- Preview detected rows in the browser without saving data
+- Show validation issues for missing columns or row length mismatches
+- Link the preview page from the Training Plan list page
+
+Expected files:
+
+- `app/(dashboard)/training-plans/csv-preview/page.tsx`
+- `app/(dashboard)/training-plans/csv-preview/csv-preview-client.tsx`
+- `app/(dashboard)/training-plans/page.tsx`
+- workflow docs

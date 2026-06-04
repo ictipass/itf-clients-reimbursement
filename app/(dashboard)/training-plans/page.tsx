@@ -97,9 +97,17 @@ export default async function TrainingPlanListPage({
             Offices.
           </p>
         </div>
-        <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
-          {submissions.length} shown
-        </span>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/training-plans/csv-preview"
+            className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
+          >
+            Preview CSV
+          </Link>
+          <span className="inline-flex min-h-10 items-center rounded-full bg-zinc-100 px-4 text-sm font-semibold text-zinc-700">
+            {submissions.length} shown
+          </span>
+        </div>
       </div>
 
       <form className="mt-8 grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-5">
