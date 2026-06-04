@@ -1632,3 +1632,20 @@ Expected files:
 
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 77: Compliance Area Office Visibility Panel
+
+Goal: make Area Office awareness and Headquarters certification authority visible inside the compliance card.
+
+Expected design:
+
+- Add a compliance visibility panel in the Compliance Years card
+- Show Area Office awareness roles: AM, HORIC, and Revenue Accountant
+- Show Headquarters action roles: Head of Division and HQ reimbursement/accountant role
+- Clarify that Area Office visibility does not mean certificate authority
+- Avoid schema changes; this slice is presentation and workflow clarity
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

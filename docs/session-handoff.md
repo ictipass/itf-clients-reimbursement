@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 76: Role-Specific Registry Detail View
+- Slice 77: Compliance Area Office Visibility Panel
 
 Recent completed slices include:
 
@@ -31,6 +31,7 @@ Recent completed slices include:
 - Slice 74: Collapsible Evidence Summary rows on company detail page
 - Slice 75: Evidence Summary pagination on company detail page
 - Slice 76: Role-specific focus panel on company detail page
+- Slice 77: Compliance Area Office visibility panel
 
 ## Important Current Rules
 
@@ -51,6 +52,7 @@ Recent completed slices include:
 - Company evidence summary rows are collapsible, with document actions inside the expanded row.
 - Company evidence summary rows are paginated using `evidencePage`.
 - Company detail page shows a role-focus panel so each user understands their expected desk responsibility.
+- Compliance card shows Area Office awareness roles separately from HQ certificate action roles.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

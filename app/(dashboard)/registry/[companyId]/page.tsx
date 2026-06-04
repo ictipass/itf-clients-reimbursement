@@ -1548,6 +1548,32 @@ export default async function CompanyDetailPage({
               </span>
             )}
           </div>
+          <div className="mt-4 rounded-md border border-zinc-100 bg-zinc-50 px-3 py-3 text-xs leading-5 text-zinc-600">
+            <p className="font-semibold text-zinc-900">Compliance visibility</p>
+            <p className="mt-1">
+              Area Office desks for {company.areaOffice?.name ?? "the selected Area Office"} can
+              see annual compliance filings for awareness. Certificate review and issuance remain
+              with Headquarters roles.
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {["AREA_MANAGER", "HORIC", "REVENUE_ACCOUNTANT"].map((role) => (
+                <span
+                  key={role}
+                  className="rounded-full border border-teal-200 bg-white px-2 py-1 font-semibold text-teal-800"
+                >
+                  {role.replaceAll("_", " ")} awareness
+                </span>
+              ))}
+              {["HEAD_OF_DIVISION", "HQ_REIMBURSEMENT_OFFICER"].map((role) => (
+                <span
+                  key={role}
+                  className="rounded-full border border-[#800020]/20 bg-white px-2 py-1 font-semibold text-[#65001a]"
+                >
+                  {role.replaceAll("_", " ")} action
+                </span>
+              ))}
+            </div>
+          </div>
           {!canCreateComplianceYear ? (
             <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
               Compliance year creation opens after ITF completes registration and assigns the ITF
