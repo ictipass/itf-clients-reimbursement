@@ -2180,3 +2180,21 @@ Files:
 - `app/(dashboard)/claims/[claimId]/actions.ts`
 - `app/(dashboard)/claims/[claimId]/page.tsx`
 - workflow docs
+
+### Slice 106: Production App Shell With Side Navbar
+
+Goal: replace the temporary top navigation with a production-style grouped side navigation shell.
+
+Implemented design:
+
+- Extracted dashboard navigation into a shared `lib/navigation.ts`
+- Grouped modules by desk, employer lifecycle, training, reimbursement, and administration
+- Replaced the dashboard top nav with a responsive side navbar
+- Preserved permission-based nav visibility
+- Preserved the existing total attention badge on the app shell
+
+Files:
+
+- `lib/navigation.ts`
+- `app/(dashboard)/layout.tsx`
+- workflow docs

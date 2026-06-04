@@ -4,48 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getAttentionSummary } from "@/lib/attention";
 import { appName } from "@/lib/domain";
-import { can, isItfRole, type Role } from "@/lib/rbac";
-
-type NavItem = {
-  href: string;
-  label: string;
-  isVisible: (role: Role) => boolean;
-};
-
-const canUseRegistry = (role: Role) =>
-  can(role, "company:read") || can(role, "registry:review") || can(role, "registry:submit");
-
-const canUseCompliance = (role: Role) =>
-  can(role, "compliance:review") || can(role, "compliance:submit");
-
-const canUseTrainingPlans = (role: Role) =>
-  can(role, "training:submit") || can(role, "training:approve");
-
-const canUseClaims = (role: Role) =>
-  can(role, "claims:review") || can(role, "claims:approve") || can(role, "claims:submit");
-
-const canUseManagement = (role: Role) =>
-  isItfRole(role) && (can(role, "workspace:manage") || can(role, "audit:read"));
-
-const canUseSettings = (role: Role) => can(role, "workspace:manage");
-const canUseNumbers = (role: Role) => can(role, "numbers:manage");
-
-const navItems: NavItem[] = [
-  { href: "/dashboard", label: "Overview", isVisible: () => true },
-  { href: "/registry", label: "Registry", isVisible: canUseRegistry },
-  { href: "/compliance", label: "Compliance", isVisible: canUseCompliance },
-  { href: "/training-plans", label: "Training Plans", isVisible: canUseTrainingPlans },
-  { href: "/training-requests", label: "Training Requests", isVisible: canUseTrainingPlans },
-  { href: "/training-monitoring", label: "Monitoring", isVisible: canUseTrainingPlans },
-  { href: "/claims", label: "Claims", isVisible: canUseClaims },
-  { href: "/management", label: "Management", isVisible: canUseManagement },
-  { href: "/settings/users", label: "Users", isVisible: canUseSettings },
-  { href: "/settings/offices", label: "Offices", isVisible: canUseSettings },
-  { href: "/settings/roles", label: "Roles", isVisible: canUseSettings },
-  { href: "/settings/numbers", label: "Numbers", isVisible: canUseNumbers },
-  { href: "/settings/certificates", label: "Certificates", isVisible: canUseSettings },
-  { href: "/settings/signatures", label: "Signatures", isVisible: canUseSettings },
-];
+import { getVisibleNavGroups } from "@/lib/navigation";
 
 export default async function DashboardLayout({
   children,
@@ -54,7 +13,7 @@ export default async function DashboardLayout({
 }>) {
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
-  const visibleNavItems = navItems.filter((item) => item.isVisible(activeRole));
+  const visibleNavGroups = getVisibleNavGroups(activeRole);
   const attentionSummary = await getAttentionSummary({
     requesterEmail: session?.user?.email,
     requesterRole: activeRole,
@@ -63,11 +22,11 @@ export default async function DashboardLayout({
   const attentionBadgeTitle = `${attentionSummary.actionTotal} action item(s), ${attentionSummary.awarenessTotal} awareness item(s)`;
 
   return (
-    <main className="min-h-screen bg-zinc-100 text-zinc-950">
-      <header className="border-b border-zinc-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-col gap-5 px-6 py-5 lg:px-8">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
+    <main className="min-h-screen bg-zinc-100 text-zinc-950 lg:grid lg:grid-cols-[280px_1fr]">
+      <aside className="border-b border-zinc-200 bg-white lg:sticky lg:top-0 lg:h-screen lg:border-b-0 lg:border-r">
+        <div className="flex h-full flex-col gap-6 px-5 py-5">
+          <div className="flex flex-col gap-4">
+            <Link href="/dashboard" className="text-base font-semibold tracking-tight">
               {appName}
               {attentionSummary.total > 0 ? (
                 <span
@@ -78,40 +37,49 @@ export default async function DashboardLayout({
                 </span>
               ) : null}
             </Link>
-            <div className="flex flex-wrap items-center gap-3 text-sm">
+            <div className="grid gap-2 text-sm">
               <span className="rounded-full border border-zinc-200 px-3 py-1 font-medium text-zinc-700">
                 {activeRole}
               </span>
               <Link
                 href="/api/auth/signin"
-                className="rounded-full bg-[#800020] px-4 py-2 font-semibold text-white"
+                className="inline-flex min-h-9 items-center justify-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
               >
                 Sign in
               </Link>
             </div>
           </div>
-          <nav className="flex flex-wrap gap-2">
-            {visibleNavItems.map((item) => (
-              <Link
-                key={item.href}
-                href={item.href}
-                className="rounded-full border border-zinc-200 bg-zinc-50 px-4 py-2 text-sm font-semibold text-zinc-700 transition hover:border-[#800020]/40 hover:text-[#800020]"
-              >
-                <span>{item.label}</span>
-                {item.href === "/registry" && attentionSummary.total > 0 ? (
-                  <span
-                    className="ml-2 rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white"
-                    title={attentionBadgeTitle}
-                  >
-                    {attentionSummary.total}
-                  </span>
-                ) : null}
-              </Link>
+          <nav className="grid gap-5 overflow-x-auto pb-1 lg:overflow-y-auto lg:pb-6">
+            {visibleNavGroups.map((group) => (
+              <section key={group.label} className="min-w-48">
+                <p className="px-3 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                  {group.label}
+                </p>
+                <div className="mt-2 grid gap-1">
+                  {group.items.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      className="flex min-h-10 items-center justify-between rounded-md px-3 text-sm font-semibold text-zinc-700 transition hover:bg-[#800020]/10 hover:text-[#800020]"
+                    >
+                      <span>{item.label}</span>
+                      {item.href === "/registry" && attentionSummary.total > 0 ? (
+                        <span
+                          className="rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white"
+                          title={attentionBadgeTitle}
+                        >
+                          {attentionSummary.total}
+                        </span>
+                      ) : null}
+                    </Link>
+                  ))}
+                </div>
+              </section>
             ))}
           </nav>
         </div>
-      </header>
-      {children}
+      </aside>
+      <section className="min-w-0">{children}</section>
     </main>
   );
 }
