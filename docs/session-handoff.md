@@ -58,6 +58,7 @@ Recent completed slices include:
 - Slice 101: Claims creation from approved Training Approval Requests
 - Slice 102: Claim Form 1 foundation
 - Slice 103: Claim supporting evidence upload
+- Slice 104: Claim Form 1B reviewer recommendation
 
 ## Important Current Rules
 
@@ -106,6 +107,7 @@ Recent completed slices include:
 - Employers can create reimbursement claim drafts from approved Form 4A requests with approved monitoring records.
 - Claim detail page captures Claim Form 1 employer claim/payment/declaration fields.
 - Claim detail page can upload and view claim supporting evidence.
+- Claim review roles can record Form 1B eligible/recommended amounts and remarks.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

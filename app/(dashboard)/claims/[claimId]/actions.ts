@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import {
   getClaimEvidenceKinds,
+  updateClaimRecommendation,
   updateClaimForm,
   uploadClaimEvidence,
   type ClaimEvidenceKind,
@@ -110,6 +111,28 @@ export async function uploadClaimEvidenceAction(claimId: string, formData: FormD
     file,
   });
 
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}`);
+}
+
+export async function updateClaimRecommendationAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await updateClaimRecommendation({
+    claimId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    eligibleAmount: readOptionalNumber(formData, "eligibleAmount"),
+    claimRecommendedAmount: readOptionalNumber(formData, "claimRecommendedAmount"),
+    claimRecommendedInWords: readOptionalString(formData, "claimRecommendedInWords"),
+    reviewerRemarks: readOptionalString(formData, "reviewerRemarks"),
+  });
+
+  revalidatePath(`/claims`);
   revalidatePath(`/claims/${claimId}`);
   redirect(`/claims/${claimId}`);
 }

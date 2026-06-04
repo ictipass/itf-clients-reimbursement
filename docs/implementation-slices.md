@@ -2144,3 +2144,21 @@ Files:
 - `app/(dashboard)/claims/[claimId]/actions.ts`
 - `app/(dashboard)/claims/[claimId]/page.tsx`
 - workflow docs
+
+### Slice 104: Claim Form 1B Reviewer Recommendation
+
+Goal: let ITF reviewers record the recommended reimbursement position for a claim.
+
+Implemented design:
+
+- Added reviewer recommendation service logic
+- Captured eligible amount, recommended amount, amount in words, and remarks
+- Restricted recommendation updates to claim review roles with Area Office/HQ access
+- Added Form 1B recommendation panel to the claim detail page
+
+Files:
+
+- `lib/claims.ts`
+- `app/(dashboard)/claims/[claimId]/actions.ts`
+- `app/(dashboard)/claims/[claimId]/page.tsx`
+- workflow docs

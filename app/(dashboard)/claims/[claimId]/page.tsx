@@ -1,12 +1,16 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
 import {
+  updateClaimRecommendationAction,
   updateClaimFormAction,
   uploadClaimEvidenceAction,
 } from "@/app/(dashboard)/claims/[claimId]/actions";
+import { authOptions } from "@/lib/auth";
 import { getClaimEvidenceKinds } from "@/lib/claims";
 import { getDb } from "@/lib/db";
+import { can } from "@/lib/rbac";
 
 function formatMoney(value: { toString(): string } | null) {
   if (!value) {
@@ -29,6 +33,9 @@ export default async function ClaimDetailPage({
   params: Promise<{ claimId: string }>;
 }>) {
   const { claimId } = await params;
+  const session = await getServerSession(authOptions);
+  const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const canRecommendClaim = can(activeRole, "claims:review");
   const evidenceKinds = getClaimEvidenceKinds();
   const claim = await getDb().reimbursementClaim.findFirst({
     where: {
@@ -46,6 +53,10 @@ export default async function ClaimDetailPage({
       accountNumber: true,
       sortCode: true,
       claimedAmount: true,
+      eligibleAmount: true,
+      claimRecommendedAmount: true,
+      claimRecommendedInWords: true,
+      paymentDetails: true,
       employerOfficerName: true,
       employerOfficerRank: true,
       chiefExecutiveName: true,
@@ -294,6 +305,50 @@ export default async function ClaimDetailPage({
           </button>
         </form>
       </section>
+
+      {canRecommendClaim ? (
+        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+          <h2 className="text-xl font-semibold tracking-tight">Form 1B recommendation</h2>
+          <form
+            action={updateClaimRecommendationAction.bind(null, claim.id)}
+            className="mt-5 grid gap-4 md:grid-cols-2"
+          >
+            <input
+              name="eligibleAmount"
+              type="number"
+              step="0.01"
+              defaultValue={decimalInput(claim.eligibleAmount)}
+              placeholder="Eligible amount"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="claimRecommendedAmount"
+              type="number"
+              step="0.01"
+              defaultValue={decimalInput(claim.claimRecommendedAmount)}
+              placeholder="Recommended amount"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="claimRecommendedInWords"
+              defaultValue={claim.claimRecommendedInWords ?? ""}
+              placeholder="Recommended amount in words"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="reviewerRemarks"
+              defaultValue={claim.paymentDetails ?? ""}
+              placeholder="Reviewer remarks"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <div className="md:col-span-2">
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Save Form 1B recommendation
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : null}
     </div>
   );
 }

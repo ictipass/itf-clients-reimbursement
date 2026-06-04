@@ -45,6 +45,16 @@ export type UploadClaimEvidenceInput = {
   file: File;
 };
 
+export type UpdateClaimRecommendationInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  eligibleAmount?: number;
+  claimRecommendedAmount?: number;
+  claimRecommendedInWords?: string;
+  reviewerRemarks?: string;
+};
+
 export function getClaimEvidenceKinds() {
   return claimEvidenceKinds;
 }
@@ -326,6 +336,80 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
       fileSize: stored.fileSize,
       access: "PRIVATE",
       classification: "OFFICIAL",
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function updateClaimRecommendation(input: UpdateClaimRecommendationInput) {
+  if (!can(input.requesterRole, "claims:review")) {
+    throw new Error("You do not have permission to recommend reimbursement claims.");
+  }
+
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      company: {
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Reimbursement claim was not found.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      memberships: {
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasAreaOfficeAccess =
+    input.requesterRole === "SYSTEM_ADMIN" ||
+    input.requesterRole === "WORKSPACE_APP_ADMIN" ||
+    input.requesterRole === "HEAD_OF_DIVISION" ||
+    input.requesterRole === "DIRECTOR_FSD" ||
+    input.requesterRole === "HQ_REIMBURSEMENT_OFFICER" ||
+    actor.memberships.some((membership) => membership.areaOfficeId === claim.company.areaOfficeId);
+
+  if (!hasAreaOfficeAccess) {
+    throw new Error("You do not have access to recommend this Area Office claim.");
+  }
+
+  return db.reimbursementClaim.update({
+    where: {
+      id: claim.id,
+    },
+    data: {
+      eligibleAmount: input.eligibleAmount,
+      claimRecommendedAmount: input.claimRecommendedAmount,
+      claimRecommendedInWords: input.claimRecommendedInWords,
+      paymentDetails: input.reviewerRemarks,
     },
     select: {
       id: true,
