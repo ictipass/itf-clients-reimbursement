@@ -17,6 +17,8 @@ const trainingPlanTransitionLabels = {
   ro_to_hot: "Return to HOT",
   hot_to_am: "Return to AM",
   am_to_company: "Request employer correction",
+  hot_to_company: "Request employer correction",
+  ro_to_company: "Request employer correction",
   am_approve: "Approve package",
 } as const;
 
@@ -90,11 +92,11 @@ function getAvailableTrainingPlanTransitions(currentDesk: string, status: string
   }
 
   if (currentDesk === "HEAD_OF_TRAINING") {
-    return ["hot_to_ro", "hot_to_am"] as const;
+    return ["hot_to_ro", "hot_to_am", "hot_to_company"] as const;
   }
 
   if (currentDesk === "REIMBURSEMENT_OFFICER") {
-    return ["ro_to_hot"] as const;
+    return ["ro_to_hot", "ro_to_company"] as const;
   }
 
   return [] as const;

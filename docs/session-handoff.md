@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 88: Training Plan Final Approval Semantics
+- Slice 89: Training Plan Correction Return Flow
 
 Recent completed slices include:
 
@@ -43,6 +43,7 @@ Recent completed slices include:
 - Slice 86: HQ Revenue Accountant RBAC cleanup for annual compliance authority
 - Slice 87: Shared multi-officer queue labels on dashboard work items
 - Slice 88: Explicit Area Manager final approval for Training Plan/L&D submission
+- Slice 89: HOT/RO direct Training Plan correction return flow
 
 ## Important Current Rules
 
@@ -75,6 +76,7 @@ Recent completed slices include:
 - Annual compliance review/certificate authority is `HEAD_OF_DIVISION` plus `HQ_REVENUE_ACCOUNTANT`; `HQ_REIMBURSEMENT_OFFICER` remains for reimbursement/claims work.
 - Dashboard work items label direct assignment versus shared role/Area Office desk queues.
 - Training Plan final approval is an explicit AM transition that sets status `APPROVED` and records `approvedAt`.
+- HOT and Area Office Reimbursement Officer can return Training Plan submissions directly to company for correction.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

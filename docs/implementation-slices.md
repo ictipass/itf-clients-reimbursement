@@ -1856,3 +1856,22 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - `app/(dashboard)/training-plans/[submissionId]/page.tsx`
 - workflow docs
+
+### Slice 89: Training Plan Correction Return Flow
+
+Goal: let HOT and Reimbursement Officer request employer corrections directly without routing back through every previous desk.
+
+Expected design:
+
+- Add HOT-to-company correction transition
+- Add Reimbursement-Officer-to-company correction transition
+- Keep Area Manager correction transition
+- Return the package to `COMPANY` with `CHANGES_REQUESTED`
+- Let the employer dashboard pick up the correction through existing employer work queue logic
+
+Expected files:
+
+- `lib/training-plan.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- `app/(dashboard)/training-plans/[submissionId]/page.tsx`
+- workflow docs
