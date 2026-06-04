@@ -1367,20 +1367,34 @@ export default async function CompanyDetailPage({
             </p>
           ) : (
             <div className="mt-4 grid gap-3">
-              {company.documents.map((document) => (
-                <div key={document.id} className="rounded-md border border-zinc-100 p-3 text-sm">
-                  <p className="font-semibold">{document.fileName}</p>
-                  <p className="mt-1 text-xs text-zinc-500">
-                    {document.kind.replaceAll("_", " ")} · {formatDate(document.createdAt)}
-                  </p>
-                  <div className="mt-3">
+              {company.documents.map((document, index) => (
+                <details
+                  key={document.id}
+                  open={index === 0}
+                  className="group rounded-md border border-zinc-100 p-3 text-sm"
+                >
+                  <summary className="grid cursor-pointer list-none gap-2 rounded-md p-1 sm:grid-cols-[1fr_auto] sm:items-center">
+                    <span>
+                      <span className="block font-semibold">{document.fileName}</span>
+                      <span className="mt-1 block text-xs text-zinc-500">
+                        {document.kind.replaceAll("_", " ")} · {formatDate(document.createdAt)}
+                      </span>
+                    </span>
+                    <span className="text-xs font-semibold text-[#800020] group-open:hidden">
+                      Expand
+                    </span>
+                    <span className="hidden text-xs font-semibold text-zinc-500 group-open:inline">
+                      Collapse
+                    </span>
+                  </summary>
+                  <div className="mt-3 border-t border-zinc-100 pt-3">
                     <EvidenceActions
                       companyId={company.id}
                       documentId={document.id}
                       canDelete={canDeleteEvidence}
                     />
                   </div>
-                </div>
+                </details>
               ))}
             </div>
           )}

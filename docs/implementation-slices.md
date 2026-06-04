@@ -1581,3 +1581,20 @@ Expected files:
 
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 74: Collapsible Evidence Summary
+
+Goal: keep the Evidence Summary card readable when a company has many supporting documents.
+
+Expected design:
+
+- Render each evidence item as a compact summary row
+- Open the most recent evidence item by default
+- Keep document view/delete actions inside the expanded content
+- Reuse native disclosure behavior to avoid extra client-side JavaScript
+- Preserve existing evidence security and soft-delete behavior
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs
