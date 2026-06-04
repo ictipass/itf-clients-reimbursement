@@ -2406,3 +2406,19 @@ Files:
 
 - `lib/feature-gates.ts`
 - workflow docs
+
+### Slice 120: Route-Level Authorization Guard
+
+Goal: prevent direct URL access to protected dashboard modules when the role lacks permission.
+
+Implemented design:
+
+- Added `middleware.ts` for protected dashboard route prefixes
+- Redirected unauthenticated users to sign-in with callback URL
+- Resolved role from NextAuth JWT
+- Used the feature gate registry to deny unsupported routes
+
+Files:
+
+- `middleware.ts`
+- workflow docs
