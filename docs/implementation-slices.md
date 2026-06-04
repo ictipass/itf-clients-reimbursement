@@ -1894,3 +1894,22 @@ Expected files:
 - `app/(dashboard)/training-plans/[submissionId]/actions.ts`
 - `app/(dashboard)/training-plans/[submissionId]/page.tsx`
 - workflow docs
+
+### Slice 91: Training Approval Request Detail Actions
+
+Goal: make Form 4A Training Approval Requests actionable from the focused detail page.
+
+Expected design:
+
+- Add submit action from company desk
+- Add Area Office routing actions: AM to HOT, HOT to RO, RO to HOT, HOT to AM, AM approval
+- Record decisions for each action
+- Update status and current desk
+- Show role-aware action panels on the request detail page
+
+Expected files:
+
+- `lib/training-request.ts`
+- `app/(dashboard)/training-requests/[requestId]/actions.ts`
+- `app/(dashboard)/training-requests/[requestId]/page.tsx`
+- workflow docs

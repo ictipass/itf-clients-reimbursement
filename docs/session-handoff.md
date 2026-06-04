@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 90: Training Approval Request Creation
+- Slice 91: Training Approval Request Detail Actions
 
 Recent completed slices include:
 
@@ -45,6 +45,7 @@ Recent completed slices include:
 - Slice 88: Explicit Area Manager final approval for Training Plan/L&D submission
 - Slice 89: HOT/RO direct Training Plan correction return flow
 - Slice 90: Training Approval Request creation from approved Training Plan line items
+- Slice 91: Training Approval Request submit and routing detail actions
 
 ## Important Current Rules
 
@@ -79,6 +80,7 @@ Recent completed slices include:
 - Training Plan final approval is an explicit AM transition that sets status `APPROVED` and records `approvedAt`.
 - HOT and Area Office Reimbursement Officer can return Training Plan submissions directly to company for correction.
 - Approved Training Plan line items can create draft Form 4A Training Approval Requests.
+- Training Approval Request detail page can submit and route Form 4A requests through AM/HOT/RO approval desks.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

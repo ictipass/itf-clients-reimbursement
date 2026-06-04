@@ -7,6 +7,35 @@ export type CreateTrainingRequestFromLineItemInput = {
   requesterRole: Role;
 };
 
+const trainingRequestTransitions = [
+  "am_to_hot",
+  "hot_to_ro",
+  "ro_to_hot",
+  "hot_to_am",
+  "am_approve",
+] as const;
+
+export type TrainingRequestTransition = (typeof trainingRequestTransitions)[number];
+
+export type SubmitTrainingRequestInput = {
+  requestId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  note?: string;
+};
+
+export type RouteTrainingRequestInput = {
+  requestId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  transition: TrainingRequestTransition;
+  note?: string;
+};
+
+export function getTrainingRequestTransitions() {
+  return trainingRequestTransitions;
+}
+
 export async function createTrainingRequestFromLineItem(
   input: CreateTrainingRequestFromLineItemInput,
 ) {
@@ -101,4 +130,246 @@ export async function createTrainingRequestFromLineItem(
       companyId: true,
     },
   });
+}
+
+export async function submitTrainingRequest(input: SubmitTrainingRequestInput) {
+  if (!can(input.requesterRole, "training:submit")) {
+    throw new Error("You do not have permission to submit Training Approval Requests.");
+  }
+
+  const db = getDb();
+  const request = await db.trainingRequest.findFirst({
+    where: {
+      id: input.requestId,
+      recordTier: "HOT",
+      status: {
+        in: ["DRAFT", "CHANGES_REQUESTED"],
+      },
+      currentDesk: "COMPANY",
+    },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          organizationId: true,
+          isActive: true,
+        },
+      },
+    },
+  });
+
+  if (!request || !request.company.isActive) {
+    throw new Error("Editable Training Approval Request was not found.");
+  }
+
+  const actor = await getWorkflowActor(input.requesterEmail);
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    actor.memberships.some((membership) => membership.organizationId === request.company.organizationId);
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this Training Approval Request.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.trainingRequest.update({
+      where: {
+        id: request.id,
+      },
+      data: {
+        status: "SUBMITTED",
+        currentDesk: "AREA_MANAGER",
+        submittedAt: new Date(),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: request.companyId,
+        trainingRequestId: request.id,
+        action: "SUBMIT",
+        reason: input.note,
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
+  if (!can(input.requesterRole, "training:approve")) {
+    throw new Error("You do not have permission to route Training Approval Requests.");
+  }
+
+  const transition = resolveTrainingRequestTransition(input.transition);
+
+  if (!hasTrainingRequestRoutingRole(input.requesterRole, transition.allowedRoles)) {
+    throw new Error(`Only ${transition.allowedRoles.join(" or ")} can perform this action.`);
+  }
+
+  const db = getDb();
+  const request = await db.trainingRequest.findFirst({
+    where: {
+      id: input.requestId,
+      recordTier: "HOT",
+      status: {
+        in: [...transition.allowedStatuses],
+      },
+      currentDesk: transition.from,
+    },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          areaOfficeId: true,
+          isActive: true,
+        },
+      },
+    },
+  });
+
+  if (!request || !request.company.isActive) {
+    throw new Error("Training Approval Request awaiting this action was not found.");
+  }
+
+  const actor = await getWorkflowActor(input.requesterEmail);
+
+  if (
+    !hasAreaOfficeAccess({
+      requesterRole: input.requesterRole,
+      areaOfficeId: request.company.areaOfficeId,
+      memberships: actor.memberships,
+    })
+  ) {
+    throw new Error("You do not have access to this Area Office Training Approval Request.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.trainingRequest.update({
+      where: {
+        id: request.id,
+      },
+      data: {
+        currentDesk: transition.to,
+        status: transition.nextStatus,
+        approvedAt: transition.nextStatus === "APPROVED" ? new Date() : undefined,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: request.companyId,
+        trainingRequestId: request.id,
+        action: transition.action,
+        reason: [transition.reason, input.note].filter(Boolean).join(": "),
+      },
+    });
+
+    return updated;
+  });
+}
+
+async function getWorkflowActor(email: string) {
+  const actor = await getDb().user.findUnique({
+    where: {
+      email,
+    },
+    select: {
+      id: true,
+      memberships: {
+        select: {
+          organizationId: true,
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  return actor;
+}
+
+function resolveTrainingRequestTransition(transition: TrainingRequestTransition) {
+  const transitions = {
+    am_to_hot: {
+      from: "AREA_MANAGER",
+      to: "HEAD_OF_TRAINING",
+      allowedRoles: ["AREA_MANAGER"],
+      allowedStatuses: ["SUBMITTED", "IN_REVIEW"],
+      nextStatus: "IN_REVIEW",
+      action: "FORWARD",
+      reason: "AM forwarded Training Approval Request to Head of Training",
+    },
+    hot_to_ro: {
+      from: "HEAD_OF_TRAINING",
+      to: "REIMBURSEMENT_OFFICER",
+      allowedRoles: ["HEAD_OF_TRAINING"],
+      allowedStatuses: ["IN_REVIEW"],
+      nextStatus: "IN_REVIEW",
+      action: "FORWARD",
+      reason: "HOT forwarded Training Approval Request to Reimbursement Officer",
+    },
+    ro_to_hot: {
+      from: "REIMBURSEMENT_OFFICER",
+      to: "HEAD_OF_TRAINING",
+      allowedRoles: ["REIMBURSEMENT_OFFICER"],
+      allowedStatuses: ["IN_REVIEW"],
+      nextStatus: "IN_REVIEW",
+      action: "RECOMMEND",
+      reason: "Reimbursement Officer returned Training Approval Request to HOT",
+    },
+    hot_to_am: {
+      from: "HEAD_OF_TRAINING",
+      to: "AREA_MANAGER",
+      allowedRoles: ["HEAD_OF_TRAINING"],
+      allowedStatuses: ["IN_REVIEW"],
+      nextStatus: "IN_REVIEW",
+      action: "FORWARD",
+      reason: "HOT returned Training Approval Request to AM",
+    },
+    am_approve: {
+      from: "AREA_MANAGER",
+      to: "COMPANY",
+      allowedRoles: ["AREA_MANAGER"],
+      allowedStatuses: ["IN_REVIEW"],
+      nextStatus: "APPROVED",
+      action: "APPROVE",
+      reason: "AM approved Training Approval Request",
+    },
+  } as const;
+
+  return transitions[transition];
+}
+
+function hasTrainingRequestRoutingRole(requesterRole: Role, allowedRoles: readonly Role[]) {
+  return (
+    requesterRole === "SYSTEM_ADMIN" ||
+    requesterRole === "WORKSPACE_APP_ADMIN" ||
+    allowedRoles.includes(requesterRole)
+  );
+}
+
+function hasAreaOfficeAccess(input: {
+  requesterRole: Role;
+  areaOfficeId: string | null;
+  memberships: { areaOfficeId: string | null }[];
+}) {
+  if (input.requesterRole === "SYSTEM_ADMIN" || input.requesterRole === "WORKSPACE_APP_ADMIN") {
+    return true;
+  }
+
+  return input.memberships.some((membership) => membership.areaOfficeId === input.areaOfficeId);
 }

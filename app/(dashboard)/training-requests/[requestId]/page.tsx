@@ -1,7 +1,22 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
+import {
+  routeTrainingRequestAction,
+  submitTrainingRequestAction,
+} from "@/app/(dashboard)/training-requests/[requestId]/actions";
+import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { type Role } from "@/lib/rbac";
+
+const transitionLabels = {
+  am_to_hot: "Forward to HOT",
+  hot_to_ro: "Forward to Reimbursement Officer",
+  ro_to_hot: "Return to HOT",
+  hot_to_am: "Return to AM",
+  am_approve: "Approve request",
+} as const;
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -24,12 +39,63 @@ function formatMoney(value: { toString(): string } | null) {
   })}`;
 }
 
+function isAdminRole(role: Role) {
+  return role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
+}
+
+function isEmployerRole(role: Role) {
+  return role === "EMPLOYER_ADMIN" || role === "EMPLOYER_SUBMITTER";
+}
+
+function getAvailableTransitions(currentDesk: string, status: string) {
+  if (currentDesk === "AREA_MANAGER") {
+    if (status === "IN_REVIEW") {
+      return ["am_approve"] as const;
+    }
+
+    return ["am_to_hot"] as const;
+  }
+
+  if (currentDesk === "HEAD_OF_TRAINING") {
+    return ["hot_to_ro", "hot_to_am"] as const;
+  }
+
+  if (currentDesk === "REIMBURSEMENT_OFFICER") {
+    return ["ro_to_hot"] as const;
+  }
+
+  return [] as const;
+}
+
+function canActAsDesk(role: Role, desk: string) {
+  if (isAdminRole(role)) {
+    return true;
+  }
+
+  if (desk === "AREA_MANAGER") {
+    return role === "AREA_MANAGER";
+  }
+
+  if (desk === "HEAD_OF_TRAINING") {
+    return role === "HEAD_OF_TRAINING";
+  }
+
+  if (desk === "REIMBURSEMENT_OFFICER") {
+    return role === "REIMBURSEMENT_OFFICER";
+  }
+
+  return false;
+}
+
 export default async function TrainingRequestDetailPage({
   params,
 }: Readonly<{
   params: Promise<{ requestId: string }>;
 }>) {
   const { requestId } = await params;
+  const session = await getServerSession(authOptions);
+  const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const adminOverride = isAdminRole(activeRole);
   const request = await getDb().trainingRequest.findFirst({
     where: {
       id: requestId,
@@ -109,6 +175,14 @@ export default async function TrainingRequestDetailPage({
   if (!request) {
     notFound();
   }
+
+  const canSubmit =
+    request.currentDesk === "COMPANY" &&
+    (request.status === "DRAFT" || request.status === "CHANGES_REQUESTED") &&
+    (isEmployerRole(activeRole) || adminOverride);
+  const availableTransitions = getAvailableTransitions(request.currentDesk, request.status);
+  const canRoute =
+    availableTransitions.length > 0 && canActAsDesk(activeRole, request.currentDesk);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
@@ -240,6 +314,53 @@ export default async function TrainingRequestDetailPage({
               </p>
             )}
           </div>
+
+          {canSubmit ? (
+            <form
+              action={submitTrainingRequestAction.bind(null, request.id)}
+              className="rounded-lg border border-zinc-200 bg-white p-5"
+            >
+              <h2 className="text-xl font-semibold tracking-tight">Submit request</h2>
+              <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
+                Submission note
+                <input
+                  name="note"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                />
+              </label>
+              <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Submit Form 4A
+              </button>
+            </form>
+          ) : null}
+
+          {canRoute ? (
+            <form
+              action={routeTrainingRequestAction.bind(null, request.id)}
+              className="rounded-lg border border-zinc-200 bg-white p-5"
+            >
+              <h2 className="text-xl font-semibold tracking-tight">Workflow action</h2>
+              <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
+                Routing note
+                <input
+                  name="note"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                />
+              </label>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {availableTransitions.map((transition) => (
+                  <button
+                    key={transition}
+                    name="transition"
+                    value={transition}
+                    className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
+                  >
+                    {transitionLabels[transition]}
+                  </button>
+                ))}
+              </div>
+            </form>
+          ) : null}
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="text-xl font-semibold tracking-tight">Decision trail</h2>
