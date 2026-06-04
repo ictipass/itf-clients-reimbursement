@@ -1,0 +1,222 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+
+import { updateClaimFormAction } from "@/app/(dashboard)/claims/[claimId]/actions";
+import { getDb } from "@/lib/db";
+
+function formatMoney(value: { toString(): string } | null) {
+  if (!value) {
+    return "Not provided";
+  }
+
+  return `NGN ${Number(value.toString()).toLocaleString("en-NG", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
+}
+
+function decimalInput(value: { toString(): string } | null) {
+  return value?.toString() ?? "";
+}
+
+export default async function ClaimDetailPage({
+  params,
+}: Readonly<{
+  params: Promise<{ claimId: string }>;
+}>) {
+  const { claimId } = await params;
+  const claim = await getDb().reimbursementClaim.findFirst({
+    where: {
+      id: claimId,
+      recordTier: "HOT",
+    },
+    select: {
+      id: true,
+      reference: true,
+      claimYear: true,
+      trainingContributionDue: true,
+      trainingContributionPaid: true,
+      itfReceiptNumber: true,
+      bankName: true,
+      accountNumber: true,
+      sortCode: true,
+      claimedAmount: true,
+      employerOfficerName: true,
+      employerOfficerRank: true,
+      chiefExecutiveName: true,
+      employerDeclaredAt: true,
+      status: true,
+      company: {
+        select: {
+          id: true,
+          legalName: true,
+          itfEmployerNumber: true,
+          areaOffice: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+      trainingRequest: {
+        select: {
+          id: true,
+          title: true,
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    notFound();
+  }
+
+  return (
+    <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
+      <div className="flex flex-wrap gap-3">
+        <Link href="/claims" className="text-sm font-semibold text-[#800020]">
+          Back to Claims
+        </Link>
+        <Link href={`/registry/${claim.company.id}`} className="text-sm font-semibold text-zinc-700">
+          Open company
+        </Link>
+      </div>
+
+      <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
+            Claim Form 1
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">{claim.reference}</h1>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
+            Reimbursement claim for {claim.company.legalName}.
+          </p>
+        </div>
+        <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
+          {claim.status.replaceAll("_", " ")}
+        </span>
+      </div>
+
+      <section className="mt-8 grid gap-4 md:grid-cols-4">
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            Company
+          </p>
+          <p className="mt-2 text-sm font-semibold text-zinc-950">{claim.company.legalName}</p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            ITF number
+          </p>
+          <p className="mt-2 text-sm font-semibold text-zinc-950">
+            {claim.company.itfEmployerNumber ?? "Pending"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            Area Office
+          </p>
+          <p className="mt-2 text-sm font-semibold text-zinc-950">
+            {claim.company.areaOffice?.name ?? "No Area Office"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            Claimed
+          </p>
+          <p className="mt-2 text-sm font-semibold text-zinc-950">
+            {formatMoney(claim.claimedAmount)}
+          </p>
+        </div>
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <h2 className="text-xl font-semibold tracking-tight">Employer claim details</h2>
+        <form
+          action={updateClaimFormAction.bind(null, claim.id)}
+          className="mt-5 grid gap-4 md:grid-cols-2"
+        >
+          <input
+            name="claimYear"
+            type="number"
+            defaultValue={claim.claimYear ?? ""}
+            placeholder="Claim year"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="claimedAmount"
+            type="number"
+            step="0.01"
+            required
+            defaultValue={decimalInput(claim.claimedAmount)}
+            placeholder="Claimed amount"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="trainingContributionDue"
+            type="number"
+            step="0.01"
+            defaultValue={decimalInput(claim.trainingContributionDue)}
+            placeholder="Training contribution due"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="trainingContributionPaid"
+            type="number"
+            step="0.01"
+            defaultValue={decimalInput(claim.trainingContributionPaid)}
+            placeholder="Training contribution paid"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="itfReceiptNumber"
+            defaultValue={claim.itfReceiptNumber ?? ""}
+            placeholder="ITF receipt number"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="bankName"
+            defaultValue={claim.bankName ?? ""}
+            placeholder="Bank name"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="accountNumber"
+            defaultValue={claim.accountNumber ?? ""}
+            placeholder="Account number"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="sortCode"
+            defaultValue={claim.sortCode ?? ""}
+            placeholder="Sort code"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="employerOfficerName"
+            defaultValue={claim.employerOfficerName ?? ""}
+            placeholder="Employer officer name"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="employerOfficerRank"
+            defaultValue={claim.employerOfficerRank ?? ""}
+            placeholder="Employer officer rank"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="chiefExecutiveName"
+            defaultValue={claim.chiefExecutiveName ?? ""}
+            placeholder="Chief executive name"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <div className="md:col-span-2">
+            <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+              Save Claim Form 1
+            </button>
+          </div>
+        </form>
+      </section>
+    </div>
+  );
+}

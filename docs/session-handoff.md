@@ -56,6 +56,7 @@ Recent completed slices include:
 - Slice 99: Training Approval participant management
 - Slice 100: Training Approval completeness validation
 - Slice 101: Claims creation from approved Training Approval Requests
+- Slice 102: Claim Form 1 foundation
 
 ## Important Current Rules
 
@@ -102,6 +103,7 @@ Recent completed slices include:
 - Training Approval detail page can add, edit, and delete participant rows before employer submission.
 - Training Approval submission requires core request fields, at least one participant, and at least one evidence document.
 - Employers can create reimbursement claim drafts from approved Form 4A requests with approved monitoring records.
+- Claim detail page captures Claim Form 1 employer claim/payment/declaration fields.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

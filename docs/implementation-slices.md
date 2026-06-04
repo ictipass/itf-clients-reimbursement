@@ -2108,3 +2108,21 @@ Files:
 - `app/(dashboard)/training-requests/[requestId]/page.tsx`
 - `app/(dashboard)/claims/page.tsx`
 - workflow docs
+
+### Slice 102: Claim Form 1 Foundation
+
+Goal: give reimbursement claims a focused detail page for employer claim data capture.
+
+Implemented design:
+
+- Added editable Claim Form 1 service logic
+- Added claim detail route and save action
+- Captured year, claimed amount, contribution due/paid, receipt, bank details, and employer declaration names
+- Linked the claims list to the claim detail route
+
+Files:
+
+- `lib/claims.ts`
+- `app/(dashboard)/claims/[claimId]/actions.ts`
+- `app/(dashboard)/claims/[claimId]/page.tsx`
+- workflow docs
