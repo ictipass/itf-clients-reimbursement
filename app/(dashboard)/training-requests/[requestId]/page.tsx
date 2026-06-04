@@ -94,6 +94,44 @@ function canActAsDesk(role: Role, desk: string) {
   return false;
 }
 
+function getMissingRequirements(request: {
+  title: string;
+  provider: string;
+  startsAt: Date;
+  endsAt: Date;
+  estimatedCost: { toString(): string } | null;
+  documents: unknown[];
+  participants: unknown[];
+}) {
+  const missing: string[] = [];
+
+  if (!request.title) {
+    missing.push("training title");
+  }
+
+  if (!request.provider) {
+    missing.push("provider");
+  }
+
+  if (!request.startsAt || !request.endsAt) {
+    missing.push("training dates");
+  }
+
+  if (!request.estimatedCost || Number(request.estimatedCost.toString()) <= 0) {
+    missing.push("estimated cost");
+  }
+
+  if (request.participants.length === 0) {
+    missing.push("at least one participant");
+  }
+
+  if (request.documents.length === 0) {
+    missing.push("at least one evidence document");
+  }
+
+  return missing;
+}
+
 export default async function TrainingRequestDetailPage({
   params,
 }: Readonly<{
@@ -217,6 +255,7 @@ export default async function TrainingRequestDetailPage({
     request.currentDesk === "COMPANY" &&
     (request.status === "DRAFT" || request.status === "CHANGES_REQUESTED") &&
     (isEmployerRole(activeRole) || adminOverride);
+  const missingRequirements = getMissingRequirements(request);
   const availableTransitions = getAvailableTransitions(request.currentDesk, request.status);
   const canRoute =
     availableTransitions.length > 0 && canActAsDesk(activeRole, request.currentDesk);
@@ -563,6 +602,20 @@ export default async function TrainingRequestDetailPage({
               className="rounded-lg border border-zinc-200 bg-white p-5"
             >
               <h2 className="text-xl font-semibold tracking-tight">Submit request</h2>
+              {missingRequirements.length === 0 ? (
+                <p className="mt-2 text-sm leading-6 text-emerald-700">
+                  This Form 4A has the minimum information required for submission.
+                </p>
+              ) : (
+                <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <p className="font-semibold">Complete these items before submission:</p>
+                  <ul className="mt-2 list-disc space-y-1 pl-5">
+                    {missingRequirements.map((item) => (
+                      <li key={item}>{item}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
                 Submission note
                 <input
@@ -570,7 +623,10 @@ export default async function TrainingRequestDetailPage({
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
                 />
               </label>
-              <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+              <button
+                disabled={missingRequirements.length > 0}
+                className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
+              >
                 Submit Form 4A
               </button>
             </form>

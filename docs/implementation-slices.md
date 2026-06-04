@@ -2071,3 +2071,20 @@ Files:
 - `app/(dashboard)/training-requests/[requestId]/actions.ts`
 - `app/(dashboard)/training-requests/[requestId]/page.tsx`
 - workflow docs
+
+### Slice 100: Training Request Form Completeness Validation
+
+Goal: prevent incomplete Form 4A submissions before they enter ITF review.
+
+Implemented design:
+
+- Added server-side completeness checks before Form 4A submission
+- Required title, provider, dates, positive estimated cost, at least one participant, and evidence
+- Added a readiness checklist on the Training Approval detail page
+- Disabled the submit button until the minimum requirements are met
+
+Files:
+
+- `lib/training-request.ts`
+- `app/(dashboard)/training-requests/[requestId]/page.tsx`
+- workflow docs

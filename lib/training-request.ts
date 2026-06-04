@@ -190,6 +190,17 @@ export async function submitTrainingRequest(input: SubmitTrainingRequestInput) {
     select: {
       id: true,
       companyId: true,
+      title: true,
+      provider: true,
+      startsAt: true,
+      endsAt: true,
+      estimatedCost: true,
+      _count: {
+        select: {
+          participants: true,
+          documents: true,
+        },
+      },
       company: {
         select: {
           organizationId: true,
@@ -210,6 +221,12 @@ export async function submitTrainingRequest(input: SubmitTrainingRequestInput) {
 
   if (!hasOrganizationAccess) {
     throw new Error("You do not have access to this Training Approval Request.");
+  }
+
+  const missingFields = getTrainingRequestMissingRequirements(request);
+
+  if (missingFields.length > 0) {
+    throw new Error(`Training Approval Request is incomplete: ${missingFields.join(", ")}.`);
   }
 
   return db.$transaction(async (tx) => {
@@ -239,6 +256,46 @@ export async function submitTrainingRequest(input: SubmitTrainingRequestInput) {
 
     return updated;
   });
+}
+
+function getTrainingRequestMissingRequirements(request: {
+  title: string | null;
+  provider: string | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+  estimatedCost: { toString(): string } | null;
+  _count: {
+    participants: number;
+    documents: number;
+  };
+}) {
+  const missing: string[] = [];
+
+  if (!request.title) {
+    missing.push("training title");
+  }
+
+  if (!request.provider) {
+    missing.push("provider");
+  }
+
+  if (!request.startsAt || !request.endsAt) {
+    missing.push("training dates");
+  }
+
+  if (!request.estimatedCost || Number(request.estimatedCost.toString()) <= 0) {
+    missing.push("estimated cost");
+  }
+
+  if (request._count.participants === 0) {
+    missing.push("at least one participant");
+  }
+
+  if (request._count.documents === 0) {
+    missing.push("at least one evidence document");
+  }
+
+  return missing;
 }
 
 export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
