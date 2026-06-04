@@ -236,6 +236,77 @@ function formatRegistrationKind(value: string | null | undefined) {
   return "New employer registration";
 }
 
+function getRegistryRoleFocus(role: Role) {
+  if (isEmployerRole(role)) {
+    return {
+      title: "Employer workspace",
+      detail:
+        "Complete company evidence, submit registration, file annual compliance, and manage Training Plan submissions assigned back to the company.",
+    };
+  }
+
+  if (role === "AREA_MANAGER") {
+    return {
+      title: "Area Manager desk",
+      detail:
+        "Review Area Office registration routing, receipt acceptance, employer corrections, and compliance filings for awareness.",
+    };
+  }
+
+  if (role === "HORIC") {
+    return {
+      title: "HORIC desk",
+      detail:
+        "Examine Area Office registration submissions and confirm Revenue Accountant recommendations before they return to the Area Manager.",
+    };
+  }
+
+  if (role === "REVENUE_ACCOUNTANT") {
+    return {
+      title: "Revenue Accountant desk",
+      detail:
+        "Assess registration contribution recommendations and validate legacy employer registration claims for companies in your Area Office.",
+    };
+  }
+
+  if (role === "HEAD_OF_DIVISION" || role === "HQ_REIMBURSEMENT_OFFICER") {
+    return {
+      title: "Headquarters compliance desk",
+      detail:
+        "Review annual compliance returns, manage compliance certificate numbers, and issue certificates after HQ approval.",
+    };
+  }
+
+  if (role === "DIRECTOR_FSD") {
+    return {
+      title: "Director FSD desk",
+      detail:
+        "Receive headquarters registration notifications and forward registration packages to the reimbursement division.",
+    };
+  }
+
+  if (role === "HEAD_OF_TRAINING" || role === "REIMBURSEMENT_OFFICER") {
+    return {
+      title: "Training workflow desk",
+      detail:
+        "Review Training Plan and L&D submissions routed through the Area Office training workflow.",
+    };
+  }
+
+  if (isAdminRole(role)) {
+    return {
+      title: "Administration and testing view",
+      detail:
+        "You can see broad workflow controls for setup, support, and testing. Production users see a narrower role-focused view.",
+    };
+  }
+
+  return {
+    title: "Read-only workflow view",
+    detail: "Review company registration, compliance, evidence, and Training Plan history.",
+  };
+}
+
 function getAvailableRegistrationTransitions(
   currentDesk: string,
   status: string,
@@ -387,6 +458,7 @@ export default async function CompanyDetailPage({
   }
 
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const roleFocus = getRegistryRoleFocus(activeRole);
   const adminOverride = isAdminRole(activeRole);
   const canDeleteEvidence =
     adminOverride ||
@@ -638,6 +710,23 @@ export default async function CompanyDetailPage({
           </span>
         </div>
       </div>
+
+      <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-4">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+              Your view
+            </p>
+            <h2 className="mt-1 text-lg font-semibold tracking-tight">{roleFocus.title}</h2>
+            <p className="mt-2 max-w-4xl text-sm leading-6 text-zinc-600">
+              {roleFocus.detail}
+            </p>
+          </div>
+          <span className="w-fit rounded-full bg-zinc-100 px-3 py-1 text-xs font-semibold text-zinc-700">
+            {activeRole.replaceAll("_", " ")}
+          </span>
+        </div>
+      </section>
 
       <section className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <DetailItem label="Organization" value={company.organization.name} />

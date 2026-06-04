@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 75: Evidence Summary Pagination
+- Slice 76: Role-Specific Registry Detail View
 
 Recent completed slices include:
 
@@ -30,6 +30,7 @@ Recent completed slices include:
 - Slice 73: Compliance year pagination on company detail page
 - Slice 74: Collapsible Evidence Summary rows on company detail page
 - Slice 75: Evidence Summary pagination on company detail page
+- Slice 76: Role-specific focus panel on company detail page
 
 ## Important Current Rules
 
@@ -49,6 +50,7 @@ Recent completed slices include:
 - Compliance years are paginated inside the company detail page using `compliancePage`.
 - Company evidence summary rows are collapsible, with document actions inside the expanded row.
 - Company evidence summary rows are paginated using `evidencePage`.
+- Company detail page shows a role-focus panel so each user understands their expected desk responsibility.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

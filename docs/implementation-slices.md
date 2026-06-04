@@ -1615,3 +1615,20 @@ Expected files:
 
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 76: Role-Specific Registry Detail View
+
+Goal: make the shared company detail page explain the logged-in user's role focus before we split each workflow into dedicated task pages.
+
+Expected design:
+
+- Add a role-focus panel near the top of the company detail page
+- Describe what the current role is expected to do on this page
+- Clarify admin/testing override behavior for system-level users
+- Preserve backend permissions and existing action gates
+- Keep this as a bridge toward fully role-specific task pages
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs
