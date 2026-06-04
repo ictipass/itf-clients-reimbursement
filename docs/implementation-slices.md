@@ -2034,3 +2034,22 @@ Files:
 - `app/(dashboard)/training-monitoring/[recordId]/actions.ts`
 - `app/(dashboard)/training-monitoring/[recordId]/page.tsx`
 - workflow docs
+
+### Slice 98: Training Monitoring Work Queue Integration
+
+Goal: make Form 6A/6B monitoring records visible in officer attention queues when action is needed.
+
+Implemented design:
+
+- Added `TRAINING_MONITORING_REVIEW` work item kind
+- Linked `WorkItem` rows to `TrainingMonitoringRecord`
+- Resolved open monitoring work items when the record moves to a new workflow state
+- Created HOT work items for submitted/changes-requested monitoring records
+- Created Reimbursement Officer work items for in-review monitoring records
+
+Files:
+
+- `prisma/schema.prisma`
+- `prisma/migrations/20260604121000_add_training_monitoring_work_items/migration.sql`
+- `lib/training-monitoring.ts`
+- workflow docs

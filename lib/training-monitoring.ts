@@ -287,11 +287,20 @@ export async function routeTrainingMonitoringRecord(
     },
     select: {
       id: true,
+      trainingRequestId: true,
       trainingRequest: {
         select: {
+          companyId: true,
           company: {
             select: {
+              legalName: true,
+              organizationId: true,
               areaOfficeId: true,
+              organization: {
+                select: {
+                  workspaceId: true,
+                },
+              },
             },
           },
         },
@@ -309,17 +318,91 @@ export async function routeTrainingMonitoringRecord(
     areaOfficeId: record.trainingRequest.company.areaOfficeId,
   });
 
-  return getDb().trainingMonitoringRecord.update({
-    where: {
-      id: record.id,
-    },
-    data: {
-      status: transition.to,
-    },
-    select: {
-      id: true,
-    },
+  return getDb().$transaction(async (tx) => {
+    const updated = await tx.trainingMonitoringRecord.update({
+      where: {
+        id: record.id,
+      },
+      data: {
+        status: transition.to,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        trainingMonitoringRecordId: record.id,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
+      },
+    });
+
+    const assignedRole = getMonitoringWorkItemRole(transition.to);
+
+    if (assignedRole) {
+      await tx.workItem.upsert({
+        where: {
+          sourceKey: `training-monitoring:${record.id}:${transition.to.toLowerCase()}`,
+        },
+        create: {
+          workspaceId: record.trainingRequest.company.organization.workspaceId,
+          organizationId: record.trainingRequest.company.organizationId,
+          areaOfficeId: record.trainingRequest.company.areaOfficeId,
+          companyId: record.trainingRequest.companyId,
+          trainingMonitoringRecordId: record.id,
+          assignedRole,
+          app: "REIMBURSEMENT",
+          kind: "TRAINING_MONITORING_REVIEW",
+          status: "OPEN",
+          priority: "NORMAL",
+          title: getMonitoringWorkItemTitle(transition.to),
+          summary: `${record.trainingRequest.company.legalName} has a Form 6A/6B monitoring record awaiting action.`,
+          targetHref: `/training-monitoring/${record.id}`,
+          sourceKey: `training-monitoring:${record.id}:${transition.to.toLowerCase()}`,
+        },
+        update: {
+          status: "OPEN",
+          resolvedAt: null,
+          assignedRole,
+          targetHref: `/training-monitoring/${record.id}`,
+        },
+        select: {
+          id: true,
+        },
+      });
+    }
+
+    return updated;
   });
+}
+
+function getMonitoringWorkItemRole(status: "SUBMITTED" | "IN_REVIEW" | "APPROVED" | "CHANGES_REQUESTED") {
+  if (status === "SUBMITTED" || status === "CHANGES_REQUESTED") {
+    return "HEAD_OF_TRAINING" as const;
+  }
+
+  if (status === "IN_REVIEW") {
+    return "REIMBURSEMENT_OFFICER" as const;
+  }
+
+  return null;
+}
+
+function getMonitoringWorkItemTitle(status: "SUBMITTED" | "IN_REVIEW" | "APPROVED" | "CHANGES_REQUESTED") {
+  if (status === "IN_REVIEW") {
+    return "Review training monitoring record";
+  }
+
+  if (status === "CHANGES_REQUESTED") {
+    return "Resolve monitoring corrections";
+  }
+
+  return "Review submitted monitoring record";
 }
 
 function resolveTrainingMonitoringTransition(transition: TrainingMonitoringTransition) {

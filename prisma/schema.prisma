@@ -168,6 +168,7 @@ enum WorkItemKind {
   COMPLIANCE_AWARENESS
   COMPLIANCE_REVIEW
   TRAINING_PLAN_REVIEW
+  TRAINING_MONITORING_REVIEW
 }
 
 enum WorkItemStatus {
@@ -768,6 +769,7 @@ model TrainingMonitoringRecord {
   trainingRequest          TrainingRequest        @relation(fields: [trainingRequestId], references: [id])
   documents                Document[]
   evaluations              TrainingMonitoringEvaluation[]
+  workItems                WorkItem[]
 
   @@index([trainingRequestId, status, recordTier])
   @@index([mode, status, recordTier])
@@ -957,6 +959,7 @@ model WorkItem {
   registrationApplicationId String?
   complianceYearId          String?
   trainingPlanSubmissionId  String?
+  trainingMonitoringRecordId String?
   assignedUserId            String?
   assignedRole              Role?
   app                       WorkspaceApp             @default(REIMBURSEMENT)
@@ -978,6 +981,7 @@ model WorkItem {
   registrationApplication   RegistrationApplication? @relation(fields: [registrationApplicationId], references: [id])
   complianceYear            ComplianceYear?          @relation(fields: [complianceYearId], references: [id])
   trainingPlanSubmission    TrainingPlanSubmission?  @relation(fields: [trainingPlanSubmissionId], references: [id])
+  trainingMonitoringRecord  TrainingMonitoringRecord? @relation(fields: [trainingMonitoringRecordId], references: [id])
   assignedUser              User?                    @relation("AssignedWorkItems", fields: [assignedUserId], references: [id])
 
   @@index([workspaceId, app, status, recordTier, createdAt])
@@ -985,6 +989,7 @@ model WorkItem {
   @@index([organizationId, status, recordTier])
   @@index([complianceYearId, status, recordTier])
   @@index([trainingPlanSubmissionId, status, recordTier])
+  @@index([trainingMonitoringRecordId, status, recordTier])
   @@index([assignedUserId, status, recordTier])
 }
 

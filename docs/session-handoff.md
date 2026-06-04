@@ -52,6 +52,7 @@ Recent completed slices include:
 - Slice 95: Training Monitoring evidence and evaluation capture
 - Slice 96: Training Monitoring edit form
 - Slice 97: Training Monitoring submit and approval flow
+- Slice 98: Training Monitoring work queue integration
 
 ## Important Current Rules
 
@@ -94,6 +95,7 @@ Recent completed slices include:
 - Training Monitoring records can store uploaded evidence and 1-5 evaluation ratings by section/rating area.
 - Training Monitoring detail page can edit monitoring date/time, meeting details, and officer signature metadata.
 - Training Monitoring records can move through draft/submitted/in-review/approved or changes-requested states.
+- Training Monitoring workflow creates dashboard work items for HOT and Area Office Reimbursement Officer queues.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit
