@@ -2088,3 +2088,23 @@ Files:
 - `lib/training-request.ts`
 - `app/(dashboard)/training-requests/[requestId]/page.tsx`
 - workflow docs
+
+### Slice 101: Claims Creation From Approved Training Requests
+
+Goal: let employers open reimbursement claim drafts from approved and monitored Training Approval Requests.
+
+Implemented design:
+
+- Added claim creation service logic
+- Required approved Form 4A and at least one approved Form 6A/6B monitoring record
+- Prevented duplicate active claims for the same Training Approval Request
+- Added claim creation action on eligible Training Approval detail pages
+- Replaced placeholder `/claims` page with a real claim list
+
+Files:
+
+- `lib/claims.ts`
+- `app/(dashboard)/training-requests/[requestId]/actions.ts`
+- `app/(dashboard)/training-requests/[requestId]/page.tsx`
+- `app/(dashboard)/claims/page.tsx`
+- workflow docs

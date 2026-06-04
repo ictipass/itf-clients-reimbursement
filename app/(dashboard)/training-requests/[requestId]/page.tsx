@@ -5,6 +5,7 @@ import { notFound } from "next/navigation";
 import {
   addTrainingParticipantAction,
   createTrainingMonitoringRecordAction,
+  createClaimFromTrainingRequestAction,
   deleteTrainingParticipantAction,
   routeTrainingRequestAction,
   submitTrainingRequestAction,
@@ -225,6 +226,19 @@ export default async function TrainingRequestDetailPage({
           createdAt: "desc",
         },
       },
+      claims: {
+        where: {
+          recordTier: "HOT",
+        },
+        select: {
+          id: true,
+          reference: true,
+          status: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
       decisions: {
         where: {
           recordTier: "HOT",
@@ -266,6 +280,13 @@ export default async function TrainingRequestDetailPage({
       activeRole === "HEAD_OF_TRAINING" ||
       activeRole === "REIMBURSEMENT_OFFICER" ||
       activeRole === "ITF_TRAINING_APPROVER");
+  const hasApprovedMonitoring = request.monitoringRecords.some(
+    (record) => record.status === "APPROVED",
+  );
+  const canCreateClaim =
+    request.status === "APPROVED" &&
+    hasApprovedMonitoring &&
+    (isEmployerRole(activeRole) || adminOverride);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
@@ -594,6 +615,39 @@ export default async function TrainingRequestDetailPage({
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <h2 className="text-xl font-semibold tracking-tight">Claims</h2>
+            {request.claims.length === 0 ? (
+              <p className="mt-3 text-sm leading-6 text-zinc-600">
+                No reimbursement claim has been opened from this Form 4A yet.
+              </p>
+            ) : (
+              <div className="mt-4 grid gap-2">
+                {request.claims.map((claim) => (
+                  <Link
+                    key={claim.id}
+                    href={`/claims/${claim.id}`}
+                    className="rounded-md border border-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-800"
+                  >
+                    {claim.reference} · {claim.status.replaceAll("_", " ")}
+                  </Link>
+                ))}
+              </div>
+            )}
+            {canCreateClaim && request.claims.length === 0 ? (
+              <form action={createClaimFromTrainingRequestAction.bind(null, request.id)}>
+                <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                  Create reimbursement claim
+                </button>
+              </form>
+            ) : null}
+            {request.status === "APPROVED" && !hasApprovedMonitoring ? (
+              <p className="mt-3 text-sm leading-6 text-amber-700">
+                Claims can be opened after at least one monitoring record is approved.
+              </p>
+            ) : null}
           </div>
 
           {canSubmit ? (

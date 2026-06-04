@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { createClaimFromTrainingRequest } from "@/lib/claims";
 import {
   createTrainingMonitoringRecord,
   getTrainingMonitoringModes,
@@ -231,4 +232,22 @@ export async function deleteTrainingParticipantAction(
 
   revalidatePath(`/training-requests/${requestId}`);
   redirect(`/training-requests/${requestId}`);
+}
+
+export async function createClaimFromTrainingRequestAction(requestId: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await createClaimFromTrainingRequest({
+    trainingRequestId: requestId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
+
+  revalidatePath(`/claims`);
+  revalidatePath(`/training-requests/${requestId}`);
+  redirect(`/claims`);
 }
