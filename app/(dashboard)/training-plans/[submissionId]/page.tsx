@@ -6,7 +6,10 @@ import {
   routeTrainingPlanSubmissionAction,
   submitTrainingPlanSubmissionAction,
 } from "@/app/(dashboard)/registry/[companyId]/training-plans/actions";
-import { importTrainingPlanCsvAction } from "@/app/(dashboard)/training-plans/[submissionId]/actions";
+import {
+  createTrainingRequestFromLineItemAction,
+  importTrainingPlanCsvAction,
+} from "@/app/(dashboard)/training-plans/[submissionId]/actions";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { type Role } from "@/lib/rbac";
@@ -387,6 +390,9 @@ export default async function TrainingPlanDetailPage({
                       <th className="px-3 py-2">Training</th>
                       <th className="px-3 py-2">Cost</th>
                       <th className="px-3 py-2">Date</th>
+                      {submission.status === "APPROVED" ? (
+                        <th className="px-3 py-2">Action</th>
+                      ) : null}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
@@ -404,6 +410,15 @@ export default async function TrainingPlanDetailPage({
                           NGN {Number(item.estimatedCost.toString()).toLocaleString("en-NG")}
                         </td>
                         <td className="px-3 py-3">{formatDate(item.plannedDate)}</td>
+                        {submission.status === "APPROVED" ? (
+                          <td className="px-3 py-3">
+                            <form action={createTrainingRequestFromLineItemAction.bind(null, item.id)}>
+                              <button className="min-h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800">
+                                Create Form 4A
+                              </button>
+                            </form>
+                          </td>
+                        ) : null}
                       </tr>
                     ))}
                   </tbody>

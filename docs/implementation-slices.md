@@ -1875,3 +1875,22 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - `app/(dashboard)/training-plans/[submissionId]/page.tsx`
 - workflow docs
+
+### Slice 90: Training Approval Request Creation
+
+Goal: let employers create Form 4A Training Approval Requests from approved Training Plan line items.
+
+Expected design:
+
+- Add service logic to create a Training Request from a structured Training Plan row
+- Require the source Training Plan submission to be approved
+- Create a draft Training Request at the company desk
+- Add a `Create Form 4A` action on approved Training Plan line items
+- Redirect to the Training Request detail page after creation
+
+Expected files:
+
+- `lib/training-request.ts`
+- `app/(dashboard)/training-plans/[submissionId]/actions.ts`
+- `app/(dashboard)/training-plans/[submissionId]/page.tsx`
+- workflow docs
