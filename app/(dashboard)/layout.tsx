@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getAttentionSummary, getModuleAttentionCounts } from "@/lib/attention";
 import { appName } from "@/lib/domain";
+import { getDb } from "@/lib/db";
 import { getVisibleNavGroups } from "@/lib/navigation";
 
 export default async function DashboardLayout({
@@ -13,6 +14,32 @@ export default async function DashboardLayout({
 }>) {
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const account = session?.user?.email
+    ? await getDb().user.findUnique({
+        where: {
+          email: session.user.email,
+        },
+        select: {
+          name: true,
+          email: true,
+          memberships: {
+            select: {
+              organization: {
+                select: {
+                  name: true,
+                },
+              },
+              areaOffice: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+            take: 3,
+          },
+        },
+      })
+    : null;
   const visibleNavGroups = getVisibleNavGroups(activeRole);
   const attentionSummary = await getAttentionSummary({
     requesterEmail: session?.user?.email,
@@ -41,17 +68,36 @@ export default async function DashboardLayout({
                 </span>
               ) : null}
             </Link>
-            <div className="grid gap-2 text-sm">
-              <span className="rounded-full border border-zinc-200 px-3 py-1 font-medium text-zinc-700">
-                {activeRole}
-              </span>
+            {account ? (
+              <details className="group rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm">
+                <summary className="cursor-pointer list-none font-semibold text-zinc-950">
+                  {account.name ?? account.email}
+                </summary>
+                <div className="mt-3 grid gap-2 text-xs leading-5 text-zinc-600">
+                  <p>{account.email}</p>
+                  <p className="font-semibold text-[#800020]">{activeRole}</p>
+                  {account.memberships.map((membership) => (
+                    <p key={`${membership.organization?.name}-${membership.areaOffice?.name}`}>
+                      {membership.organization?.name ?? "ITF Workspace"}
+                      {membership.areaOffice?.name ? ` · ${membership.areaOffice.name}` : ""}
+                    </p>
+                  ))}
+                  <Link
+                    href="/api/auth/signout"
+                    className="mt-2 inline-flex min-h-9 items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-800"
+                  >
+                    Sign out
+                  </Link>
+                </div>
+              </details>
+            ) : (
               <Link
                 href="/api/auth/signin"
                 className="inline-flex min-h-9 items-center justify-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
               >
                 Sign in
               </Link>
-            </div>
+            )}
           </div>
           <nav className="grid gap-5 overflow-x-auto pb-1 lg:overflow-y-auto lg:pb-6">
             {visibleNavGroups.map((group) => (

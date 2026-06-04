@@ -2215,3 +2215,19 @@ Files:
 - `lib/attention.ts`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 108: User Account Menu and Sign-Out
+
+Goal: show a clearer signed-in user/account area in the production shell.
+
+Implemented design:
+
+- Added account details in the sidebar shell
+- Displayed user name/email, active role, and up to three membership contexts
+- Added a sign-out link through NextAuth
+- Kept sign-in fallback for unauthenticated sessions
+
+Files:
+
+- `app/(dashboard)/layout.tsx`
+- workflow docs
