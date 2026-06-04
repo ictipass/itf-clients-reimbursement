@@ -1529,3 +1529,21 @@ Expected files:
 - `app/(dashboard)/dashboard/page.tsx`
 - `app/(dashboard)/layout.tsx`
 - architecture and workflow docs
+
+### Slice 71: Current-Year Compliance Gate
+
+Goal: treat annual compliance as a yearly eligibility reset for Training Plan and L&D submission.
+
+Expected design:
+
+- Use the current calendar year when deciding whether the company can start a Training Plan submission
+- Do not allow a previous certified year to unlock the current year's Training Plan entry point
+- Show a locked state on the Training Plan creation page when current-year compliance is not certified
+- Keep backend submission checks tied to the selected submission year
+- Explain the annual reset rule in the architecture notes
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- `app/(dashboard)/registry/[companyId]/training-plans/new/page.tsx`
+- architecture and workflow docs

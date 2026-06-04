@@ -523,7 +523,9 @@ export default async function CompanyDetailPage({
         : "Available after registration completion.",
     },
   ];
-  const latestComplianceYear = company.complianceYears[0];
+  const currentComplianceYear = company.complianceYears.find(
+    (complianceYear) => complianceYear.year === currentYear,
+  );
   const registeredCompanySteps = [
     {
       title: "Registered",
@@ -532,20 +534,20 @@ export default async function CompanyDetailPage({
       detail: `ITF number ${company.itfEmployerNumber}`,
     },
     {
-      title: "Annual compliance",
-      status: latestComplianceYear ? "Started" : "Pending",
-      isDone: Boolean(latestComplianceYear),
-      detail: latestComplianceYear
-        ? `${latestComplianceYear.year} is ${latestComplianceYear.status.replaceAll("_", " ")}.`
-        : "Create the annual compliance year.",
+      title: `${currentYear} compliance`,
+      status: currentComplianceYear ? "Started" : "Pending",
+      isDone: Boolean(currentComplianceYear),
+      detail: currentComplianceYear
+        ? `${currentYear} is ${currentComplianceYear.status.replaceAll("_", " ")}.`
+        : `Create the ${currentYear} annual compliance year.`,
     },
     {
       title: "Payment evidence",
-      status: latestComplianceYear?.documents.length ? "Started" : "Pending",
-      isDone: Boolean(latestComplianceYear?.documents.length),
-      detail: latestComplianceYear?.documents.length
-        ? `${latestComplianceYear.documents.length} document${latestComplianceYear.documents.length === 1 ? "" : "s"} uploaded.`
-        : "Upload payment and compliance evidence.",
+      status: currentComplianceYear?.documents.length ? "Started" : "Pending",
+      isDone: Boolean(currentComplianceYear?.documents.length),
+      detail: currentComplianceYear?.documents.length
+        ? `${currentComplianceYear.documents.length} document${currentComplianceYear.documents.length === 1 ? "" : "s"} uploaded for ${currentYear}.`
+        : `Upload ${currentYear} payment and compliance evidence.`,
     },
     {
       title: "Certificate",

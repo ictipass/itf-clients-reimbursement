@@ -27,6 +27,12 @@ export default async function NewTrainingPlanSubmissionPage({
   const defaultYear = requestedYear && Number.isInteger(Number(requestedYear))
     ? Number(requestedYear)
     : currentYear;
+  const hasCurrentYearCertifiedCompliance = company.complianceYears.some(
+    (complianceYear) =>
+      complianceYear.year === currentYear &&
+      complianceYear.status === "APPROVED" &&
+      complianceYear.certificate,
+  );
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8 lg:px-8">
@@ -43,6 +49,23 @@ export default async function NewTrainingPlanSubmissionPage({
         </p>
       </div>
 
+      {!hasCurrentYearCertifiedCompliance ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
+          <p className="font-semibold">Current-year compliance is required</p>
+          <p className="mt-2 max-w-3xl leading-6">
+            Training Plan and L&amp;D submission opens after {company.legalName}&apos;s{" "}
+            {currentYear} annual compliance is approved and its compliance certificate has been
+            issued.
+          </p>
+          <Link
+            href={`/registry/${company.id}`}
+            className="mt-4 inline-flex min-h-10 items-center rounded-md border border-amber-200 bg-white px-3 text-sm font-semibold text-amber-900"
+          >
+            Return to company profile
+          </Link>
+        </div>
+      ) : (
+        <>
       {createError ? (
         <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -99,6 +122,8 @@ export default async function NewTrainingPlanSubmissionPage({
           </button>
         </div>
       </form>
+        </>
+      )}
     </div>
   );
 }
