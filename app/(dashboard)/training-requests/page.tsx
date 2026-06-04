@@ -128,6 +128,12 @@ export default async function TrainingRequestsPage() {
                     <td className="px-4 py-4">{request.status.replaceAll("_", " ")}</td>
                     <td className="px-4 py-4">
                       <Link
+                        href={`/training-requests/${request.id}`}
+                        className="mr-2 inline-flex min-h-8 items-center rounded-md border border-zinc-200 px-2 text-xs font-semibold text-zinc-800"
+                      >
+                        View detail
+                      </Link>
+                      <Link
                         href={`/registry/${request.company.id}`}
                         className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 px-2 text-xs font-semibold text-zinc-800"
                       >

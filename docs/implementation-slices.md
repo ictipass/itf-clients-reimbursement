@@ -1783,3 +1783,21 @@ Expected files:
 - Prisma migration
 - `app/(dashboard)/training-requests/page.tsx`
 - workflow docs
+
+### Slice 85: Training Approval Evidence and Decision Trail
+
+Goal: expose Training Approval Request evidence and decision history in a focused Form 4A detail page.
+
+Expected design:
+
+- Add `/training-requests/[requestId]` route
+- Show request details, provider, venue, participant count, expected outcome, dates, estimated cost, status, and current desk
+- Show linked Training Plan source row when present
+- Show active evidence documents and decision trail
+- Link Training Requests list rows to the detail route
+
+Expected files:
+
+- `app/(dashboard)/training-requests/[requestId]/page.tsx`
+- `app/(dashboard)/training-requests/page.tsx`
+- workflow docs

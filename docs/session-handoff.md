@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 84: Training Approval Area Office Workflow
+- Slice 85: Training Approval Evidence and Decision Trail
 
 Recent completed slices include:
 
@@ -39,6 +39,7 @@ Recent completed slices include:
 - Slice 82: Training Plan CSV import persistence
 - Slice 83: Training Approval Request foundation
 - Slice 84: Training Approval Request current desk tracking
+- Slice 85: Training Approval Request evidence and decision detail page
 
 ## Important Current Rules
 
@@ -67,6 +68,7 @@ Recent completed slices include:
 - Training Plan CSV imports are stored as `TrainingPlanLineItem` rows linked to the submission.
 - Training Approval Requests can optionally link back to structured Training Plan line items, and `/training-requests` lists Form 4A request records.
 - Training Approval Requests now track `currentDesk` with the Area Office training workflow desk enum.
+- `/training-requests/[requestId]` shows Training Approval Request detail, evidence, source Training Plan row, and decision trail.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit
