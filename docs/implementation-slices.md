@@ -2247,3 +2247,19 @@ Files:
 
 - `app/(dashboard)/dashboard/page.tsx`
 - workflow docs
+
+### Slice 110: Area Office Officer Dashboard View
+
+Goal: give Area Office officers a dashboard focused on their desk queue and jurisdiction.
+
+Implemented design:
+
+- Added Area Office role branch for AM, HORIC, RA, HOT, and RO
+- Displayed action count, companies in scope, open registrations, and open training items
+- Showed routed desk queue items with Area Office context
+- Displayed assigned Area Office scope cards
+
+Files:
+
+- `app/(dashboard)/dashboard/page.tsx`
+- workflow docs

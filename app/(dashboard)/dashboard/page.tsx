@@ -34,6 +34,16 @@ function isEmployerRole(role: string) {
   return role === "EMPLOYER_ADMIN" || role === "EMPLOYER_SUBMITTER" || role === "EMPLOYER_VIEWER";
 }
 
+function isAreaOfficeOfficerRole(role: string) {
+  return (
+    role === "AREA_MANAGER" ||
+    role === "HORIC" ||
+    role === "REVENUE_ACCOUNTANT" ||
+    role === "HEAD_OF_TRAINING" ||
+    role === "REIMBURSEMENT_OFFICER"
+  );
+}
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
@@ -205,6 +215,185 @@ export default async function DashboardPage() {
               ))}
             </div>
           )}
+        </section>
+      </div>
+    );
+  }
+
+  if (isAreaOfficeOfficerRole(activeRole)) {
+    const memberships = session?.user?.email
+      ? await getDb().membership.findMany({
+          where: {
+            user: {
+              email: session.user.email,
+            },
+            areaOfficeId: {
+              not: null,
+            },
+          },
+          select: {
+            areaOfficeId: true,
+          },
+        })
+      : [];
+    const areaOfficeIds = Array.from(
+      new Set(
+        memberships
+          .map((membership) => membership.areaOfficeId)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const areaOffices = await getDb().areaOffice.findMany({
+      where: {
+        id: {
+          in: areaOfficeIds,
+        },
+      },
+      select: {
+        id: true,
+        name: true,
+        code: true,
+        slug: true,
+      },
+      orderBy: {
+        name: "asc",
+      },
+    });
+    const [companiesCount, openRegistrations, openTrainingPlans, openMonitoring] =
+      await getDb().$transaction([
+        getDb().company.count({
+          where: {
+            areaOfficeId: {
+              in: areaOfficeIds,
+            },
+            recordTier: "HOT",
+          },
+        }),
+        getDb().registrationApplication.count({
+          where: {
+            areaOfficeId: {
+              in: areaOfficeIds,
+            },
+            status: {
+              in: ["SUBMITTED", "IN_REVIEW", "CHANGES_REQUESTED"],
+            },
+            recordTier: "HOT",
+          },
+        }),
+        getDb().trainingPlanSubmission.count({
+          where: {
+            company: {
+              areaOfficeId: {
+                in: areaOfficeIds,
+              },
+            },
+            status: {
+              in: ["SUBMITTED", "IN_REVIEW", "CHANGES_REQUESTED"],
+            },
+            recordTier: "HOT",
+          },
+        }),
+        getDb().trainingMonitoringRecord.count({
+          where: {
+            trainingRequest: {
+              company: {
+                areaOfficeId: {
+                  in: areaOfficeIds,
+                },
+              },
+            },
+            status: {
+              in: ["SUBMITTED", "IN_REVIEW", "CHANGES_REQUESTED"],
+            },
+            recordTier: "HOT",
+          },
+        }),
+      ]);
+
+    return (
+      <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:px-8">
+        <section>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
+            Area Office desk
+          </p>
+          <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight">
+            {formatRole(activeRole)} work queue
+          </h1>
+          <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-600">
+            Review tasks routed to your Area Office desk, including registration, training,
+            monitoring, compliance awareness, and reimbursement work.
+          </p>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-4">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">{attentionSummary.actionTotal}</p>
+            <p className="mt-2 text-sm font-semibold">Action queue</p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">{companiesCount}</p>
+            <p className="mt-2 text-sm font-semibold">Companies in scope</p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">{openRegistrations}</p>
+            <p className="mt-2 text-sm font-semibold">Open registrations</p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">
+              {openTrainingPlans + openMonitoring}
+            </p>
+            <p className="mt-2 text-sm font-semibold">Open training items</p>
+          </div>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[1fr_0.75fr]">
+          <div className="rounded-lg border border-zinc-200 bg-white p-6">
+            <h2 className="text-2xl font-semibold tracking-tight">Desk queue</h2>
+            {attentionSummary.items.length === 0 ? (
+              <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                No pending attention items for your Area Office desk.
+              </p>
+            ) : (
+              <div className="mt-5 grid gap-3">
+                {attentionSummary.items.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={item.targetHref}
+                    className="grid gap-2 rounded-md border border-zinc-100 p-4 transition hover:border-[#800020]/40"
+                  >
+                    <p className="font-semibold text-zinc-950">{item.title}</p>
+                    <p className="text-sm leading-6 text-zinc-600">
+                      {item.summary ?? item.company?.legalName ?? "Open workflow item"}
+                    </p>
+                    <p className="text-xs leading-5 text-zinc-500">
+                      {formatKind(item.kind)} · {item.areaOffice?.name ?? "Area Office"} ·{" "}
+                      {formatDate(item.createdAt)}
+                    </p>
+                  </Link>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-6">
+            <h2 className="text-2xl font-semibold tracking-tight">Office scope</h2>
+            {areaOffices.length === 0 ? (
+              <p className="mt-4 text-sm leading-6 text-zinc-600">
+                No Area Office assignment is linked to this account.
+              </p>
+            ) : (
+              <div className="mt-5 grid gap-2">
+                {areaOffices.map((office) => (
+                  <div key={office.id} className="rounded-md bg-zinc-50 px-3 py-2 text-sm">
+                    <p className="font-semibold text-zinc-950">{office.name}</p>
+                    <p className="text-xs text-zinc-500">
+                      {office.code ?? "No code"} · {office.slug}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
       </div>
     );
