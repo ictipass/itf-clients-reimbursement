@@ -1371,16 +1371,24 @@ export default async function CompanyDetailPage({
             </p>
           ) : (
             <div className="mt-4 grid gap-3">
-              {company.complianceYears.map((complianceYear) => (
-                <div
+              {company.complianceYears.map((complianceYear, index) => (
+                <details
                   key={complianceYear.id}
-                  className="rounded-md border border-zinc-100 p-3 text-sm"
+                  open={index === 0}
+                  className="group rounded-md border border-zinc-100 p-3 text-sm"
                 >
-                  <div className="grid gap-2 md:grid-cols-3">
+                  <summary className="grid cursor-pointer list-none gap-2 rounded-md p-1 md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
                     <p className="font-semibold">{complianceYear.year}</p>
                     <p>{complianceYear.status.replaceAll("_", " ")}</p>
                     <p>{formatMoney(complianceYear.amountPaid)}</p>
-                  </div>
+                    <span className="text-xs font-semibold text-[#800020] group-open:hidden">
+                      Expand
+                    </span>
+                    <span className="hidden text-xs font-semibold text-zinc-500 group-open:inline">
+                      Collapse
+                    </span>
+                  </summary>
+                  <div className="mt-3 border-t border-zinc-100 pt-3">
                   {complianceYear.certificate ? (
                     <div className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-800">
                       <p className="font-semibold">
@@ -1563,7 +1571,8 @@ export default async function CompanyDetailPage({
                       ))}
                     </div>
                   ) : null}
-                </div>
+                  </div>
+                </details>
               ))}
             </div>
           )}

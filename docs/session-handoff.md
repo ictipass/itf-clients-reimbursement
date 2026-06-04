@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 71: Current-Year Compliance Gate
+- Slice 72: Collapsible Compliance Year Cards
 
 Recent completed slices include:
 
@@ -26,6 +26,7 @@ Recent completed slices include:
 - Slice 69: Compliance filing awareness for Area Office and HQ review work queue
 - Slice 70: Dashboard distinction between action-required and awareness-only work items
 - Slice 71: Current-year compliance gate for Training Plan and L&D submission
+- Slice 72: Collapsible compliance year cards on company detail page
 
 ## Important Current Rules
 
@@ -41,6 +42,7 @@ Recent completed slices include:
 - Annual compliance certificates, not registration certificates, are the downloadable certificate path.
 - Training Plan and L&D submission requires approved/certified compliance for that training year.
 - The company detail page and Training Plan create page use current-year compliance to unlock current-year Training Plan entry.
+- Compliance years are displayed as collapsible cards, with the most recent year open by default.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

@@ -1547,3 +1547,20 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - `app/(dashboard)/registry/[companyId]/training-plans/new/page.tsx`
 - architecture and workflow docs
+
+### Slice 72: Collapsible Compliance Year Cards
+
+Goal: keep long compliance histories readable by making each compliance year expandable.
+
+Expected design:
+
+- Render each compliance year as a compact summary row
+- Open the most recent compliance year by default
+- Keep older compliance years collapsed until the user expands them
+- Preserve all existing certificate, evidence, review, and issuance actions inside the expanded content
+- Avoid extra client-side JavaScript for this simple disclosure behavior
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs
