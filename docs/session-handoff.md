@@ -50,6 +50,7 @@ Recent completed slices include:
 - Slice 93: Training Approval Request direct correction return flow
 - Slice 94: Training Monitoring Form 6A/6B foundation
 - Slice 95: Training Monitoring evidence and evaluation capture
+- Slice 96: Training Monitoring edit form
 
 ## Important Current Rules
 
@@ -90,6 +91,7 @@ Recent completed slices include:
 - Approved Training Approval Requests can open Form 6A or 6B Training Monitoring records.
 - `/training-monitoring` lists monitoring records and `/training-monitoring/[recordId]` shows the focused monitoring detail.
 - Training Monitoring records can store uploaded evidence and 1-5 evaluation ratings by section/rating area.
+- Training Monitoring detail page can edit monitoring date/time, meeting details, and officer signature metadata.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

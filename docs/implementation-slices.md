@@ -1998,3 +1998,21 @@ Files:
 - `app/(dashboard)/training-monitoring/[recordId]/actions.ts`
 - `app/(dashboard)/training-monitoring/[recordId]/page.tsx`
 - workflow docs
+
+### Slice 96: Training Monitoring Edit Form
+
+Goal: let ITF training reviewers edit the operational fields on Form 6A/6B monitoring records.
+
+Implemented design:
+
+- Added update service logic for monitoring date/time, virtual meeting details, and officer names
+- Added a server action for saving monitoring metadata
+- Added an edit form on the monitoring detail page
+- Reused existing Area Office access checks and `training:approve` permission
+
+Files:
+
+- `lib/training-monitoring.ts`
+- `app/(dashboard)/training-monitoring/[recordId]/actions.ts`
+- `app/(dashboard)/training-monitoring/[recordId]/page.tsx`
+- workflow docs

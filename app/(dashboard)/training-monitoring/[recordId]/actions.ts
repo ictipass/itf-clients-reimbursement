@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 import {
   addTrainingMonitoringEvaluation,
   getTrainingMonitoringEvidenceKinds,
+  updateTrainingMonitoringRecord,
   uploadTrainingMonitoringEvidence,
   type TrainingMonitoringEvidenceKind,
 } from "@/lib/training-monitoring";
@@ -52,6 +53,22 @@ function readScore(formData: FormData) {
   }
 
   return value;
+}
+
+function readOptionalDate(formData: FormData, name: string) {
+  const value = readOptionalString(formData, name);
+
+  if (!value) {
+    return undefined;
+  }
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`${name} must be a valid date.`);
+  }
+
+  return date;
 }
 
 export async function uploadTrainingMonitoringEvidenceAction(
@@ -100,6 +117,36 @@ export async function addTrainingMonitoringEvaluationAction(
     ratingArea: readRequiredString(formData, "ratingArea"),
     score: readScore(formData),
     note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath(`/training-monitoring/${recordId}`);
+  redirect(`/training-monitoring/${recordId}`);
+}
+
+export async function updateTrainingMonitoringRecordAction(
+  recordId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await updateTrainingMonitoringRecord({
+    recordId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    monitoringDate: readOptionalDate(formData, "monitoringDate"),
+    startsAt: readOptionalDate(formData, "startsAt"),
+    endsAt: readOptionalDate(formData, "endsAt"),
+    meetingId: readOptionalString(formData, "meetingId"),
+    passcode: readOptionalString(formData, "passcode"),
+    virtualLink: readOptionalString(formData, "virtualLink"),
+    monitoringOfficerName: readOptionalString(formData, "monitoringOfficerName"),
+    monitoringOfficerTitle: readOptionalString(formData, "monitoringOfficerTitle"),
+    headOfDivisionName: readOptionalString(formData, "headOfDivisionName"),
+    directorName: readOptionalString(formData, "directorName"),
   });
 
   revalidatePath(`/training-monitoring/${recordId}`);

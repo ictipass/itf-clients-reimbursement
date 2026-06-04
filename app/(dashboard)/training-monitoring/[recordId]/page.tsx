@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import {
   addTrainingMonitoringEvaluationAction,
+  updateTrainingMonitoringRecordAction,
   uploadTrainingMonitoringEvidenceAction,
 } from "@/app/(dashboard)/training-monitoring/[recordId]/actions";
 import { authOptions } from "@/lib/auth";
@@ -29,6 +30,14 @@ function formatTime(date: Date | null) {
   return new Intl.DateTimeFormat("en-NG", {
     timeStyle: "short",
   }).format(date);
+}
+
+function formatDateTimeInput(date: Date | null) {
+  if (!date) {
+    return "";
+  }
+
+  return date.toISOString().slice(0, 16);
 }
 
 export default async function TrainingMonitoringDetailPage({
@@ -232,6 +241,105 @@ export default async function TrainingMonitoringDetailPage({
           </div>
         </div>
       </section>
+
+      {canManageMonitoring ? (
+        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+          <h2 className="text-xl font-semibold tracking-tight">Edit monitoring details</h2>
+          <form
+            action={updateTrainingMonitoringRecordAction.bind(null, record.id)}
+            className="mt-5 grid gap-4 md:grid-cols-2"
+          >
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Monitoring date
+              <input
+                name="monitoringDate"
+                type="datetime-local"
+                defaultValue={formatDateTimeInput(record.monitoringDate)}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Starting time
+              <input
+                name="startsAt"
+                type="datetime-local"
+                defaultValue={formatDateTimeInput(record.startsAt)}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Completing time
+              <input
+                name="endsAt"
+                type="datetime-local"
+                defaultValue={formatDateTimeInput(record.endsAt)}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Meeting ID
+              <input
+                name="meetingId"
+                defaultValue={record.meetingId ?? ""}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Passcode
+              <input
+                name="passcode"
+                defaultValue={record.passcode ?? ""}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Virtual link
+              <input
+                name="virtualLink"
+                defaultValue={record.virtualLink ?? ""}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Monitoring officer
+              <input
+                name="monitoringOfficerName"
+                defaultValue={record.monitoringOfficerName ?? ""}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Officer designation
+              <input
+                name="monitoringOfficerTitle"
+                defaultValue={record.monitoringOfficerTitle ?? ""}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Head of Division
+              <input
+                name="headOfDivisionName"
+                defaultValue={record.headOfDivisionName ?? ""}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Director
+              <input
+                name="directorName"
+                defaultValue={record.directorName ?? ""}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <div className="md:col-span-2">
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Save monitoring details
+              </button>
+            </div>
+          </form>
+        </section>
+      ) : null}
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-zinc-200 bg-white p-5">

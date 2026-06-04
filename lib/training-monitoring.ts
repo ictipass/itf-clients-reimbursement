@@ -39,6 +39,22 @@ export type AddTrainingMonitoringEvaluationInput = {
   note?: string;
 };
 
+export type UpdateTrainingMonitoringRecordInput = {
+  recordId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  monitoringDate?: Date;
+  startsAt?: Date;
+  endsAt?: Date;
+  meetingId?: string;
+  passcode?: string;
+  virtualLink?: string;
+  monitoringOfficerName?: string;
+  monitoringOfficerTitle?: string;
+  headOfDivisionName?: string;
+  directorName?: string;
+};
+
 export function getTrainingMonitoringModes() {
   return trainingMonitoringModes;
 }
@@ -184,6 +200,43 @@ export async function addTrainingMonitoringEvaluation(
       ratingArea: input.ratingArea,
       score: input.score,
       note: input.note,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function updateTrainingMonitoringRecord(
+  input: UpdateTrainingMonitoringRecordInput,
+) {
+  if (!can(input.requesterRole, "training:approve")) {
+    throw new Error("You do not have permission to update Training Monitoring records.");
+  }
+
+  const record = await findEditableMonitoringRecord(input.recordId);
+
+  await assertTrainingMonitoringAccess({
+    requesterEmail: input.requesterEmail,
+    requesterRole: input.requesterRole,
+    areaOfficeId: record.trainingRequest.company.areaOfficeId,
+  });
+
+  return getDb().trainingMonitoringRecord.update({
+    where: {
+      id: record.id,
+    },
+    data: {
+      monitoringDate: input.monitoringDate,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      meetingId: input.meetingId,
+      passcode: input.passcode,
+      virtualLink: input.virtualLink,
+      monitoringOfficerName: input.monitoringOfficerName,
+      monitoringOfficerTitle: input.monitoringOfficerTitle,
+      headOfDivisionName: input.headOfDivisionName,
+      directorName: input.directorName,
     },
     select: {
       id: true,
