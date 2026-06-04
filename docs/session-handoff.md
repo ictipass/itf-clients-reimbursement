@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 69: Compliance Filing Awareness and HQ Review Queue
+- Slice 70: Role-Scoped Compliance Dashboard Actions
 
 Recent completed slices include:
 
@@ -24,6 +24,7 @@ Recent completed slices include:
 - Slice 67: Legacy employer validation workflow at Revenue Accountant desk
 - Slice 68: HQ-only annual compliance review and certificate issuance
 - Slice 69: Compliance filing awareness for Area Office and HQ review work queue
+- Slice 70: Dashboard distinction between action-required and awareness-only work items
 
 ## Important Current Rules
 
@@ -35,6 +36,7 @@ Recent completed slices include:
 - Validating an employer-submitted legacy claim activates the company, records the ITF employer number, and opens the current-year compliance draft.
 - Annual compliance review and certificate issuance are restricted to Head of Reimbursement Division, HQ reimbursement/accountant role, and system/workspace administrators.
 - Annual compliance submission creates awareness work items for AM, HORIC, and RA in the company's Area Office, plus actionable HQ review items for HOD and HQ reimbursement/accountant role.
+- Dashboard attention counts separate action-required items from awareness-only items so Area Office officers can track compliance filings without certificate authority.
 - Annual compliance certificates, not registration certificates, are the downloadable certificate path.
 - Training Plan and L&D submission requires approved/certified compliance for that training year.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.

@@ -14,6 +14,14 @@ function formatKind(value: string) {
   return value.replaceAll("_", " ");
 }
 
+function getQueueBadgeClass(category: string) {
+  if (category === "AWARENESS") {
+    return "border-[#0f766e]/20 bg-[#0f766e]/10 text-[#115e59]";
+  }
+
+  return "border-[#800020]/20 bg-[#800020]/10 text-[#65001a]";
+}
+
 function formatDate(date: Date) {
   return new Intl.DateTimeFormat("en-NG", {
     dateStyle: "medium",
@@ -35,6 +43,8 @@ export default async function DashboardPage() {
     take: 5,
   });
   const hasWorkQueue = attentionSummary.items.length > 0 || employerActions.length > 0;
+  const actionCount = attentionSummary.actionTotal + employerActions.length;
+  const awarenessCount = attentionSummary.awarenessTotal;
 
   return (
     <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:px-8">
@@ -46,7 +56,8 @@ export default async function DashboardPage() {
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-600">
             Signed in as <span className="font-semibold text-zinc-950">{formatRole(activeRole)}</span>.
-            Items below are routed to your role, office, company, or workspace scope.
+            Action items need your desk decision. Awareness items keep you informed about filings in
+            your office or workspace scope.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
@@ -83,7 +94,7 @@ export default async function DashboardPage() {
             </p>
           </div>
           <span className="inline-flex min-h-9 items-center rounded-full bg-[#800020]/10 px-3 text-sm font-semibold text-[#65001a]">
-            {attentionSummary.total + employerActions.length} open
+            {actionCount} action · {awarenessCount} awareness
           </span>
         </div>
         {!hasWorkQueue ? (
@@ -100,9 +111,16 @@ export default async function DashboardPage() {
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="font-semibold text-zinc-950">{item.title}</p>
-                  <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs font-semibold text-zinc-700">
-                    {item.priority}
-                  </span>
+                  <div className="flex flex-wrap gap-2">
+                    <span
+                      className={`rounded-full border px-2 py-1 text-xs font-semibold ${getQueueBadgeClass(item.queueCategory)}`}
+                    >
+                      {item.queueLabel}
+                    </span>
+                    <span className="rounded-full border border-zinc-200 bg-zinc-50 px-2 py-1 text-xs font-semibold text-zinc-700">
+                      {item.priority}
+                    </span>
+                  </div>
                 </div>
                 <p className="text-sm leading-6 text-zinc-600">
                   {item.summary ?? item.company?.legalName ?? "Open workflow item"}

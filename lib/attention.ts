@@ -1,5 +1,8 @@
 import { getDb } from "@/lib/db";
+import type { WorkItemKind } from "@/lib/generated/prisma/client";
 import { type Role } from "@/lib/rbac";
+
+const awarenessWorkItemKinds: WorkItemKind[] = ["COMPLIANCE_AWARENESS"];
 
 export type AttentionSummaryInput = {
   requesterEmail?: string | null;
@@ -44,9 +47,17 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
         OR: buildAssigneeScope(input.requesterRole, requester),
       };
 
-  const [workItemTotal, workItems] = await db.$transaction([
+  const [workItemTotal, awarenessWorkItemTotal, workItems] = await db.$transaction([
     db.workItem.count({
       where: scopedWhere,
+    }),
+    db.workItem.count({
+      where: {
+        ...scopedWhere,
+        kind: {
+          in: awarenessWorkItemKinds,
+        },
+      },
     }),
     db.workItem.findMany({
       where: scopedWhere,
@@ -90,12 +101,30 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
   });
   const items = [...workItems, ...derivedItems]
     .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
-    .slice(0, input.take ?? 5);
+    .slice(0, input.take ?? 5)
+    .map((item) => ({
+      ...item,
+      queueCategory: getQueueCategory(item.kind),
+      queueLabel: getQueueLabel(item.kind),
+    }));
+  const actionTotal = workItemTotal - awarenessWorkItemTotal + derivedItems.length;
 
   return {
     total: workItemTotal + derivedItems.length,
+    actionTotal,
+    awarenessTotal: awarenessWorkItemTotal,
     items,
   };
+}
+
+function getQueueCategory(kind: string) {
+  return awarenessWorkItemKinds.some((awarenessKind) => awarenessKind === kind)
+    ? "AWARENESS"
+    : "ACTION";
+}
+
+function getQueueLabel(kind: string) {
+  return getQueueCategory(kind) === "AWARENESS" ? "For awareness" : "Action required";
 }
 
 async function getDerivedRegistrationDeskItems(input: {

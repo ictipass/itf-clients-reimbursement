@@ -54,6 +54,7 @@ export default async function DashboardLayout({
     requesterRole: activeRole,
     take: 0,
   });
+  const attentionBadgeTitle = `${attentionSummary.actionTotal} action item(s), ${attentionSummary.awarenessTotal} awareness item(s)`;
 
   return (
     <main className="min-h-screen bg-zinc-100 text-zinc-950">
@@ -63,7 +64,10 @@ export default async function DashboardLayout({
             <Link href="/dashboard" className="text-lg font-semibold tracking-tight">
               {appName}
               {attentionSummary.total > 0 ? (
-                <span className="ml-2 rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white">
+                <span
+                  className="ml-2 rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white"
+                  title={attentionBadgeTitle}
+                >
                   {attentionSummary.total}
                 </span>
               ) : null}
@@ -89,7 +93,10 @@ export default async function DashboardLayout({
               >
                 <span>{item.label}</span>
                 {item.href === "/registry" && attentionSummary.total > 0 ? (
-                  <span className="ml-2 rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white">
+                  <span
+                    className="ml-2 rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white"
+                    title={attentionBadgeTitle}
+                  >
                     {attentionSummary.total}
                   </span>
                 ) : null}

@@ -1509,3 +1509,23 @@ Expected files:
 - Prisma migration
 - `lib/compliance.ts`
 - architecture and workflow docs
+
+### Slice 70: Role-Scoped Compliance Dashboard Actions
+
+Goal: make the dashboard clearly distinguish between work items that require a decision and compliance filings shown for Area Office awareness.
+
+Expected design:
+
+- Classify routed work items as action-required or awareness-only
+- Show action and awareness counts separately on the dashboard
+- Label compliance awareness items as "For awareness"
+- Keep HQ compliance review items as action-required
+- Preserve notification badges while making the count meaning clearer through labels
+- Avoid granting Area Office roles any annual compliance review or certificate issuance control
+
+Expected files:
+
+- `lib/attention.ts`
+- `app/(dashboard)/dashboard/page.tsx`
+- `app/(dashboard)/layout.tsx`
+- architecture and workflow docs
