@@ -19,8 +19,11 @@ export type CreateTrainingRequestFromLineItemInput = {
 
 const trainingRequestTransitions = [
   "am_to_hot",
+  "am_to_company",
   "hot_to_ro",
+  "hot_to_company",
   "ro_to_hot",
+  "ro_to_company",
   "hot_to_am",
   "am_approve",
 ] as const;
@@ -411,6 +414,15 @@ function resolveTrainingRequestTransition(transition: TrainingRequestTransition)
       action: "FORWARD",
       reason: "AM forwarded Training Approval Request to Head of Training",
     },
+    am_to_company: {
+      from: "AREA_MANAGER",
+      to: "COMPANY",
+      allowedRoles: ["AREA_MANAGER"],
+      allowedStatuses: ["SUBMITTED", "IN_REVIEW"],
+      nextStatus: "CHANGES_REQUESTED",
+      action: "REQUEST_CHANGES",
+      reason: "AM requested employer correction on Training Approval Request",
+    },
     hot_to_ro: {
       from: "HEAD_OF_TRAINING",
       to: "REIMBURSEMENT_OFFICER",
@@ -420,6 +432,15 @@ function resolveTrainingRequestTransition(transition: TrainingRequestTransition)
       action: "FORWARD",
       reason: "HOT forwarded Training Approval Request to Reimbursement Officer",
     },
+    hot_to_company: {
+      from: "HEAD_OF_TRAINING",
+      to: "COMPANY",
+      allowedRoles: ["HEAD_OF_TRAINING"],
+      allowedStatuses: ["IN_REVIEW"],
+      nextStatus: "CHANGES_REQUESTED",
+      action: "REQUEST_CHANGES",
+      reason: "HOT requested employer correction on Training Approval Request",
+    },
     ro_to_hot: {
       from: "REIMBURSEMENT_OFFICER",
       to: "HEAD_OF_TRAINING",
@@ -428,6 +449,15 @@ function resolveTrainingRequestTransition(transition: TrainingRequestTransition)
       nextStatus: "IN_REVIEW",
       action: "RECOMMEND",
       reason: "Reimbursement Officer returned Training Approval Request to HOT",
+    },
+    ro_to_company: {
+      from: "REIMBURSEMENT_OFFICER",
+      to: "COMPANY",
+      allowedRoles: ["REIMBURSEMENT_OFFICER"],
+      allowedStatuses: ["IN_REVIEW"],
+      nextStatus: "CHANGES_REQUESTED",
+      action: "REQUEST_CHANGES",
+      reason: "Reimbursement Officer requested employer correction on Training Approval Request",
     },
     hot_to_am: {
       from: "HEAD_OF_TRAINING",

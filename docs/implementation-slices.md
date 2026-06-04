@@ -1933,3 +1933,21 @@ Expected files:
 - `app/(dashboard)/training-requests/[requestId]/evidence/new/page.tsx`
 - `app/(dashboard)/training-requests/[requestId]/page.tsx`
 - workflow docs
+
+### Slice 93: Training Approval Correction Return Flow
+
+Goal: let Area Manager, Head of Training, and Reimbursement Officer return Form 4A directly to the employer for correction.
+
+Implemented design:
+
+- Added AM-to-company, HOT-to-company, and RO-to-company Training Approval transitions
+- Returned requests to `COMPANY` with `CHANGES_REQUESTED`
+- Recorded correction actions as `REQUEST_CHANGES` decisions
+- Showed role-aware `Request employer correction` buttons on the Training Approval detail page
+- Kept normal approval/routing transitions intact
+
+Files:
+
+- `lib/training-request.ts`
+- `app/(dashboard)/training-requests/[requestId]/page.tsx`
+- workflow docs
