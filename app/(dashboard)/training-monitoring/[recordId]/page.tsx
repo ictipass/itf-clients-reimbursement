@@ -1,7 +1,15 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
+import {
+  addTrainingMonitoringEvaluationAction,
+  uploadTrainingMonitoringEvidenceAction,
+} from "@/app/(dashboard)/training-monitoring/[recordId]/actions";
+import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { can } from "@/lib/rbac";
+import { getTrainingMonitoringEvidenceKinds } from "@/lib/training-monitoring";
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -29,6 +37,10 @@ export default async function TrainingMonitoringDetailPage({
   params: Promise<{ recordId: string }>;
 }>) {
   const { recordId } = await params;
+  const session = await getServerSession(authOptions);
+  const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const canManageMonitoring = can(activeRole, "training:approve");
+  const evidenceKinds = getTrainingMonitoringEvidenceKinds();
   const record = await getDb().trainingMonitoringRecord.findFirst({
     where: {
       id: recordId,
@@ -48,6 +60,34 @@ export default async function TrainingMonitoringDetailPage({
       headOfDivisionName: true,
       directorName: true,
       status: true,
+      documents: {
+        where: {
+          isActive: true,
+          recordTier: "HOT",
+        },
+        select: {
+          id: true,
+          kind: true,
+          fileName: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+      evaluations: {
+        select: {
+          id: true,
+          section: true,
+          ratingArea: true,
+          score: true,
+          note: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
       trainingRequest: {
         select: {
           id: true,
@@ -190,6 +230,145 @@ export default async function TrainingMonitoringDetailPage({
               {record.directorName ?? "Not provided"}
             </p>
           </div>
+        </div>
+      </section>
+
+      <section className="mt-8 grid gap-6 lg:grid-cols-2">
+        <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <h2 className="text-xl font-semibold tracking-tight">Monitoring evidence</h2>
+          {record.documents.length === 0 ? (
+            <p className="mt-3 text-sm leading-6 text-zinc-600">
+              No monitoring evidence has been uploaded yet.
+            </p>
+          ) : (
+            <div className="mt-4 grid gap-3">
+              {record.documents.map((document) => (
+                <div key={document.id} className="rounded-md border border-zinc-100 p-3 text-sm">
+                  <p className="font-semibold text-zinc-950">{document.fileName}</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    {document.kind.replaceAll("_", " ")} · {formatDate(document.createdAt)}
+                  </p>
+                  <Link
+                    href={`/registry/${record.trainingRequest.company.id}/evidence/${document.id}?disposition=inline`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-3 inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800"
+                  >
+                    View evidence
+                  </Link>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {canManageMonitoring ? (
+            <form
+              action={uploadTrainingMonitoringEvidenceAction.bind(null, record.id)}
+              className="mt-5 grid gap-3 border-t border-zinc-100 pt-5"
+            >
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Evidence kind
+                <select
+                  name="kind"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                >
+                  {evidenceKinds.map((kind) => (
+                    <option key={kind} value={kind}>
+                      {kind.replaceAll("_", " ")}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                File
+                <input
+                  name="evidence"
+                  type="file"
+                  accept=".pdf,.jpg,.jpeg,.png,.csv"
+                  required
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm"
+                />
+              </label>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Upload monitoring evidence
+              </button>
+            </form>
+          ) : null}
+        </div>
+
+        <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <h2 className="text-xl font-semibold tracking-tight">Evaluation ratings</h2>
+          {record.evaluations.length === 0 ? (
+            <p className="mt-3 text-sm leading-6 text-zinc-600">
+              No evaluation rating has been recorded yet.
+            </p>
+          ) : (
+            <div className="mt-4 grid gap-2">
+              {record.evaluations.map((evaluation) => (
+                <div key={evaluation.id} className="rounded-md bg-zinc-50 px-3 py-2 text-sm">
+                  <p className="font-semibold text-zinc-950">
+                    {evaluation.section} · {evaluation.ratingArea}
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-zinc-600">
+                    Score {evaluation.score}/5 · {formatDate(evaluation.createdAt)}
+                    {evaluation.note ? ` · ${evaluation.note}` : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {canManageMonitoring ? (
+            <form
+              action={addTrainingMonitoringEvaluationAction.bind(null, record.id)}
+              className="mt-5 grid gap-3 border-t border-zinc-100 pt-5"
+            >
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Section
+                <select
+                  name="section"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                >
+                  <option value="Competence">Competence</option>
+                  <option value="Learning Environment">Learning Environment</option>
+                  <option value="Learning Support Technology">Learning Support Technology</option>
+                  <option value="Programme">Programme</option>
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Rating area
+                <input
+                  name="ratingArea"
+                  required
+                  placeholder="e.g. Communication Skills"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                />
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Score
+                <select
+                  name="score"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                >
+                  <option value="5">5 - Highest</option>
+                  <option value="4">4</option>
+                  <option value="3">3</option>
+                  <option value="2">2</option>
+                  <option value="1">1 - Lowest</option>
+                </select>
+              </label>
+              <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                Note
+                <input
+                  name="note"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                />
+              </label>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Add rating
+              </button>
+            </form>
+          ) : null}
         </div>
       </section>
     </div>

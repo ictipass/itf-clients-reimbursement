@@ -766,9 +766,25 @@ model TrainingMonitoringRecord {
   createdAt                DateTime               @default(now())
   updatedAt                DateTime               @updatedAt
   trainingRequest          TrainingRequest        @relation(fields: [trainingRequestId], references: [id])
+  documents                Document[]
+  evaluations              TrainingMonitoringEvaluation[]
 
   @@index([trainingRequestId, status, recordTier])
   @@index([mode, status, recordTier])
+}
+
+model TrainingMonitoringEvaluation {
+  id                         String                   @id @default(cuid())
+  trainingMonitoringRecordId String
+  section                    String
+  ratingArea                 String
+  score                      Int
+  note                       String?
+  createdAt                  DateTime                 @default(now())
+  updatedAt                  DateTime                 @updatedAt
+  trainingMonitoringRecord   TrainingMonitoringRecord @relation(fields: [trainingMonitoringRecordId], references: [id])
+
+  @@index([trainingMonitoringRecordId])
 }
 
 model ReimbursementClaim {
@@ -838,6 +854,7 @@ model Document {
   complianceYearId           String?
   trainingPlanSubmissionId   String?
   trainingRequestId          String?
+  trainingMonitoringRecordId String?
   reimbursementClaimId       String?
   uploadedById               String
   kind                       DocumentKind
@@ -865,6 +882,7 @@ model Document {
   complianceYear             ComplianceYear?          @relation(fields: [complianceYearId], references: [id])
   trainingPlanSubmission     TrainingPlanSubmission?  @relation(fields: [trainingPlanSubmissionId], references: [id])
   trainingRequest            TrainingRequest?         @relation(fields: [trainingRequestId], references: [id])
+  trainingMonitoringRecord   TrainingMonitoringRecord? @relation(fields: [trainingMonitoringRecordId], references: [id])
   reimbursementClaim         ReimbursementClaim?      @relation(fields: [reimbursementClaimId], references: [id])
   uploadedBy                 User                     @relation("UploadedDocuments", fields: [uploadedById], references: [id])
   certificateTemplateDesigns CertificateTemplate[]    @relation("CertificateTemplateDesignDocument")
@@ -875,6 +893,7 @@ model Document {
   @@index([organizationId, kind, recordTier, isActive])
   @@index([registrationApplicationId, kind, recordTier, isActive])
   @@index([trainingPlanSubmissionId, kind, recordTier, isActive])
+  @@index([trainingMonitoringRecordId, kind, recordTier, isActive])
 }
 
 model Decision {

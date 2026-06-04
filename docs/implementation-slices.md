@@ -1976,3 +1976,25 @@ Files:
 - `app/(dashboard)/training-monitoring/page.tsx`
 - `app/(dashboard)/training-monitoring/[recordId]/page.tsx`
 - workflow docs
+
+### Slice 95: Training Monitoring Evidence and Evaluation
+
+Goal: let ITF training reviewers upload monitoring evidence and record Form 6A/6B evaluation ratings.
+
+Implemented design:
+
+- Linked `Document` rows directly to `TrainingMonitoringRecord`
+- Added `TrainingMonitoringEvaluation` rows for section, rating area, score, and note
+- Added secure monitoring evidence upload service logic
+- Added evaluation creation service logic with 1-5 score validation
+- Added monitoring detail forms for evidence upload and evaluation entry
+- Displayed uploaded monitoring evidence and recorded ratings on the monitoring detail page
+
+Files:
+
+- `prisma/schema.prisma`
+- `prisma/migrations/20260604120000_add_training_monitoring_evidence_evaluations/migration.sql`
+- `lib/training-monitoring.ts`
+- `app/(dashboard)/training-monitoring/[recordId]/actions.ts`
+- `app/(dashboard)/training-monitoring/[recordId]/page.tsx`
+- workflow docs
