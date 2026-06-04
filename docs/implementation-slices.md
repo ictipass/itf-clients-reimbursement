@@ -1649,3 +1649,21 @@ Expected files:
 
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 78: Compliance Review Detail Page
+
+Goal: give Headquarters reviewers a focused annual compliance page outside the crowded company detail view.
+
+Expected design:
+
+- Add a dedicated compliance review route for one company and one compliance year
+- Show annual compliance status, paid amount, contribution amount, evidence, and decisions
+- Reuse existing compliance review and certificate issuance server actions
+- Link compliance year cards to the focused review route
+- Keep non-HQ users in read-only mode on the review page
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/compliance/[complianceYearId]/review/page.tsx`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

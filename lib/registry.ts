@@ -188,6 +188,7 @@ export async function getEmployerCompany(companyId: string) {
           id: true,
           year: true,
           status: true,
+          contributionAmount: true,
           amountPaid: true,
           contributionPaidAt: true,
           certificate: {

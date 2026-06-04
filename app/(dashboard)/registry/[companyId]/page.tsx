@@ -1675,12 +1675,20 @@ export default async function CompanyDetailPage({
                         ? "No compliance evidence uploaded"
                         : `${complianceYear.documents.length} evidence document${complianceYear.documents.length === 1 ? "" : "s"}`}
                     </p>
-                    <Link
-                      href={`/registry/${company.id}/compliance/${complianceYear.id}/evidence/new`}
-                      className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
-                    >
-                      Upload evidence
-                    </Link>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/registry/${company.id}/compliance/${complianceYear.id}/review`}
+                        className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+                      >
+                        Review year
+                      </Link>
+                      <Link
+                        href={`/registry/${company.id}/compliance/${complianceYear.id}/evidence/new`}
+                        className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+                      >
+                        Upload evidence
+                      </Link>
+                    </div>
                   </div>
                   {getRoleAvailableComplianceTransitions(
                     complianceYear.status,
