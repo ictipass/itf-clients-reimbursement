@@ -1838,3 +1838,21 @@ Expected files:
 - `lib/attention.ts`
 - `app/(dashboard)/dashboard/page.tsx`
 - workflow docs
+
+### Slice 88: Training Plan Final Approval Semantics
+
+Goal: make the Area Manager's final Training Plan/L&D response an explicit approval instead of an implied route.
+
+Expected design:
+
+- Add final AM approval transition for Training Plan submissions
+- Set status to `APPROVED` and record `approvedAt`
+- Keep correction return as a separate AM action
+- Show `Approve package` in company detail and focused Training Plan detail pages
+
+Expected files:
+
+- `lib/training-plan.ts`
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- `app/(dashboard)/training-plans/[submissionId]/page.tsx`
+- workflow docs

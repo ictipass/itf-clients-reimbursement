@@ -17,6 +17,7 @@ const trainingPlanTransitionLabels = {
   ro_to_hot: "Return to HOT",
   hot_to_am: "Return to AM",
   am_to_company: "Request employer correction",
+  am_approve: "Approve package",
 } as const;
 
 function formatDate(date: Date | null) {
@@ -81,6 +82,10 @@ function getAvailableTrainingPlanTransitions(currentDesk: string, status: string
   }
 
   if (currentDesk === "AREA_MANAGER") {
+    if (status === "IN_REVIEW") {
+      return ["am_approve", "am_to_company"] as const;
+    }
+
     return ["am_to_hot", "am_to_company"] as const;
   }
 

@@ -47,6 +47,7 @@ const trainingPlanDeskTransitions = [
   "ro_to_hot",
   "hot_to_am",
   "am_to_company",
+  "am_approve",
 ] as const;
 
 export type TrainingPlanDeskTransition = (typeof trainingPlanDeskTransitions)[number];
@@ -755,6 +756,7 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
       data: {
         currentDesk: transition.to,
         status: transition.nextStatus,
+        approvedAt: transition.nextStatus === "APPROVED" ? new Date() : undefined,
       },
       select: {
         id: true,
@@ -886,6 +888,19 @@ function resolveTrainingPlanTransition(transition: TrainingPlanDeskTransition) {
       workItemTitle: "",
       workItemSummary: "",
       priority: "HIGH",
+    },
+    am_approve: {
+      from: "AREA_MANAGER",
+      to: "COMPANY",
+      allowedRoles: ["AREA_MANAGER"],
+      allowedStatuses: ["IN_REVIEW"],
+      nextStatus: "APPROVED",
+      assignedRole: null,
+      action: "APPROVE",
+      reason: "AM approved Training Plan and L&D submission",
+      workItemTitle: "",
+      workItemSummary: "",
+      priority: "NORMAL",
     },
   } as const;
 
