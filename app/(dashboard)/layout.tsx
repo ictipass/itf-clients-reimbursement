@@ -6,6 +6,7 @@ import { getAttentionSummary, getModuleAttentionCounts } from "@/lib/attention";
 import { appName } from "@/lib/domain";
 import { getDb } from "@/lib/db";
 import { getVisibleNavGroups } from "@/lib/navigation";
+import { getVisibleWorkspaceApps } from "@/lib/workspace-apps";
 
 export default async function DashboardLayout({
   children,
@@ -67,6 +68,7 @@ export default async function DashboardLayout({
         })
       : [];
   const visibleNavGroups = getVisibleNavGroups(activeRole);
+  const visibleWorkspaceApps = getVisibleWorkspaceApps(activeRole);
   const attentionSummary = await getAttentionSummary({
     requesterEmail: session?.user?.email,
     requesterRole: activeRole,
@@ -125,20 +127,39 @@ export default async function DashboardLayout({
               </Link>
             )}
             <details className="rounded-lg border border-zinc-200 bg-white p-3 text-sm">
-              <summary className="cursor-pointer list-none font-semibold text-zinc-950">
-                Workspace apps
-              </summary>
-              <Link
-                href="/dashboard"
-                className="mt-3 flex items-center justify-between rounded-md border border-zinc-100 bg-zinc-50 px-3 py-3 text-sm font-semibold text-zinc-800 transition hover:border-[#800020]/40"
-              >
-                <span>Reimbursement</span>
+              <summary className="flex cursor-pointer list-none items-center justify-between font-semibold text-zinc-950">
+                <span className="grid size-8 grid-cols-3 gap-1 rounded-md border border-zinc-200 p-1">
+                  {Array.from({ length: 9 }).map((_, index) => (
+                    <span key={index} className="rounded-full bg-zinc-500" />
+                  ))}
+                </span>
+                <span>Apps</span>
                 {attentionSummary.total > 0 ? (
                   <span className="rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white">
                     {attentionSummary.total}
                   </span>
                 ) : null}
-              </Link>
+              </summary>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {visibleWorkspaceApps.map((app) => (
+                  <Link
+                    key={app.key}
+                    href={app.href}
+                    className="grid min-h-24 gap-2 rounded-md border border-zinc-100 bg-zinc-50 p-3 text-xs font-semibold text-zinc-800 transition hover:border-[#800020]/40"
+                    aria-disabled={app.status === "COMING_SOON"}
+                  >
+                    <span>{app.name}</span>
+                    <span className="text-[11px] font-medium leading-4 text-zinc-500">
+                      {app.status === "COMING_SOON" ? "Coming soon" : app.description}
+                    </span>
+                    {app.key === "reimbursement" && attentionSummary.total > 0 ? (
+                      <span className="w-fit rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white">
+                        {attentionSummary.total}
+                      </span>
+                    ) : null}
+                  </Link>
+                ))}
+              </div>
             </details>
             {account ? (
               <details className="rounded-lg border border-zinc-200 bg-white p-3 text-sm">

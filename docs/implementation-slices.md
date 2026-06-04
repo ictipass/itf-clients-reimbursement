@@ -2341,3 +2341,20 @@ Files:
 
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 116: Google-Style Waffle App Launcher
+
+Goal: replace the basic workspace app list with a compact 9-dot launcher.
+
+Implemented design:
+
+- Added `lib/workspace-apps.ts` as the workspace app source
+- Replaced the sidebar app list with a 9-dot waffle summary
+- Rendered app tiles for Reimbursement and future workspace apps
+- Kept Reimbursement attention badge on the waffle and tile
+
+Files:
+
+- `lib/workspace-apps.ts`
+- `app/(dashboard)/layout.tsx`
+- workflow docs
