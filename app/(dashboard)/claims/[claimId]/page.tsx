@@ -38,7 +38,9 @@ export default async function ClaimDetailPage({
   const { claimId } = await params;
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const canSubmitClaim = can(activeRole, "claims:submit");
   const canRecommendClaim = can(activeRole, "claims:review");
+  const canUploadClaimEvidence = canSubmitClaim || canRecommendClaim;
   const evidenceKinds = getClaimEvidenceKinds();
   const claim = await getDb().reimbursementClaim.findFirst({
     where: {
@@ -321,90 +323,103 @@ export default async function ClaimDetailPage({
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Employer claim details</h2>
-        <form
-          action={updateClaimFormAction.bind(null, claim.id)}
-          className="mt-5 grid gap-4 md:grid-cols-2"
-        >
-          <input
-            name="claimYear"
-            type="number"
-            defaultValue={claim.claimYear ?? ""}
-            placeholder="Claim year"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="claimedAmount"
-            type="number"
-            step="0.01"
-            required
-            defaultValue={decimalInput(claim.claimedAmount)}
-            placeholder="Claimed amount"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="trainingContributionDue"
-            type="number"
-            step="0.01"
-            defaultValue={decimalInput(claim.trainingContributionDue)}
-            placeholder="Training contribution due"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="trainingContributionPaid"
-            type="number"
-            step="0.01"
-            defaultValue={decimalInput(claim.trainingContributionPaid)}
-            placeholder="Training contribution paid"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="itfReceiptNumber"
-            defaultValue={claim.itfReceiptNumber ?? ""}
-            placeholder="ITF receipt number"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="bankName"
-            defaultValue={claim.bankName ?? ""}
-            placeholder="Bank name"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="accountNumber"
-            defaultValue={claim.accountNumber ?? ""}
-            placeholder="Account number"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="sortCode"
-            defaultValue={claim.sortCode ?? ""}
-            placeholder="Sort code"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="employerOfficerName"
-            defaultValue={claim.employerOfficerName ?? ""}
-            placeholder="Employer officer name"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="employerOfficerRank"
-            defaultValue={claim.employerOfficerRank ?? ""}
-            placeholder="Employer officer rank"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="chiefExecutiveName"
-            defaultValue={claim.chiefExecutiveName ?? ""}
-            placeholder="Chief executive name"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <div className="md:col-span-2">
-            <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-              Save Claim Form 1
-            </button>
+        {canSubmitClaim ? (
+          <form
+            action={updateClaimFormAction.bind(null, claim.id)}
+            className="mt-5 grid gap-4 md:grid-cols-2"
+          >
+            <input
+              name="claimYear"
+              type="number"
+              defaultValue={claim.claimYear ?? ""}
+              placeholder="Claim year"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="claimedAmount"
+              type="number"
+              step="0.01"
+              required
+              defaultValue={decimalInput(claim.claimedAmount)}
+              placeholder="Claimed amount"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="trainingContributionDue"
+              type="number"
+              step="0.01"
+              defaultValue={decimalInput(claim.trainingContributionDue)}
+              placeholder="Training contribution due"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="trainingContributionPaid"
+              type="number"
+              step="0.01"
+              defaultValue={decimalInput(claim.trainingContributionPaid)}
+              placeholder="Training contribution paid"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="itfReceiptNumber"
+              defaultValue={claim.itfReceiptNumber ?? ""}
+              placeholder="ITF receipt number"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="bankName"
+              defaultValue={claim.bankName ?? ""}
+              placeholder="Bank name"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="accountNumber"
+              defaultValue={claim.accountNumber ?? ""}
+              placeholder="Account number"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="sortCode"
+              defaultValue={claim.sortCode ?? ""}
+              placeholder="Sort code"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="employerOfficerName"
+              defaultValue={claim.employerOfficerName ?? ""}
+              placeholder="Employer officer name"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="employerOfficerRank"
+              defaultValue={claim.employerOfficerRank ?? ""}
+              placeholder="Employer officer rank"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="chiefExecutiveName"
+              defaultValue={claim.chiefExecutiveName ?? ""}
+              placeholder="Chief executive name"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <div className="md:col-span-2">
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Save Claim Form 1
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
+            <p>Claim year: {claim.claimYear ?? "Not provided"}</p>
+            <p>Claimed amount: {formatMoney(claim.claimedAmount)}</p>
+            <p>Contribution due: {formatMoney(claim.trainingContributionDue)}</p>
+            <p>Contribution paid: {formatMoney(claim.trainingContributionPaid)}</p>
+            <p>Receipt: {claim.itfReceiptNumber ?? "Not provided"}</p>
+            <p>Bank: {claim.bankName ?? "Not provided"}</p>
+            <p>Account: {claim.accountNumber ?? "Not provided"}</p>
+            <p>Sort code: {claim.sortCode ?? "Not provided"}</p>
           </div>
-        </form>
+        )}
       </section>
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
@@ -437,31 +452,33 @@ export default async function ClaimDetailPage({
           </div>
         )}
 
-        <form
-          action={uploadClaimEvidenceAction.bind(null, claim.id)}
-          className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 md:grid-cols-[240px_1fr_auto]"
-        >
-          <select
-            name="kind"
-            className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+        {canUploadClaimEvidence ? (
+          <form
+            action={uploadClaimEvidenceAction.bind(null, claim.id)}
+            className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 md:grid-cols-[240px_1fr_auto]"
           >
-            {evidenceKinds.map((kind) => (
-              <option key={kind} value={kind}>
-                {kind.replaceAll("_", " ")}
-              </option>
-            ))}
-          </select>
-          <input
-            name="evidence"
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png,.csv"
-            required
-            className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm"
-          />
-          <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-            Upload evidence
-          </button>
-        </form>
+            <select
+              name="kind"
+              className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            >
+              {evidenceKinds.map((kind) => (
+                <option key={kind} value={kind}>
+                  {kind.replaceAll("_", " ")}
+                </option>
+              ))}
+            </select>
+            <input
+              name="evidence"
+              type="file"
+              accept=".pdf,.jpg,.jpeg,.png,.csv"
+              required
+              className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm"
+            />
+            <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+              Upload evidence
+            </button>
+          </form>
+        ) : null}
       </section>
 
       {canRecommendClaim ? (

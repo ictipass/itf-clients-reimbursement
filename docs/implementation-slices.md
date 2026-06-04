@@ -2293,3 +2293,19 @@ Files:
 
 - `app/(dashboard)/dashboard/page.tsx`
 - workflow docs
+
+### Slice 113: Role-Based Page Section Visibility Cleanup
+
+Goal: reduce mixed-role claim screens by hiding controls the current role cannot use.
+
+Implemented design:
+
+- Hid Claim Form 1 edit fields from users without `claims:submit`
+- Showed read-only Claim Form 1 summary for reviewer-only users
+- Hid claim evidence upload from users without claim submit/review permissions
+- Kept Form 1B recommendation visible only to claim review roles
+
+Files:
+
+- `app/(dashboard)/claims/[claimId]/page.tsx`
+- workflow docs
