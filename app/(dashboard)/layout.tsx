@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { getAttentionSummary } from "@/lib/attention";
+import { getAttentionSummary, getModuleAttentionCounts } from "@/lib/attention";
 import { appName } from "@/lib/domain";
 import { getVisibleNavGroups } from "@/lib/navigation";
 
@@ -18,6 +18,10 @@ export default async function DashboardLayout({
     requesterEmail: session?.user?.email,
     requesterRole: activeRole,
     take: 0,
+  });
+  const moduleAttentionCounts = await getModuleAttentionCounts({
+    requesterEmail: session?.user?.email,
+    requesterRole: activeRole,
   });
   const attentionBadgeTitle = `${attentionSummary.actionTotal} action item(s), ${attentionSummary.awarenessTotal} awareness item(s)`;
 
@@ -63,12 +67,12 @@ export default async function DashboardLayout({
                       className="flex min-h-10 items-center justify-between rounded-md px-3 text-sm font-semibold text-zinc-700 transition hover:bg-[#800020]/10 hover:text-[#800020]"
                     >
                       <span>{item.label}</span>
-                      {item.href === "/registry" && attentionSummary.total > 0 ? (
+                      {(moduleAttentionCounts[item.module] ?? 0) > 0 ? (
                         <span
                           className="rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white"
                           title={attentionBadgeTitle}
                         >
-                          {attentionSummary.total}
+                          {moduleAttentionCounts[item.module]}
                         </span>
                       ) : null}
                     </Link>

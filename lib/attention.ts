@@ -10,6 +10,8 @@ export type AttentionSummaryInput = {
   take?: number;
 };
 
+export type ModuleAttentionCounts = Record<string, number>;
+
 export async function getAttentionSummary(input: AttentionSummaryInput) {
   const db = getDb();
 
@@ -119,6 +121,56 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
   };
 }
 
+export async function getModuleAttentionCounts(input: AttentionSummaryInput) {
+  const db = getDb();
+  const requester = input.requesterEmail
+    ? await db.user.findUnique({
+        where: {
+          email: input.requesterEmail,
+        },
+        select: {
+          id: true,
+          memberships: {
+            select: {
+              organizationId: true,
+              areaOfficeId: true,
+              role: true,
+            },
+          },
+        },
+      })
+    : null;
+
+  const baseWhere = {
+    app: "REIMBURSEMENT" as const,
+    status: "OPEN" as const,
+    recordTier: "HOT" as const,
+  };
+  const canSeeAll =
+    input.requesterRole === "SYSTEM_ADMIN" || input.requesterRole === "WORKSPACE_APP_ADMIN";
+  const scopedWhere = canSeeAll
+    ? baseWhere
+    : {
+        ...baseWhere,
+        OR: buildAssigneeScope(input.requesterRole, requester),
+      };
+  const workItems = await db.workItem.findMany({
+    where: scopedWhere,
+    select: {
+      kind: true,
+      targetHref: true,
+    },
+  });
+
+  return workItems.reduce<ModuleAttentionCounts>((counts, item) => {
+    const moduleKey = getModuleForWorkItem(item.kind, item.targetHref);
+
+    counts[moduleKey] = (counts[moduleKey] ?? 0) + 1;
+
+    return counts;
+  }, {});
+}
+
 function getQueueCategory(kind: string) {
   return awarenessWorkItemKinds.some((awarenessKind) => awarenessKind === kind)
     ? "AWARENESS"
@@ -127,6 +179,34 @@ function getQueueCategory(kind: string) {
 
 function getQueueLabel(kind: string) {
   return getQueueCategory(kind) === "AWARENESS" ? "For awareness" : "Action required";
+}
+
+function getModuleForWorkItem(kind: string, targetHref: string) {
+  if (kind.startsWith("REGISTRATION") || targetHref.startsWith("/registry")) {
+    return "registry";
+  }
+
+  if (kind.startsWith("COMPLIANCE") || targetHref.startsWith("/compliance")) {
+    return "compliance";
+  }
+
+  if (kind.startsWith("TRAINING") || targetHref.startsWith("/training")) {
+    return "training";
+  }
+
+  if (targetHref.startsWith("/claims")) {
+    return "claims";
+  }
+
+  if (targetHref.startsWith("/management")) {
+    return "management";
+  }
+
+  if (targetHref.startsWith("/settings")) {
+    return "settings";
+  }
+
+  return "dashboard";
 }
 
 async function getDerivedRegistrationDeskItems(input: {

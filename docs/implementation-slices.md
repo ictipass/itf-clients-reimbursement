@@ -2198,3 +2198,20 @@ Files:
 - `lib/navigation.ts`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 107: Role-Aware Navigation Badges
+
+Goal: show attention badges beside relevant side navigation modules.
+
+Implemented design:
+
+- Added module-level attention counting from open work items
+- Mapped work items to registry, compliance, training, claims, management, settings, or dashboard modules
+- Displayed module-specific badge counts on visible sidebar links
+- Kept counts scoped to the signed-in user's role and memberships
+
+Files:
+
+- `lib/attention.ts`
+- `app/(dashboard)/layout.tsx`
+- workflow docs
