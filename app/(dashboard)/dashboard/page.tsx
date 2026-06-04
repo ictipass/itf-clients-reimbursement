@@ -6,6 +6,7 @@ import { getAttentionSummary } from "@/lib/attention";
 import { listEmployerDashboardActions } from "@/lib/dashboard-work-queue";
 import { getDb } from "@/lib/db";
 import { dashboardMetrics, workflowStages } from "@/lib/domain";
+import { roles } from "@/lib/rbac";
 
 function formatRole(value: string | null) {
   return value ? value.replaceAll("_", " ") : "Unassigned";
@@ -51,6 +52,10 @@ function isHeadquartersReviewerRole(role: string) {
     role === "HQ_REIMBURSEMENT_OFFICER" ||
     role === "HQ_REVENUE_ACCOUNTANT"
   );
+}
+
+function isSystemAdminRole(role: string) {
+  return role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
 }
 
 export default async function DashboardPage() {
@@ -224,6 +229,109 @@ export default async function DashboardPage() {
               ))}
             </div>
           )}
+        </section>
+      </div>
+    );
+  }
+
+  if (isSystemAdminRole(activeRole)) {
+    const [
+      usersCount,
+      officesCount,
+      organizationsCount,
+      availableNumbers,
+      certificateTemplates,
+      signatures,
+      auditEvents,
+    ] = await getDb().$transaction([
+      getDb().user.count(),
+      getDb().areaOffice.count({
+        where: {
+          isActive: true,
+        },
+      }),
+      getDb().organization.count({
+        where: {
+          isActive: true,
+        },
+      }),
+      getDb().managedRegistrationNumber.count({
+        where: {
+          status: "AVAILABLE",
+          recordTier: "HOT",
+        },
+      }),
+      getDb().certificateTemplate.count({
+        where: {
+          recordTier: "HOT",
+        },
+      }),
+      getDb().signatureAsset.count({
+        where: {
+          recordTier: "HOT",
+        },
+      }),
+      getDb().auditEvent.count({
+        where: {
+          recordTier: "HOT",
+        },
+      }),
+    ]);
+
+    const adminLinks = [
+      { href: "/settings/users", label: "Manage users", value: usersCount },
+      { href: "/settings/offices", label: "Manage offices", value: officesCount },
+      { href: "/settings/roles", label: "Review roles", value: roles.length },
+      { href: "/settings/numbers", label: "Managed numbers", value: availableNumbers },
+      { href: "/settings/certificates", label: "Certificate templates", value: certificateTemplates },
+      { href: "/settings/signatures", label: "Signature assets", value: signatures },
+    ];
+
+    return (
+      <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:px-8">
+        <section>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
+            System administration
+          </p>
+          <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight">
+            Workspace control center
+          </h1>
+          <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-600">
+            Configure users, offices, roles, managed numbers, certificate assets, signatures, and
+            audit readiness for the reimbursement application.
+          </p>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-4">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">{usersCount}</p>
+            <p className="mt-2 text-sm font-semibold">Users</p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">{officesCount}</p>
+            <p className="mt-2 text-sm font-semibold">Active offices</p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">{organizationsCount}</p>
+            <p className="mt-2 text-sm font-semibold">Organizations</p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">{auditEvents}</p>
+            <p className="mt-2 text-sm font-semibold">Audit events</p>
+          </div>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {adminLinks.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="rounded-lg border border-zinc-200 bg-white p-5 transition hover:border-[#800020]/40"
+            >
+              <p className="text-2xl font-semibold text-[#800020]">{item.value}</p>
+              <p className="mt-2 text-sm font-semibold text-zinc-950">{item.label}</p>
+            </Link>
+          ))}
         </section>
       </div>
     );
