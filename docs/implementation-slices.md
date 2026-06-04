@@ -1598,3 +1598,20 @@ Expected files:
 
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 75: Evidence Summary Pagination
+
+Goal: keep evidence browsing fast and readable as uploaded documents grow over time.
+
+Expected design:
+
+- Paginate company evidence summary rows inside the Evidence Summary card
+- Keep five evidence documents visible per page
+- Use route search parameters so pagination is linkable and browser-friendly
+- Preserve the collapsible evidence row behavior from Slice 74
+- Preserve the selected compliance page when moving through evidence pages, and vice versa
+
+Expected files:
+
+- `app/(dashboard)/registry/[companyId]/page.tsx`
+- workflow docs

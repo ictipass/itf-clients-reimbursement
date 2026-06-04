@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 74: Collapsible Evidence Summary
+- Slice 75: Evidence Summary Pagination
 
 Recent completed slices include:
 
@@ -29,6 +29,7 @@ Recent completed slices include:
 - Slice 72: Collapsible compliance year cards on company detail page
 - Slice 73: Compliance year pagination on company detail page
 - Slice 74: Collapsible Evidence Summary rows on company detail page
+- Slice 75: Evidence Summary pagination on company detail page
 
 ## Important Current Rules
 
@@ -47,6 +48,7 @@ Recent completed slices include:
 - Compliance years are displayed as collapsible cards, with the most recent year open by default.
 - Compliance years are paginated inside the company detail page using `compliancePage`.
 - Company evidence summary rows are collapsible, with document actions inside the expanded row.
+- Company evidence summary rows are paginated using `evidencePage`.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

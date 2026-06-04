@@ -372,7 +372,10 @@ export default async function CompanyDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ companyId: string }>;
-  searchParams: Promise<{ compliancePage?: string | string[] }>;
+  searchParams: Promise<{
+    compliancePage?: string | string[];
+    evidencePage?: string | string[];
+  }>;
 }>) {
   const { companyId } = await params;
   const query = await searchParams;
@@ -392,6 +395,13 @@ export default async function CompanyDetailPage({
     can(activeRole, "compliance:review") ||
     can(activeRole, "training:approve");
   const currentYear = new Date().getFullYear();
+  const evidenceDocumentsPerPage = 5;
+  const evidenceTotalPages = Math.ceil(company.documents.length / evidenceDocumentsPerPage);
+  const evidencePage = clampPage(readPositiveInteger(query.evidencePage), evidenceTotalPages);
+  const visibleCompanyDocuments = company.documents.slice(
+    (evidencePage - 1) * evidenceDocumentsPerPage,
+    evidencePage * evidenceDocumentsPerPage,
+  );
   const complianceYearsPerPage = 5;
   const complianceYearTotalPages = Math.ceil(
     company.complianceYears.length / complianceYearsPerPage,
@@ -1367,7 +1377,7 @@ export default async function CompanyDetailPage({
             </p>
           ) : (
             <div className="mt-4 grid gap-3">
-              {company.documents.map((document, index) => (
+              {visibleCompanyDocuments.map((document, index) => (
                 <details
                   key={document.id}
                   open={index === 0}
@@ -1396,6 +1406,39 @@ export default async function CompanyDetailPage({
                   </div>
                 </details>
               ))}
+              {evidenceTotalPages > 1 ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                  <p>
+                    Page {evidencePage} of {evidenceTotalPages} · Showing{" "}
+                    {visibleCompanyDocuments.length} of {company.documents.length} evidence
+                    documents
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {evidencePage > 1 ? (
+                      <Link
+                        href={buildCompanyPageHref(company.id, {
+                          evidencePage: evidencePage - 1,
+                          compliancePage: compliancePage > 1 ? compliancePage : undefined,
+                        })}
+                        className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                      >
+                        Previous
+                      </Link>
+                    ) : null}
+                    {evidencePage < evidenceTotalPages ? (
+                      <Link
+                        href={buildCompanyPageHref(company.id, {
+                          evidencePage: evidencePage + 1,
+                          compliancePage: compliancePage > 1 ? compliancePage : undefined,
+                        })}
+                        className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                      >
+                        Next
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </div>
@@ -1643,6 +1686,7 @@ export default async function CompanyDetailPage({
                       <Link
                         href={buildCompanyPageHref(company.id, {
                           compliancePage: compliancePage - 1,
+                          evidencePage: evidencePage > 1 ? evidencePage : undefined,
                         })}
                         className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
                       >
@@ -1653,6 +1697,7 @@ export default async function CompanyDetailPage({
                       <Link
                         href={buildCompanyPageHref(company.id, {
                           compliancePage: compliancePage + 1,
+                          evidencePage: evidencePage > 1 ? evidencePage : undefined,
                         })}
                         className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
                       >
