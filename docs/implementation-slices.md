@@ -2231,3 +2231,19 @@ Files:
 
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 109: Employer Dashboard View
+
+Goal: give employer users a dashboard focused on their organization actions instead of ITF officer queues.
+
+Implemented design:
+
+- Added employer-role branch to `/dashboard`
+- Showed linked companies, registration status, latest compliance status, and latest claim
+- Showed pending employer actions from the existing employer work queue helper
+- Kept ITF officer dashboard unchanged for non-employer roles
+
+Files:
+
+- `app/(dashboard)/dashboard/page.tsx`
+- workflow docs

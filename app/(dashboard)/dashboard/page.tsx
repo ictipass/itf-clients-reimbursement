@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getAttentionSummary } from "@/lib/attention";
 import { listEmployerDashboardActions } from "@/lib/dashboard-work-queue";
+import { getDb } from "@/lib/db";
 import { dashboardMetrics, workflowStages } from "@/lib/domain";
 
 function formatRole(value: string | null) {
@@ -29,6 +30,10 @@ function formatDate(date: Date) {
   }).format(date);
 }
 
+function isEmployerRole(role: string) {
+  return role === "EMPLOYER_ADMIN" || role === "EMPLOYER_SUBMITTER" || role === "EMPLOYER_VIEWER";
+}
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
@@ -45,6 +50,165 @@ export default async function DashboardPage() {
   const hasWorkQueue = attentionSummary.items.length > 0 || employerActions.length > 0;
   const actionCount = attentionSummary.actionTotal + employerActions.length;
   const awarenessCount = attentionSummary.awarenessTotal;
+
+  if (isEmployerRole(activeRole)) {
+    const memberships = session?.user?.email
+      ? await getDb().membership.findMany({
+          where: {
+            user: {
+              email: session.user.email,
+            },
+            organizationId: {
+              not: null,
+            },
+          },
+          select: {
+            organizationId: true,
+          },
+        })
+      : [];
+    const organizationIds = memberships
+      .map((membership) => membership.organizationId)
+      .filter((value): value is string => Boolean(value));
+    const companies = await getDb().company.findMany({
+      where: {
+        organizationId: {
+          in: organizationIds,
+        },
+        recordTier: "HOT",
+      },
+      select: {
+        id: true,
+        legalName: true,
+        status: true,
+        itfEmployerNumber: true,
+        complianceYears: {
+          select: {
+            year: true,
+            status: true,
+          },
+          orderBy: {
+            year: "desc",
+          },
+          take: 1,
+        },
+        trainingPlanSubmissions: {
+          select: {
+            year: true,
+            status: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+        reimbursementClaims: {
+          select: {
+            reference: true,
+            status: true,
+          },
+          orderBy: {
+            createdAt: "desc",
+          },
+          take: 1,
+        },
+      },
+      orderBy: {
+        updatedAt: "desc",
+      },
+      take: 8,
+    });
+
+    return (
+      <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:px-8">
+        <section className="grid gap-6 lg:grid-cols-[1fr_0.75fr]">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
+              Employer workspace
+            </p>
+            <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight">
+              Your reimbursement readiness
+            </h1>
+            <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-600">
+              Track company registration, annual compliance, Training Plan submissions, Training
+              Approval Requests, monitoring, and claims from one employer-focused desk.
+            </p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-sm font-semibold text-zinc-500">Pending employer actions</p>
+            <p className="mt-2 text-4xl font-semibold text-[#800020]">{employerActions.length}</p>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Items here need action from your organization before ITF can continue the workflow.
+            </p>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-zinc-200 bg-white p-6">
+          <h2 className="text-2xl font-semibold tracking-tight">Company status</h2>
+          {companies.length === 0 ? (
+            <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+              No company is linked to your account yet.
+            </p>
+          ) : (
+            <div className="mt-5 grid gap-3">
+              {companies.map((company) => (
+                <Link
+                  key={company.id}
+                  href={`/registry/${company.id}`}
+                  className="grid gap-3 rounded-md border border-zinc-100 p-4 transition hover:border-[#800020]/40 md:grid-cols-4"
+                >
+                  <div>
+                    <p className="font-semibold text-zinc-950">{company.legalName}</p>
+                    <p className="mt-1 text-xs text-zinc-500">
+                      {company.itfEmployerNumber ?? "ITF number pending"}
+                    </p>
+                  </div>
+                  <p className="text-sm text-zinc-700">Registration: {company.status}</p>
+                  <p className="text-sm text-zinc-700">
+                    Compliance:{" "}
+                    {company.complianceYears[0]
+                      ? `${company.complianceYears[0].year} · ${company.complianceYears[0].status}`
+                      : "Not filed"}
+                  </p>
+                  <p className="text-sm text-zinc-700">
+                    Claim:{" "}
+                    {company.reimbursementClaims[0]
+                      ? `${company.reimbursementClaims[0].reference} · ${company.reimbursementClaims[0].status}`
+                      : "None"}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <section className="rounded-lg border border-zinc-200 bg-white p-6">
+          <h2 className="text-2xl font-semibold tracking-tight">My actions</h2>
+          {employerActions.length === 0 ? (
+            <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+              No pending employer-side action.
+            </p>
+          ) : (
+            <div className="mt-5 grid gap-3">
+              {employerActions.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.targetHref}
+                  className="grid gap-2 rounded-md border border-zinc-100 p-4 transition hover:border-[#800020]/40"
+                >
+                  <p className="font-semibold text-zinc-950">{item.title}</p>
+                  <p className="text-sm leading-6 text-zinc-600">{item.summary}</p>
+                  <p className="text-xs leading-5 text-zinc-500">
+                    {item.companyName} · {formatDate(item.createdAt)}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          )}
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:px-8">
