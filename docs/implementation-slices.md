@@ -2358,3 +2358,19 @@ Files:
 - `lib/workspace-apps.ts`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 117: Waffle Notification Badges
+
+Goal: make waffle app badges registry-driven.
+
+Implemented design:
+
+- Added `badgeModule` metadata to workspace app definitions
+- Used registry metadata to show the Reimbursement attention badge
+- Kept the waffle button total badge and app tile badge in sync
+
+Files:
+
+- `lib/workspace-apps.ts`
+- `app/(dashboard)/layout.tsx`
+- workflow docs

@@ -152,7 +152,7 @@ export default async function DashboardLayout({
                     <span className="text-[11px] font-medium leading-4 text-zinc-500">
                       {app.status === "COMING_SOON" ? "Coming soon" : app.description}
                     </span>
-                    {app.key === "reimbursement" && attentionSummary.total > 0 ? (
+                    {app.badgeModule === "reimbursement" && attentionSummary.total > 0 ? (
                       <span className="w-fit rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white">
                         {attentionSummary.total}
                       </span>

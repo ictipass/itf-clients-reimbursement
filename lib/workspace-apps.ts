@@ -6,6 +6,7 @@ export type WorkspaceAppDefinition = {
   description: string;
   href: string;
   status: "AVAILABLE" | "COMING_SOON";
+  badgeModule?: string;
   isVisible: (role: Role) => boolean;
 };
 
@@ -16,6 +17,7 @@ export const workspaceApps: WorkspaceAppDefinition[] = [
     description: "Employer registration, compliance, training approvals, monitoring, and claims.",
     href: "/dashboard",
     status: "AVAILABLE",
+    badgeModule: "reimbursement",
     isVisible: () => true,
   },
   {
