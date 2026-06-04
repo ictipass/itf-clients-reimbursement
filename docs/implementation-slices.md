@@ -2325,3 +2325,19 @@ Files:
 
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 115: Active Organization and Company Context Switcher
+
+Goal: show the user's current employer/company and Area Office context in the production shell.
+
+Implemented design:
+
+- Added Active context panel to the sidebar
+- Listed up to five linked employer companies with direct Registry links
+- Displayed linked Area Office context for ITF officers
+- Kept the foundation server-rendered until a full active-context persistence model is needed
+
+Files:
+
+- `app/(dashboard)/layout.tsx`
+- workflow docs

@@ -24,6 +24,8 @@ export default async function DashboardLayout({
           email: true,
           memberships: {
             select: {
+              organizationId: true,
+              areaOfficeId: true,
               organization: {
                 select: {
                   name: true,
@@ -40,6 +42,30 @@ export default async function DashboardLayout({
         },
       })
     : null;
+  const organizationIds =
+    account?.memberships
+      .map((membership) => membership.organizationId)
+      .filter((value): value is string => Boolean(value)) ?? [];
+  const contextCompanies =
+    organizationIds.length > 0
+      ? await getDb().company.findMany({
+          where: {
+            organizationId: {
+              in: organizationIds,
+            },
+            recordTier: "HOT",
+          },
+          select: {
+            id: true,
+            legalName: true,
+            status: true,
+          },
+          orderBy: {
+            legalName: "asc",
+          },
+          take: 5,
+        })
+      : [];
   const visibleNavGroups = getVisibleNavGroups(activeRole);
   const attentionSummary = await getAttentionSummary({
     requesterEmail: session?.user?.email,
@@ -114,6 +140,44 @@ export default async function DashboardLayout({
                 ) : null}
               </Link>
             </details>
+            {account ? (
+              <details className="rounded-lg border border-zinc-200 bg-white p-3 text-sm">
+                <summary className="cursor-pointer list-none font-semibold text-zinc-950">
+                  Active context
+                </summary>
+                <div className="mt-3 grid gap-2">
+                  {contextCompanies.length > 0 ? (
+                    contextCompanies.map((company) => (
+                      <Link
+                        key={company.id}
+                        href={`/registry/${company.id}`}
+                        className="rounded-md bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-800"
+                      >
+                        {company.legalName}
+                        <span className="mt-1 block font-medium text-zinc-500">
+                          {company.status.replaceAll("_", " ")}
+                        </span>
+                      </Link>
+                    ))
+                  ) : (
+                    <p className="rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                      No employer company context linked.
+                    </p>
+                  )}
+                  {account.memberships
+                    .filter((membership) => membership.areaOffice?.name)
+                    .map((membership) => (
+                      <p
+                        key={membership.areaOfficeId}
+                        className="rounded-md bg-zinc-50 px-3 py-2 text-xs font-semibold text-zinc-800"
+                      >
+                        {membership.areaOffice?.name}
+                        <span className="mt-1 block font-medium text-zinc-500">Area Office</span>
+                      </p>
+                    ))}
+                </div>
+              </details>
+            ) : null}
           </div>
           <nav className="grid gap-5 overflow-x-auto pb-1 lg:overflow-y-auto lg:pb-6">
             {visibleNavGroups.map((group) => (

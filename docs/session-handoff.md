@@ -60,6 +60,7 @@ Recent completed slices include:
 - Slice 103: Claim supporting evidence upload
 - Slice 104: Claim Form 1B reviewer recommendation
 - Slice 105: Claim Form 2A/2B calculation foundation
+- Slice 106-115: production shell, role dashboards, app launcher, and context switcher
 
 ## Important Current Rules
 
@@ -110,6 +111,8 @@ Recent completed slices include:
 - Claim detail page can upload and view claim supporting evidence.
 - Claim review roles can record Form 1B eligible/recommended amounts and remarks.
 - Claim detail page can create, update, and delete Form 2A/2B calculation rows.
+- Dashboard shell now uses a grouped side navbar, account menu, workspace app launcher, and context switcher.
+- `/dashboard` now renders focused views for employer, Area Office, HQ reviewer, and system admin roles.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit
