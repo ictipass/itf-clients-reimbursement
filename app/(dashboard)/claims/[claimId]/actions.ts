@@ -6,7 +6,10 @@ import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
 import {
+  addClaimLine,
+  deleteClaimLine,
   getClaimEvidenceKinds,
+  updateClaimLine,
   updateClaimRecommendation,
   updateClaimForm,
   uploadClaimEvidence,
@@ -133,6 +136,85 @@ export async function updateClaimRecommendationAction(claimId: string, formData:
   });
 
   revalidatePath(`/claims`);
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}`);
+}
+
+function readClaimLineInput(claimId: string, formData: FormData) {
+  const trainingArea = readOptionalString(formData, "trainingArea");
+
+  if (!trainingArea) {
+    throw new Error("Training area is required.");
+  }
+
+  return {
+    claimId,
+    trainingArea,
+    totalWorkforce: readOptionalNumber(formData, "totalWorkforce"),
+    totalTrained: readOptionalNumber(formData, "totalTrained"),
+    emphasisNumber: readOptionalNumber(formData, "emphasisNumber"),
+    contributionPaid: readOptionalNumber(formData, "contributionPaid"),
+    employerClaimAmount: readOptionalNumber(formData, "employerClaimAmount"),
+    referencePage: readOptionalString(formData, "referencePage"),
+    percentAwarded: readOptionalNumber(formData, "percentAwarded"),
+    amountAwarded: readOptionalNumber(formData, "amountAwarded"),
+    remarks: readOptionalString(formData, "remarks"),
+  };
+}
+
+export async function addClaimLineAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await addClaimLine({
+    ...readClaimLineInput(claimId, formData),
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
+
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}`);
+}
+
+export async function updateClaimLineAction(
+  claimId: string,
+  lineId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await updateClaimLine({
+    ...readClaimLineInput(claimId, formData),
+    lineId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
+
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}`);
+}
+
+export async function deleteClaimLineAction(claimId: string, lineId: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await deleteClaimLine({
+    claimId,
+    lineId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
+
   revalidatePath(`/claims/${claimId}`);
   redirect(`/claims/${claimId}`);
 }

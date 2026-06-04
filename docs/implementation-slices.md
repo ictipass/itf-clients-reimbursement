@@ -2162,3 +2162,21 @@ Files:
 - `app/(dashboard)/claims/[claimId]/actions.ts`
 - `app/(dashboard)/claims/[claimId]/page.tsx`
 - workflow docs
+
+### Slice 105: Claim Form 2A/2B Calculation Foundation
+
+Goal: add structured calculation rows for the claim award computation.
+
+Implemented design:
+
+- Added claim line service logic for create, update, and delete
+- Captured workforce, trained count, trained percentage, contribution paid, employer claim amount, awarded percentage, awarded amount, reference page, and remarks
+- Added Form 2A/2B calculation section to the claim detail page
+- Calculated trained percentage automatically from workforce and trained count
+
+Files:
+
+- `lib/claims.ts`
+- `app/(dashboard)/claims/[claimId]/actions.ts`
+- `app/(dashboard)/claims/[claimId]/page.tsx`
+- workflow docs

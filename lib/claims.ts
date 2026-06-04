@@ -55,6 +55,23 @@ export type UpdateClaimRecommendationInput = {
   reviewerRemarks?: string;
 };
 
+export type ClaimLineInput = {
+  claimId: string;
+  lineId?: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  trainingArea: string;
+  totalWorkforce?: number;
+  totalTrained?: number;
+  emphasisNumber?: number;
+  contributionPaid?: number;
+  employerClaimAmount?: number;
+  referencePage?: string;
+  percentAwarded?: number;
+  amountAwarded?: number;
+  remarks?: string;
+};
+
 export function getClaimEvidenceKinds() {
   return claimEvidenceKinds;
 }
@@ -415,4 +432,142 @@ export async function updateClaimRecommendation(input: UpdateClaimRecommendation
       id: true,
     },
   });
+}
+
+export async function addClaimLine(input: ClaimLineInput) {
+  const claim = await assertClaimLineAccess(input);
+
+  return getDb().reimbursementClaimLine.create({
+    data: buildClaimLineData(input, claim.id),
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function updateClaimLine(input: ClaimLineInput) {
+  if (!input.lineId) {
+    throw new Error("Claim calculation row is required.");
+  }
+
+  const claim = await assertClaimLineAccess(input);
+
+  return getDb().reimbursementClaimLine.update({
+    where: {
+      id: input.lineId,
+      reimbursementClaimId: claim.id,
+    },
+    data: buildClaimLineData(input, claim.id),
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function deleteClaimLine(input: {
+  claimId: string;
+  lineId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+}) {
+  const claim = await assertClaimLineAccess(input);
+
+  return getDb().reimbursementClaimLine.delete({
+    where: {
+      id: input.lineId,
+      reimbursementClaimId: claim.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+async function assertClaimLineAccess(input: {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+}) {
+  if (!can(input.requesterRole, "claims:submit") && !can(input.requesterRole, "claims:review")) {
+    throw new Error("You do not have permission to edit claim calculations.");
+  }
+
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      company: {
+        select: {
+          organizationId: true,
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Reimbursement claim was not found.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      memberships: {
+        select: {
+          organizationId: true,
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasAccess =
+    isItfRole(input.requesterRole) ||
+    actor.memberships.some(
+      (membership) =>
+        membership.organizationId === claim.company.organizationId ||
+        membership.areaOfficeId === claim.company.areaOfficeId,
+    );
+
+  if (!hasAccess) {
+    throw new Error("You do not have access to edit this claim calculation.");
+  }
+
+  return claim;
+}
+
+function buildClaimLineData(input: ClaimLineInput, claimId: string) {
+  const percentTrained =
+    input.totalWorkforce && input.totalTrained
+      ? (input.totalTrained / input.totalWorkforce) * 100
+      : undefined;
+
+  return {
+    reimbursementClaimId: claimId,
+    trainingArea: input.trainingArea,
+    totalWorkforce: input.totalWorkforce,
+    totalTrained: input.totalTrained,
+    percentTrained,
+    emphasisNumber: input.emphasisNumber,
+    contributionPaid: input.contributionPaid,
+    employerClaimAmount: input.employerClaimAmount,
+    referencePage: input.referencePage,
+    percentAwarded: input.percentAwarded,
+    amountAwarded: input.amountAwarded,
+    remarks: input.remarks,
+  };
 }

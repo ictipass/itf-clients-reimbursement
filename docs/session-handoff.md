@@ -59,6 +59,7 @@ Recent completed slices include:
 - Slice 102: Claim Form 1 foundation
 - Slice 103: Claim supporting evidence upload
 - Slice 104: Claim Form 1B reviewer recommendation
+- Slice 105: Claim Form 2A/2B calculation foundation
 
 ## Important Current Rules
 
@@ -108,6 +109,7 @@ Recent completed slices include:
 - Claim detail page captures Claim Form 1 employer claim/payment/declaration fields.
 - Claim detail page can upload and view claim supporting evidence.
 - Claim review roles can record Form 1B eligible/recommended amounts and remarks.
+- Claim detail page can create, update, and delete Form 2A/2B calculation rows.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

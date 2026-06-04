@@ -3,6 +3,9 @@ import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
 import {
+  addClaimLineAction,
+  deleteClaimLineAction,
+  updateClaimLineAction,
   updateClaimRecommendationAction,
   updateClaimFormAction,
   uploadClaimEvidenceAction,
@@ -75,6 +78,25 @@ export default async function ClaimDetailPage({
         },
         orderBy: {
           createdAt: "desc",
+        },
+      },
+      lines: {
+        select: {
+          id: true,
+          trainingArea: true,
+          totalWorkforce: true,
+          totalTrained: true,
+          percentTrained: true,
+          emphasisNumber: true,
+          contributionPaid: true,
+          employerClaimAmount: true,
+          referencePage: true,
+          percentAwarded: true,
+          amountAwarded: true,
+          remarks: true,
+        },
+        orderBy: {
+          createdAt: "asc",
         },
       },
       company: {
@@ -159,6 +181,142 @@ export default async function ClaimDetailPage({
             {formatMoney(claim.claimedAmount)}
           </p>
         </div>
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <h2 className="text-xl font-semibold tracking-tight">Form 2A/2B calculations</h2>
+        {claim.lines.length === 0 ? (
+          <p className="mt-3 text-sm leading-6 text-zinc-600">
+            No calculation row has been added to this claim yet.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-4">
+            {claim.lines.map((line) => (
+              <div key={line.id} className="rounded-md border border-zinc-100 p-3">
+                <form
+                  action={updateClaimLineAction.bind(null, claim.id, line.id)}
+                  className="grid gap-3 md:grid-cols-4"
+                >
+                  <input
+                    name="trainingArea"
+                    defaultValue={line.trainingArea}
+                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                  />
+                  <input
+                    name="totalWorkforce"
+                    type="number"
+                    defaultValue={line.totalWorkforce ?? ""}
+                    placeholder="Workforce"
+                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                  />
+                  <input
+                    name="totalTrained"
+                    type="number"
+                    defaultValue={line.totalTrained ?? ""}
+                    placeholder="Trained"
+                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                  />
+                  <input
+                    name="emphasisNumber"
+                    type="number"
+                    defaultValue={line.emphasisNumber ?? ""}
+                    placeholder="Emphasis"
+                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                  />
+                  <input
+                    name="contributionPaid"
+                    type="number"
+                    step="0.01"
+                    defaultValue={decimalInput(line.contributionPaid)}
+                    placeholder="Contribution paid"
+                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                  />
+                  <input
+                    name="employerClaimAmount"
+                    type="number"
+                    step="0.01"
+                    defaultValue={decimalInput(line.employerClaimAmount)}
+                    placeholder="Employer claim"
+                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                  />
+                  <input
+                    name="percentAwarded"
+                    type="number"
+                    step="0.01"
+                    defaultValue={decimalInput(line.percentAwarded)}
+                    placeholder="% awarded"
+                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                  />
+                  <input
+                    name="amountAwarded"
+                    type="number"
+                    step="0.01"
+                    defaultValue={decimalInput(line.amountAwarded)}
+                    placeholder="Amount awarded"
+                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                  />
+                  <input
+                    name="referencePage"
+                    defaultValue={line.referencePage ?? ""}
+                    placeholder="Reference page"
+                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                  />
+                  <input
+                    name="remarks"
+                    defaultValue={line.remarks ?? ""}
+                    placeholder="Remarks"
+                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm md:col-span-2"
+                  />
+                  <button className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm font-semibold">
+                    Save row
+                  </button>
+                </form>
+                <form action={deleteClaimLineAction.bind(null, claim.id, line.id)} className="mt-2">
+                  <button className="min-h-9 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700">
+                    Delete row
+                  </button>
+                </form>
+                <p className="mt-2 text-xs text-zinc-500">
+                  Trained percentage: {decimalInput(line.percentTrained) || "Not calculated"}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <form
+          action={addClaimLineAction.bind(null, claim.id)}
+          className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 md:grid-cols-4"
+        >
+          <input
+            name="trainingArea"
+            required
+            placeholder="Training area"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="totalWorkforce"
+            type="number"
+            placeholder="Workforce"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="totalTrained"
+            type="number"
+            placeholder="Trained"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <input
+            name="employerClaimAmount"
+            type="number"
+            step="0.01"
+            placeholder="Employer claim"
+            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+          />
+          <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+            Add calculation row
+          </button>
+        </form>
       </section>
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
