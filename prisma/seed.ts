@@ -23,6 +23,7 @@ const roles = [
   "DIRECTOR_FSD",
   "HEAD_OF_DIVISION",
   "HQ_REIMBURSEMENT_OFFICER",
+  "HQ_REVENUE_ACCOUNTANT",
   "EMPLOYER_ADMIN",
   "EMPLOYER_SUBMITTER",
   "EMPLOYER_VIEWER",
@@ -145,9 +146,8 @@ const testUsers: {
     id: "test-hqra",
     email: "hqra@itf.local",
     name: "HQ Revenue Accountant",
-    role: "HQ_REIMBURSEMENT_OFFICER",
+    role: "HQ_REVENUE_ACCOUNTANT",
     scope: "itf",
-    requestedLabel: "HQ_REVENUE_ACCOUNTANT",
   },
   {
     id: "test-hqhod",

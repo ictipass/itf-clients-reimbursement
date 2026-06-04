@@ -269,7 +269,7 @@ function getRegistryRoleFocus(role: Role) {
     };
   }
 
-  if (role === "HEAD_OF_DIVISION" || role === "HQ_REIMBURSEMENT_OFFICER") {
+  if (role === "HEAD_OF_DIVISION" || role === "HQ_REVENUE_ACCOUNTANT") {
     return {
       title: "Headquarters compliance desk",
       detail:
@@ -1564,7 +1564,7 @@ export default async function CompanyDetailPage({
                   {role.replaceAll("_", " ")} awareness
                 </span>
               ))}
-              {["HEAD_OF_DIVISION", "HQ_REIMBURSEMENT_OFFICER"].map((role) => (
+              {["HEAD_OF_DIVISION", "HQ_REVENUE_ACCOUNTANT"].map((role) => (
                 <span
                   key={role}
                   className="rounded-full border border-[#800020]/20 bg-white px-2 py-1 font-semibold text-[#65001a]"

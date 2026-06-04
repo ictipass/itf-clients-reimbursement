@@ -295,6 +295,7 @@ function isHeadquartersRole(role: Role) {
   return (
     role === "DIRECTOR_FSD" ||
     role === "HEAD_OF_DIVISION" ||
-    role === "HQ_REIMBURSEMENT_OFFICER"
+    role === "HQ_REIMBURSEMENT_OFFICER" ||
+    role === "HQ_REVENUE_ACCOUNTANT"
   );
 }

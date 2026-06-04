@@ -108,6 +108,12 @@ const roleMetadata: Record<Role, Omit<RoleDefinition, "permissions" | "isSystemM
     title: "HQ Reimbursement Officer",
     description: "Headquarters reimbursement officer for claim review and confirmation.",
   },
+  HQ_REVENUE_ACCOUNTANT: {
+    role: "HQ_REVENUE_ACCOUNTANT",
+    scope: "HEADQUARTERS",
+    title: "HQ Revenue Accountant",
+    description: "Headquarters revenue accountant for annual compliance review and certification.",
+  },
   EMPLOYER_ADMIN: {
     role: "EMPLOYER_ADMIN",
     scope: "EMPLOYER",

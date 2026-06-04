@@ -15,6 +15,7 @@ export const roles = [
   "DIRECTOR_FSD",
   "HEAD_OF_DIVISION",
   "HQ_REIMBURSEMENT_OFFICER",
+  "HQ_REVENUE_ACCOUNTANT",
   "EMPLOYER_ADMIN",
   "EMPLOYER_SUBMITTER",
   "EMPLOYER_VIEWER",
@@ -84,6 +85,7 @@ const permissionsByRole: Record<Role, Permission[]> = {
     "audit:read",
   ],
   HQ_REIMBURSEMENT_OFFICER: ["claims:review", "company:read", "audit:read"],
+  HQ_REVENUE_ACCOUNTANT: ["compliance:review", "company:read", "audit:read"],
   EMPLOYER_ADMIN: [
     "registry:submit",
     "compliance:submit",
@@ -115,7 +117,7 @@ export function canManageAnnualCompliance(role: Role) {
     role === "SYSTEM_ADMIN" ||
     role === "WORKSPACE_APP_ADMIN" ||
     role === "HEAD_OF_DIVISION" ||
-    role === "HQ_REIMBURSEMENT_OFFICER"
+    role === "HQ_REVENUE_ACCOUNTANT"
   );
 }
 
@@ -131,6 +133,7 @@ export function isItfRole(role: Role) {
     role === "REIMBURSEMENT_OFFICER" ||
     role === "DIRECTOR_FSD" ||
     role === "HEAD_OF_DIVISION" ||
-    role === "HQ_REIMBURSEMENT_OFFICER"
+    role === "HQ_REIMBURSEMENT_OFFICER" ||
+    role === "HQ_REVENUE_ACCOUNTANT"
   );
 }

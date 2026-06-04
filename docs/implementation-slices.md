@@ -1801,3 +1801,23 @@ Expected files:
 - `app/(dashboard)/training-requests/[requestId]/page.tsx`
 - `app/(dashboard)/training-requests/page.tsx`
 - workflow docs
+
+### Slice 86: RBAC Cleanup for HQ Revenue Accountant
+
+Goal: make HQ Revenue Accountant a first-class compliance authority instead of using HQ Reimbursement Officer for compliance certification.
+
+Expected design:
+
+- Add `HQ_REVENUE_ACCOUNTANT` role
+- Keep `HQ_REIMBURSEMENT_OFFICER` for reimbursement/claims work
+- Restrict annual compliance review/certificate issuance to `HEAD_OF_DIVISION` and `HQ_REVENUE_ACCOUNTANT`
+- Route compliance review work items to `HEAD_OF_DIVISION` and `HQ_REVENUE_ACCOUNTANT`
+- Update seed/test accounts and role documentation
+
+Expected files:
+
+- `prisma/schema.prisma`
+- Prisma migration
+- `lib/rbac.ts`
+- `lib/compliance.ts`
+- role/office/seed/docs files

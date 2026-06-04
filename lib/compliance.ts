@@ -88,7 +88,7 @@ export function getComplianceTransitions() {
 }
 
 const complianceAwarenessRoles = ["AREA_MANAGER", "HORIC", "REVENUE_ACCOUNTANT"] as const;
-const complianceReviewRoles = ["HEAD_OF_DIVISION", "HQ_REIMBURSEMENT_OFFICER"] as const;
+const complianceReviewRoles = ["HEAD_OF_DIVISION", "HQ_REVENUE_ACCOUNTANT"] as const;
 
 type ComplianceWorkItemContext = {
   workspaceId: string;

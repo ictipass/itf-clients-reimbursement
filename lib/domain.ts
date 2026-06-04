@@ -96,6 +96,11 @@ export const seedRoles: { role: Role; scope: string; purpose: string }[] = [
     purpose: "Review headquarters reimbursement submissions and award recommendations.",
   },
   {
+    role: "HQ_REVENUE_ACCOUNTANT",
+    scope: "Headquarters",
+    purpose: "Review annual compliance returns and confirm certificate readiness.",
+  },
+  {
     role: "ITF_COMPLIANCE_OFFICER",
     scope: "ITF",
     purpose: "Review annual contribution and statutory compliance evidence.",

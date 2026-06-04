@@ -19,6 +19,7 @@ const hqManagementRoles: Role[] = [
   "DIRECTOR_FSD",
   "HEAD_OF_DIVISION",
   "HQ_REIMBURSEMENT_OFFICER",
+  "HQ_REVENUE_ACCOUNTANT",
 ];
 
 function requireManagementAccess(role: Role) {

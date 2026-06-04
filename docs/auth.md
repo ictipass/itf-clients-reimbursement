@@ -76,15 +76,14 @@ Seeded test accounts:
 | `ra@itf.local` | `REVENUE_ACCOUNTANT` |
 | `ro@itf.local` | `REIMBURSEMENT_OFFICER` |
 | `hqro@itf.local` | `HQ_REIMBURSEMENT_OFFICER` |
-| `hqra@itf.local` | `HQ_REIMBURSEMENT_OFFICER` |
+| `hqra@itf.local` | `HQ_REVENUE_ACCOUNTANT` |
 | `hqhod@itf.local` | `HEAD_OF_DIVISION` |
 | `dfsd@itf.local` | `DIRECTOR_FSD` |
 | `employer@itf.local` | `EMPLOYER_ADMIN` |
 
-The requested labels `REVENUE_OFFICER`, `HQ_REVENUE_OFFICER`,
-`HQ_REVENUE_ACCOUNTANT`, and `HEAD_REIMBURSEMENT_DIVISION` are mapped to the closest
-currently implemented app roles above. We can formalize those exact role names later if
-the workflow needs them as separate permissions.
+The requested labels `REVENUE_OFFICER`, `HQ_REVENUE_OFFICER`, and
+`HEAD_REIMBURSEMENT_DIVISION` are mapped to the closest currently implemented app roles above.
+We can formalize those exact role names later if the workflow needs them as separate permissions.
 
 For local development only, seeded `@itf.local` Area Office test accounts can act across
 Area Offices so that workflow testing is not blocked by whichever Area Office was selected
