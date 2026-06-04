@@ -48,6 +48,7 @@ Recent completed slices include:
 - Slice 91: Training Approval Request submit and routing detail actions
 - Slice 92: Training Approval Request evidence upload
 - Slice 93: Training Approval Request direct correction return flow
+- Slice 94: Training Monitoring Form 6A/6B foundation
 
 ## Important Current Rules
 
@@ -85,6 +86,8 @@ Recent completed slices include:
 - Training Approval Request detail page can submit and route Form 4A requests through AM/HOT/RO approval desks.
 - Training Approval Request evidence uploads are stored as private `Document` rows linked by `trainingRequestId`.
 - Area Manager, Head of Training, and Area Office Reimbursement Officer can return Training Approval Requests directly to company for correction.
+- Approved Training Approval Requests can open Form 6A or 6B Training Monitoring records.
+- `/training-monitoring` lists monitoring records and `/training-monitoring/[recordId]` shows the focused monitoring detail.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

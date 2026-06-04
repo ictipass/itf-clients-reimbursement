@@ -116,6 +116,11 @@ enum TrainingRequestDesk {
   REIMBURSEMENT_OFFICER
 }
 
+enum TrainingMonitoringMode {
+  LOCAL_PHYSICAL
+  LOCAL_VIRTUAL
+}
+
 enum RecommendationReleaseChannel {
   DASHBOARD
   DASHBOARD_AND_EMAIL
@@ -710,6 +715,7 @@ model TrainingRequest {
   trainingPlanLineItem TrainingPlanLineItem?  @relation(fields: [trainingPlanLineItemId], references: [id])
   documents            Document[]
   participants         TrainingParticipant[]
+  monitoringRecords    TrainingMonitoringRecord[]
   claims               ReimbursementClaim[]
   decisions            Decision[]
   comments             Comment[]
@@ -739,6 +745,30 @@ model TrainingParticipant {
   trainingRequest          TrainingRequest @relation(fields: [trainingRequestId], references: [id])
 
   @@index([trainingRequestId])
+}
+
+model TrainingMonitoringRecord {
+  id                       String                 @id @default(cuid())
+  trainingRequestId        String
+  mode                     TrainingMonitoringMode
+  monitoringDate           DateTime?
+  startsAt                 DateTime?
+  endsAt                   DateTime?
+  meetingId                String?
+  passcode                 String?
+  virtualLink              String?
+  monitoringOfficerName    String?
+  monitoringOfficerTitle   String?
+  headOfDivisionName       String?
+  directorName             String?
+  status                   WorkflowStatus         @default(DRAFT)
+  recordTier               RecordTier             @default(HOT)
+  createdAt                DateTime               @default(now())
+  updatedAt                DateTime               @updatedAt
+  trainingRequest          TrainingRequest        @relation(fields: [trainingRequestId], references: [id])
+
+  @@index([trainingRequestId, status, recordTier])
+  @@index([mode, status, recordTier])
 }
 
 model ReimbursementClaim {

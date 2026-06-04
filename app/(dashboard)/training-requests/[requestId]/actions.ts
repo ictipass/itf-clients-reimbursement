@@ -6,6 +6,11 @@ import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
 import {
+  createTrainingMonitoringRecord,
+  getTrainingMonitoringModes,
+  type TrainingMonitoringModeInput,
+} from "@/lib/training-monitoring";
+import {
   getTrainingRequestTransitions,
   getTrainingRequestEvidenceKinds,
   routeTrainingRequest,
@@ -35,6 +40,17 @@ function readTrainingRequestTransition(formData: FormData): TrainingRequestTrans
   }
 
   return value as TrainingRequestTransition;
+}
+
+function readMonitoringMode(formData: FormData): TrainingMonitoringModeInput {
+  const value = readOptionalString(formData, "mode");
+  const modes = getTrainingMonitoringModes();
+
+  if (!value || !modes.includes(value as TrainingMonitoringModeInput)) {
+    throw new Error("Unsupported Training Monitoring mode.");
+  }
+
+  return value as TrainingMonitoringModeInput;
 }
 
 export async function submitTrainingRequestAction(requestId: string, formData: FormData) {
@@ -110,4 +126,26 @@ export async function uploadTrainingRequestEvidenceAction(requestId: string, for
 
   revalidatePath(`/training-requests/${requestId}`);
   redirect(`/training-requests/${requestId}`);
+}
+
+export async function createTrainingMonitoringRecordAction(
+  requestId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  const record = await createTrainingMonitoringRecord({
+    trainingRequestId: requestId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    mode: readMonitoringMode(formData),
+  });
+
+  revalidatePath(`/training-requests/${requestId}`);
+  revalidatePath(`/training-monitoring`);
+  redirect(`/training-monitoring/${record.id}`);
 }

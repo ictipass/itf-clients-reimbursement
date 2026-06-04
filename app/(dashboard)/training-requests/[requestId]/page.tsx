@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
 import {
+  createTrainingMonitoringRecordAction,
   routeTrainingRequestAction,
   submitTrainingRequestAction,
 } from "@/app/(dashboard)/training-requests/[requestId]/actions";
@@ -153,6 +154,20 @@ export default async function TrainingRequestDetailPage({
           createdAt: "desc",
         },
       },
+      monitoringRecords: {
+        where: {
+          recordTier: "HOT",
+        },
+        select: {
+          id: true,
+          mode: true,
+          status: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
       decisions: {
         where: {
           recordTier: "HOT",
@@ -186,6 +201,13 @@ export default async function TrainingRequestDetailPage({
   const availableTransitions = getAvailableTransitions(request.currentDesk, request.status);
   const canRoute =
     availableTransitions.length > 0 && canActAsDesk(activeRole, request.currentDesk);
+  const canCreateMonitoring =
+    request.status === "APPROVED" &&
+    (adminOverride ||
+      activeRole === "AREA_MANAGER" ||
+      activeRole === "HEAD_OF_TRAINING" ||
+      activeRole === "REIMBURSEMENT_OFFICER" ||
+      activeRole === "ITF_TRAINING_APPROVER");
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
@@ -321,6 +343,53 @@ export default async function TrainingRequestDetailPage({
               <p className="mt-3 text-sm leading-6 text-zinc-600">
                 This request is not linked to a structured Training Plan row.
               </p>
+            )}
+          </div>
+
+          {canCreateMonitoring ? (
+            <form
+              action={createTrainingMonitoringRecordAction.bind(null, request.id)}
+              className="rounded-lg border border-zinc-200 bg-white p-5"
+            >
+              <h2 className="text-xl font-semibold tracking-tight">Create monitoring record</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
+                Open Form 6A or 6B monitoring for this approved Training Approval Request.
+              </p>
+              <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
+                Monitoring form
+                <select
+                  name="mode"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                >
+                  <option value="LOCAL_PHYSICAL">Form 6A - local physical</option>
+                  <option value="LOCAL_VIRTUAL">Form 6B - local virtual</option>
+                </select>
+              </label>
+              <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Create monitoring record
+              </button>
+            </form>
+          ) : null}
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <h2 className="text-xl font-semibold tracking-tight">Monitoring records</h2>
+            {request.monitoringRecords.length === 0 ? (
+              <p className="mt-3 text-sm leading-6 text-zinc-600">
+                No Form 6A or 6B monitoring record has been created for this request.
+              </p>
+            ) : (
+              <div className="mt-4 grid gap-2">
+                {request.monitoringRecords.map((record) => (
+                  <Link
+                    key={record.id}
+                    href={`/training-monitoring/${record.id}`}
+                    className="rounded-md border border-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-800"
+                  >
+                    {record.mode.replaceAll("_", " ")} · {record.status.replaceAll("_", " ")} ·{" "}
+                    {formatDate(record.createdAt)}
+                  </Link>
+                ))}
+              </div>
             )}
           </div>
 

@@ -36,6 +36,7 @@ const navItems: NavItem[] = [
   { href: "/compliance", label: "Compliance", isVisible: canUseCompliance },
   { href: "/training-plans", label: "Training Plans", isVisible: canUseTrainingPlans },
   { href: "/training-requests", label: "Training Requests", isVisible: canUseTrainingPlans },
+  { href: "/training-monitoring", label: "Monitoring", isVisible: canUseTrainingPlans },
   { href: "/claims", label: "Claims", isVisible: canUseClaims },
   { href: "/management", label: "Management", isVisible: canUseManagement },
   { href: "/settings/users", label: "Users", isVisible: canUseSettings },

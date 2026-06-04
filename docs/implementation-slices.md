@@ -1951,3 +1951,28 @@ Files:
 - `lib/training-request.ts`
 - `app/(dashboard)/training-requests/[requestId]/page.tsx`
 - workflow docs
+
+### Slice 94: Training Monitoring Foundation
+
+Goal: create the Form 6A/6B monitoring foundation against approved Training Approval Requests.
+
+Implemented design:
+
+- Added `TrainingMonitoringMode` for local physical and local virtual monitoring
+- Added `TrainingMonitoringRecord` linked to `TrainingRequest`
+- Added creation logic for official training roles after Form 4A approval
+- Added `Create monitoring record` action on approved Training Approval detail pages
+- Added `/training-monitoring` list page and `/training-monitoring/[recordId]` detail page
+- Added Monitoring to the dashboard navigation for training-capable roles
+
+Files:
+
+- `prisma/schema.prisma`
+- `prisma/migrations/20260604115000_add_training_monitoring_records/migration.sql`
+- `lib/training-monitoring.ts`
+- `app/(dashboard)/layout.tsx`
+- `app/(dashboard)/training-requests/[requestId]/actions.ts`
+- `app/(dashboard)/training-requests/[requestId]/page.tsx`
+- `app/(dashboard)/training-monitoring/page.tsx`
+- `app/(dashboard)/training-monitoring/[recordId]/page.tsx`
+- workflow docs
