@@ -70,6 +70,7 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
         summary: true,
         targetHref: true,
         createdAt: true,
+        assignedUserId: true,
         registrationApplicationId: true,
         company: {
           select: {
@@ -106,6 +107,7 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
       ...item,
       queueCategory: getQueueCategory(item.kind),
       queueLabel: getQueueLabel(item.kind),
+      ownershipLabel: getOwnershipLabel(item.assignedUserId, item.areaOffice?.name),
     }));
   const actionTotal = workItemTotal - awarenessWorkItemTotal + derivedItems.length;
 
@@ -211,7 +213,25 @@ async function getDerivedRegistrationDeskItems(input: {
       name: registration.areaOffice.name,
     },
     organization: null,
+    assignedUserId: null,
+    queueCategory: "ACTION",
+    queueLabel: "Action required",
+    ownershipLabel: registration.areaOffice.name
+      ? `Shared ${registration.areaOffice.name} desk queue`
+      : "Shared desk queue",
   }));
+}
+
+function getOwnershipLabel(assignedUserId: string | null, areaOfficeName: string | undefined) {
+  if (assignedUserId) {
+    return "Assigned to you";
+  }
+
+  if (areaOfficeName) {
+    return `Shared ${areaOfficeName} desk queue`;
+  }
+
+  return "Shared role queue";
 }
 
 function getDerivedRegistrationTitle(role: Role) {

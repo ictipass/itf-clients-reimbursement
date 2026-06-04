@@ -1821,3 +1821,20 @@ Expected files:
 - `lib/rbac.ts`
 - `lib/compliance.ts`
 - role/office/seed/docs files
+
+### Slice 87: HQ/Area Office Multi-Officer Queue Clarification
+
+Goal: make it clear when dashboard work items are shared by multiple officers with the same role and office assignment.
+
+Expected design:
+
+- Add queue ownership labels to attention items
+- Show direct assignment versus shared role/office queue on dashboard cards
+- Clarify dashboard copy for multi-officer desks
+- Preserve current work item routing and role scoping
+
+Expected files:
+
+- `lib/attention.ts`
+- `app/(dashboard)/dashboard/page.tsx`
+- workflow docs

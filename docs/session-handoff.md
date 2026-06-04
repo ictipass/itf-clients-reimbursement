@@ -6,7 +6,7 @@ Last updated: 2026-06-03
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 86: RBAC Cleanup for HQ Revenue Accountant
+- Slice 87: HQ/Area Office Multi-Officer Queue Clarification
 
 Recent completed slices include:
 
@@ -41,6 +41,7 @@ Recent completed slices include:
 - Slice 84: Training Approval Request current desk tracking
 - Slice 85: Training Approval Request evidence and decision detail page
 - Slice 86: HQ Revenue Accountant RBAC cleanup for annual compliance authority
+- Slice 87: Shared multi-officer queue labels on dashboard work items
 
 ## Important Current Rules
 
@@ -71,6 +72,7 @@ Recent completed slices include:
 - Training Approval Requests now track `currentDesk` with the Area Office training workflow desk enum.
 - `/training-requests/[requestId]` shows Training Approval Request detail, evidence, source Training Plan row, and decision trail.
 - Annual compliance review/certificate authority is `HEAD_OF_DIVISION` plus `HQ_REVENUE_ACCOUNTANT`; `HQ_REIMBURSEMENT_OFFICER` remains for reimbursement/claims work.
+- Dashboard work items label direct assignment versus shared role/Area Office desk queues.
 - Uploaded evidence can be soft-deleted from active workflow views while preserving audit history.
 
 ## Validation Habit

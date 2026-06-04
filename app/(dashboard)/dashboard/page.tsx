@@ -57,7 +57,8 @@ export default async function DashboardPage() {
           <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-600">
             Signed in as <span className="font-semibold text-zinc-950">{formatRole(activeRole)}</span>.
             Action items need your desk decision. Awareness items keep you informed about filings in
-            your office or workspace scope.
+            your office or workspace scope. Shared desk items may be visible to other officers with
+            the same role and office assignment.
           </p>
           <div className="mt-6 flex flex-wrap gap-3">
             <Link
@@ -130,6 +131,7 @@ export default async function DashboardPage() {
                   {item.areaOffice?.name ?? item.organization?.name ?? "Workspace"} ·{" "}
                   {formatDate(item.createdAt)}
                 </p>
+                <p className="text-xs font-semibold text-zinc-600">{item.ownershipLabel}</p>
               </Link>
             ))}
             {employerActions.map((item) => (
