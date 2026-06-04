@@ -2263,3 +2263,18 @@ Files:
 
 - `app/(dashboard)/dashboard/page.tsx`
 - workflow docs
+
+### Slice 111: HQ Reviewer Dashboard View
+
+Goal: give headquarters reviewers a dashboard focused on HQ-wide review and approval work.
+
+Implemented design:
+
+- Added HQ reviewer branch for Director FSD, Head of Division, HQ RO, and HQ RA
+- Displayed HQ work items, compliance in review, claims in review, and certificate counts
+- Showed headquarters work queue items in a focused panel
+
+Files:
+
+- `app/(dashboard)/dashboard/page.tsx`
+- workflow docs

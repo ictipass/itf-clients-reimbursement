@@ -44,6 +44,15 @@ function isAreaOfficeOfficerRole(role: string) {
   );
 }
 
+function isHeadquartersReviewerRole(role: string) {
+  return (
+    role === "DIRECTOR_FSD" ||
+    role === "HEAD_OF_DIVISION" ||
+    role === "HQ_REIMBURSEMENT_OFFICER" ||
+    role === "HQ_REVENUE_ACCOUNTANT"
+  );
+}
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
@@ -394,6 +403,103 @@ export default async function DashboardPage() {
               </div>
             )}
           </div>
+        </section>
+      </div>
+    );
+  }
+
+  if (isHeadquartersReviewerRole(activeRole)) {
+    const [pendingCompliance, pendingClaims, activeCertificates, openHqWorkItems] =
+      await getDb().$transaction([
+        getDb().complianceYear.count({
+          where: {
+            status: {
+              in: ["SUBMITTED", "IN_REVIEW", "CHANGES_REQUESTED"],
+            },
+            recordTier: "HOT",
+          },
+        }),
+        getDb().reimbursementClaim.count({
+          where: {
+            status: {
+              in: ["SUBMITTED", "IN_REVIEW", "CHANGES_REQUESTED"],
+            },
+            recordTier: "HOT",
+          },
+        }),
+        getDb().complianceCertificate.count({
+          where: {
+            recordTier: "HOT",
+          },
+        }),
+        getDb().workItem.count({
+          where: {
+            status: "OPEN",
+            recordTier: "HOT",
+            assignedRole: activeRole,
+          },
+        }),
+      ]);
+
+    return (
+      <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:px-8">
+        <section>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
+            Headquarters desk
+          </p>
+          <h1 className="mt-3 max-w-3xl text-4xl font-semibold tracking-tight">
+            {formatRole(activeRole)} review center
+          </h1>
+          <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-600">
+            Track headquarters-level compliance, certificate, and reimbursement review work across
+            Area Offices.
+          </p>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-4">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">{openHqWorkItems}</p>
+            <p className="mt-2 text-sm font-semibold">HQ work items</p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">{pendingCompliance}</p>
+            <p className="mt-2 text-sm font-semibold">Compliance in review</p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">{pendingClaims}</p>
+            <p className="mt-2 text-sm font-semibold">Claims in review</p>
+          </div>
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <p className="text-3xl font-semibold text-[#800020]">{activeCertificates}</p>
+            <p className="mt-2 text-sm font-semibold">Compliance certificates</p>
+          </div>
+        </section>
+
+        <section className="rounded-lg border border-zinc-200 bg-white p-6">
+          <h2 className="text-2xl font-semibold tracking-tight">HQ queue</h2>
+          {attentionSummary.items.length === 0 ? (
+            <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+              No pending headquarters attention item for your desk.
+            </p>
+          ) : (
+            <div className="mt-5 grid gap-3">
+              {attentionSummary.items.map((item) => (
+                <Link
+                  key={item.id}
+                  href={item.targetHref}
+                  className="grid gap-2 rounded-md border border-zinc-100 p-4 transition hover:border-[#800020]/40"
+                >
+                  <p className="font-semibold text-zinc-950">{item.title}</p>
+                  <p className="text-sm leading-6 text-zinc-600">
+                    {item.summary ?? item.company?.legalName ?? "Open workflow item"}
+                  </p>
+                  <p className="text-xs leading-5 text-zinc-500">
+                    {formatKind(item.kind)} · {formatDate(item.createdAt)}
+                  </p>
+                </Link>
+              ))}
+            </div>
+          )}
         </section>
       </div>
     );
