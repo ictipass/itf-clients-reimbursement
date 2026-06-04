@@ -13,7 +13,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { getClaimEvidenceKinds } from "@/lib/claims";
 import { getDb } from "@/lib/db";
-import { can } from "@/lib/rbac";
+import { canUseSection } from "@/lib/feature-gates";
 
 function formatMoney(value: { toString(): string } | null) {
   if (!value) {
@@ -38,9 +38,10 @@ export default async function ClaimDetailPage({
   const { claimId } = await params;
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
-  const canSubmitClaim = can(activeRole, "claims:submit");
-  const canRecommendClaim = can(activeRole, "claims:review");
-  const canUploadClaimEvidence = canSubmitClaim || canRecommendClaim;
+  const canSubmitClaim = canUseSection(activeRole, "claim.form.edit");
+  const canRecommendClaim = canUseSection(activeRole, "claim.recommendation.edit");
+  const canUploadClaimEvidence = canUseSection(activeRole, "claim.evidence.upload");
+  const canEditCalculations = canUseSection(activeRole, "claim.calculation.edit");
   const evidenceKinds = getClaimEvidenceKinds();
   const claim = await getDb().reimbursementClaim.findFirst({
     where: {
@@ -269,15 +270,22 @@ export default async function ClaimDetailPage({
                     placeholder="Remarks"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm md:col-span-2"
                   />
-                  <button className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm font-semibold">
-                    Save row
-                  </button>
+                  {canEditCalculations ? (
+                    <button className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm font-semibold">
+                      Save row
+                    </button>
+                  ) : null}
                 </form>
-                <form action={deleteClaimLineAction.bind(null, claim.id, line.id)} className="mt-2">
-                  <button className="min-h-9 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700">
-                    Delete row
-                  </button>
-                </form>
+                {canEditCalculations ? (
+                  <form
+                    action={deleteClaimLineAction.bind(null, claim.id, line.id)}
+                    className="mt-2"
+                  >
+                    <button className="min-h-9 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700">
+                      Delete row
+                    </button>
+                  </form>
+                ) : null}
                 <p className="mt-2 text-xs text-zinc-500">
                   Trained percentage: {decimalInput(line.percentTrained) || "Not calculated"}
                 </p>
@@ -286,39 +294,41 @@ export default async function ClaimDetailPage({
           </div>
         )}
 
-        <form
-          action={addClaimLineAction.bind(null, claim.id)}
-          className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 md:grid-cols-4"
-        >
-          <input
-            name="trainingArea"
-            required
-            placeholder="Training area"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="totalWorkforce"
-            type="number"
-            placeholder="Workforce"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="totalTrained"
-            type="number"
-            placeholder="Trained"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <input
-            name="employerClaimAmount"
-            type="number"
-            step="0.01"
-            placeholder="Employer claim"
-            className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-          />
-          <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-            Add calculation row
-          </button>
-        </form>
+        {canEditCalculations ? (
+          <form
+            action={addClaimLineAction.bind(null, claim.id)}
+            className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 md:grid-cols-4"
+          >
+            <input
+              name="trainingArea"
+              required
+              placeholder="Training area"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="totalWorkforce"
+              type="number"
+              placeholder="Workforce"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="totalTrained"
+              type="number"
+              placeholder="Trained"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="employerClaimAmount"
+              type="number"
+              step="0.01"
+              placeholder="Employer claim"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+              Add calculation row
+            </button>
+          </form>
+        ) : null}
       </section>
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">

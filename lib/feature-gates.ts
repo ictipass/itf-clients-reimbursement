@@ -7,6 +7,19 @@ export type FeatureGate = {
   permissions: Permission[];
 };
 
+export type SectionGateKey =
+  | "claim.form.edit"
+  | "claim.evidence.upload"
+  | "claim.recommendation.edit"
+  | "claim.calculation.edit";
+
+const sectionGates: Record<SectionGateKey, Permission[]> = {
+  "claim.form.edit": ["claims:submit"],
+  "claim.evidence.upload": ["claims:submit", "claims:review"],
+  "claim.recommendation.edit": ["claims:review"],
+  "claim.calculation.edit": ["claims:submit", "claims:review"],
+};
+
 export const featureGates: FeatureGate[] = [
   {
     key: "dashboard",
@@ -68,4 +81,8 @@ export function canAccessPath(role: Role, pathname: string) {
   const gate = getFeatureGateForPath(pathname);
 
   return !gate || canUseFeature(role, gate);
+}
+
+export function canUseSection(role: Role, key: SectionGateKey) {
+  return sectionGates[key].some((permission) => can(role, permission));
 }

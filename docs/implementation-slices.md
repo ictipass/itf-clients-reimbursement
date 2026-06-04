@@ -2422,3 +2422,19 @@ Files:
 
 - `middleware.ts`
 - workflow docs
+
+### Slice 121: Role-Based Page Section Cleanup
+
+Goal: use centralized feature gates for page section visibility.
+
+Implemented design:
+
+- Added named section gates for claim form edit, evidence upload, recommendation, and calculation rows
+- Updated claim detail page to use section gates
+- Hid calculation row add/save/delete controls where the role lacks permission
+
+Files:
+
+- `lib/feature-gates.ts`
+- `app/(dashboard)/claims/[claimId]/page.tsx`
+- workflow docs
