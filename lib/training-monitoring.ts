@@ -10,9 +10,16 @@ const trainingMonitoringEvidenceKinds = [
   "TRAINING_PHOTO",
   "OTHER_SUPPORTING_EVIDENCE",
 ] as const;
+const trainingMonitoringTransitions = [
+  "submit",
+  "start_review",
+  "approve",
+  "request_changes",
+] as const;
 
 export type TrainingMonitoringModeInput = (typeof trainingMonitoringModes)[number];
 export type TrainingMonitoringEvidenceKind = (typeof trainingMonitoringEvidenceKinds)[number];
+export type TrainingMonitoringTransition = (typeof trainingMonitoringTransitions)[number];
 
 export type CreateTrainingMonitoringRecordInput = {
   trainingRequestId: string;
@@ -55,12 +62,23 @@ export type UpdateTrainingMonitoringRecordInput = {
   directorName?: string;
 };
 
+export type RouteTrainingMonitoringRecordInput = {
+  recordId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  transition: TrainingMonitoringTransition;
+};
+
 export function getTrainingMonitoringModes() {
   return trainingMonitoringModes;
 }
 
 export function getTrainingMonitoringEvidenceKinds() {
   return trainingMonitoringEvidenceKinds;
+}
+
+export function getTrainingMonitoringTransitions() {
+  return trainingMonitoringTransitions;
 }
 
 export async function createTrainingMonitoringRecord(
@@ -244,13 +262,96 @@ export async function updateTrainingMonitoringRecord(
   });
 }
 
+export async function routeTrainingMonitoringRecord(
+  input: RouteTrainingMonitoringRecordInput,
+) {
+  if (!can(input.requesterRole, "training:approve")) {
+    throw new Error("You do not have permission to route Training Monitoring records.");
+  }
+
+  const transition = resolveTrainingMonitoringTransition(input.transition);
+  const record = await getDb().trainingMonitoringRecord.findFirst({
+    where: {
+      id: input.recordId,
+      recordTier: "HOT",
+      status: {
+        in: [...transition.from],
+      },
+      trainingRequest: {
+        recordTier: "HOT",
+        company: {
+          recordTier: "HOT",
+          isActive: true,
+        },
+      },
+    },
+    select: {
+      id: true,
+      trainingRequest: {
+        select: {
+          company: {
+            select: {
+              areaOfficeId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!record) {
+    throw new Error("Training Monitoring record was not found for this workflow action.");
+  }
+
+  await assertTrainingMonitoringAccess({
+    requesterEmail: input.requesterEmail,
+    requesterRole: input.requesterRole,
+    areaOfficeId: record.trainingRequest.company.areaOfficeId,
+  });
+
+  return getDb().trainingMonitoringRecord.update({
+    where: {
+      id: record.id,
+    },
+    data: {
+      status: transition.to,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+function resolveTrainingMonitoringTransition(transition: TrainingMonitoringTransition) {
+  const transitions = {
+    submit: {
+      from: ["DRAFT", "CHANGES_REQUESTED"],
+      to: "SUBMITTED",
+    },
+    start_review: {
+      from: ["SUBMITTED"],
+      to: "IN_REVIEW",
+    },
+    approve: {
+      from: ["IN_REVIEW"],
+      to: "APPROVED",
+    },
+    request_changes: {
+      from: ["IN_REVIEW"],
+      to: "CHANGES_REQUESTED",
+    },
+  } as const;
+
+  return transitions[transition];
+}
+
 async function findEditableMonitoringRecord(recordId: string) {
   const record = await getDb().trainingMonitoringRecord.findFirst({
     where: {
       id: recordId,
       recordTier: "HOT",
       status: {
-        in: ["DRAFT", "IN_REVIEW", "SUBMITTED"],
+        in: ["DRAFT", "IN_REVIEW", "SUBMITTED", "CHANGES_REQUESTED"],
       },
       trainingRequest: {
         recordTier: "HOT",

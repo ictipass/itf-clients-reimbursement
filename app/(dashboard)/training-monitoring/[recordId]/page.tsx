@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 
 import {
   addTrainingMonitoringEvaluationAction,
+  routeTrainingMonitoringRecordAction,
   updateTrainingMonitoringRecordAction,
   uploadTrainingMonitoringEvidenceAction,
 } from "@/app/(dashboard)/training-monitoring/[recordId]/actions";
@@ -38,6 +39,29 @@ function formatDateTimeInput(date: Date | null) {
   }
 
   return date.toISOString().slice(0, 16);
+}
+
+const transitionLabels = {
+  submit: "Submit monitoring record",
+  start_review: "Start review",
+  approve: "Approve monitoring",
+  request_changes: "Request changes",
+} as const;
+
+function getMonitoringTransitions(status: string) {
+  if (status === "DRAFT" || status === "CHANGES_REQUESTED") {
+    return ["submit"] as const;
+  }
+
+  if (status === "SUBMITTED") {
+    return ["start_review"] as const;
+  }
+
+  if (status === "IN_REVIEW") {
+    return ["approve", "request_changes"] as const;
+  }
+
+  return [] as const;
 }
 
 export default async function TrainingMonitoringDetailPage({
@@ -124,6 +148,8 @@ export default async function TrainingMonitoringDetailPage({
   if (!record) {
     notFound();
   }
+
+  const availableTransitions = getMonitoringTransitions(record.status);
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
@@ -241,6 +267,30 @@ export default async function TrainingMonitoringDetailPage({
           </div>
         </div>
       </section>
+
+      {canManageMonitoring && availableTransitions.length > 0 ? (
+        <form
+          action={routeTrainingMonitoringRecordAction.bind(null, record.id)}
+          className="mt-8 rounded-lg border border-zinc-200 bg-white p-5"
+        >
+          <h2 className="text-xl font-semibold tracking-tight">Monitoring workflow</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Move this Form 6A/6B record through submission, review, and approval.
+          </p>
+          <div className="mt-4 flex flex-wrap gap-2">
+            {availableTransitions.map((transition) => (
+              <button
+                key={transition}
+                name="transition"
+                value={transition}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
+              >
+                {transitionLabels[transition]}
+              </button>
+            ))}
+          </div>
+        </form>
+      ) : null}
 
       {canManageMonitoring ? (
         <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">

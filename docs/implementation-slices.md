@@ -2016,3 +2016,21 @@ Files:
 - `app/(dashboard)/training-monitoring/[recordId]/actions.ts`
 - `app/(dashboard)/training-monitoring/[recordId]/page.tsx`
 - workflow docs
+
+### Slice 97: Training Monitoring Submit and Approval Flow
+
+Goal: give Form 6A/6B records a basic lifecycle after details and evidence are captured.
+
+Implemented design:
+
+- Added monitoring transitions: submit, start review, approve, request changes
+- Allowed changed monitoring records to be resubmitted
+- Added server action routing for monitoring workflow transitions
+- Added workflow action buttons to the monitoring detail page
+
+Files:
+
+- `lib/training-monitoring.ts`
+- `app/(dashboard)/training-monitoring/[recordId]/actions.ts`
+- `app/(dashboard)/training-monitoring/[recordId]/page.tsx`
+- workflow docs

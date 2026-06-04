@@ -8,9 +8,12 @@ import { authOptions } from "@/lib/auth";
 import {
   addTrainingMonitoringEvaluation,
   getTrainingMonitoringEvidenceKinds,
+  getTrainingMonitoringTransitions,
+  routeTrainingMonitoringRecord,
   updateTrainingMonitoringRecord,
   uploadTrainingMonitoringEvidence,
   type TrainingMonitoringEvidenceKind,
+  type TrainingMonitoringTransition,
 } from "@/lib/training-monitoring";
 
 function readOptionalString(formData: FormData, name: string) {
@@ -43,6 +46,17 @@ function readEvidenceKind(formData: FormData): TrainingMonitoringEvidenceKind {
   }
 
   return value as TrainingMonitoringEvidenceKind;
+}
+
+function readMonitoringTransition(formData: FormData): TrainingMonitoringTransition {
+  const value = readOptionalString(formData, "transition");
+  const transitions = getTrainingMonitoringTransitions();
+
+  if (!value || !transitions.includes(value as TrainingMonitoringTransition)) {
+    throw new Error("Unsupported Training Monitoring transition.");
+  }
+
+  return value as TrainingMonitoringTransition;
 }
 
 function readScore(formData: FormData) {
@@ -149,6 +163,28 @@ export async function updateTrainingMonitoringRecordAction(
     directorName: readOptionalString(formData, "directorName"),
   });
 
+  revalidatePath(`/training-monitoring/${recordId}`);
+  redirect(`/training-monitoring/${recordId}`);
+}
+
+export async function routeTrainingMonitoringRecordAction(
+  recordId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await routeTrainingMonitoringRecord({
+    recordId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    transition: readMonitoringTransition(formData),
+  });
+
+  revalidatePath(`/training-monitoring`);
   revalidatePath(`/training-monitoring/${recordId}`);
   redirect(`/training-monitoring/${recordId}`);
 }
