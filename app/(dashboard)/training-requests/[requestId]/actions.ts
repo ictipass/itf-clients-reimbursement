@@ -7,8 +7,11 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import {
   getTrainingRequestTransitions,
+  getTrainingRequestEvidenceKinds,
   routeTrainingRequest,
   submitTrainingRequest,
+  uploadTrainingRequestEvidence,
+  type TrainingRequestEvidenceKind,
   type TrainingRequestTransition,
 } from "@/lib/training-request";
 
@@ -69,6 +72,42 @@ export async function routeTrainingRequestAction(requestId: string, formData: Fo
   });
 
   revalidatePath(`/training-requests`);
+  revalidatePath(`/training-requests/${requestId}`);
+  redirect(`/training-requests/${requestId}`);
+}
+
+function readEvidenceKind(formData: FormData): TrainingRequestEvidenceKind {
+  const value = readOptionalString(formData, "kind");
+  const kinds = getTrainingRequestEvidenceKinds();
+
+  if (!value || !kinds.includes(value as TrainingRequestEvidenceKind)) {
+    throw new Error("Unsupported Training Approval evidence kind.");
+  }
+
+  return value as TrainingRequestEvidenceKind;
+}
+
+export async function uploadTrainingRequestEvidenceAction(requestId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  const file = formData.get("evidence");
+
+  if (!(file instanceof File)) {
+    throw new Error("Evidence file is required.");
+  }
+
+  await uploadTrainingRequestEvidence({
+    requestId,
+    uploadedByEmail: session.user.email,
+    requesterRole: session.user.role,
+    kind: readEvidenceKind(formData),
+    file,
+  });
+
   revalidatePath(`/training-requests/${requestId}`);
   redirect(`/training-requests/${requestId}`);
 }

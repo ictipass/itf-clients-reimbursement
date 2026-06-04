@@ -1,5 +1,15 @@
 import { getDb } from "@/lib/db";
 import { can, isItfRole, type Role } from "@/lib/rbac";
+import { uploadObject } from "@/lib/storage";
+import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
+
+const trainingRequestEvidenceKinds = [
+  "TRAINING_REPORT",
+  "PAYMENT_RECEIPT",
+  "OTHER_SUPPORTING_EVIDENCE",
+] as const;
+
+export type TrainingRequestEvidenceKind = (typeof trainingRequestEvidenceKinds)[number];
 
 export type CreateTrainingRequestFromLineItemInput = {
   lineItemId: string;
@@ -32,8 +42,20 @@ export type RouteTrainingRequestInput = {
   note?: string;
 };
 
+export type UploadTrainingRequestEvidenceInput = {
+  requestId: string;
+  uploadedByEmail: string;
+  requesterRole: Role;
+  kind: TrainingRequestEvidenceKind;
+  file: File;
+};
+
 export function getTrainingRequestTransitions() {
   return trainingRequestTransitions;
+}
+
+export function getTrainingRequestEvidenceKinds() {
+  return trainingRequestEvidenceKinds;
 }
 
 export async function createTrainingRequestFromLineItem(
@@ -276,6 +298,82 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
     });
 
     return updated;
+  });
+}
+
+export async function uploadTrainingRequestEvidence(input: UploadTrainingRequestEvidenceInput) {
+  if (!can(input.requesterRole, "training:submit") && !can(input.requesterRole, "training:approve")) {
+    throw new Error("You do not have permission to upload Training Approval evidence.");
+  }
+
+  const db = getDb();
+  const request = await db.trainingRequest.findFirst({
+    where: {
+      id: input.requestId,
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!request) {
+    throw new Error("Training Approval Request was not found.");
+  }
+
+  const actor = await getWorkflowActor(input.uploadedByEmail);
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    actor.memberships.some((membership) => membership.organizationId === request.company.organizationId);
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to upload evidence for this request.");
+  }
+
+  const buffer = Buffer.from(await input.file.arrayBuffer());
+  const safeFileName = sanitizeFileName(input.file.name);
+  const validated = validateUpload(buffer, safeFileName, input.file.type);
+  const stored = await uploadObject({
+    buffer,
+    companyId: request.companyId,
+    extension: validated.extension,
+    mimeType: validated.mimeType,
+    namespace: "training-requests",
+  });
+
+  return db.document.create({
+    data: {
+      organizationId: request.company.organizationId,
+      companyId: request.companyId,
+      trainingRequestId: request.id,
+      uploadedById: actor.id,
+      kind: input.kind,
+      fileName: safeFileName,
+      storageProvider: stored.storageProvider,
+      bucket: stored.bucket,
+      objectKey: stored.objectKey,
+      url: stored.url,
+      etag: stored.etag,
+      versionId: stored.versionId,
+      checksum: stored.checksum,
+      mimeType: stored.mimeType,
+      fileSize: stored.fileSize,
+      access: "PRIVATE",
+      classification: "OFFICIAL",
+    },
+    select: {
+      id: true,
+    },
   });
 }
 

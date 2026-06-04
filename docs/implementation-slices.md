@@ -1913,3 +1913,23 @@ Expected files:
 - `app/(dashboard)/training-requests/[requestId]/actions.ts`
 - `app/(dashboard)/training-requests/[requestId]/page.tsx`
 - workflow docs
+
+### Slice 92: Training Approval Evidence Upload
+
+Goal: allow users to upload evidence directly against a Training Approval Request.
+
+Expected design:
+
+- Add Training Approval evidence kinds
+- Add secure upload logic scoped to `TrainingRequest`
+- Add server action and upload page
+- Link the request detail page to evidence upload
+- Store uploaded documents with `trainingRequestId`
+
+Expected files:
+
+- `lib/training-request.ts`
+- `app/(dashboard)/training-requests/[requestId]/actions.ts`
+- `app/(dashboard)/training-requests/[requestId]/evidence/new/page.tsx`
+- `app/(dashboard)/training-requests/[requestId]/page.tsx`
+- workflow docs

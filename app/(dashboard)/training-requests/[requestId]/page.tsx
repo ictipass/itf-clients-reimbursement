@@ -269,6 +269,12 @@ export default async function TrainingRequestDetailPage({
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="text-xl font-semibold tracking-tight">Evidence</h2>
+            <Link
+              href={`/training-requests/${request.id}/evidence/new`}
+              className="mt-4 inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+            >
+              Upload evidence
+            </Link>
             {request.documents.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">
                 No Training Approval evidence has been uploaded yet.
