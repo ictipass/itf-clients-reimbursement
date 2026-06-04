@@ -18,6 +18,9 @@ const canUseRegistry = (role: Role) =>
 const canUseCompliance = (role: Role) =>
   can(role, "compliance:review") || can(role, "compliance:submit");
 
+const canUseTrainingPlans = (role: Role) =>
+  can(role, "training:submit") || can(role, "training:approve");
+
 const canUseClaims = (role: Role) =>
   can(role, "claims:review") || can(role, "claims:approve") || can(role, "claims:submit");
 
@@ -31,6 +34,7 @@ const navItems: NavItem[] = [
   { href: "/dashboard", label: "Overview", isVisible: () => true },
   { href: "/registry", label: "Registry", isVisible: canUseRegistry },
   { href: "/compliance", label: "Compliance", isVisible: canUseCompliance },
+  { href: "/training-plans", label: "Training Plans", isVisible: canUseTrainingPlans },
   { href: "/claims", label: "Claims", isVisible: canUseClaims },
   { href: "/management", label: "Management", isVisible: canUseManagement },
   { href: "/settings/users", label: "Users", isVisible: canUseSettings },

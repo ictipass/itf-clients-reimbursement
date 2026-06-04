@@ -1667,3 +1667,21 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/compliance/[complianceYearId]/review/page.tsx`
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - workflow docs
+
+### Slice 79: Training Plan Submission List Page
+
+Goal: provide a dedicated Training Plan/L&D submissions list so reviewers do not have to start from company detail pages.
+
+Expected design:
+
+- Add `/training-plans` route under the dashboard shell
+- Filter submissions by company name, year, status, and current desk
+- Show company, Area Office, year, status, desk, evidence count, personnel count, and due date
+- Link each row back to the company profile until the focused detail page exists
+- Add Training Plans navigation for training-capable roles
+
+Expected files:
+
+- `app/(dashboard)/training-plans/page.tsx`
+- `app/(dashboard)/layout.tsx`
+- workflow docs
