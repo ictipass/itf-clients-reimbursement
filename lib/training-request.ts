@@ -53,6 +53,21 @@ export type UploadTrainingRequestEvidenceInput = {
   file: File;
 };
 
+export type TrainingParticipantInput = {
+  requestId: string;
+  participantId?: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  name: string;
+  jobTitle?: string;
+  trainingArea?: string;
+  educationalQualification?: string;
+  nationality?: string;
+  courseTitle?: string;
+  courseOrganiser?: string;
+  venue?: string;
+};
+
 export function getTrainingRequestTransitions() {
   return trainingRequestTransitions;
 }
@@ -380,6 +395,76 @@ export async function uploadTrainingRequestEvidence(input: UploadTrainingRequest
   });
 }
 
+export async function addTrainingParticipant(input: TrainingParticipantInput) {
+  const request = await findEditableTrainingRequestForEmployer(input);
+  const actor = await getWorkflowActor(input.requesterEmail);
+
+  assertTrainingRequestOrganizationAccess({
+    requesterRole: input.requesterRole,
+    memberships: actor.memberships,
+    organizationId: request.company.organizationId,
+  });
+
+  return getDb().trainingParticipant.create({
+    data: buildTrainingParticipantData(input, request.id),
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function updateTrainingParticipant(input: TrainingParticipantInput) {
+  if (!input.participantId) {
+    throw new Error("Training participant is required.");
+  }
+
+  const request = await findEditableTrainingRequestForEmployer(input);
+  const actor = await getWorkflowActor(input.requesterEmail);
+
+  assertTrainingRequestOrganizationAccess({
+    requesterRole: input.requesterRole,
+    memberships: actor.memberships,
+    organizationId: request.company.organizationId,
+  });
+
+  return getDb().trainingParticipant.update({
+    where: {
+      id: input.participantId,
+      trainingRequestId: request.id,
+    },
+    data: buildTrainingParticipantData(input, request.id),
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function deleteTrainingParticipant(input: {
+  requestId: string;
+  participantId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+}) {
+  const request = await findEditableTrainingRequestForEmployer(input);
+  const actor = await getWorkflowActor(input.requesterEmail);
+
+  assertTrainingRequestOrganizationAccess({
+    requesterRole: input.requesterRole,
+    memberships: actor.memberships,
+    organizationId: request.company.organizationId,
+  });
+
+  return getDb().trainingParticipant.delete({
+    where: {
+      id: input.participantId,
+      trainingRequestId: request.id,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
 async function getWorkflowActor(email: string) {
   const actor = await getDb().user.findUnique({
     where: {
@@ -401,6 +486,72 @@ async function getWorkflowActor(email: string) {
   }
 
   return actor;
+}
+
+async function findEditableTrainingRequestForEmployer(input: {
+  requestId: string;
+  requesterRole: Role;
+}) {
+  if (!can(input.requesterRole, "training:submit")) {
+    throw new Error("You do not have permission to edit Training Approval participants.");
+  }
+
+  const request = await getDb().trainingRequest.findFirst({
+    where: {
+      id: input.requestId,
+      recordTier: "HOT",
+      status: {
+        in: ["DRAFT", "CHANGES_REQUESTED"],
+      },
+      currentDesk: "COMPANY",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      company: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!request) {
+    throw new Error("Editable Training Approval Request was not found.");
+  }
+
+  return request;
+}
+
+function buildTrainingParticipantData(input: TrainingParticipantInput, requestId: string) {
+  return {
+    trainingRequestId: requestId,
+    name: input.name,
+    jobTitle: input.jobTitle,
+    trainingArea: input.trainingArea,
+    educationalQualification: input.educationalQualification,
+    nationality: input.nationality,
+    courseTitle: input.courseTitle,
+    courseOrganiser: input.courseOrganiser,
+    venue: input.venue,
+  };
+}
+
+function assertTrainingRequestOrganizationAccess(input: {
+  requesterRole: Role;
+  memberships: { organizationId: string | null }[];
+  organizationId: string;
+}) {
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    input.memberships.some((membership) => membership.organizationId === input.organizationId);
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to edit this Training Approval Request.");
+  }
 }
 
 function resolveTrainingRequestTransition(transition: TrainingRequestTransition) {

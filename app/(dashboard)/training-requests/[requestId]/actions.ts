@@ -11,10 +11,13 @@ import {
   type TrainingMonitoringModeInput,
 } from "@/lib/training-monitoring";
 import {
+  addTrainingParticipant,
+  deleteTrainingParticipant,
   getTrainingRequestTransitions,
   getTrainingRequestEvidenceKinds,
   routeTrainingRequest,
   submitTrainingRequest,
+  updateTrainingParticipant,
   uploadTrainingRequestEvidence,
   type TrainingRequestEvidenceKind,
   type TrainingRequestTransition,
@@ -148,4 +151,84 @@ export async function createTrainingMonitoringRecordAction(
   revalidatePath(`/training-requests/${requestId}`);
   revalidatePath(`/training-monitoring`);
   redirect(`/training-monitoring/${record.id}`);
+}
+
+function readParticipantInput(requestId: string, formData: FormData) {
+  const name = readOptionalString(formData, "name");
+
+  if (!name) {
+    throw new Error("Participant name is required.");
+  }
+
+  return {
+    requestId,
+    name,
+    jobTitle: readOptionalString(formData, "jobTitle"),
+    trainingArea: readOptionalString(formData, "trainingArea"),
+    educationalQualification: readOptionalString(formData, "educationalQualification"),
+    nationality: readOptionalString(formData, "nationality"),
+    courseTitle: readOptionalString(formData, "courseTitle"),
+    courseOrganiser: readOptionalString(formData, "courseOrganiser"),
+    venue: readOptionalString(formData, "venue"),
+  };
+}
+
+export async function addTrainingParticipantAction(requestId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await addTrainingParticipant({
+    ...readParticipantInput(requestId, formData),
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
+
+  revalidatePath(`/training-requests/${requestId}`);
+  redirect(`/training-requests/${requestId}`);
+}
+
+export async function updateTrainingParticipantAction(
+  requestId: string,
+  participantId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await updateTrainingParticipant({
+    ...readParticipantInput(requestId, formData),
+    participantId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
+
+  revalidatePath(`/training-requests/${requestId}`);
+  redirect(`/training-requests/${requestId}`);
+}
+
+export async function deleteTrainingParticipantAction(
+  requestId: string,
+  participantId: string,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await deleteTrainingParticipant({
+    requestId,
+    participantId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
+
+  revalidatePath(`/training-requests/${requestId}`);
+  redirect(`/training-requests/${requestId}`);
 }

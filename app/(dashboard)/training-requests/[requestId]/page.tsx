@@ -3,9 +3,12 @@ import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
 import {
+  addTrainingParticipantAction,
   createTrainingMonitoringRecordAction,
+  deleteTrainingParticipantAction,
   routeTrainingRequestAction,
   submitTrainingRequestAction,
+  updateTrainingParticipantAction,
 } from "@/app/(dashboard)/training-requests/[requestId]/actions";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -154,6 +157,22 @@ export default async function TrainingRequestDetailPage({
           createdAt: "desc",
         },
       },
+      participants: {
+        select: {
+          id: true,
+          name: true,
+          jobTitle: true,
+          trainingArea: true,
+          educationalQualification: true,
+          nationality: true,
+          courseTitle: true,
+          courseOrganiser: true,
+          venue: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
       monitoringRecords: {
         where: {
           recordTier: "HOT",
@@ -290,6 +309,151 @@ export default async function TrainingRequestDetailPage({
                 {request.approvalReference ?? "Pending"}
               </p>
             </div>
+          </div>
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <h2 className="text-xl font-semibold tracking-tight">Participants</h2>
+            {request.participants.length === 0 ? (
+              <p className="mt-3 text-sm leading-6 text-zinc-600">
+                No participant has been added to this Form 4A yet.
+              </p>
+            ) : (
+              <div className="mt-4 grid gap-3">
+                {request.participants.map((participant) => (
+                  <div key={participant.id} className="rounded-md border border-zinc-100 p-3">
+                    <form
+                      action={updateTrainingParticipantAction.bind(
+                        null,
+                        request.id,
+                        participant.id,
+                      )}
+                      className="grid gap-3 md:grid-cols-2"
+                    >
+                      <input
+                        name="name"
+                        defaultValue={participant.name}
+                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                      />
+                      <input
+                        name="jobTitle"
+                        defaultValue={participant.jobTitle ?? ""}
+                        placeholder="Job title"
+                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                      />
+                      <input
+                        name="trainingArea"
+                        defaultValue={participant.trainingArea ?? ""}
+                        placeholder="Training area"
+                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                      />
+                      <input
+                        name="educationalQualification"
+                        defaultValue={participant.educationalQualification ?? ""}
+                        placeholder="Educational qualification"
+                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                      />
+                      <input
+                        name="nationality"
+                        defaultValue={participant.nationality ?? ""}
+                        placeholder="Nationality"
+                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                      />
+                      <input
+                        name="courseTitle"
+                        defaultValue={participant.courseTitle ?? ""}
+                        placeholder="Course title"
+                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                      />
+                      <input
+                        name="courseOrganiser"
+                        defaultValue={participant.courseOrganiser ?? ""}
+                        placeholder="Course organiser"
+                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                      />
+                      <input
+                        name="venue"
+                        defaultValue={participant.venue ?? ""}
+                        placeholder="Venue"
+                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                      />
+                      {canSubmit ? (
+                        <button className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm font-semibold">
+                          Save participant
+                        </button>
+                      ) : null}
+                    </form>
+                    {canSubmit ? (
+                      <form
+                        action={deleteTrainingParticipantAction.bind(
+                          null,
+                          request.id,
+                          participant.id,
+                        )}
+                        className="mt-2"
+                      >
+                        <button className="min-h-9 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700">
+                          Delete participant
+                        </button>
+                      </form>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {canSubmit ? (
+              <form
+                action={addTrainingParticipantAction.bind(null, request.id)}
+                className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 md:grid-cols-2"
+              >
+                <input
+                  name="name"
+                  required
+                  placeholder="Participant name"
+                  className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                />
+                <input
+                  name="jobTitle"
+                  placeholder="Job title"
+                  className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                />
+                <input
+                  name="trainingArea"
+                  placeholder="Training area"
+                  className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                />
+                <input
+                  name="educationalQualification"
+                  placeholder="Educational qualification"
+                  className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                />
+                <input
+                  name="nationality"
+                  placeholder="Nationality"
+                  className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                />
+                <input
+                  name="courseTitle"
+                  placeholder="Course title"
+                  className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                />
+                <input
+                  name="courseOrganiser"
+                  placeholder="Course organiser"
+                  className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                />
+                <input
+                  name="venue"
+                  placeholder="Venue"
+                  className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                />
+                <div className="md:col-span-2">
+                  <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                    Add participant
+                  </button>
+                </div>
+              </form>
+            ) : null}
           </div>
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5">

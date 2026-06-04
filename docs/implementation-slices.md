@@ -2053,3 +2053,21 @@ Files:
 - `prisma/migrations/20260604121000_add_training_monitoring_work_items/migration.sql`
 - `lib/training-monitoring.ts`
 - workflow docs
+
+### Slice 99: Training Request Participant Management
+
+Goal: let employers manage the actual Form 4A trainee/participant list before submission.
+
+Implemented design:
+
+- Added service logic to add, update, and delete Training Approval participants
+- Restricted participant edits to company-desk draft or changes-requested Form 4A records
+- Added server actions for participant create/update/delete
+- Added participant management UI to the Training Approval detail page
+
+Files:
+
+- `lib/training-request.ts`
+- `app/(dashboard)/training-requests/[requestId]/actions.ts`
+- `app/(dashboard)/training-requests/[requestId]/page.tsx`
+- workflow docs
