@@ -2640,3 +2640,19 @@ Files:
 
 - `docs/caching-strategy.md`
 - workflow docs
+
+### Slice 134: Reference Data Caching
+
+Goal: add low-risk cache helpers for stable reference data.
+
+Implemented design:
+
+- Added React server cache helpers for active Area Offices, role-management groups, and visible workspace apps
+- Updated the registry Area Office dropdown loader to use the cached active Area Office helper
+- Kept workflow state, permissions, and evidence data out of the cache layer
+
+Files:
+
+- `lib/reference-data.ts`
+- `lib/registry.ts`
+- workflow docs

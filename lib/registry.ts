@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { listCachedActiveAreaOffices } from "@/lib/reference-data";
 
 export type CreateCompanyInput = {
   organizationId: string;
@@ -329,21 +330,7 @@ export async function listEmployerOrganizations() {
 }
 
 export async function listAreaOffices() {
-  const db = getDb();
-
-  return db.areaOffice.findMany({
-    where: {
-      isActive: true,
-    },
-    orderBy: {
-      name: "asc",
-    },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-    },
-  });
+  return listCachedActiveAreaOffices();
 }
 
 export async function createCompany(input: CreateCompanyInput) {
