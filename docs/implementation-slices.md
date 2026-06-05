@@ -2566,3 +2566,25 @@ Files:
 
 - `lib/auth.ts`
 - workflow docs
+
+### Slice 130: Upload Rate Limiting
+
+Goal: protect evidence upload routes from repeated automated upload attempts.
+
+Implemented design:
+
+- Added a reusable upload rate-limit helper
+- Applied upload limiting to company, compliance, training plan, training request, monitoring, and claim evidence uploads
+- Used 20 uploads per user every 10 minutes as the initial development default
+- Kept the helper centralized so the in-memory limiter can later be swapped for Redis or another shared store
+
+Files:
+
+- `lib/rate-limit.ts`
+- `lib/evidence.ts`
+- `lib/compliance.ts`
+- `lib/training-plan.ts`
+- `lib/training-request.ts`
+- `lib/training-monitoring.ts`
+- `lib/claims.ts`
+- workflow docs

@@ -4,6 +4,7 @@ import {
   findActiveCertificateTemplate,
   generateComplianceCertificatePdf,
 } from "@/lib/certificates";
+import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, canManageAnnualCompliance, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -310,6 +311,8 @@ export async function uploadComplianceEvidence(input: UploadComplianceEvidenceIn
   if (!can(input.requesterRole, "compliance:submit")) {
     throw new Error("You do not have permission to upload compliance evidence.");
   }
+
+  assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
   const complianceYear = await db.complianceYear.findFirst({

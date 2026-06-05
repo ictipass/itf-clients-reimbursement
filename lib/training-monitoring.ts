@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -144,6 +145,8 @@ export async function uploadTrainingMonitoringEvidence(
   if (!can(input.requesterRole, "training:approve")) {
     throw new Error("You do not have permission to upload Training Monitoring evidence.");
   }
+
+  assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
   const record = await findEditableMonitoringRecord(input.recordId);

@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -269,6 +270,8 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
   if (!can(input.requesterRole, "claims:submit") && !can(input.requesterRole, "claims:review")) {
     throw new Error("You do not have permission to upload claim evidence.");
   }
+
+  assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
   const claim = await db.reimbursementClaim.findFirst({

@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 import { downloadObject, uploadObject } from "@/lib/storage";
 import { can, isItfRole, type Role } from "@/lib/rbac";
@@ -38,6 +39,8 @@ export function getCompanyEvidenceKinds() {
 }
 
 export async function uploadCompanyEvidence(input: UploadCompanyEvidenceInput) {
+  assertUploadRateLimit(input.uploadedByEmail);
+
   const db = getDb();
   const company = await db.company.findFirst({
     where: {

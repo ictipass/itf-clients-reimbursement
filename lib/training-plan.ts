@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { maxUploadBytes, sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -380,6 +381,8 @@ export async function uploadTrainingPlanEvidence(input: UploadTrainingPlanEviden
   if (!can(input.requesterRole, "training:submit")) {
     throw new Error("You do not have permission to upload training plan evidence.");
   }
+
+  assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
   const submission = await db.trainingPlanSubmission.findFirst({

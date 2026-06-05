@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -380,6 +381,8 @@ export async function uploadTrainingRequestEvidence(input: UploadTrainingRequest
   if (!can(input.requesterRole, "training:submit") && !can(input.requesterRole, "training:approve")) {
     throw new Error("You do not have permission to upload Training Approval evidence.");
   }
+
+  assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
   const request = await db.trainingRequest.findFirst({

@@ -62,3 +62,11 @@ export function assertRateLimit(input: RateLimitInput) {
 
   return result;
 }
+
+export function assertUploadRateLimit(identity: string) {
+  return assertRateLimit({
+    key: `upload:${identity.toLowerCase()}`,
+    limit: 20,
+    windowMs: 10 * 60 * 1000,
+  });
+}
