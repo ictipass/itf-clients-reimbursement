@@ -2519,3 +2519,19 @@ Files:
 - `app/sign-in/page.tsx`
 - `app/sign-in/sign-in-form.tsx`
 - workflow docs
+
+### Slice 127: Rate Limiting Strategy Document
+
+Goal: define rate limiting targets and defaults before adding enforcement code.
+
+Implemented design:
+
+- Added rate limiting strategy document
+- Defined priority targets for auth, uploads, verification, submissions, and certificate flows
+- Recommended Redis-backed production provider
+- Defined development fallback and default limits
+
+Files:
+
+- `docs/rate-limiting.md`
+- workflow docs
