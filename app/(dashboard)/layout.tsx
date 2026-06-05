@@ -201,10 +201,22 @@ export default async function DashboardLayout({
               </details>
             ) : null}
           </div>
+          <details className="rounded-lg border border-zinc-200 bg-white p-3 lg:hidden">
+            <summary className="cursor-pointer list-none text-sm font-semibold text-zinc-950">
+              Navigation
+            </summary>
+            <DashboardNav
+              groups={visibleNavGroups}
+              moduleAttentionCounts={moduleAttentionCounts}
+              attentionBadgeTitle={attentionBadgeTitle}
+              className="mt-4"
+            />
+          </details>
           <DashboardNav
             groups={visibleNavGroups}
             moduleAttentionCounts={moduleAttentionCounts}
             attentionBadgeTitle={attentionBadgeTitle}
+            className="hidden lg:grid"
           />
         </div>
       </aside>

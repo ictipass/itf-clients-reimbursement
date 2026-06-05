@@ -2454,3 +2454,19 @@ Files:
 - `app/(dashboard)/DashboardNav.tsx`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 123: Mobile Navigation Drawer
+
+Goal: make the production shell easier to use on mobile screens.
+
+Implemented design:
+
+- Added a collapsible mobile navigation panel
+- Kept the full grouped sidebar navigation visible on desktop
+- Reused active route highlighting and module badges inside the mobile drawer
+
+Files:
+
+- `app/(dashboard)/DashboardNav.tsx`
+- `app/(dashboard)/layout.tsx`
+- workflow docs

@@ -9,6 +9,7 @@ type DashboardNavProps = {
   groups: NavGroup[];
   moduleAttentionCounts: Record<string, number>;
   attentionBadgeTitle: string;
+  className?: string;
 };
 
 function isActivePath(pathname: string, href: string) {
@@ -19,11 +20,12 @@ export function DashboardNav({
   groups,
   moduleAttentionCounts,
   attentionBadgeTitle,
+  className = "",
 }: DashboardNavProps) {
   const pathname = usePathname();
 
   return (
-    <nav className="grid gap-5 overflow-x-auto pb-1 lg:overflow-y-auto lg:pb-6">
+    <nav className={`grid gap-5 overflow-x-auto pb-1 lg:overflow-y-auto lg:pb-6 ${className}`}>
       {groups.map((group) => (
         <section key={group.label} className="min-w-48">
           <p className="px-3 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
