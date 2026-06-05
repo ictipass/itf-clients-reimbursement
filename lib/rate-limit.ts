@@ -70,3 +70,11 @@ export function assertUploadRateLimit(identity: string) {
     windowMs: 10 * 60 * 1000,
   });
 }
+
+export function assertPublicVerificationRateLimit(identity: string) {
+  return assertRateLimit({
+    key: `public-verification:${identity.toLowerCase()}`,
+    limit: 30,
+    windowMs: 60 * 1000,
+  });
+}

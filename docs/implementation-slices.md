@@ -2605,3 +2605,22 @@ Files:
 
 - `docs/upload-security.md`
 - workflow docs
+
+### Slice 132: Public Verification Rate Limiting
+
+Goal: protect public ITF number and certificate verification from repeated automated lookups.
+
+Implemented design:
+
+- Added a public verification rate-limit helper
+- Limited public verification checks to 30 requests per minute per client identity
+- Applied the limit to the `/verify` page lookup
+- Applied the limit to the public QR-code route
+- Returned a friendly verification-limited message on the public page
+
+Files:
+
+- `lib/rate-limit.ts`
+- `app/verify/page.tsx`
+- `app/verify/qr/route.ts`
+- workflow docs

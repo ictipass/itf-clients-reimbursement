@@ -1,7 +1,9 @@
 import Image from "next/image";
 import Link from "next/link";
+import { headers } from "next/headers";
 
 import { verifyPublicCertificateNumber } from "@/lib/public-verification";
+import { assertPublicVerificationRateLimit } from "@/lib/rate-limit";
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -20,7 +22,34 @@ export default async function VerifyCertificatePage({
 }>) {
   const params = await searchParams;
   const query = params?.number?.trim() ?? "";
-  const result = query ? await verifyPublicCertificateNumber(query) : null;
+  const headersList = await headers();
+  const clientIdentity =
+    headersList.get("x-forwarded-for")?.split(",")[0]?.trim() ||
+    headersList.get("x-real-ip") ||
+    "public-verification";
+  const verification = query
+    ? await (async () => {
+        try {
+          assertPublicVerificationRateLimit(clientIdentity);
+
+          return {
+            result: await verifyPublicCertificateNumber(query),
+            rateLimitError: null,
+          };
+        } catch (error) {
+          return {
+            result: null,
+            rateLimitError: error instanceof Error
+              ? error.message
+              : "Too many verification attempts. Please wait and try again.",
+          };
+        }
+      })()
+    : {
+        result: null,
+        rateLimitError: null,
+      };
+  const { result, rateLimitError } = verification;
 
   return (
     <main className="min-h-screen bg-zinc-100 text-zinc-950">
@@ -117,6 +146,15 @@ export default async function VerifyCertificatePage({
               Verification checked on {formatDate(result.verifiedAt)}. This page only confirms
               public-safe certificate status and does not expose internal ITF workflow records.
             </p>
+          </section>
+        ) : null}
+
+        {rateLimitError ? (
+          <section className="rounded-lg border border-amber-200 bg-white p-6">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-amber-700">
+              Verification temporarily limited
+            </p>
+            <p className="mt-3 text-sm leading-6 text-zinc-600">{rateLimitError}</p>
           </section>
         ) : null}
 
