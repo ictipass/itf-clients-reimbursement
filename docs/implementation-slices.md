@@ -2485,3 +2485,19 @@ Files:
 
 - `docs/oauth-production-review.md`
 - workflow docs
+
+### Slice 125: Auth Session Hardening
+
+Goal: tighten session and redirect behavior for production readiness.
+
+Implemented design:
+
+- Wired `NEXTAUTH_SECRET` explicitly into NextAuth options
+- Set JWT/session max age to 8 hours
+- Set session update age to 1 hour
+- Added safe redirect callback that only allows internal redirects
+
+Files:
+
+- `lib/auth.ts`
+- workflow docs

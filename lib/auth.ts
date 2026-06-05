@@ -74,8 +74,14 @@ async function getDevelopmentTestUser(email: string, password: string) {
 }
 
 export const authOptions: NextAuthOptions = {
+  secret: process.env.NEXTAUTH_SECRET,
   session: {
     strategy: "jwt",
+    maxAge: 60 * 60 * 8,
+    updateAge: 60 * 60,
+  },
+  jwt: {
+    maxAge: 60 * 60 * 8,
   },
   pages: {
     signIn: "/sign-in",
@@ -109,6 +115,17 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
+    redirect({ url, baseUrl }) {
+      if (url.startsWith("/")) {
+        return `${baseUrl}${url}`;
+      }
+
+      if (url.startsWith(baseUrl)) {
+        return url;
+      }
+
+      return baseUrl;
+    },
     jwt({ token, user }) {
       if (user) {
         token.role = (user as User & { role?: Role }).role ?? fallbackAdmin.role;
