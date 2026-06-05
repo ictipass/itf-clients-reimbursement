@@ -2656,3 +2656,19 @@ Files:
 - `lib/reference-data.ts`
 - `lib/registry.ts`
 - workflow docs
+
+### Slice 135: Security Audit Event Logging
+
+Goal: make security-sensitive events writable to the audit table.
+
+Implemented design:
+
+- Replaced the console audit placeholder with a Prisma `AuditEvent` writer
+- Aligned audit actions with the generated Prisma enum
+- Added a security audit wrapper for auth attempts, access denials, rate limiting, upload rejection, and sensitive settings changes
+- Added actor email and role metadata to security audit events for reviewer context
+
+Files:
+
+- `lib/audit.ts`
+- workflow docs
