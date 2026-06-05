@@ -2588,3 +2588,20 @@ Files:
 - `lib/training-monitoring.ts`
 - `lib/claims.ts`
 - workflow docs
+
+### Slice 131: Upload Security Review
+
+Goal: document current upload defenses and production hardening gaps.
+
+Implemented design:
+
+- Added a dedicated upload security review document
+- Recorded current validation controls for PDF, JPEG, and PNG evidence
+- Documented blocked risky document classes
+- Listed remaining production controls: malware scanning, quarantine, shared rate limiting, lifecycle cleanup, provider-private access, and audit events
+- Added a rule for future upload flows to use the shared validator and authenticated delivery route
+
+Files:
+
+- `docs/upload-security.md`
+- workflow docs
