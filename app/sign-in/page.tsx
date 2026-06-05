@@ -1,6 +1,14 @@
 import { SignInForm } from "@/app/sign-in/sign-in-form";
 
-export default function SignInPage() {
+export default async function SignInPage({
+  searchParams,
+}: Readonly<{
+  searchParams: Promise<{ callbackUrl?: string | string[]; error?: string | string[] }>;
+}>) {
+  const params = await searchParams;
+  const callbackUrl = Array.isArray(params.callbackUrl) ? params.callbackUrl[0] : params.callbackUrl;
+  const error = Array.isArray(params.error) ? params.error[0] : params.error;
+
   return (
     <main className="flex min-h-screen items-center justify-center bg-zinc-100 px-6 py-12 text-zinc-950">
       <section className="w-full max-w-md rounded-lg border border-zinc-200 bg-white p-6 shadow-sm">
@@ -12,7 +20,7 @@ export default function SignInPage() {
           Use the bootstrap admin credentials from environment variables until Workspace
           identity integration is connected.
         </p>
-        <SignInForm />
+        <SignInForm callbackUrl={callbackUrl ?? "/dashboard"} initialError={error} />
       </section>
     </main>
   );

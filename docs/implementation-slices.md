@@ -2501,3 +2501,21 @@ Files:
 
 - `lib/auth.ts`
 - workflow docs
+
+### Slice 126: Sign-In UX Hardening
+
+Goal: make sign-in behavior clearer and safer.
+
+Implemented design:
+
+- Passed safe callback URL from sign-in page to form
+- Sanitized callback URL to internal paths only
+- Improved error copy
+- Disabled fields while sign-in is pending
+- Added required email/password fields
+
+Files:
+
+- `app/sign-in/page.tsx`
+- `app/sign-in/sign-in-form.tsx`
+- workflow docs

@@ -3,8 +3,19 @@
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 
-export function SignInForm() {
-  const [error, setError] = useState<string | null>(null);
+type SignInFormProps = {
+  callbackUrl: string;
+  initialError?: string;
+};
+
+function safeCallbackUrl(value: string) {
+  return value.startsWith("/") && !value.startsWith("//") ? value : "/dashboard";
+}
+
+export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
+  const [error, setError] = useState<string | null>(
+    initialError ? "Sign in could not be completed. Please try again." : null,
+  );
   const [isPending, setIsPending] = useState(false);
 
   async function handleSubmit(formData: FormData) {
@@ -14,7 +25,7 @@ export function SignInForm() {
     const result = await signIn("credentials", {
       email: formData.get("email"),
       password: formData.get("password"),
-      callbackUrl: "/dashboard",
+      callbackUrl: safeCallbackUrl(callbackUrl),
       redirect: false,
     });
 
@@ -25,7 +36,7 @@ export function SignInForm() {
       return;
     }
 
-    setError("The bootstrap credentials were not accepted.");
+    setError("The email or password was not accepted.");
   }
 
   return (
@@ -36,6 +47,8 @@ export function SignInForm() {
           name="email"
           type="email"
           defaultValue="admin@itf.local"
+          required
+          disabled={isPending}
           className="min-h-11 rounded-md border border-zinc-300 px-3"
         />
       </label>
@@ -45,6 +58,8 @@ export function SignInForm() {
           name="password"
           type="password"
           placeholder="ChangeMe123!"
+          required
+          disabled={isPending}
           className="min-h-11 rounded-md border border-zinc-300 px-3"
         />
       </label>
