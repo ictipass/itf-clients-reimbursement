@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 
+import { DashboardNav } from "@/app/(dashboard)/DashboardNav";
 import { authOptions } from "@/lib/auth";
 import { getAttentionSummary, getModuleAttentionCounts } from "@/lib/attention";
 import { appName } from "@/lib/domain";
@@ -200,34 +201,11 @@ export default async function DashboardLayout({
               </details>
             ) : null}
           </div>
-          <nav className="grid gap-5 overflow-x-auto pb-1 lg:overflow-y-auto lg:pb-6">
-            {visibleNavGroups.map((group) => (
-              <section key={group.label} className="min-w-48">
-                <p className="px-3 text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                  {group.label}
-                </p>
-                <div className="mt-2 grid gap-1">
-                  {group.items.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      className="flex min-h-10 items-center justify-between rounded-md px-3 text-sm font-semibold text-zinc-700 transition hover:bg-[#800020]/10 hover:text-[#800020]"
-                    >
-                      <span>{item.label}</span>
-                      {(moduleAttentionCounts[item.module] ?? 0) > 0 ? (
-                        <span
-                          className="rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white"
-                          title={attentionBadgeTitle}
-                        >
-                          {moduleAttentionCounts[item.module]}
-                        </span>
-                      ) : null}
-                    </Link>
-                  ))}
-                </div>
-              </section>
-            ))}
-          </nav>
+          <DashboardNav
+            groups={visibleNavGroups}
+            moduleAttentionCounts={moduleAttentionCounts}
+            attentionBadgeTitle={attentionBadgeTitle}
+          />
         </div>
       </aside>
       <section className="min-w-0">{children}</section>

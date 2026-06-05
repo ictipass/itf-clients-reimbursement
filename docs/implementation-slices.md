@@ -2413,14 +2413,14 @@ Goal: prevent direct URL access to protected dashboard modules when the role lac
 
 Implemented design:
 
-- Added `middleware.ts` for protected dashboard route prefixes
+- Added `proxy.ts` for protected dashboard route prefixes, following the Next.js 16 file convention
 - Redirected unauthenticated users to sign-in with callback URL
 - Resolved role from NextAuth JWT
 - Used the feature gate registry to deny unsupported routes
 
 Files:
 
-- `middleware.ts`
+- `proxy.ts`
 - workflow docs
 
 ### Slice 121: Role-Based Page Section Cleanup
@@ -2437,4 +2437,20 @@ Files:
 
 - `lib/feature-gates.ts`
 - `app/(dashboard)/claims/[claimId]/page.tsx`
+- workflow docs
+
+### Slice 122: Active Route Highlighting
+
+Goal: show the active route/module in the side navigation.
+
+Implemented design:
+
+- Added client `DashboardNav` component using `usePathname`
+- Added active route styling and `aria-current`
+- Preserved module badge rendering in the client nav
+
+Files:
+
+- `app/(dashboard)/DashboardNav.tsx`
+- `app/(dashboard)/layout.tsx`
 - workflow docs
