@@ -2535,3 +2535,19 @@ Files:
 
 - `docs/rate-limiting.md`
 - workflow docs
+
+### Slice 128: Rate Limiting Foundation
+
+Goal: add a reusable rate-limit helper for sensitive flows.
+
+Implemented design:
+
+- Added in-memory development rate limiter
+- Added reusable `checkRateLimit` and `assertRateLimit` helpers
+- Returned remaining count and reset time
+- Kept the implementation swappable for Redis-backed production limiting
+
+Files:
+
+- `lib/rate-limit.ts`
+- workflow docs
