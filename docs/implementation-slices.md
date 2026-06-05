@@ -2470,3 +2470,18 @@ Files:
 - `app/(dashboard)/DashboardNav.tsx`
 - `app/(dashboard)/layout.tsx`
 - workflow docs
+
+### Slice 124: OAuth Provider Configuration Review
+
+Goal: document the production OAuth/OIDC hardening requirements before adding final providers.
+
+Implemented design:
+
+- Added OAuth production review document
+- Captured provider, callback URL, secret, redirect, and environment requirements
+- Documented current development login limitations
+
+Files:
+
+- `docs/oauth-production-review.md`
+- workflow docs
