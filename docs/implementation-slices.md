@@ -2551,3 +2551,18 @@ Files:
 
 - `lib/rate-limit.ts`
 - workflow docs
+
+### Slice 129: Auth Rate Limiting
+
+Goal: apply rate limiting to credential sign-in attempts.
+
+Implemented design:
+
+- Added rate-limit check inside credentials authorization
+- Limited attempts by normalized email
+- Used 5 attempts per 5 minutes as the initial default
+
+Files:
+
+- `lib/auth.ts`
+- workflow docs

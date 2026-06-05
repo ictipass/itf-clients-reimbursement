@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 
 import { getDb } from "@/lib/db";
 import { seedRoles } from "@/lib/domain";
+import { assertRateLimit } from "@/lib/rate-limit";
 import { roles, type Role } from "@/lib/rbac";
 
 const fallbackRole: Role = "SYSTEM_ADMIN";
@@ -98,6 +99,14 @@ export const authOptions: NextAuthOptions = {
         const expectedPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "ChangeMe123!";
         const email = credentials?.email?.toLowerCase();
         const password = credentials?.password;
+
+        if (email) {
+          assertRateLimit({
+            key: `auth:${email}`,
+            limit: 5,
+            windowMs: 5 * 60 * 1000,
+          });
+        }
 
         if (
           email === bootstrapUser.email?.toLowerCase() &&
