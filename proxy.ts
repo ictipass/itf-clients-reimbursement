@@ -24,7 +24,7 @@ function resolveTokenRole(value: unknown): Role | null {
   return typeof value === "string" && roles.includes(value as Role) ? (value as Role) : null;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   if (!isProtectedPath(pathname)) {
