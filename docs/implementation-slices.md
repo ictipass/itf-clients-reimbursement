@@ -2624,3 +2624,19 @@ Files:
 - `app/verify/page.tsx`
 - `app/verify/qr/route.ts`
 - workflow docs
+
+### Slice 133: Caching Strategy Document
+
+Goal: define where caching is safe before adding caching helpers.
+
+Implemented design:
+
+- Added a caching strategy document
+- Classified safe reference data, scoped operational summaries, and live workflow data
+- Defined invalidation events for registration, compliance, training plan, training request, claims, offices, and roles
+- Documented the production direction for scoped shared caching
+
+Files:
+
+- `docs/caching-strategy.md`
+- workflow docs
