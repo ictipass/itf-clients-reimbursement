@@ -113,6 +113,7 @@ export default async function VerifyCertificatePage({
                 alt="Certificate verification QR code"
                 width={128}
                 height={128}
+                unoptimized
                 className="h-32 w-32 rounded-md border border-zinc-200 bg-white p-2"
               />
             </div>
