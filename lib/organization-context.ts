@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 
 import { getDb } from "@/lib/db";
+import type { Role } from "@/lib/rbac";
 
 export const activeOrganizationCookie = "itf-active-organization";
 
@@ -40,8 +41,14 @@ export async function listAvailableEmployerOrganizations(email: string) {
 export async function getActiveEmployerOrganization(email: string) {
   const organizations = await listAvailableEmployerOrganizations(email);
   const selectedId = (await cookies()).get(activeOrganizationCookie)?.value;
-  const selected = organizations.find((organization) => organization.id === selectedId);
+  return resolveActiveEmployerOrganization(organizations, selectedId);
+}
 
+export function resolveActiveEmployerOrganization(
+  organizations: Array<{ id: string; name: string; role: Role }>,
+  selectedId?: string,
+) {
+  const selected = organizations.find((organization) => organization.id === selectedId);
   return {
     active: selected ?? (organizations.length === 1 ? organizations[0] : null),
     organizations,

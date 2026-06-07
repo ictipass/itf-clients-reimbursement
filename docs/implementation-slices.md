@@ -3176,3 +3176,9 @@ Implemented design:
 - Added a generic dispatcher for open registration, compliance, training, and claims work items
 - Resolved recipients from direct assignments or active role/office/organization memberships
 - Added a secret-protected cron endpoint and prevented duplicate notification sends
+
+### Slice 165: Automated Test Foundation
+
+- Added a zero-new-package test command using Node's test runner through `tsx`
+- Added initial RBAC, organization-context, and email-safety unit tests
+- Documented the boundary between unit tests and future dedicated-database integration tests
