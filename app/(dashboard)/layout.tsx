@@ -128,6 +128,7 @@ export default async function DashboardLayout({
                     activeOrganizationId={employerOrganizationContext.active?.id}
                     organizations={employerOrganizationContext.organizations}
                   />
+                  <Link href="/profile" className="font-semibold text-[#800020]">Profile and security</Link>
                   <SignOutDialog />
                 </div>
               </details>

@@ -3162,3 +3162,10 @@ Implemented design:
 - Prevented administrators from deactivating their own account
 - Prevented deactivation of an organization's final active employer administrator
 - Audited account-status changes while preserving user and membership history
+
+### Slice 163: User Profile and Password Management
+
+- Added a signed-in profile and security page
+- Allowed users to update their own name and phone number
+- Required the current password before accepting a new Argon2 password
+- Directed Workspace identity users to manage passwords through their identity provider
