@@ -288,6 +288,17 @@ export async function acceptOrganizationInvitation(input: {
       data: { acceptedAt: new Date(), acceptedById: user.id },
     });
   });
+
+  await writeAuditEvent({
+    action: "UPDATE",
+    actor: { id: user.id, email: invitation.email, role: invitation.role },
+    workspaceId: invitation.organization.workspaceId,
+    organizationId: invitation.organizationId,
+    entityType: "OrganizationInvitation",
+    entityId: invitation.id,
+    reason: "Organization invitation accepted.",
+    metadata: { operation: "ACCEPT", acceptedRole: invitation.role },
+  });
 }
 
 export async function revokeEmployerInvitation(input: {
@@ -295,7 +306,7 @@ export async function revokeEmployerInvitation(input: {
   invitationId: string;
 }) {
   const context = await getEmployerAdminContext(input.requesterEmail);
-  return getDb().organizationInvitation.updateMany({
+  const result = await getDb().organizationInvitation.updateMany({
     where: {
       id: input.invitationId,
       organizationId: context.organizationId,
@@ -304,6 +315,19 @@ export async function revokeEmployerInvitation(input: {
     },
     data: { revokedAt: new Date() },
   });
+  if (result.count > 0) {
+    await writeAuditEvent({
+      action: "UPDATE",
+      actor: { id: context.userId, email: context.email, role: "EMPLOYER_ADMIN" },
+      workspaceId: context.workspaceId,
+      organizationId: context.organizationId,
+      entityType: "OrganizationInvitation",
+      entityId: input.invitationId,
+      reason: "Employer administrator revoked an organization invitation.",
+      metadata: { operation: "REVOKE" },
+    });
+  }
+  return result;
 }
 
 export async function changeEmployerMemberRole(input: {
@@ -374,5 +398,16 @@ export async function changeEmployerMemberRole(input: {
         role: input.role,
       },
     });
+  });
+
+  await writeAuditEvent({
+    action: "UPDATE",
+    actor: { id: context.userId, email: context.email, role: "EMPLOYER_ADMIN" },
+    workspaceId: context.workspaceId,
+    organizationId: context.organizationId,
+    entityType: "Membership",
+    entityId: membership.id,
+    reason: `Employer membership role changed from ${membership.role} to ${input.role}.`,
+    metadata: { operation: "ROLE_CHANGE", previousRole: membership.role, newRole: input.role },
   });
 }

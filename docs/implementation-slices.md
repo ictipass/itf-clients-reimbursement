@@ -3091,3 +3091,14 @@ Implemented design:
 - Delivered reset links through the configured email delivery mode
 - Invalidated all outstanding reset tokens after a successful password change
 - Added public request and reset pages plus a sign-in recovery link
+
+### Post-Slice 145: Membership and Invitation Audit Events
+
+Goal: preserve an explainable record of employer and office access changes.
+
+Implemented design:
+
+- Audited membership deactivation and reactivation with actor, reason, role, and organization
+- Audited organization invitation acceptance and revocation
+- Audited employer membership role changes
+- Preserved existing invitation-creation and emergency-administrator-replacement audit events

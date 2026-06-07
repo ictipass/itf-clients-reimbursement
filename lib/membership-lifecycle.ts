@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { writeAuditEvent } from "@/lib/audit";
 import { can, type Role } from "@/lib/rbac";
 
 export type DeactivateMembershipInput = {
@@ -21,6 +22,7 @@ export async function deactivateMembership(input: DeactivateMembershipInput) {
       where: { email: input.requesterEmail.toLowerCase() },
       select: {
         id: true,
+        email: true,
         memberships: {
           where: { isActive: true },
           select: { organizationId: true, role: true },
@@ -29,7 +31,7 @@ export async function deactivateMembership(input: DeactivateMembershipInput) {
     }),
     db.membership.findUnique({
       where: { id: input.membershipId },
-      select: { id: true, userId: true, organizationId: true, role: true, isActive: true },
+      select: { id: true, userId: true, workspaceId: true, organizationId: true, role: true, isActive: true },
     }),
   ]);
 
@@ -63,7 +65,7 @@ export async function deactivateMembership(input: DeactivateMembershipInput) {
     }
   }
 
-  return db.membership.update({
+  const result = await db.membership.update({
     where: { id: membership.id },
     data: {
       isActive: false,
@@ -73,6 +75,18 @@ export async function deactivateMembership(input: DeactivateMembershipInput) {
     },
     select: { id: true, isActive: true, deactivatedAt: true },
   });
+
+  await writeAuditEvent({
+    action: "UPDATE",
+    actor: { id: requester.id, email: requester.email, role: input.requesterRole },
+    workspaceId: membership.workspaceId,
+    organizationId: membership.organizationId ?? undefined,
+    entityType: "Membership",
+    entityId: membership.id,
+    reason: input.reason.trim(),
+    metadata: { operation: "DEACTIVATE", memberUserId: membership.userId, memberRole: membership.role },
+  });
+  return result;
 }
 
 export async function reactivateMembership(input: ReactivateMembershipInput) {
@@ -81,6 +95,8 @@ export async function reactivateMembership(input: ReactivateMembershipInput) {
     db.user.findUnique({
       where: { email: input.requesterEmail.toLowerCase() },
       select: {
+        id: true,
+        email: true,
         memberships: {
           where: { isActive: true },
           select: { organizationId: true, role: true },
@@ -89,7 +105,7 @@ export async function reactivateMembership(input: ReactivateMembershipInput) {
     }),
     db.membership.findUnique({
       where: { id: input.membershipId },
-      select: { id: true, organizationId: true, isActive: true },
+      select: { id: true, userId: true, workspaceId: true, organizationId: true, role: true, isActive: true },
     }),
   ]);
 
@@ -108,7 +124,7 @@ export async function reactivateMembership(input: ReactivateMembershipInput) {
     throw new Error("You do not have permission to reactivate this membership.");
   }
 
-  return db.membership.update({
+  const result = await db.membership.update({
     where: { id: membership.id },
     data: {
       isActive: true,
@@ -119,4 +135,16 @@ export async function reactivateMembership(input: ReactivateMembershipInput) {
     },
     select: { id: true, isActive: true, activatedAt: true },
   });
+
+  await writeAuditEvent({
+    action: "UPDATE",
+    actor: { id: requester.id, email: requester.email, role: input.requesterRole },
+    workspaceId: membership.workspaceId,
+    organizationId: membership.organizationId ?? undefined,
+    entityType: "Membership",
+    entityId: membership.id,
+    reason: "Membership access reactivated.",
+    metadata: { operation: "REACTIVATE", memberUserId: membership.userId, memberRole: membership.role },
+  });
+  return result;
 }
