@@ -2,12 +2,14 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 
 import { DashboardNav } from "@/app/(dashboard)/DashboardNav";
+import { OrganizationSwitcher } from "@/app/(dashboard)/OrganizationSwitcher";
 import { SignOutDialog } from "@/app/(dashboard)/SignOutDialog";
 import { authOptions } from "@/lib/auth";
 import { getAttentionSummary, getModuleAttentionCounts } from "@/lib/attention";
 import { appName } from "@/lib/domain";
 import { getDb } from "@/lib/db";
 import { getVisibleNavGroups } from "@/lib/navigation";
+import { getActiveEmployerOrganization } from "@/lib/organization-context";
 import { getVisibleWorkspaceApps } from "@/lib/workspace-apps";
 
 export default async function DashboardLayout({
@@ -53,6 +55,9 @@ export default async function DashboardLayout({
         memberships: account?.memberships ?? [],
       }
     : null;
+  const employerOrganizationContext = session?.user?.email
+    ? await getActiveEmployerOrganization(session.user.email)
+    : { active: null, organizations: [], requiresSelection: false };
   const organizationIds =
     account?.memberships
       .map((membership) => membership.organizationId)
@@ -120,6 +125,10 @@ export default async function DashboardLayout({
                       {membership.areaOffice?.name ? ` · ${membership.areaOffice.name}` : ""}
                     </p>
                   ))}
+                  <OrganizationSwitcher
+                    activeOrganizationId={employerOrganizationContext.active?.id}
+                    organizations={employerOrganizationContext.organizations}
+                  />
                   <SignOutDialog />
                 </div>
               </details>

@@ -3032,3 +3032,15 @@ Implemented design:
 - Collapsed Headquarters and Area Office assignment panels by default
 - Kept office status and officer-assignment controls inside the expanded office panel
 - Added clear result totals and previous/next navigation
+
+### Post-Slice 145: Active Organization Switcher
+
+Goal: let employer users with access to multiple organizations choose the organization they are
+currently working for.
+
+Implemented design:
+
+- Listed active employer organizations available to the signed-in identity
+- Added an organization selector to the dashboard account panel
+- Stored the selected organization in a secure, HTTP-only, same-site cookie
+- Validated every selection against the user's current active memberships
