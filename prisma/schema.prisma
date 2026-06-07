@@ -271,22 +271,23 @@ model AreaOffice {
 }
 
 model Organization {
-  id               String           @id @default(cuid())
+  id               String                   @id @default(cuid())
   workspaceId      String
   name             String
   slug             String
-  organizationType OrganizationType @default(EMPLOYER)
+  organizationType OrganizationType         @default(EMPLOYER)
   externalId       String?
-  isActive         Boolean          @default(true)
+  isActive         Boolean                  @default(true)
   deactivatedAt    DateTime?
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
-  workspace        Workspace        @relation(fields: [workspaceId], references: [id])
+  createdAt        DateTime                 @default(now())
+  updatedAt        DateTime                 @updatedAt
+  workspace        Workspace                @relation(fields: [workspaceId], references: [id])
   companies        Company[]
   memberships      Membership[]
   documents        Document[]
   workItems        WorkItem[]
   auditEvents      AuditEvent[]
+  invitations      OrganizationInvitation[]
 
   @@unique([workspaceId, slug])
 }
@@ -322,6 +323,8 @@ model User {
   voidedManagedNumbers                             ManagedRegistrationNumber[]          @relation("VoidedManagedNumbers")
   auditEvents                                      AuditEvent[]
   emailVerificationTokens                          EmailVerificationToken[]
+  sentOrganizationInvitations                      OrganizationInvitation[]             @relation("OrganizationInvitationInvitedBy")
+  acceptedOrganizationInvitations                  OrganizationInvitation[]             @relation("OrganizationInvitationAcceptedBy")
 }
 
 model EmailVerificationToken {
@@ -360,6 +363,26 @@ model Membership {
   @@index([areaOfficeId, role])
   @@index([organizationId, role, isActive])
   @@index([userId, isActive])
+}
+
+model OrganizationInvitation {
+  id             String       @id @default(cuid())
+  organizationId String
+  email          String
+  role           Role
+  tokenHash      String       @unique
+  invitedById    String
+  acceptedById   String?
+  expiresAt      DateTime
+  acceptedAt     DateTime?
+  revokedAt      DateTime?
+  createdAt      DateTime     @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  invitedBy      User         @relation("OrganizationInvitationInvitedBy", fields: [invitedById], references: [id])
+  acceptedBy     User?        @relation("OrganizationInvitationAcceptedBy", fields: [acceptedById], references: [id])
+
+  @@index([organizationId, email, acceptedAt, revokedAt])
+  @@index([expiresAt, acceptedAt, revokedAt])
 }
 
 model Company {

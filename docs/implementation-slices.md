@@ -2941,3 +2941,26 @@ Files:
 - `lib/membership-lifecycle.ts`
 - authentication, registry, workflow authorization, attention, and dashboard services
 - office-management and user-directory interfaces
+
+### Post-Slice 145: Employer Portal User Management and Invitations
+
+Goal: let employer administrators safely delegate and remove organization access.
+
+Implemented design:
+
+- Added secure, hashed, expiring organization invitations
+- Added an employer-scoped Organization Users administration page
+- Allowed Employer Administrators to invite administrators, submitters, and viewers
+- Required invitation acceptance by the exact verified recipient email
+- Allowed employer administrators to deactivate and reactivate their organization memberships
+- Preserved the final-active-employer-administrator safeguard
+- Rejected attempts to invite ITF staff identities through the employer flow
+- Exposed development invitation links until transactional email delivery is connected
+
+Files:
+
+- Prisma schema and migration
+- `lib/employer-members.ts`
+- employer user-management page and actions
+- public invitation acceptance page and action
+- navigation, feature gates, and proxy

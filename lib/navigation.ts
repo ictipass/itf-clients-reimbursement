@@ -34,6 +34,7 @@ const canUseManagement = (role: Role) =>
 
 const canUseSettings = (role: Role) => can(role, "workspace:manage");
 const canUseNumbers = (role: Role) => can(role, "numbers:manage");
+const canManageEmployerUsers = (role: Role) => role === "EMPLOYER_ADMIN";
 
 export const navGroups: NavGroup[] = [
   {
@@ -82,6 +83,12 @@ export const navGroups: NavGroup[] = [
   {
     label: "Administration",
     items: [
+      {
+        href: "/employer/users",
+        label: "Organization users",
+        module: "settings",
+        isVisible: canManageEmployerUsers,
+      },
       {
         href: "/management",
         label: "Management",
