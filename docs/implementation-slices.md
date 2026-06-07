@@ -2747,3 +2747,20 @@ Files:
 - `app/sign-in/sign-in-form.tsx`
 - training-plan evidence upload route
 - workflow docs
+
+### Slice 140: Server Action Input Validation
+
+Goal: validate sensitive server-action inputs with reusable structured schemas.
+
+Implemented design:
+
+- Added reusable FormData-to-Zod parsing helpers
+- Added normalized directory-user validation for IDs, names, email addresses, and optional staff fields
+- Applied schemas to create-user and edit-user server actions
+- Returned the first actionable field validation message through the existing friendly settings feedback
+
+Files:
+
+- `lib/validation.ts`
+- user-directory server actions
+- workflow docs

@@ -6,27 +6,7 @@ import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
 import { createDirectoryUser, updateDirectoryUser } from "@/lib/user-directory";
-
-function readOptionalString(formData: FormData, name: string) {
-  const value = formData.get(name);
-
-  if (typeof value !== "string") {
-    return undefined;
-  }
-
-  const trimmed = value.trim();
-  return trimmed.length > 0 ? trimmed : undefined;
-}
-
-function readRequiredString(formData: FormData, name: string) {
-  const value = readOptionalString(formData, name);
-
-  if (!value) {
-    throw new Error(`${name} is required.`);
-  }
-
-  return value;
-}
+import { directoryUserSchema, parseFormData } from "@/lib/validation";
 
 function redirectToUsers(message: string) {
   redirect(`/settings/users?message=${encodeURIComponent(message.slice(0, 180))}`);
@@ -40,14 +20,10 @@ export async function createDirectoryUserAction(formData: FormData) {
   }
 
   try {
+    const values = parseFormData(directoryUserSchema.omit({ userId: true }), formData);
     await createDirectoryUser({
       requesterRole: session.user.role,
-      name: readRequiredString(formData, "name"),
-      staffNumber: readOptionalString(formData, "staffNumber"),
-      email: readRequiredString(formData, "email"),
-      phoneNumber: readOptionalString(formData, "phoneNumber"),
-      department: readOptionalString(formData, "department"),
-      jobTitle: readOptionalString(formData, "jobTitle"),
+      ...values,
     });
   } catch (error) {
     redirectToUsers(error instanceof Error ? error.message : "User could not be saved.");
@@ -65,15 +41,10 @@ export async function updateDirectoryUserAction(formData: FormData) {
   }
 
   try {
+    const values = parseFormData(directoryUserSchema.required({ userId: true }), formData);
     await updateDirectoryUser({
       requesterRole: session.user.role,
-      userId: readRequiredString(formData, "userId"),
-      name: readRequiredString(formData, "name"),
-      staffNumber: readOptionalString(formData, "staffNumber"),
-      email: readRequiredString(formData, "email"),
-      phoneNumber: readOptionalString(formData, "phoneNumber"),
-      department: readOptionalString(formData, "department"),
-      jobTitle: readOptionalString(formData, "jobTitle"),
+      ...values,
     });
   } catch (error) {
     redirectToUsers(error instanceof Error ? error.message : "User could not be updated.");
