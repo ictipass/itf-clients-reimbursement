@@ -4,7 +4,7 @@ import Link from "next/link";
 import { createDirectoryUserAction } from "@/app/(dashboard)/settings/users/actions";
 import { UserEditDialog } from "@/app/(dashboard)/settings/users/user-edit-dialog";
 import { authOptions } from "@/lib/auth";
-import { can } from "@/lib/rbac";
+import { can, roles } from "@/lib/rbac";
 import { listDirectoryUsers } from "@/lib/user-directory";
 
 function formatRole(value: string) {
@@ -15,16 +15,30 @@ function getMessage(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
 
+function getValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
 export default async function UserDirectoryPage({
   searchParams,
 }: Readonly<{
-  searchParams: Promise<{ message?: string | string[] }>;
+  searchParams: Promise<{
+    message?: string | string[];
+    q?: string | string[];
+    role?: string | string[];
+    status?: string | string[];
+    page?: string | string[];
+  }>;
 }>) {
   const session = await getServerSession(authOptions);
   const role = session?.user?.role ?? "SYSTEM_ADMIN";
   const canManageWorkspace = can(role, "workspace:manage");
   const query = await searchParams;
   const message = getMessage(query.message);
+  const search = getValue(query.q) ?? "";
+  const selectedRole = getValue(query.role) ?? "";
+  const status = getValue(query.status) ?? "";
+  const requestedPage = Number(getValue(query.page) ?? "1");
 
   if (!canManageWorkspace) {
     return (
@@ -42,7 +56,21 @@ export default async function UserDirectoryPage({
     );
   }
 
-  const users = await listDirectoryUsers({ requesterRole: role });
+  const users = await listDirectoryUsers({
+    requesterRole: role,
+    query: search,
+    role: selectedRole,
+    status,
+    page: Number.isFinite(requestedPage) ? requestedPage : 1,
+  });
+  const pageHref = (page: number) => {
+    const params = new URLSearchParams();
+    if (search) params.set("q", search);
+    if (selectedRole) params.set("role", selectedRole);
+    if (status) params.set("status", status);
+    params.set("page", String(page));
+    return `/settings/users?${params}`;
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -164,6 +192,26 @@ export default async function UserDirectoryPage({
           </form>
         </div>
 
+        <form className="mt-6 grid gap-3 rounded-lg border border-zinc-200 bg-zinc-50 p-4 md:grid-cols-[1fr_0.8fr_0.6fr_auto_auto]">
+          <input
+            name="q"
+            defaultValue={search}
+            placeholder="Search name, email, staff number, or department"
+            className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+          />
+          <select name="role" defaultValue={selectedRole} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm">
+            <option value="">All roles</option>
+            {roles.map((candidate) => <option key={candidate} value={candidate}>{formatRole(candidate)}</option>)}
+          </select>
+          <select name="status" defaultValue={status} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm">
+            <option value="">All statuses</option>
+            <option value="active">Active users</option>
+            <option value="inactive">Inactive users</option>
+          </select>
+          <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Filter</button>
+          <Link href="/settings/users" className="inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold">Clear</Link>
+        </form>
+
         <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200">
           <table className="min-w-full divide-y divide-zinc-200 text-sm">
             <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
@@ -176,7 +224,7 @@ export default async function UserDirectoryPage({
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 bg-white">
-              {users.map((user) => (
+              {users.items.map((user) => (
                 <tr key={user.id}>
                   <td className="px-4 py-4 align-top">
                     <p className="font-semibold text-zinc-950">{user.name}</p>
@@ -230,8 +278,20 @@ export default async function UserDirectoryPage({
                   </td>
                 </tr>
               ))}
+              {users.items.length === 0 ? (
+                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-zinc-600">No users matched these filters.</td></tr>
+              ) : null}
             </tbody>
           </table>
+        </div>
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p className="text-zinc-600">
+            Showing {users.items.length} of {users.total} user(s) · page {users.page} of {users.totalPages}
+          </p>
+          <div className="flex gap-2">
+            {users.page > 1 ? <Link href={pageHref(users.page - 1)} className="rounded-md border border-zinc-200 bg-white px-3 py-2 font-semibold">Previous</Link> : null}
+            {users.page < users.totalPages ? <Link href={pageHref(users.page + 1)} className="rounded-md border border-zinc-200 bg-white px-3 py-2 font-semibold">Next</Link> : null}
+          </div>
         </div>
       </section>
     </div>

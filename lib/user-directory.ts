@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { can, type Role } from "@/lib/rbac";
+import { can, roles, type Role } from "@/lib/rbac";
 import { maxUploadBytes, sanitizeFileName } from "@/lib/storage/security";
 
 const userCsvColumns = [
@@ -43,12 +43,46 @@ export function getUserCsvTemplate() {
   return `${userCsvColumns.join(",")}\n`;
 }
 
-export async function listDirectoryUsers(input: { requesterRole: Role }) {
+export async function listDirectoryUsers(input: {
+  requesterRole: Role;
+  query?: string;
+  role?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}) {
   if (!can(input.requesterRole, "workspace:manage")) {
     throw new Error("You do not have permission to manage users.");
   }
 
-  return getDb().user.findMany({
+  const query = input.query?.trim();
+  const pageSize = Math.min(Math.max(input.pageSize ?? 20, 5), 100);
+  const page = Math.max(input.page ?? 1, 1);
+  const role = roles.includes(input.role as Role) ? (input.role as Role) : undefined;
+  const isActive =
+    input.status === "active" ? true : input.status === "inactive" ? false : undefined;
+  const where = {
+    ...(typeof isActive === "boolean" ? { isActive } : {}),
+    ...(role ? { memberships: { some: { role } } } : {}),
+    ...(query
+      ? {
+          OR: [
+            { name: { contains: query, mode: "insensitive" as const } },
+            { email: { contains: query, mode: "insensitive" as const } },
+            { staffNumber: { contains: query, mode: "insensitive" as const } },
+            { department: { contains: query, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
+  const db = getDb();
+  const total = await db.user.count({ where });
+  const totalPages = Math.max(Math.ceil(total / pageSize), 1);
+  const currentPage = Math.min(page, totalPages);
+  const items = await db.user.findMany({
+    where,
+    skip: (currentPage - 1) * pageSize,
+    take: pageSize,
     orderBy: [{ isActive: "desc" }, { name: "asc" }],
     select: {
       id: true,
@@ -84,6 +118,8 @@ export async function listDirectoryUsers(input: { requesterRole: Role }) {
       },
     },
   });
+
+  return { items, total, page: currentPage, pageSize, totalPages };
 }
 
 export async function createDirectoryUser(input: CreateDirectoryUserInput) {

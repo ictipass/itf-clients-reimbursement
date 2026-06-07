@@ -3010,3 +3010,14 @@ Implemented design:
 - Required an existing active and verified employer identity plus a formal reason
 - Deactivated former employer administrators and activated the replacement in one transaction
 - Recorded the replacement in the audit log
+
+### Post-Slice 145: ITF User Directory Filtering and Pagination
+
+Goal: keep the ITF user directory usable as the workspace grows.
+
+Implemented design:
+
+- Added server-side search across name, email, staff number, and department
+- Added role and active-status filters
+- Paginated directory results without loading every user into the page
+- Preserved user editing and assignment visibility within filtered results
