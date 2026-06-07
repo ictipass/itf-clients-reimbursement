@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "OrganizationInvitation_organizationId_email_acceptedAt_revokedA" RENAME TO "OrganizationInvitation_organizationId_email_acceptedAt_revo_idx";
