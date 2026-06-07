@@ -1,4 +1,5 @@
 import { downloadLocalObject, uploadLocalObject } from "@/lib/storage/local";
+import { getMalwareScanner } from "@/lib/malware-scanner";
 import type { DownloadObjectInput, StorageProviderName, UploadObjectInput } from "@/lib/storage/types";
 
 export function getStorageProvider(): StorageProviderName {
@@ -13,9 +14,10 @@ export function getStorageProvider(): StorageProviderName {
 
 export async function uploadObject(input: UploadObjectInput) {
   const provider = getStorageProvider();
+  const scan = await getMalwareScanner().scan(input);
 
   if (provider === "local") {
-    return uploadLocalObject(input);
+    return { ...(await uploadLocalObject(input)), scanStatus: scan.status, scannedAt: scan.scannedAt, scanReason: scan.reason };
   }
 
   throw new Error(`${provider} uploads will be implemented in the storage adapter slice.`);

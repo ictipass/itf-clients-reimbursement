@@ -2837,3 +2837,22 @@ Files:
 - `lib/document-security.ts`
 - `lib/evidence.ts`
 - workflow docs
+
+### Slice 145: Malware Scanner Adapter
+
+Goal: scan uploaded documents through a provider-independent adapter before they are trusted.
+
+Implemented design:
+
+- Added a malware scanner interface and centralized scanner selection
+- Added a local development scanner for antivirus-test signatures and active PDF content markers
+- Added a quarantine-only production fallback when no real scanner is connected
+- Ran scanning in the central storage upload path
+- Returned scan status, date, and reason for persistence by document workflows
+
+Files:
+
+- `lib/malware-scanner.ts`
+- storage adapter and types
+- `.env.example`
+- workflow docs

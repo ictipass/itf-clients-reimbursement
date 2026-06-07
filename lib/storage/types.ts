@@ -10,6 +10,9 @@ export type StoredObject = {
   checksum: string;
   mimeType: string;
   fileSize: number;
+  scanStatus: "SAFE" | "QUARANTINED" | "REJECTED";
+  scannedAt: Date;
+  scanReason?: string;
 };
 
 export type UploadObjectInput = {

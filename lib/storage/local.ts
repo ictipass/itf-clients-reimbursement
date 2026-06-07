@@ -40,7 +40,7 @@ function getLocalObjectPath(objectKey: string) {
   return absolutePath;
 }
 
-export async function uploadLocalObject(input: UploadObjectInput): Promise<StoredObject> {
+export async function uploadLocalObject(input: UploadObjectInput): Promise<Omit<StoredObject, "scanStatus" | "scannedAt" | "scanReason">> {
   const now = new Date();
   const month = String(now.getMonth() + 1).padStart(2, "0");
   const objectKey = path.posix.join(
