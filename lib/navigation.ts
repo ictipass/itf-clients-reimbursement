@@ -97,6 +97,7 @@ export const navGroups: NavGroup[] = [
       },
       { href: "/settings/audit", label: "Audit log", module: "settings", isVisible: (role) => can(role, "audit:read") },
       { href: "/settings/users", label: "Users", module: "settings", isVisible: canUseSettings },
+      { href: "/settings/email", label: "Email delivery", module: "settings", isVisible: canUseSettings },
       {
         href: "/settings/employers",
         label: "Employer access",

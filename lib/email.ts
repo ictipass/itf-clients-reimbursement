@@ -47,7 +47,20 @@ export function escapeEmailHtml(value: string) {
 
 export async function sendTransactionalEmail(email: TransactionalEmail) {
   const mode = getDeliveryMode();
+  const db = getDb();
+  const attempt = await db.emailDeliveryAttempt.create({
+    data: {
+      recipient: email.to.toLowerCase(),
+      subject: email.subject,
+      provider: mode === "development_link" ? "development_link" : "resend",
+    },
+    select: { id: true },
+  });
   if (mode === "development_link") {
+    await db.emailDeliveryAttempt.update({
+      where: { id: attempt.id },
+      data: { status: "SKIPPED", completedAt: new Date() },
+    });
     return { delivered: false, provider: "development_link" as const };
   }
 
@@ -57,27 +70,40 @@ export async function sendTransactionalEmail(email: TransactionalEmail) {
     throw new Error("RESEND_API_KEY and EMAIL_FROM are required for Resend delivery.");
   }
 
-  const response = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      from,
-      to: [email.to],
-      subject: email.subject,
-      html: email.html,
-      text: email.text,
-    }),
-  });
+  try {
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        from,
+        to: [email.to],
+        subject: email.subject,
+        html: email.html,
+        text: email.text,
+      }),
+    });
 
-  const result = (await response.json()) as { id?: string; message?: string };
-  if (!response.ok || !result.id) {
-    throw new Error(result.message ?? "Resend could not deliver the email.");
+    const result = (await response.json()) as { id?: string; message?: string };
+    if (!response.ok || !result.id) throw new Error(result.message ?? "Resend could not deliver the email.");
+    await db.emailDeliveryAttempt.update({
+      where: { id: attempt.id },
+      data: { status: "SENT", providerMessageId: result.id, completedAt: new Date() },
+    });
+    return { delivered: true, provider: "resend" as const, messageId: result.id };
+  } catch (error) {
+    await db.emailDeliveryAttempt.update({
+      where: { id: attempt.id },
+      data: {
+        status: "FAILED",
+        errorMessage: error instanceof Error ? error.message.slice(0, 500) : "Unknown delivery failure.",
+        completedAt: new Date(),
+      },
+    });
+    throw error;
   }
-
-  return { delivered: true, provider: "resend" as const, messageId: result.id };
 }
 
 function actionEmail(input: {
@@ -165,3 +191,4 @@ export async function sendPasswordResetEmail(input: { to: string; name: string; 
     text: `Reset your ITF Reimbursement Platform password: ${actionUrl}`,
   });
 }
+import { getDb } from "@/lib/db";

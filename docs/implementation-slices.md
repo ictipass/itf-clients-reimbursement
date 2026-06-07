@@ -3136,3 +3136,9 @@ Implemented design:
 - Locked invited registration to the exact invited email address
 - Returned verified users to the original invitation after sign-in
 - Preserved the invitation context in both emailed and development verification links
+
+### Slice 159: Email Delivery Reliability and Audit
+
+- Added durable delivery-attempt records without storing private action tokens
+- Recorded development skips, Resend successes, provider message IDs, and failures
+- Added a workspace-administrator email delivery audit page
