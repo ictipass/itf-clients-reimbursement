@@ -1,3 +1,7 @@
+"use client";
+
+import { usePathname } from "next/navigation";
+
 import { selectActiveOrganizationAction } from "@/app/(dashboard)/organization-context-actions";
 
 export function OrganizationSwitcher({
@@ -7,10 +11,12 @@ export function OrganizationSwitcher({
   activeOrganizationId?: string;
   organizations: Array<{ id: string; name: string; role: string }>;
 }>) {
+  const pathname = usePathname();
   if (organizations.length < 2) return null;
 
   return (
     <form action={selectActiveOrganizationAction} className="grid gap-2 border-t border-zinc-200 pt-3">
+      <input type="hidden" name="returnTo" value={pathname} />
       <label className="grid gap-1 text-xs font-semibold text-zinc-700">
         Active organization
         <select

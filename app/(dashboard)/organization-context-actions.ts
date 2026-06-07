@@ -16,6 +16,8 @@ export async function selectActiveOrganizationAction(formData: FormData) {
   if (!session?.user?.email) throw new Error("Authentication is required.");
 
   const organizationId = String(formData.get("organizationId") ?? "");
+  const requestedReturnTo = String(formData.get("returnTo") ?? "");
+  const returnTo = requestedReturnTo.startsWith("/") ? requestedReturnTo : "/dashboard";
   const organizations = await listAvailableEmployerOrganizations(session.user.email);
   if (!organizations.some((organization) => organization.id === organizationId)) {
     throw new Error("You do not have active access to the selected organization.");
@@ -29,5 +31,5 @@ export async function selectActiveOrganizationAction(formData: FormData) {
     maxAge: 60 * 60 * 8,
   });
   revalidatePath("/", "layout");
-  redirect("/dashboard");
+  redirect(returnTo);
 }

@@ -18,7 +18,10 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }>) {
   const session = await getServerSession(authOptions);
-  const activeRole = session?.user?.role ?? "EMPLOYER_VIEWER";
+  const employerOrganizationContext = session?.user?.email
+    ? await getActiveEmployerOrganization(session.user.email)
+    : { active: null, organizations: [], requiresSelection: false };
+  const activeRole = employerOrganizationContext.active?.role ?? session?.user?.role ?? "EMPLOYER_VIEWER";
   const account = session?.user?.email
     ? await getDb().user.findUnique({
         where: {
@@ -55,9 +58,6 @@ export default async function DashboardLayout({
         memberships: account?.memberships ?? [],
       }
     : null;
-  const employerOrganizationContext = session?.user?.email
-    ? await getActiveEmployerOrganization(session.user.email)
-    : { active: null, organizations: [], requiresSelection: false };
   const organizationIds = employerOrganizationContext.active
     ? [employerOrganizationContext.active.id]
     : [];

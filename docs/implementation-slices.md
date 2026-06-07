@@ -3142,3 +3142,9 @@ Implemented design:
 - Added durable delivery-attempt records without storing private action tokens
 - Recorded development skips, Resend successes, provider message IDs, and failures
 - Added a workspace-administrator email delivery audit page
+
+### Slice 160: Role-Aware Organization Switching
+
+- Made the selected organization's membership role drive dashboard navigation and attention context
+- Returned users to their current route after switching organizations
+- Continued validating the selected organization and role against active memberships
