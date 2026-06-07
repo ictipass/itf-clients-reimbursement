@@ -266,6 +266,25 @@ export default async function EmployerUsersPage({
           </div>
         )}
       </section>
+
+      <section className="rounded-lg border border-zinc-200 bg-white">
+        <div className="border-b border-zinc-200 px-5 py-4">
+          <h2 className="text-xl font-semibold">Recent access history</h2>
+          <p className="mt-1 text-sm text-zinc-600">Membership, invitation, and emergency administrator changes for the active organization.</p>
+        </div>
+        {data.accessHistory.length === 0 ? <p className="px-5 py-5 text-sm text-zinc-600">No access history has been recorded yet.</p> : (
+          <div className="divide-y divide-zinc-100">
+            {data.accessHistory.map((event) => (
+              <div key={event.id} className="px-5 py-4 text-sm">
+                <p className="font-semibold">{event.reason ?? `${event.action} ${event.entityType}`}</p>
+                <p className="mt-1 text-xs text-zinc-500">
+                  {event.actor?.name ?? event.actor?.email ?? "System"} · {formatDate(event.createdAt)}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
     </div>
   );
 }

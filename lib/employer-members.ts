@@ -109,7 +109,7 @@ export async function listEmployerMemberManagementData(input: {
   const totalMembers = await db.membership.count({ where: memberWhere });
   const totalPages = Math.max(Math.ceil(totalMembers / pageSize), 1);
   const page = Math.min(requestedPage, totalPages);
-  const [members, invitations] = await Promise.all([
+  const [members, invitations, accessHistory] = await Promise.all([
     db.membership.findMany({
       where: memberWhere,
       skip: (page - 1) * pageSize,
@@ -143,12 +143,30 @@ export async function listEmployerMemberManagementData(input: {
       },
       orderBy: { createdAt: "desc" },
     }),
+    db.auditEvent.findMany({
+      where: {
+        organizationId: context.organizationId,
+        entityType: { in: ["Membership", "OrganizationInvitation", "EmployerAdministratorAccess"] },
+      },
+      select: {
+        id: true,
+        action: true,
+        entityType: true,
+        reason: true,
+        metadata: true,
+        createdAt: true,
+        actor: { select: { name: true, email: true } },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+    }),
   ]);
 
   return {
     organizationName: context.organizationName,
     members,
     invitations,
+    accessHistory,
     totalMembers,
     page,
     pageSize,

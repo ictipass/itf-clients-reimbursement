@@ -3148,3 +3148,10 @@ Implemented design:
 - Made the selected organization's membership role drive dashboard navigation and attention context
 - Returned users to their current route after switching organizations
 - Continued validating the selected organization and role against active memberships
+
+### Slice 161: Employer Access History UI
+
+- Added recent invitation, membership, role-change, and emergency replacement history to
+  Organization Users
+- Displayed the responsible actor, reason, and date without exposing sensitive audit metadata
+- Scoped history to the selected active employer organization
