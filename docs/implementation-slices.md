@@ -2980,3 +2980,19 @@ Files:
 
 - `lib/employer-members.ts`
 - Organization Users page
+
+### Post-Slice 145: Sign-Out Confirmation Dialog
+
+Goal: prevent accidental account sign-out from the dashboard shell.
+
+Implemented design:
+
+- Replaced the direct sign-out link with a confirmation dialog
+- Added a Cancel action that closes the dialog without changing the session
+- Disabled both actions while sign-out is processing
+- Returned successfully signed-out users to the landing page
+
+Files:
+
+- dashboard sign-out dialog
+- dashboard layout

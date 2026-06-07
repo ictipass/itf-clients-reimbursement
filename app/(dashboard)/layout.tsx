@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 
 import { DashboardNav } from "@/app/(dashboard)/DashboardNav";
+import { SignOutDialog } from "@/app/(dashboard)/SignOutDialog";
 import { authOptions } from "@/lib/auth";
 import { getAttentionSummary, getModuleAttentionCounts } from "@/lib/attention";
 import { appName } from "@/lib/domain";
@@ -119,12 +120,7 @@ export default async function DashboardLayout({
                       {membership.areaOffice?.name ? ` · ${membership.areaOffice.name}` : ""}
                     </p>
                   ))}
-                  <Link
-                    href="/api/auth/signout"
-                    className="mt-2 inline-flex min-h-9 items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold text-zinc-800"
-                  >
-                    Sign out
-                  </Link>
+                  <SignOutDialog />
                 </div>
               </details>
             ) : (
