@@ -12,6 +12,11 @@ export type NavGroup = {
   items: NavItem[];
 };
 
+export type VisibleNavGroup = {
+  label: string;
+  items: Array<Omit<NavItem, "isVisible">>;
+};
+
 const canUseRegistry = (role: Role) =>
   can(role, "company:read") || can(role, "registry:review") || can(role, "registry:submit");
 
@@ -112,8 +117,10 @@ export const navGroups: NavGroup[] = [
 export function getVisibleNavGroups(role: Role) {
   return navGroups
     .map((group) => ({
-      ...group,
-      items: group.items.filter((item) => item.isVisible(role)),
+      label: group.label,
+      items: group.items
+        .filter((item) => item.isVisible(role))
+        .map(({ href, label, module }) => ({ href, label, module })),
     }))
     .filter((group) => group.items.length > 0);
 }

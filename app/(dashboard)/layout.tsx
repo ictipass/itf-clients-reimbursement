@@ -15,7 +15,7 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }>) {
   const session = await getServerSession(authOptions);
-  const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const activeRole = session?.user?.role ?? "EMPLOYER_VIEWER";
   const account = session?.user?.email
     ? await getDb().user.findUnique({
         where: {
@@ -43,6 +43,13 @@ export default async function DashboardLayout({
           },
         },
       })
+    : null;
+  const signedInAccount = session?.user
+    ? {
+        name: account?.name ?? session.user.name ?? session.user.email ?? "Signed-in user",
+        email: account?.email ?? session.user.email ?? "Email unavailable",
+        memberships: account?.memberships ?? [],
+      }
     : null;
   const organizationIds =
     account?.memberships
@@ -97,15 +104,15 @@ export default async function DashboardLayout({
                 </span>
               ) : null}
             </Link>
-            {account ? (
+            {signedInAccount ? (
               <details className="group rounded-lg border border-zinc-200 bg-zinc-50 p-3 text-sm">
                 <summary className="cursor-pointer list-none font-semibold text-zinc-950">
-                  {account.name ?? account.email}
+                  {signedInAccount.name}
                 </summary>
                 <div className="mt-3 grid gap-2 text-xs leading-5 text-zinc-600">
-                  <p>{account.email}</p>
+                  <p>{signedInAccount.email}</p>
                   <p className="font-semibold text-[#800020]">{activeRole}</p>
-                  {account.memberships.map((membership) => (
+                  {signedInAccount.memberships.map((membership) => (
                     <p key={`${membership.organization?.name}-${membership.areaOffice?.name}`}>
                       {membership.organization?.name ?? "ITF Workspace"}
                       {membership.areaOffice?.name ? ` · ${membership.areaOffice.name}` : ""}
@@ -162,7 +169,7 @@ export default async function DashboardLayout({
                 ))}
               </div>
             </details>
-            {account ? (
+            {signedInAccount ? (
               <details className="rounded-lg border border-zinc-200 bg-white p-3 text-sm">
                 <summary className="cursor-pointer list-none font-semibold text-zinc-950">
                   Active context
@@ -186,7 +193,7 @@ export default async function DashboardLayout({
                       No employer company context linked.
                     </p>
                   )}
-                  {account.memberships
+                  {signedInAccount.memberships
                     .filter((membership) => membership.areaOffice?.name)
                     .map((membership) => (
                       <p

@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import type { NavGroup } from "@/lib/navigation";
+import type { VisibleNavGroup } from "@/lib/navigation";
 
 type DashboardNavProps = {
-  groups: NavGroup[];
+  groups: VisibleNavGroup[];
   moduleAttentionCounts: Record<string, number>;
   attentionBadgeTitle: string;
   className?: string;

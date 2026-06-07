@@ -2856,3 +2856,23 @@ Files:
 - storage adapter and types
 - `.env.example`
 - workflow docs
+
+### Post-Slice 145: Dashboard Serialization, Session Menu, and Workspace Integration Fix
+
+Goal: correct production-shell regressions and narrow the initial OAuth implementation.
+
+Implemented design:
+
+- Removed navigation authorization functions before passing navigation groups to the client component
+- Rendered Sign out whenever an authenticated session exists, even when its directory record cannot be resolved
+- Changed the unauthenticated dashboard fallback role from System Administrator to Employer Viewer
+- Narrowed the initial OAuth provider implementation to Google
+- Documented the child-app identity contract and production-app Workspace onboarding runbook
+
+Files:
+
+- dashboard layout and navigation
+- `lib/auth.ts`
+- `.env.example`
+- `docs/workspace-integration.md`
+- workflow docs

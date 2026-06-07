@@ -1,5 +1,4 @@
 import type { NextAuthOptions, User } from "next-auth";
-import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
@@ -99,26 +98,12 @@ export function getConfiguredOAuthProviders() {
     process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
       ? { id: "google", name: "Google" }
       : null,
-    process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_CLIENT_SECRET && process.env.AZURE_AD_TENANT_ID
-      ? { id: "azure-ad", name: "Microsoft" }
-      : null,
   ].filter((provider): provider is { id: string; name: string } => Boolean(provider));
 }
 
 const oauthProviders = [
   ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
     ? [GoogleProvider({ clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET })]
-    : []),
-  ...(process.env.AZURE_AD_CLIENT_ID &&
-  process.env.AZURE_AD_CLIENT_SECRET &&
-  process.env.AZURE_AD_TENANT_ID
-    ? [
-        AzureADProvider({
-          clientId: process.env.AZURE_AD_CLIENT_ID,
-          clientSecret: process.env.AZURE_AD_CLIENT_SECRET,
-          tenantId: process.env.AZURE_AD_TENANT_ID,
-        }),
-      ]
     : []),
 ];
 
