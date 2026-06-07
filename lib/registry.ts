@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 
 import { getDb } from "@/lib/db";
+import { getActiveEmployerOrganization } from "@/lib/organization-context";
 import { listCachedActiveAreaOffices } from "@/lib/reference-data";
 import { isItfRole, type Role } from "@/lib/rbac";
 
@@ -34,19 +35,8 @@ function slugify(value: string) {
 }
 
 async function getEmployerOrganizationIds(requesterEmail: string) {
-  const memberships = await getDb().membership.findMany({
-    where: {
-      user: { email: requesterEmail.toLowerCase() },
-      role: { in: ["EMPLOYER_ADMIN", "EMPLOYER_SUBMITTER", "EMPLOYER_VIEWER"] },
-      organizationId: { not: null },
-      isActive: true,
-    },
-    select: { organizationId: true },
-  });
-
-  return memberships
-    .map((membership) => membership.organizationId)
-    .filter((organizationId): organizationId is string => Boolean(organizationId));
+  const context = await getActiveEmployerOrganization(requesterEmail);
+  return context.active ? [context.active.id] : [];
 }
 
 export async function listEmployerCompanies(input: RegistryRequester) {
@@ -379,12 +369,12 @@ export async function createCompany(input: CreateCompanyInput) {
       throw new Error("Your employer account is not ready for company registration.");
     }
 
-    const linkedOrganizations = user.memberships.filter((membership) => membership.organizationId);
-    if (linkedOrganizations.length > 1) {
+    const activeOrganization = await getActiveEmployerOrganization(input.requesterEmail);
+    if (activeOrganization.requiresSelection) {
       throw new Error("Select an active organization before creating another company.");
     }
 
-    let organizationId = linkedOrganizations[0]?.organizationId;
+    let organizationId = activeOrganization.active?.id;
 
     if (!organizationId) {
       const workspaceId = user.memberships[0].workspaceId;

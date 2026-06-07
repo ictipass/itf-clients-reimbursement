@@ -4,6 +4,13 @@ import { getDb } from "@/lib/db";
 
 export const activeOrganizationCookie = "itf-active-organization";
 
+export class ActiveEmployerOrganizationRequiredError extends Error {
+  constructor(message = "Select an active employer organization before continuing.") {
+    super(message);
+    this.name = "ActiveEmployerOrganizationRequiredError";
+  }
+}
+
 export async function listAvailableEmployerOrganizations(email: string) {
   const memberships = await getDb().membership.findMany({
     where: {
@@ -40,4 +47,10 @@ export async function getActiveEmployerOrganization(email: string) {
     organizations,
     requiresSelection: organizations.length > 1 && !selected,
   };
+}
+
+export async function requireActiveEmployerOrganization(email: string) {
+  const context = await getActiveEmployerOrganization(email);
+  if (!context.active) throw new ActiveEmployerOrganizationRequiredError();
+  return context.active;
 }

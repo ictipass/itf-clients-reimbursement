@@ -3044,3 +3044,14 @@ Implemented design:
 - Added an organization selector to the dashboard account panel
 - Stored the selected organization in a secure, HTTP-only, same-site cookie
 - Validated every selection against the user's current active memberships
+
+### Post-Slice 145: Organization-Aware Session Authorization
+
+Goal: prevent a multi-organization employer identity from mixing records across organizations.
+
+Implemented design:
+
+- Scoped employer registry lists and company details to the selected active organization
+- Scoped company creation and organization-user administration to the active organization
+- Scoped dashboard company context to the active organization
+- Returned a guided organization-selection prerequisite when a selection is required

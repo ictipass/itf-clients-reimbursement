@@ -58,10 +58,9 @@ export default async function DashboardLayout({
   const employerOrganizationContext = session?.user?.email
     ? await getActiveEmployerOrganization(session.user.email)
     : { active: null, organizations: [], requiresSelection: false };
-  const organizationIds =
-    account?.memberships
-      .map((membership) => membership.organizationId)
-      .filter((value): value is string => Boolean(value)) ?? [];
+  const organizationIds = employerOrganizationContext.active
+    ? [employerOrganizationContext.active.id]
+    : [];
   const contextCompanies =
     organizationIds.length > 0
       ? await getDb().company.findMany({

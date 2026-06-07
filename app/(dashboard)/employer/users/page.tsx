@@ -15,6 +15,7 @@ import {
   getEmployerRoles,
   listEmployerMemberManagementData,
 } from "@/lib/employer-members";
+import { ActiveEmployerOrganizationRequiredError } from "@/lib/organization-context";
 
 function formatRole(role: string) {
   return role.replaceAll("_", " ");
@@ -35,6 +36,21 @@ export default async function EmployerUsersPage({
   try {
     data = await listEmployerMemberManagementData(session.user.email);
   } catch (error) {
+    if (error instanceof ActiveEmployerOrganizationRequiredError) {
+      return (
+        <div className="mx-auto max-w-4xl px-6 py-8 lg:px-8">
+          <section role="alert" className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-950">
+            <h1 className="text-xl font-semibold">Select an organization first</h1>
+            <p className="mt-3 text-sm leading-6">
+              Use the Active organization selector in your account menu, then reopen Organization users.
+            </p>
+            <Link href="/dashboard" className="mt-5 inline-flex min-h-11 items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+              Go to dashboard
+            </Link>
+          </section>
+        </div>
+      );
+    }
     if (!(error instanceof EmployerOrganizationRequiredError)) throw error;
   }
 

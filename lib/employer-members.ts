@@ -2,6 +2,10 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { writeAuditEvent } from "@/lib/audit";
 import { getDb } from "@/lib/db";
+import {
+  ActiveEmployerOrganizationRequiredError,
+  getActiveEmployerOrganization,
+} from "@/lib/organization-context";
 import type { Role } from "@/lib/rbac";
 
 const employerRoles = ["EMPLOYER_ADMIN", "EMPLOYER_SUBMITTER", "EMPLOYER_VIEWER"] as const;
@@ -25,6 +29,9 @@ function assertEmployerRole(role: Role): asserts role is EmployerRole {
 }
 
 async function getEmployerAdminContext(requesterEmail: string) {
+  const activeOrganization = await getActiveEmployerOrganization(requesterEmail);
+  if (activeOrganization.requiresSelection) throw new ActiveEmployerOrganizationRequiredError();
+
   const user = await getDb().user.findUnique({
     where: { email: requesterEmail.toLowerCase() },
     select: {
@@ -34,7 +41,7 @@ async function getEmployerAdminContext(requesterEmail: string) {
         where: {
           role: "EMPLOYER_ADMIN",
           isActive: true,
-          organizationId: { not: null },
+          organizationId: activeOrganization.active?.id ?? { not: null },
           organization: { organizationType: "EMPLOYER", isActive: true },
         },
         select: {
