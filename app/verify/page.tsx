@@ -30,7 +30,7 @@ export default async function VerifyCertificatePage({
   const verification = query
     ? await (async () => {
         try {
-          assertPublicVerificationRateLimit(clientIdentity);
+          await assertPublicVerificationRateLimit(clientIdentity);
 
           return {
             result: await verifyPublicCertificateNumber(query),

@@ -39,7 +39,7 @@ export function getCompanyEvidenceKinds() {
 }
 
 export async function uploadCompanyEvidence(input: UploadCompanyEvidenceInput) {
-  assertUploadRateLimit(input.uploadedByEmail);
+  await assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
   const company = await db.company.findFirst({

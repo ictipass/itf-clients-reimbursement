@@ -382,7 +382,7 @@ export async function uploadTrainingPlanEvidence(input: UploadTrainingPlanEviden
     throw new Error("You do not have permission to upload training plan evidence.");
   }
 
-  assertUploadRateLimit(input.uploadedByEmail);
+  await assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
   const submission = await db.trainingPlanSubmission.findFirst({

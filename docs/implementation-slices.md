@@ -2709,3 +2709,21 @@ Files:
 - `lib/navigation.ts`
 - `lib/feature-gates.ts`
 - workflow docs
+
+### Slice 138: Shared Redis Rate Limiter
+
+Goal: make rate limiting consistent across multiple application instances.
+
+Implemented design:
+
+- Added lazy Upstash Redis rate limiter initialization
+- Used shared fixed-window limiting when Redis environment variables are configured
+- Preserved the in-memory development fallback
+- Updated authentication, uploads, public verification, and QR verification to await shared checks
+
+Files:
+
+- `lib/rate-limit.ts`
+- existing rate-limited flows
+- `.env.example`
+- workflow docs

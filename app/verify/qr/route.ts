@@ -16,7 +16,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    assertPublicVerificationRateLimit(`qr:${clientIdentity}`);
+    await assertPublicVerificationRateLimit(`qr:${clientIdentity}`);
 
     const svg = await renderQrSvg(getVerificationUrl(number));
 

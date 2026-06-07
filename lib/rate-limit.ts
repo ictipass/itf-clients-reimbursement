@@ -10,6 +10,7 @@ type RateLimitState = {
 };
 
 const buckets = new Map<string, RateLimitState>();
+const sharedLimiters = new Map<string, Ratelimit>();
 
 export type RateLimitResult = {
   allowed: boolean;
@@ -17,7 +18,7 @@ export type RateLimitResult = {
   resetAt: Date;
 };
 
-export function checkRateLimit(input: RateLimitInput): RateLimitResult {
+function checkMemoryRateLimit(input: RateLimitInput): RateLimitResult {
   const now = Date.now();
   const current = buckets.get(input.key);
 
@@ -53,8 +54,38 @@ export function checkRateLimit(input: RateLimitInput): RateLimitResult {
   };
 }
 
-export function assertRateLimit(input: RateLimitInput) {
-  const result = checkRateLimit(input);
+function getSharedRateLimiter(input: RateLimitInput) {
+  const url = process.env.UPSTASH_REDIS_REST_URL;
+  const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+  if (!url || !token) return null;
+
+  const key = `${input.limit}:${input.windowMs}`;
+  const existing = sharedLimiters.get(key);
+  if (existing) return existing;
+
+  const limiter = new Ratelimit({
+    redis: new Redis({ url, token }),
+    limiter: Ratelimit.fixedWindow(input.limit, `${input.windowMs} ms`),
+    prefix: "itf-reimbursement",
+  });
+  sharedLimiters.set(key, limiter);
+  return limiter;
+}
+
+export async function checkRateLimit(input: RateLimitInput): Promise<RateLimitResult> {
+  const limiter = getSharedRateLimiter(input);
+  if (!limiter) return checkMemoryRateLimit(input);
+
+  const result = await limiter.limit(input.key);
+  return {
+    allowed: result.success,
+    remaining: result.remaining,
+    resetAt: new Date(result.reset),
+  };
+}
+
+export async function assertRateLimit(input: RateLimitInput) {
+  const result = await checkRateLimit(input);
 
   if (!result.allowed) {
     throw new Error(`Too many requests. Try again after ${result.resetAt.toLocaleTimeString()}.`);
@@ -78,3 +109,5 @@ export function assertPublicVerificationRateLimit(identity: string) {
     windowMs: 60 * 1000,
   });
 }
+import { Ratelimit } from "@upstash/ratelimit";
+import { Redis } from "@upstash/redis";

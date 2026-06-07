@@ -102,7 +102,7 @@ export const authOptions: NextAuthOptions = {
         const password = credentials?.password;
 
         if (email) {
-          const rateLimit = checkRateLimit({
+          const rateLimit = await checkRateLimit({
             key: `auth:${email}`,
             limit: 5,
             windowMs: 5 * 60 * 1000,

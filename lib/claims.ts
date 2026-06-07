@@ -271,7 +271,7 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
     throw new Error("You do not have permission to upload claim evidence.");
   }
 
-  assertUploadRateLimit(input.uploadedByEmail);
+  await assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
   const claim = await db.reimbursementClaim.findFirst({

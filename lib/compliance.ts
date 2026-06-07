@@ -312,7 +312,7 @@ export async function uploadComplianceEvidence(input: UploadComplianceEvidenceIn
     throw new Error("You do not have permission to upload compliance evidence.");
   }
 
-  assertUploadRateLimit(input.uploadedByEmail);
+  await assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
   const complianceYear = await db.complianceYear.findFirst({

@@ -146,7 +146,7 @@ export async function uploadTrainingMonitoringEvidence(
     throw new Error("You do not have permission to upload Training Monitoring evidence.");
   }
 
-  assertUploadRateLimit(input.uploadedByEmail);
+  await assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
   const record = await findEditableMonitoringRecord(input.recordId);
