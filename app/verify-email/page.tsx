@@ -2,8 +2,8 @@ import Link from "next/link";
 
 export default async function VerifyEmailPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ error?: string; verified?: string }> }>) {
-  const { error, verified } = await searchParams;
+}: Readonly<{ searchParams: Promise<{ error?: string; verified?: string; next?: string }> }>) {
+  const { error, verified, next } = await searchParams;
   const isVerified = verified === "true" && !error;
 
   return (
@@ -15,7 +15,7 @@ export default async function VerifyEmailPage({
             ? "Your employer account is active. Sign in to begin the company registration process."
             : error ?? "The verification link is invalid or incomplete."}
         </p>
-        <Link href={isVerified ? "/sign-in?callbackUrl=/dashboard" : "/get-started"} className="mt-5 inline-flex min-h-11 items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+        <Link href={isVerified ? `/sign-in?callbackUrl=${encodeURIComponent(next?.startsWith("/") ? next : "/dashboard")}` : "/get-started"} className="mt-5 inline-flex min-h-11 items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
           {isVerified ? "Sign in and continue" : "Return to registration"}
         </Link>
         {!isVerified ? <Link href="/verify-email/resend" className="mt-4 block text-sm font-semibold text-[#800020]">Request a fresh verification link</Link> : null}

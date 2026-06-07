@@ -3129,3 +3129,10 @@ Implemented design:
 - Invalidated previous unused verification tokens before issuing a replacement
 - Delivered fresh verification links through the configured email delivery mode
 - Exposed replacement links only when a development-link email mode is active
+
+### Slice 158: Invitation-Aware Employer Registration
+
+- Linked organization invitations to new employer portal registration
+- Locked invited registration to the exact invited email address
+- Returned verified users to the original invitation after sign-in
+- Preserved the invitation context in both emailed and development verification links

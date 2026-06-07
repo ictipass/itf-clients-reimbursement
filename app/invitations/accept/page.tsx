@@ -39,7 +39,7 @@ export default async function AcceptInvitationPage({
                 <Link href={`/sign-in?callbackUrl=${callbackUrl}`} className="inline-flex min-h-11 items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                   Sign in to accept
                 </Link>
-                <Link href="/get-started" className="inline-flex min-h-11 items-center rounded-md border border-zinc-300 px-4 text-sm font-semibold">
+                <Link href={`/get-started?invitationToken=${encodeURIComponent(token ?? "")}`} className="inline-flex min-h-11 items-center rounded-md border border-zinc-300 px-4 text-sm font-semibold">
                   Create portal account
                 </Link>
               </div>

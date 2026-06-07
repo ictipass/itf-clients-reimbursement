@@ -3,11 +3,15 @@ import Link from "next/link";
 
 import { registerEmployerAccountAction } from "@/app/get-started/actions";
 import { getConfiguredOAuthProviders } from "@/lib/auth";
+import { getOrganizationInvitation } from "@/lib/employer-members";
 
 export default async function GetStartedPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ error?: string; registered?: string; token?: string }> }>) {
+}: Readonly<{ searchParams: Promise<{ error?: string; registered?: string; token?: string; invitationToken?: string }> }>) {
   const params = await searchParams;
+  const invitation = params.invitationToken
+    ? await getOrganizationInvitation(params.invitationToken)
+    : null;
   const googleEnabled = getConfiguredOAuthProviders().some((provider) => provider.id === "google");
   const registrationCallback = encodeURIComponent("/dashboard");
 
@@ -40,15 +44,16 @@ export default async function GetStartedPage({
           {params.registered ? (
             <div className="mt-5 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
               Account created. Check your email to verify your account.
-              {params.token ? <Link href={`/verify-email/confirm?token=${encodeURIComponent(params.token)}`} className="mt-2 block font-semibold underline">Development only: verify this account</Link> : null}
+              {params.token ? <Link href={`/verify-email/confirm?token=${encodeURIComponent(params.token)}${params.invitationToken ? `&next=${encodeURIComponent(`/invitations/accept?token=${params.invitationToken}`)}` : ""}`} className="mt-2 block font-semibold underline">Development only: verify this account</Link> : null}
             </div>
           ) : null}
           <form action={registerEmployerAccountAction} className="mt-6 grid gap-4">
+            {params.invitationToken ? <input type="hidden" name="invitationToken" value={params.invitationToken} /> : null}
             <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2 text-sm font-medium">First name<input name="firstName" required autoComplete="given-name" className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
               <label className="grid gap-2 text-sm font-medium">Last name<input name="lastName" required autoComplete="family-name" className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
             </div>
-            <label className="grid gap-2 text-sm font-medium">Work email<input name="email" type="email" required autoComplete="email" className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
+            <label className="grid gap-2 text-sm font-medium">Work email<input name="email" type="email" required readOnly={Boolean(invitation)} defaultValue={invitation?.email} autoComplete="email" className="min-h-11 rounded-md border border-zinc-300 px-3 read-only:bg-zinc-100" /></label>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="grid gap-2 text-sm font-medium">Password<input name="password" type="password" required minLength={12} autoComplete="new-password" className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
               <label className="grid gap-2 text-sm font-medium">Confirm password<input name="confirmPassword" type="password" required minLength={12} autoComplete="new-password" className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>

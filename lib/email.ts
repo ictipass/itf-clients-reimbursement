@@ -111,8 +111,11 @@ export async function sendEmployerVerificationEmail(input: {
   to: string;
   name: string;
   token: string;
+  next?: string;
 }) {
-  const actionUrl = `${getAppBaseUrl()}/verify-email/confirm?token=${encodeURIComponent(input.token)}`;
+  const params = new URLSearchParams({ token: input.token });
+  if (input.next?.startsWith("/")) params.set("next", input.next);
+  const actionUrl = `${getAppBaseUrl()}/verify-email/confirm?${params}`;
   return sendTransactionalEmail({
     to: input.to,
     subject: "Verify your ITF Reimbursement Platform account",
