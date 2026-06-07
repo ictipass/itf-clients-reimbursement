@@ -3169,3 +3169,10 @@ Implemented design:
 - Allowed users to update their own name and phone number
 - Required the current password before accepting a new Argon2 password
 - Directed Workspace identity users to manage passwords through their identity provider
+
+### Slice 164: Workflow Email Notifications
+
+- Added opt-in workflow email preferences to user profiles
+- Added a generic dispatcher for open registration, compliance, training, and claims work items
+- Resolved recipients from direct assignments or active role/office/organization memberships
+- Added a secret-protected cron endpoint and prevented duplicate notification sends

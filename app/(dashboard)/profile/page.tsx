@@ -20,6 +20,7 @@ export default async function ProfilePage({ searchParams }: Readonly<{ searchPar
           <label className="grid gap-2 text-sm font-medium">Full name<input name="name" defaultValue={profile.name} required className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
           <label className="grid gap-2 text-sm font-medium">Email<input value={profile.email} readOnly className="min-h-11 rounded-md border border-zinc-300 bg-zinc-100 px-3" /></label>
           <label className="grid gap-2 text-sm font-medium">Phone number<input name="phoneNumber" defaultValue={profile.phoneNumber ?? ""} className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
+          <label className="flex items-center gap-3 text-sm font-medium"><input name="workflowEmailNotifications" type="checkbox" defaultChecked={profile.workflowEmailNotifications} /> Email me when workflow items reach my desk</label>
           <button className="min-h-11 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Update profile</button>
         </form>
         <form action={changePasswordAction} className="grid content-start gap-4 rounded-lg border border-zinc-200 bg-white p-5">

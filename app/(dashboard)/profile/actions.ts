@@ -18,7 +18,7 @@ export async function updateProfileAction(formData: FormData) {
   if (!session?.user?.email) throw new Error("Authentication is required.");
   try {
     const values = parseFormData(z.object({ name: z.string().trim().min(2), phoneNumber: z.string().optional() }), formData);
-    await updateUserProfile({ email: session.user.email, ...values });
+    await updateUserProfile({ email: session.user.email, ...values, workflowEmailNotifications: formData.get("workflowEmailNotifications") === "on" });
   } catch (error) {
     back(error instanceof Error ? error.message : "Profile could not be updated.");
   }

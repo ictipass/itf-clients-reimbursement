@@ -7,14 +7,14 @@ import type { Role } from "@/lib/rbac";
 export async function getUserProfile(email: string) {
   return getDb().user.findUnique({
     where: { email: email.toLowerCase() },
-    select: { id: true, name: true, email: true, phoneNumber: true, department: true, jobTitle: true, passwordHash: true },
+    select: { id: true, name: true, email: true, phoneNumber: true, department: true, jobTitle: true, passwordHash: true, workflowEmailNotifications: true },
   });
 }
 
-export async function updateUserProfile(input: { email: string; name: string; phoneNumber?: string }) {
+export async function updateUserProfile(input: { email: string; name: string; phoneNumber?: string; workflowEmailNotifications: boolean }) {
   return getDb().user.update({
     where: { email: input.email.toLowerCase() },
-    data: { name: input.name.trim(), phoneNumber: input.phoneNumber?.trim() || null },
+    data: { name: input.name.trim(), phoneNumber: input.phoneNumber?.trim() || null, workflowEmailNotifications: input.workflowEmailNotifications },
   });
 }
 

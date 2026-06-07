@@ -191,4 +191,20 @@ export async function sendPasswordResetEmail(input: { to: string; name: string; 
     text: `Reset your ITF Reimbursement Platform password: ${actionUrl}`,
   });
 }
+
+export async function sendWorkflowAttentionEmail(input: { to: string; name: string; title: string; summary?: string | null; targetHref: string }) {
+  const actionUrl = `${getAppBaseUrl()}${input.targetHref}`;
+  return sendTransactionalEmail({
+    to: input.to,
+    subject: `Action required: ${input.title}`,
+    html: actionEmail({
+      recipientName: input.name,
+      heading: input.title,
+      message: input.summary ?? "A reimbursement workflow item requires your attention.",
+      actionLabel: "Open work item",
+      actionUrl,
+    }),
+    text: `${input.title}: ${actionUrl}`,
+  });
+}
 import { getDb } from "@/lib/db";

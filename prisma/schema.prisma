@@ -310,6 +310,7 @@ model User {
   passwordHash                                     String?
   emailVerifiedAt                                  DateTime?
   isActive                                         Boolean                              @default(true)
+  workflowEmailNotifications                       Boolean                              @default(true)
   createdAt                                        DateTime                             @default(now())
   updatedAt                                        DateTime                             @updatedAt
   memberships                                      Membership[]                         @relation("MembershipUser")
@@ -1065,6 +1066,7 @@ model WorkItem {
   targetHref                 String
   sourceKey                  String                    @unique
   resolvedAt                 DateTime?
+  emailNotifiedAt            DateTime?
   recordTier                 RecordTier                @default(HOT)
   createdAt                  DateTime                  @default(now())
   updatedAt                  DateTime                  @updatedAt
@@ -1085,6 +1087,7 @@ model WorkItem {
   @@index([trainingPlanSubmissionId, status, recordTier])
   @@index([trainingMonitoringRecordId, status, recordTier])
   @@index([assignedUserId, status, recordTier])
+  @@index([status, emailNotifiedAt, createdAt])
 }
 
 model AuditEvent {
