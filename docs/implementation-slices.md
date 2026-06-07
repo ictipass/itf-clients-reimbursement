@@ -3067,3 +3067,15 @@ Implemented design:
 - Required Resend-only delivery in production
 - Added safe application URL and HTML-escaping helpers
 - Documented local testing and production sender-domain configuration
+
+### Post-Slice 145: Email Verification and Invitation Delivery
+
+Goal: deliver account-verification and organization-invitation links through the configured email
+channel.
+
+Implemented design:
+
+- Sent account-verification emails after employer portal registration
+- Sent organization-invitation emails after an employer administrator creates an invitation
+- Kept private development links visible only in explicitly selected development-link modes
+- Reused the configured public application URL for all emailed actions

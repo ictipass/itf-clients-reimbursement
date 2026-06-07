@@ -21,3 +21,6 @@ NEXT_PUBLIC_APP_URL="http://localhost:3000"
 
 Use `onboarding@resend.dev` only during Resend testing. Before production, verify the ITF sending
 domain in Resend and replace `EMAIL_FROM` with an address on that domain.
+
+Email verification and employer organization invitations use this adapter. Private verification
+and invitation links are shown in the UI only when a development-link mode is selected.

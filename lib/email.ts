@@ -79,3 +79,70 @@ export async function sendTransactionalEmail(email: TransactionalEmail) {
 
   return { delivered: true, provider: "resend" as const, messageId: result.id };
 }
+
+function actionEmail(input: {
+  recipientName: string;
+  heading: string;
+  message: string;
+  actionLabel: string;
+  actionUrl: string;
+}) {
+  const name = escapeEmailHtml(input.recipientName);
+  const heading = escapeEmailHtml(input.heading);
+  const message = escapeEmailHtml(input.message);
+  const actionLabel = escapeEmailHtml(input.actionLabel);
+  const actionUrl = escapeEmailHtml(input.actionUrl);
+
+  return `
+    <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#18181b">
+      <p style="color:#800020;font-weight:700">Industrial Training Fund</p>
+      <h1 style="font-size:24px">${heading}</h1>
+      <p>Hello ${name},</p>
+      <p style="line-height:1.6">${message}</p>
+      <p style="margin:28px 0">
+        <a href="${actionUrl}" style="background:#800020;color:#fff;padding:12px 18px;text-decoration:none;border-radius:6px;font-weight:700">${actionLabel}</a>
+      </p>
+      <p style="font-size:13px;color:#52525b">If the button does not work, open: ${actionUrl}</p>
+    </div>
+  `;
+}
+
+export async function sendEmployerVerificationEmail(input: {
+  to: string;
+  name: string;
+  token: string;
+}) {
+  const actionUrl = `${getAppBaseUrl()}/verify-email/confirm?token=${encodeURIComponent(input.token)}`;
+  return sendTransactionalEmail({
+    to: input.to,
+    subject: "Verify your ITF Reimbursement Platform account",
+    html: actionEmail({
+      recipientName: input.name,
+      heading: "Verify your portal account",
+      message: "Verify your email address to activate your employer portal account.",
+      actionLabel: "Verify account",
+      actionUrl,
+    }),
+    text: `Verify your ITF Reimbursement Platform account: ${actionUrl}`,
+  });
+}
+
+export async function sendOrganizationInvitationEmail(input: {
+  to: string;
+  organizationName: string;
+  token: string;
+}) {
+  const actionUrl = `${getAppBaseUrl()}/invitations/accept?token=${encodeURIComponent(input.token)}`;
+  return sendTransactionalEmail({
+    to: input.to,
+    subject: `Invitation to manage ${input.organizationName}`,
+    html: actionEmail({
+      recipientName: input.to,
+      heading: "Organization access invitation",
+      message: `You have been invited to access ${input.organizationName} on the ITF Reimbursement Platform.`,
+      actionLabel: "Review invitation",
+      actionUrl,
+    }),
+    text: `Review your ${input.organizationName} invitation: ${actionUrl}`,
+  });
+}

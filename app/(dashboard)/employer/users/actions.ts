@@ -14,6 +14,7 @@ import {
   type EmployerRole,
 } from "@/lib/employer-members";
 import { deactivateMembership, reactivateMembership } from "@/lib/membership-lifecycle";
+import { shouldExposeDevelopmentEmailLinks } from "@/lib/email";
 import { parseFormData } from "@/lib/validation";
 
 const inviteSchema = z.object({
@@ -23,7 +24,7 @@ const inviteSchema = z.object({
 
 function redirectToMembers(message: string, token?: string) {
   const params = new URLSearchParams({ message: message.slice(0, 180) });
-  if (process.env.NODE_ENV !== "production" && token) params.set("token", token);
+  if (shouldExposeDevelopmentEmailLinks() && token) params.set("token", token);
   redirect(`/employer/users?${params}`);
 }
 

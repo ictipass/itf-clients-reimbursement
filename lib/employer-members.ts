@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { writeAuditEvent } from "@/lib/audit";
 import { getDb } from "@/lib/db";
+import { sendOrganizationInvitationEmail } from "@/lib/email";
 import {
   ActiveEmployerOrganizationRequiredError,
   getActiveEmployerOrganization,
@@ -180,7 +181,13 @@ export async function inviteEmployerMember(input: {
     metadata: { invitedEmail: email, invitedRole: input.role },
   });
 
-  return { token, expiresAt };
+  await sendOrganizationInvitationEmail({
+    to: email,
+    organizationName: context.organizationName,
+    token,
+  });
+
+  return { token, expiresAt, organizationName: context.organizationName };
 }
 
 export async function getOrganizationInvitation(token: string) {

@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 
 import { registerEmployerAccount } from "@/lib/employer-accounts";
+import { sendEmployerVerificationEmail, shouldExposeDevelopmentEmailLinks } from "@/lib/email";
 import { assertRateLimit } from "@/lib/rate-limit";
 import { parseFormData } from "@/lib/validation";
 
@@ -32,11 +33,16 @@ export async function registerEmployerAccountAction(formData: FormData) {
     });
     const result = await registerEmployerAccount(values);
     verificationToken = result.token;
+    await sendEmployerVerificationEmail({
+      to: values.email,
+      name: `${values.firstName} ${values.lastName}`,
+      token: result.token,
+    });
   } catch (error) {
     redirect(`/get-started?error=${encodeURIComponent(error instanceof Error ? error.message : "Account registration failed.")}`);
   }
 
   const params = new URLSearchParams({ registered: "true" });
-  if (process.env.NODE_ENV !== "production" && verificationToken) params.set("token", verificationToken);
+  if (shouldExposeDevelopmentEmailLinks() && verificationToken) params.set("token", verificationToken);
   redirect(`/get-started?${params}`);
 }
