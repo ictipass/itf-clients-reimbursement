@@ -27,14 +27,30 @@ function formatDate(date: Date) {
 
 export default async function EmployerUsersPage({
   searchParams,
-}: Readonly<{ searchParams: Promise<{ message?: string; token?: string }> }>) {
+}: Readonly<{
+  searchParams: Promise<{
+    message?: string;
+    token?: string;
+    q?: string;
+    role?: string;
+    status?: string;
+    page?: string;
+  }>;
+}>) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email || session.user.role !== "EMPLOYER_ADMIN") redirect("/dashboard");
   const query = await searchParams;
+  const requestedPage = Number(query.page ?? "1");
   let data: Awaited<ReturnType<typeof listEmployerMemberManagementData>> | null = null;
 
   try {
-    data = await listEmployerMemberManagementData(session.user.email);
+    data = await listEmployerMemberManagementData({
+      requesterEmail: session.user.email,
+      query: query.q,
+      role: query.role,
+      status: query.status,
+      page: Number.isFinite(requestedPage) ? requestedPage : 1,
+    });
   } catch (error) {
     if (error instanceof ActiveEmployerOrganizationRequiredError) {
       return (
@@ -95,6 +111,14 @@ export default async function EmployerUsersPage({
       </div>
     );
   }
+  const pageHref = (page: number) => {
+    const params = new URLSearchParams();
+    if (query.q) params.set("q", query.q);
+    if (query.role) params.set("role", query.role);
+    if (query.status) params.set("status", query.status);
+    params.set("page", String(page));
+    return `/employer/users?${params}`;
+  };
 
   return (
     <div className="mx-auto grid max-w-7xl gap-6 px-6 py-8 lg:px-8">
@@ -151,6 +175,20 @@ export default async function EmployerUsersPage({
             <h2 className="text-xl font-semibold">Organization members</h2>
           </div>
           <div className="divide-y divide-zinc-100">
+            <form className="grid gap-2 border-b border-zinc-200 bg-zinc-50 px-5 py-4 md:grid-cols-[1fr_0.8fr_0.7fr_auto_auto]">
+              <input name="q" defaultValue={query.q} placeholder="Search member name, email, or phone" className="min-h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm" />
+              <select name="role" defaultValue={query.role ?? ""} className="min-h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm">
+                <option value="">All roles</option>
+                {getEmployerRoles().map((role) => <option key={role} value={role}>{formatRole(role)}</option>)}
+              </select>
+              <select name="status" defaultValue={query.status ?? ""} className="min-h-10 rounded-md border border-zinc-300 bg-white px-3 text-sm">
+                <option value="">All statuses</option>
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+              </select>
+              <button className="min-h-10 rounded-md bg-[#800020] px-3 text-sm font-semibold text-white">Filter</button>
+              <Link href="/employer/users" className="inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold">Clear</Link>
+            </form>
             {data.members.map((membership) => (
               <div key={membership.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1fr_auto] md:items-center">
                 <div>
@@ -189,6 +227,14 @@ export default async function EmployerUsersPage({
                 )}
               </div>
             ))}
+            {data.members.length === 0 ? <p className="px-5 py-6 text-sm text-zinc-600">No organization members matched these filters.</p> : null}
+          </div>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-t border-zinc-200 px-5 py-4 text-sm">
+            <p className="text-zinc-600">Showing {data.members.length} of {data.totalMembers} member(s) · page {data.page} of {data.totalPages}</p>
+            <div className="flex gap-2">
+              {data.page > 1 ? <Link href={pageHref(data.page - 1)} className="rounded-md border border-zinc-300 bg-white px-3 py-2 font-semibold">Previous</Link> : null}
+              {data.page < data.totalPages ? <Link href={pageHref(data.page + 1)} className="rounded-md border border-zinc-300 bg-white px-3 py-2 font-semibold">Next</Link> : null}
+            </div>
           </div>
         </div>
       </section>

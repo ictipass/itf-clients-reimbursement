@@ -72,15 +72,48 @@ export function getEmployerRoles() {
   return employerRoles;
 }
 
-export async function listEmployerMemberManagementData(requesterEmail: string) {
-  const context = await getEmployerAdminContext(requesterEmail);
+export async function listEmployerMemberManagementData(input: {
+  requesterEmail: string;
+  query?: string;
+  role?: string;
+  status?: string;
+  page?: number;
+  pageSize?: number;
+}) {
+  const context = await getEmployerAdminContext(input.requesterEmail);
   const db = getDb();
+  const query = input.query?.trim();
+  const selectedRole = employerRoles.includes(input.role as EmployerRole)
+    ? (input.role as EmployerRole)
+    : undefined;
+  const isActive =
+    input.status === "active" ? true : input.status === "inactive" ? false : undefined;
+  const pageSize = Math.min(Math.max(input.pageSize ?? 15, 5), 50);
+  const requestedPage = Math.max(input.page ?? 1, 1);
+  const memberWhere = {
+    organizationId: context.organizationId,
+    role: selectedRole ? selectedRole : { in: [...employerRoles] },
+    ...(typeof isActive === "boolean" ? { isActive } : {}),
+    ...(query
+      ? {
+          user: {
+            OR: [
+              { name: { contains: query, mode: "insensitive" as const } },
+              { email: { contains: query, mode: "insensitive" as const } },
+              { phoneNumber: { contains: query, mode: "insensitive" as const } },
+            ],
+          },
+        }
+      : {}),
+  };
+  const totalMembers = await db.membership.count({ where: memberWhere });
+  const totalPages = Math.max(Math.ceil(totalMembers / pageSize), 1);
+  const page = Math.min(requestedPage, totalPages);
   const [members, invitations] = await Promise.all([
     db.membership.findMany({
-      where: {
-        organizationId: context.organizationId,
-        role: { in: [...employerRoles] },
-      },
+      where: memberWhere,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
       select: {
         id: true,
         role: true,
@@ -112,7 +145,15 @@ export async function listEmployerMemberManagementData(requesterEmail: string) {
     }),
   ]);
 
-  return { organizationName: context.organizationName, members, invitations };
+  return {
+    organizationName: context.organizationName,
+    members,
+    invitations,
+    totalMembers,
+    page,
+    pageSize,
+    totalPages,
+  };
 }
 
 export async function inviteEmployerMember(input: {

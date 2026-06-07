@@ -3102,3 +3102,14 @@ Implemented design:
 - Audited organization invitation acceptance and revocation
 - Audited employer membership role changes
 - Preserved existing invitation-creation and emergency-administrator-replacement audit events
+
+### Post-Slice 145: Employer User Management Pagination and Filtering
+
+Goal: keep organization-scoped user administration usable as employer teams grow.
+
+Implemented design:
+
+- Added server-side member search by name, email, and phone number
+- Added employer-role and active-status filters
+- Paginated organization memberships within the selected active organization
+- Preserved invitations and member-access actions alongside filtered results
