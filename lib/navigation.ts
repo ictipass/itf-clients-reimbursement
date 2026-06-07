@@ -83,6 +83,7 @@ export const navGroups: NavGroup[] = [
         module: "management",
         isVisible: canUseManagement,
       },
+      { href: "/settings/audit", label: "Audit log", module: "settings", isVisible: (role) => can(role, "audit:read") },
       { href: "/settings/users", label: "Users", module: "settings", isVisible: canUseSettings },
       {
         href: "/settings/offices",

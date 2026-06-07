@@ -2690,3 +2690,22 @@ Files:
 - `lib/audit.ts`
 - `lib/auth.ts`
 - workflow docs
+
+### Slice 137: Audit Log Management UI
+
+Goal: let authorized reviewers inspect workflow and security audit events.
+
+Implemented design:
+
+- Added a filtered, paginated audit log query
+- Added `/settings/audit` with filters for actor, entity type, action, and security event type
+- Added a specific `audit:read` route gate without granting access to other settings pages
+- Added the Audit log link to role-aware navigation
+
+Files:
+
+- `lib/audit-log.ts`
+- `app/(dashboard)/settings/audit/page.tsx`
+- `lib/navigation.ts`
+- `lib/feature-gates.ts`
+- workflow docs

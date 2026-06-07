@@ -58,6 +58,12 @@ export const featureGates: FeatureGate[] = [
     permissions: ["audit:read", "workspace:manage"],
   },
   {
+    key: "settings-audit",
+    label: "Audit log",
+    routePrefix: "/settings/audit",
+    permissions: ["audit:read"],
+  },
+  {
     key: "settings",
     label: "Settings",
     routePrefix: "/settings",
