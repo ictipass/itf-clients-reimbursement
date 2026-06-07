@@ -323,11 +323,24 @@ model User {
   voidedManagedNumbers                             ManagedRegistrationNumber[]          @relation("VoidedManagedNumbers")
   auditEvents                                      AuditEvent[]
   emailVerificationTokens                          EmailVerificationToken[]
+  passwordResetTokens                              PasswordResetToken[]
   sentOrganizationInvitations                      OrganizationInvitation[]             @relation("OrganizationInvitationInvitedBy")
   acceptedOrganizationInvitations                  OrganizationInvitation[]             @relation("OrganizationInvitationAcceptedBy")
 }
 
 model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt, usedAt])
+}
+
+model PasswordResetToken {
   id        String    @id @default(cuid())
   userId    String
   tokenHash String    @unique

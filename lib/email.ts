@@ -146,3 +146,19 @@ export async function sendOrganizationInvitationEmail(input: {
     text: `Review your ${input.organizationName} invitation: ${actionUrl}`,
   });
 }
+
+export async function sendPasswordResetEmail(input: { to: string; name: string; token: string }) {
+  const actionUrl = `${getAppBaseUrl()}/reset-password?token=${encodeURIComponent(input.token)}`;
+  return sendTransactionalEmail({
+    to: input.to,
+    subject: "Reset your ITF Reimbursement Platform password",
+    html: actionEmail({
+      recipientName: input.name,
+      heading: "Reset your password",
+      message: "A password reset was requested for your portal account. This link expires in one hour.",
+      actionLabel: "Reset password",
+      actionUrl,
+    }),
+    text: `Reset your ITF Reimbursement Platform password: ${actionUrl}`,
+  });
+}

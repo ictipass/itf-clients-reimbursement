@@ -3079,3 +3079,15 @@ Implemented design:
 - Sent organization-invitation emails after an employer administrator creates an invitation
 - Kept private development links visible only in explicitly selected development-link modes
 - Reused the configured public application URL for all emailed actions
+
+### Post-Slice 145: Password Reset and Account Recovery
+
+Goal: let verified portal-account users securely recover access.
+
+Implemented design:
+
+- Added hashed, one-time, one-hour password reset tokens
+- Added enumeration-resistant password reset requests with rate limiting
+- Delivered reset links through the configured email delivery mode
+- Invalidated all outstanding reset tokens after a successful password change
+- Added public request and reset pages plus a sign-in recovery link

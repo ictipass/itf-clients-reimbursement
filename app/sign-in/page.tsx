@@ -23,6 +23,7 @@ export default async function SignInPage({
           Sign in with your authorized portal account or configured Workspace identity.
         </p>
         <SignInForm callbackUrl={callbackUrl ?? "/dashboard"} initialError={error} oauthProviders={oauthProviders} />
+        <Link href="/forgot-password" className="mt-4 block text-sm font-semibold text-[#800020]">Forgot password?</Link>
         <div className="mt-5 flex items-center justify-between gap-4 border-t border-zinc-100 pt-4">
           <Link href="/" className="text-sm font-semibold text-[#800020]">Back to home</Link>
           <Link href="/get-started" className="text-right text-sm font-semibold text-[#800020]">Begin employer registration</Link>
