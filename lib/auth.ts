@@ -1,5 +1,7 @@
 import type { NextAuthOptions, User } from "next-auth";
+import AzureADProvider from "next-auth/providers/azure-ad";
 import CredentialsProvider from "next-auth/providers/credentials";
+import GoogleProvider from "next-auth/providers/google";
 
 import { writeIdentitySecurityAuditEvent } from "@/lib/audit";
 import { getDb } from "@/lib/db";
@@ -74,6 +76,51 @@ async function getDevelopmentTestUser(email: string, password: string) {
     role: user.memberships[0].role,
   };
 }
+
+async function getAuthorizedDirectoryUser(email: string) {
+  const user = await getDb().user.findUnique({
+    where: { email: email.toLowerCase() },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      isActive: true,
+      memberships: { select: { role: true }, take: 1 },
+    },
+  });
+
+  if (!user?.isActive || !user.memberships[0]) return null;
+
+  return { id: user.id, email: user.email, name: user.name, role: user.memberships[0].role };
+}
+
+export function getConfiguredOAuthProviders() {
+  return [
+    process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+      ? { id: "google", name: "Google" }
+      : null,
+    process.env.AZURE_AD_CLIENT_ID && process.env.AZURE_AD_CLIENT_SECRET && process.env.AZURE_AD_TENANT_ID
+      ? { id: "azure-ad", name: "Microsoft" }
+      : null,
+  ].filter((provider): provider is { id: string; name: string } => Boolean(provider));
+}
+
+const oauthProviders = [
+  ...(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET
+    ? [GoogleProvider({ clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET })]
+    : []),
+  ...(process.env.AZURE_AD_CLIENT_ID &&
+  process.env.AZURE_AD_CLIENT_SECRET &&
+  process.env.AZURE_AD_TENANT_ID
+    ? [
+        AzureADProvider({
+          clientId: process.env.AZURE_AD_CLIENT_ID,
+          clientSecret: process.env.AZURE_AD_CLIENT_SECRET,
+          tenantId: process.env.AZURE_AD_TENANT_ID,
+        }),
+      ]
+    : []),
+];
 
 export const authOptions: NextAuthOptions = {
   secret: process.env.NEXTAUTH_SECRET,
@@ -178,8 +225,15 @@ export const authOptions: NextAuthOptions = {
         return null;
       },
     }),
+    ...oauthProviders,
   ],
   callbacks: {
+    async signIn({ user, account }) {
+      if (account?.provider === "credentials") return true;
+      if (!user.email) return false;
+
+      return Boolean(await getAuthorizedDirectoryUser(user.email));
+    },
     redirect({ url, baseUrl }) {
       if (url.startsWith("/")) {
         return `${baseUrl}${url}`;
@@ -191,9 +245,11 @@ export const authOptions: NextAuthOptions = {
 
       return baseUrl;
     },
-    jwt({ token, user }) {
+    async jwt({ token, user }) {
       if (user) {
-        token.role = (user as User & { role?: Role }).role ?? fallbackAdmin.role;
+        const directoryUser = user.email ? await getAuthorizedDirectoryUser(user.email) : null;
+        token.role = (user as User & { role?: Role }).role ?? directoryUser?.role ?? fallbackAdmin.role;
+        token.sub = directoryUser?.id ?? user.id;
       }
 
       return token;

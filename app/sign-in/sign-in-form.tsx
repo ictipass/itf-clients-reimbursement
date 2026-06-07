@@ -6,13 +6,14 @@ import { useState } from "react";
 type SignInFormProps = {
   callbackUrl: string;
   initialError?: string;
+  oauthProviders: { id: string; name: string }[];
 };
 
 function safeCallbackUrl(value: string) {
   return value.startsWith("/") && !value.startsWith("//") ? value : "/dashboard";
 }
 
-export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
+export function SignInForm({ callbackUrl, initialError, oauthProviders }: SignInFormProps) {
   const [error, setError] = useState<string | null>(
     initialError ? "Sign in could not be completed. Please try again." : null,
   );
@@ -44,7 +45,23 @@ export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
   }
 
   return (
-    <form action={handleSubmit} className="mt-6 grid gap-4">
+    <div className="mt-6 grid gap-4">
+      {oauthProviders.length > 0 ? (
+        <div className="grid gap-2">
+          {oauthProviders.map((provider) => (
+            <button
+              key={provider.id}
+              type="button"
+              onClick={() => signIn(provider.id, { callbackUrl: safeCallbackUrl(callbackUrl) })}
+              className="min-h-11 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800"
+            >
+              Continue with {provider.name}
+            </button>
+          ))}
+          <p className="text-center text-xs text-zinc-500">or use development credentials</p>
+        </div>
+      ) : null}
+      <form action={handleSubmit} className="grid gap-4">
       <label className="grid gap-2 text-sm font-medium">
         Email
         <input
@@ -74,6 +91,7 @@ export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
       >
         {isPending ? "Checking..." : "Continue"}
       </button>
-    </form>
+      </form>
+    </div>
   );
 }

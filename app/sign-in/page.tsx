@@ -1,4 +1,5 @@
 import { SignInForm } from "@/app/sign-in/sign-in-form";
+import { getConfiguredOAuthProviders } from "@/lib/auth";
 
 export default async function SignInPage({
   searchParams,
@@ -8,6 +9,7 @@ export default async function SignInPage({
   const params = await searchParams;
   const callbackUrl = Array.isArray(params.callbackUrl) ? params.callbackUrl[0] : params.callbackUrl;
   const error = Array.isArray(params.error) ? params.error[0] : params.error;
+  const oauthProviders = getConfiguredOAuthProviders();
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-zinc-100 px-6 py-12 text-zinc-950">
@@ -20,7 +22,7 @@ export default async function SignInPage({
           Use the bootstrap admin credentials from environment variables until Workspace
           identity integration is connected.
         </p>
-        <SignInForm callbackUrl={callbackUrl ?? "/dashboard"} initialError={error} />
+        <SignInForm callbackUrl={callbackUrl ?? "/dashboard"} initialError={error} oauthProviders={oauthProviders} />
       </section>
     </main>
   );

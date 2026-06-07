@@ -2799,3 +2799,22 @@ Files:
 
 - `next.config.ts`
 - workflow docs
+
+### Slice 143: OAuth/OIDC Provider Foundation
+
+Goal: allow production identity providers without automatically granting application access.
+
+Implemented design:
+
+- Added environment-driven Google and Microsoft Entra providers
+- Displayed provider buttons only when credentials are configured
+- Required OAuth identities to match an active user with an existing membership
+- Resolved the application role and internal user ID from the directory
+- Preserved development credentials for current workflow testing
+
+Files:
+
+- `lib/auth.ts`
+- sign-in page and form
+- `.env.example`
+- workflow docs
