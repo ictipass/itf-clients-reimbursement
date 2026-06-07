@@ -2996,3 +2996,17 @@ Files:
 
 - dashboard sign-out dialog
 - dashboard layout
+
+### Post-Slice 145: ITF Employer Access Administration
+
+Goal: let authorized ITF administrators restore an employer organization's access after receiving
+formal authorization.
+
+Implemented design:
+
+- Added a searchable Employer Access settings page
+- Displayed active and inactive employer membership history without deleting identities
+- Added an atomic emergency administrator replacement operation
+- Required an existing active and verified employer identity plus a formal reason
+- Deactivated former employer administrators and activated the replacement in one transaction
+- Recorded the replacement in the audit log
