@@ -18,6 +18,27 @@ export type RateLimitResult = {
   resetAt: Date;
 };
 
+export class RateLimitError extends Error {
+  readonly retryAt: Date;
+
+  constructor(retryAt: Date) {
+    super(`Too many requests. Try again after ${retryAt.toLocaleTimeString()}.`);
+    this.name = "RateLimitError";
+    this.retryAt = retryAt;
+  }
+}
+
+export function getRateLimitFeedback(error: unknown) {
+  if (error instanceof RateLimitError) {
+    return {
+      message: error.message,
+      retryAt: error.retryAt.toISOString(),
+    };
+  }
+
+  return null;
+}
+
 function checkMemoryRateLimit(input: RateLimitInput): RateLimitResult {
   const now = Date.now();
   const current = buckets.get(input.key);
@@ -88,7 +109,7 @@ export async function assertRateLimit(input: RateLimitInput) {
   const result = await checkRateLimit(input);
 
   if (!result.allowed) {
-    throw new Error(`Too many requests. Try again after ${result.resetAt.toLocaleTimeString()}.`);
+    throw new RateLimitError(result.resetAt);
   }
 
   return result;

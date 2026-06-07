@@ -6,6 +6,7 @@ import {
   uploadTrainingPlanEvidence,
   type TrainingPlanEvidenceKind,
 } from "@/lib/training-plan";
+import { getRateLimitFeedback } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -101,8 +102,12 @@ export async function POST(
 
     return redirectToCompany(companyId);
   } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Training plan evidence upload failed.";
+    const rateLimit = getRateLimitFeedback(error);
+    const message = rateLimit
+      ? `${rateLimit.message} Your selected evidence type has been preserved for retry.`
+      : error instanceof Error
+        ? error.message
+        : "Training plan evidence upload failed.";
 
     return redirectToUploadForm({
       companyId,

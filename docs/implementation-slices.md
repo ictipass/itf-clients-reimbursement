@@ -2727,3 +2727,23 @@ Files:
 - existing rate-limited flows
 - `.env.example`
 - workflow docs
+
+### Slice 139: Friendly Rate-Limit Feedback
+
+Goal: give users actionable feedback when a sensitive flow is temporarily limited.
+
+Implemented design:
+
+- Added a structured `RateLimitError` with retry time metadata
+- Added a reusable rate-limit feedback extractor
+- Improved sign-in rate-limit wording
+- Preserved the selected training-plan evidence type when an upload is rate limited
+- Returned a clear wait-and-retry instruction instead of a raw runtime error
+
+Files:
+
+- `lib/rate-limit.ts`
+- `lib/auth.ts`
+- `app/sign-in/sign-in-form.tsx`
+- training-plan evidence upload route
+- workflow docs

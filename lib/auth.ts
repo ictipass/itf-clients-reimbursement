@@ -4,7 +4,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { writeIdentitySecurityAuditEvent } from "@/lib/audit";
 import { getDb } from "@/lib/db";
 import { seedRoles } from "@/lib/domain";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit, RateLimitError } from "@/lib/rate-limit";
 import { roles, type Role } from "@/lib/rbac";
 
 const fallbackRole: Role = "SYSTEM_ADMIN";
@@ -120,9 +120,7 @@ export const authOptions: NextAuthOptions = {
               },
             });
 
-            throw new Error(
-              `Too many requests. Try again after ${rateLimit.resetAt.toLocaleTimeString()}.`,
-            );
+            throw new RateLimitError(rateLimit.resetAt);
           }
         }
 

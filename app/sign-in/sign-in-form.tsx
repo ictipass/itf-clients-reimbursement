@@ -36,7 +36,11 @@ export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
       return;
     }
 
-    setError("The email or password was not accepted.");
+    setError(
+      result?.error?.toLowerCase().includes("too many requests")
+        ? "Too many sign-in attempts. Please wait a few minutes before trying again."
+        : "The email or password was not accepted.",
+    );
   }
 
   return (
