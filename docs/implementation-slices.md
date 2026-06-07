@@ -2818,3 +2818,22 @@ Files:
 - sign-in page and form
 - `.env.example`
 - workflow docs
+
+### Slice 144: Upload Quarantine Foundation
+
+Goal: prevent newly uploaded documents from being trusted before security scanning.
+
+Implemented design:
+
+- Added pending, safe, quarantined, and rejected document scan statuses
+- Added scan date and scan-reason metadata
+- Migrated existing documents as safe while making new documents pending by default
+- Added a reusable document-safe access guard
+- Applied the guard to company evidence viewing and download
+
+Files:
+
+- Prisma schema and migration
+- `lib/document-security.ts`
+- `lib/evidence.ts`
+- workflow docs

@@ -77,6 +77,13 @@ enum DocumentAccess {
   PUBLIC
 }
 
+enum DocumentScanStatus {
+  PENDING_SCAN
+  SAFE
+  QUARANTINED
+  REJECTED
+}
+
 enum WorkflowStatus {
   DRAFT
   SUBMITTED
@@ -871,6 +878,9 @@ model Document {
   mimeType                   String
   fileSize                   Int
   access                     DocumentAccess           @default(PRIVATE)
+  scanStatus                 DocumentScanStatus       @default(PENDING_SCAN)
+  scannedAt                  DateTime?
+  scanReason                 String?
   classification             String                   @default("OFFICIAL")
   retentionPolicy            String?
   expiresAt                  DateTime?
@@ -896,6 +906,7 @@ model Document {
   @@index([registrationApplicationId, kind, recordTier, isActive])
   @@index([trainingPlanSubmissionId, kind, recordTier, isActive])
   @@index([trainingMonitoringRecordId, kind, recordTier, isActive])
+  @@index([scanStatus, recordTier, isActive])
 }
 
 model Decision {

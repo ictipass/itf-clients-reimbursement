@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { assertDocumentSafe } from "@/lib/document-security";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 import { downloadObject, uploadObject } from "@/lib/storage";
@@ -134,6 +135,8 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
       mimeType: true,
       fileSize: true,
       access: true,
+      scanStatus: true,
+      scanReason: true,
     },
   });
 
@@ -144,6 +147,7 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
   if (document.access !== "PRIVATE") {
     throw new Error("Unsupported document access policy.");
   }
+  assertDocumentSafe(document);
 
   const requester = await db.user.findUnique({
     where: {
