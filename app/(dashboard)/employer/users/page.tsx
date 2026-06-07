@@ -10,7 +10,11 @@ import {
   revokeEmployerInvitationAction,
 } from "@/app/(dashboard)/employer/users/actions";
 import { authOptions } from "@/lib/auth";
-import { getEmployerRoles, listEmployerMemberManagementData } from "@/lib/employer-members";
+import {
+  EmployerOrganizationRequiredError,
+  getEmployerRoles,
+  listEmployerMemberManagementData,
+} from "@/lib/employer-members";
 
 function formatRole(role: string) {
   return role.replaceAll("_", " ");
@@ -26,7 +30,55 @@ export default async function EmployerUsersPage({
   const session = await getServerSession(authOptions);
   if (!session?.user?.email || session.user.role !== "EMPLOYER_ADMIN") redirect("/dashboard");
   const query = await searchParams;
-  const data = await listEmployerMemberManagementData(session.user.email);
+  let data: Awaited<ReturnType<typeof listEmployerMemberManagementData>> | null = null;
+
+  try {
+    data = await listEmployerMemberManagementData(session.user.email);
+  } catch (error) {
+    if (!(error instanceof EmployerOrganizationRequiredError)) throw error;
+  }
+
+  if (!data) {
+    return (
+      <div className="mx-auto grid max-w-4xl gap-6 px-6 py-8 lg:px-8">
+        <section>
+          <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
+            Organization administration
+          </p>
+          <h1 className="mt-2 text-3xl font-semibold tracking-tight">Organization users</h1>
+        </section>
+
+        <section
+          role="alert"
+          className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-950"
+        >
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-800">
+            Company setup required
+          </p>
+          <h2 className="mt-2 text-xl font-semibold">Create your first company first</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6">
+            Organization user management becomes available after your first company is created.
+            Creating the company also establishes your employer organization and links your
+            administrator account to it.
+          </p>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Link
+              href="/registry/new"
+              className="inline-flex min-h-11 items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
+            >
+              Create first company
+            </Link>
+            <Link
+              href="/dashboard"
+              className="inline-flex min-h-11 items-center rounded-md border border-amber-300 bg-white px-4 text-sm font-semibold text-amber-950"
+            >
+              Return to dashboard
+            </Link>
+          </div>
+        </section>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto grid max-w-7xl gap-6 px-6 py-8 lg:px-8">

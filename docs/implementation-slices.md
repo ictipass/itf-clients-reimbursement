@@ -2964,3 +2964,19 @@ Files:
 - employer user-management page and actions
 - public invitation acceptance page and action
 - navigation, feature gates, and proxy
+
+### Post-Slice 145: Organization Users Prerequisite UX Hardening
+
+Goal: handle employer accounts that open Organization Users before creating their first company.
+
+Implemented design:
+
+- Classified the missing employer organization as an expected onboarding prerequisite
+- Replaced the server error page with an accessible prerequisite alert
+- Added direct actions to create the first company or return to the dashboard
+- Preserved genuine unexpected errors for diagnosis
+
+Files:
+
+- `lib/employer-members.ts`
+- Organization Users page

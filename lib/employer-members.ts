@@ -7,6 +7,13 @@ import type { Role } from "@/lib/rbac";
 const employerRoles = ["EMPLOYER_ADMIN", "EMPLOYER_SUBMITTER", "EMPLOYER_VIEWER"] as const;
 export type EmployerRole = (typeof employerRoles)[number];
 
+export class EmployerOrganizationRequiredError extends Error {
+  constructor(message = "Create your first company before managing organization users.") {
+    super(message);
+    this.name = "EmployerOrganizationRequiredError";
+  }
+}
+
 function hashToken(token: string) {
   return createHash("sha256").update(token).digest("hex");
 }
@@ -40,11 +47,8 @@ async function getEmployerAdminContext(requesterEmail: string) {
   });
 
   if (!user || user.memberships.length !== 1 || !user.memberships[0].organizationId) {
-    throw new Error(
-      user?.memberships.length
-        ? "Select one active employer organization before managing its users."
-        : "An active employer administrator membership is required.",
-    );
+    if (!user?.memberships.length) throw new EmployerOrganizationRequiredError();
+    throw new Error("Select one active employer organization before managing its users.");
   }
 
   return {
