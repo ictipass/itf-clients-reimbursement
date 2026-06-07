@@ -28,6 +28,12 @@ The default `npm run dev` command uses Next.js 16 Turbopack. On the current loca
 
 See [docs/implementation-slices.md](docs/implementation-slices.md).
 
+Product and maintenance documentation:
+
+- [Production readiness roadmap](docs/production-readiness-roadmap.md)
+- [User, support, and stakeholder guide](docs/user-support-guide.md)
+- [Developer maintenance and extension guide](docs/developer-maintenance-guide.md)
+
 ## Architecture
 
 See [docs/enterprise-architecture.md](docs/enterprise-architecture.md).
