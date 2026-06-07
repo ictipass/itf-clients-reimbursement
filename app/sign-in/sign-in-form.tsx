@@ -55,10 +55,10 @@ export function SignInForm({ callbackUrl, initialError, oauthProviders }: SignIn
               onClick={() => signIn(provider.id, { callbackUrl: safeCallbackUrl(callbackUrl) })}
               className="min-h-11 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800"
             >
-              Continue with {provider.name}
+              Sign in with {provider.name}
             </button>
           ))}
-          <p className="text-center text-xs text-zinc-500">or use development credentials</p>
+          <p className="text-center text-xs text-zinc-500">or sign in with portal credentials</p>
         </div>
       ) : null}
       <form action={handleSubmit} className="grid gap-4">
@@ -67,7 +67,6 @@ export function SignInForm({ callbackUrl, initialError, oauthProviders }: SignIn
         <input
           name="email"
           type="email"
-          defaultValue="admin@itf.local"
           required
           disabled={isPending}
           className="min-h-11 rounded-md border border-zinc-300 px-3"
@@ -78,7 +77,6 @@ export function SignInForm({ callbackUrl, initialError, oauthProviders }: SignIn
         <input
           name="password"
           type="password"
-          placeholder="ChangeMe123!"
           required
           disabled={isPending}
           className="min-h-11 rounded-md border border-zinc-300 px-3"
