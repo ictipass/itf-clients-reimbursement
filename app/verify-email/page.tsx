@@ -18,6 +18,7 @@ export default async function VerifyEmailPage({
         <Link href={isVerified ? "/sign-in?callbackUrl=/dashboard" : "/get-started"} className="mt-5 inline-flex min-h-11 items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
           {isVerified ? "Sign in and continue" : "Return to registration"}
         </Link>
+        {!isVerified ? <Link href="/verify-email/resend" className="mt-4 block text-sm font-semibold text-[#800020]">Request a fresh verification link</Link> : null}
       </section>
     </main>
   );

@@ -3122,3 +3122,10 @@ Implemented design:
   by the developer database owner
 - Kept database migration execution separate from application verification to avoid destructive
   reset behavior when a development database has drift
+
+### Slice 157: Email Verification Resend Flow
+
+- Added a rate-limited, enumeration-resistant verification resend page
+- Invalidated previous unused verification tokens before issuing a replacement
+- Delivered fresh verification links through the configured email delivery mode
+- Exposed replacement links only when a development-link email mode is active

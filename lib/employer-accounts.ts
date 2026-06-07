@@ -109,6 +109,28 @@ export async function verifyEmployerEmail(token: string) {
   await ensureEmployerMembership(record.userId);
 }
 
+export async function createReplacementVerificationToken(email: string) {
+  const db = getDb();
+  const user = await db.user.findUnique({
+    where: { email: email.trim().toLowerCase() },
+    select: { id: true, email: true, name: true, emailVerifiedAt: true },
+  });
+  if (!user || user.emailVerifiedAt) return null;
+
+  const token = randomBytes(32).toString("base64url");
+  const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  await db.$transaction([
+    db.emailVerificationToken.updateMany({
+      where: { userId: user.id, usedAt: null },
+      data: { usedAt: new Date() },
+    }),
+    db.emailVerificationToken.create({
+      data: { userId: user.id, tokenHash: tokenHash(token), expiresAt },
+    }),
+  ]);
+  return { token, email: user.email, name: user.name };
+}
+
 export async function authenticatePortalAccount(email: string, password: string) {
   const user = await getDb().user.findUnique({
     where: { email: email.toLowerCase() },
