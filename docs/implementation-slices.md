@@ -3155,3 +3155,10 @@ Implemented design:
   Organization Users
 - Displayed the responsible actor, reason, and date without exposing sensitive audit metadata
 - Scoped history to the selected active employer organization
+
+### Slice 162: User Account Lifecycle Management
+
+- Added directory user deactivation and reactivation controls
+- Prevented administrators from deactivating their own account
+- Prevented deactivation of an organization's final active employer administrator
+- Audited account-status changes while preserving user and membership history

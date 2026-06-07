@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
-import { createDirectoryUserAction } from "@/app/(dashboard)/settings/users/actions";
+import { createDirectoryUserAction, updateDirectoryUserStatusAction } from "@/app/(dashboard)/settings/users/actions";
 import { UserEditDialog } from "@/app/(dashboard)/settings/users/user-edit-dialog";
 import { authOptions } from "@/lib/auth";
 import { can, roles } from "@/lib/rbac";
@@ -274,7 +274,16 @@ export default async function UserDirectoryPage({
                     </span>
                   </td>
                   <td className="px-4 py-4 text-right align-top">
-                    <UserEditDialog user={user} />
+                    <div className="flex justify-end gap-2">
+                      <UserEditDialog user={user} />
+                      <form action={updateDirectoryUserStatusAction}>
+                        <input type="hidden" name="userId" value={user.id} />
+                        <input type="hidden" name="isActive" value={user.isActive ? "false" : "true"} />
+                        <button className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold">
+                          {user.isActive ? "Deactivate" : "Reactivate"}
+                        </button>
+                      </form>
+                    </div>
                   </td>
                 </tr>
               ))}

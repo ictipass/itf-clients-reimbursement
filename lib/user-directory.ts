@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { writeAuditEvent } from "@/lib/audit";
 import { can, roles, type Role } from "@/lib/rbac";
 import { maxUploadBytes, sanitizeFileName } from "@/lib/storage/security";
 
@@ -185,6 +186,52 @@ export async function updateDirectoryUser(input: UpdateDirectoryUserInput) {
       id: true,
     },
   });
+}
+
+export async function updateDirectoryUserStatus(input: {
+  requesterEmail: string;
+  requesterRole: Role;
+  userId: string;
+  isActive: boolean;
+}) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to update user status.");
+  }
+  const db = getDb();
+  const [requester, user] = await Promise.all([
+    db.user.findUnique({
+      where: { email: input.requesterEmail.toLowerCase() },
+      select: { id: true, email: true, memberships: { where: { isActive: true }, select: { workspaceId: true }, take: 1 } },
+    }),
+    db.user.findUnique({
+      where: { id: input.userId },
+      select: { id: true, email: true, isActive: true, memberships: { where: { isActive: true, role: "EMPLOYER_ADMIN", organizationId: { not: null } }, select: { organizationId: true } } },
+    }),
+  ]);
+  if (!requester || !user) throw new Error("Selected user was not found.");
+  if (!input.isActive && requester.id === user.id) throw new Error("You cannot deactivate your own account.");
+  if (!input.isActive) {
+    for (const membership of user.memberships) {
+      const administrators = await db.membership.count({
+        where: { organizationId: membership.organizationId, role: "EMPLOYER_ADMIN", isActive: true, user: { isActive: true } },
+      });
+      if (administrators <= 1) throw new Error("Assign another active employer administrator before deactivating this user.");
+    }
+  }
+  if (user.isActive === input.isActive) return;
+  await db.user.update({ where: { id: user.id }, data: { isActive: input.isActive } });
+  const workspaceId = requester.memberships[0]?.workspaceId;
+  if (workspaceId) {
+    await writeAuditEvent({
+      action: "UPDATE",
+      actor: { id: requester.id, email: requester.email, role: input.requesterRole },
+      workspaceId,
+      entityType: "User",
+      entityId: user.id,
+      reason: input.isActive ? "Directory user account reactivated." : "Directory user account deactivated.",
+      metadata: { targetEmail: user.email, isActive: input.isActive },
+    });
+  }
 }
 
 export async function importDirectoryUsers(input: ImportDirectoryUsersInput) {
