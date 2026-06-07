@@ -70,6 +70,7 @@ export default async function VerifyCertificatePage({
               <p className="text-lg font-semibold tracking-tight">Certificate verification</p>
             </div>
           </Link>
+          <Link href="/" className="w-fit text-sm font-semibold text-[#800020]">Back to home</Link>
         </div>
       </header>
 
