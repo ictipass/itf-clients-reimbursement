@@ -23,6 +23,7 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
         select: {
           id: true,
           memberships: {
+            where: { isActive: true },
             select: {
               organizationId: true,
               areaOfficeId: true,
@@ -131,6 +132,7 @@ export async function getModuleAttentionCounts(input: AttentionSummaryInput) {
         select: {
           id: true,
           memberships: {
+            where: { isActive: true },
             select: {
               organizationId: true,
               areaOfficeId: true,

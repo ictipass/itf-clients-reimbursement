@@ -1094,6 +1094,7 @@ export async function downloadRegistrationCertificate(
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -1189,6 +1190,7 @@ export async function downloadComplianceCertificate(input: DownloadComplianceCer
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },

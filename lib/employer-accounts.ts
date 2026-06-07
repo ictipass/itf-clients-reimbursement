@@ -29,10 +29,21 @@ export async function ensureEmployerMembership(userId: string) {
   const workspaceId = await getActiveWorkspaceId();
   const existing = await db.membership.findFirst({
     where: { userId, workspaceId, organizationId: null, role: "EMPLOYER_ADMIN" },
-    select: { id: true },
+    select: { id: true, isActive: true },
   });
 
-  if (!existing) {
+  if (existing && !existing.isActive) {
+    await db.membership.update({
+      where: { id: existing.id },
+      data: {
+        isActive: true,
+        activatedAt: new Date(),
+        deactivatedAt: null,
+        deactivatedById: null,
+        deactivatedReason: null,
+      },
+    });
+  } else if (!existing) {
     await db.membership.create({
       data: { userId, workspaceId, role: "EMPLOYER_ADMIN" },
     });
@@ -108,7 +119,7 @@ export async function authenticatePortalAccount(email: string, password: string)
       passwordHash: true,
       emailVerifiedAt: true,
       isActive: true,
-      memberships: { select: { role: true }, take: 1 },
+      memberships: { where: { isActive: true }, select: { role: true }, take: 1 },
     },
   });
 
@@ -125,7 +136,7 @@ export async function provisionVerifiedGoogleEmployer(email: string, name: strin
     select: {
       id: true,
       isActive: true,
-      memberships: { select: { id: true }, take: 1 },
+      memberships: { where: { isActive: true }, select: { id: true }, take: 1 },
     },
   });
 

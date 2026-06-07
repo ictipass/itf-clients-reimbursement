@@ -158,6 +158,7 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -242,6 +243,7 @@ export async function deleteCompanyEvidence(input: DeleteCompanyEvidenceInput) {
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },

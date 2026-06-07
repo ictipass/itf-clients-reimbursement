@@ -64,6 +64,9 @@ export async function listDirectoryUsers(input: { requesterRole: Role }) {
         select: {
           id: true,
           role: true,
+          isActive: true,
+          activatedAt: true,
+          deactivatedAt: true,
           areaOffice: {
             select: {
               name: true,

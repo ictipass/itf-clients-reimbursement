@@ -261,6 +261,7 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -582,6 +583,7 @@ export async function routeRegistrationApplication(input: RouteRegistrationAppli
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           areaOfficeId: true,
         },
@@ -735,6 +737,7 @@ export async function assessRegistrationContribution(input: AssessRegistrationCo
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           areaOfficeId: true,
         },
@@ -911,6 +914,7 @@ export async function confirmRegistrationContribution(input: ConfirmRegistration
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           areaOfficeId: true,
         },
@@ -1038,6 +1042,7 @@ export async function releaseRegistrationContribution(input: ReleaseRegistration
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           areaOfficeId: true,
         },
@@ -1170,6 +1175,7 @@ export async function uploadRegistrationContributionReceipt(
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -1350,6 +1356,7 @@ export async function reviewRegistrationContributionReceipt(
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           areaOfficeId: true,
         },
@@ -1492,6 +1499,7 @@ export async function notifyRegistrationHeadquarters(
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           areaOfficeId: true,
         },
@@ -1990,6 +1998,7 @@ export async function recordLegacyRegistration(input: RecordLegacyRegistrationIn
       select: {
         id: true,
         memberships: {
+          where: { isActive: true },
           select: {
             areaOfficeId: true,
           },
@@ -2186,6 +2195,7 @@ export async function reviewLegacyRegistrationClaim(input: ReviewLegacyRegistrat
       select: {
         id: true,
         memberships: {
+          where: { isActive: true },
           select: {
             areaOfficeId: true,
           },

@@ -304,7 +304,8 @@ model User {
   isActive                                         Boolean                              @default(true)
   createdAt                                        DateTime                             @default(now())
   updatedAt                                        DateTime                             @updatedAt
-  memberships                                      Membership[]
+  memberships                                      Membership[]                         @relation("MembershipUser")
+  deactivatedMemberships                           Membership[]                         @relation("MembershipDeactivatedBy")
   uploadedDocs                                     Document[]                           @relation("UploadedDocuments")
   submittedRegistrationApplications                RegistrationApplication[]            @relation("SubmittedRegistrationApplications")
   registrationContributionAssessments              RegistrationContributionAssessment[] @relation("RegistrationContributionAssessments")
@@ -336,20 +337,29 @@ model EmailVerificationToken {
 }
 
 model Membership {
-  id             String        @id @default(cuid())
-  userId         String
-  workspaceId    String
-  organizationId String?
-  areaOfficeId   String?
-  role           Role
-  createdAt      DateTime      @default(now())
-  user           User          @relation(fields: [userId], references: [id])
-  workspace      Workspace     @relation(fields: [workspaceId], references: [id])
-  organization   Organization? @relation(fields: [organizationId], references: [id])
-  areaOffice     AreaOffice?   @relation(fields: [areaOfficeId], references: [id])
+  id                String        @id @default(cuid())
+  userId            String
+  workspaceId       String
+  organizationId    String?
+  areaOfficeId      String?
+  role              Role
+  isActive          Boolean       @default(true)
+  activatedAt       DateTime      @default(now())
+  deactivatedAt     DateTime?
+  deactivatedById   String?
+  deactivatedReason String?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  user              User          @relation("MembershipUser", fields: [userId], references: [id])
+  deactivatedBy     User?         @relation("MembershipDeactivatedBy", fields: [deactivatedById], references: [id])
+  workspace         Workspace     @relation(fields: [workspaceId], references: [id])
+  organization      Organization? @relation(fields: [organizationId], references: [id])
+  areaOffice        AreaOffice?   @relation(fields: [areaOfficeId], references: [id])
 
   @@unique([userId, workspaceId, organizationId, role])
   @@index([areaOfficeId, role])
+  @@index([organizationId, role, isActive])
+  @@index([userId, isActive])
 }
 
 model Company {
@@ -396,28 +406,28 @@ model Company {
 }
 
 model RegistrationApplication {
-  id                     String                              @id @default(cuid())
-  companyId              String                              @unique
-  areaOfficeId           String
-  submittedById          String?
-  registrationKind       RegistrationApplicationKind          @default(NEW_EMPLOYER)
+  id                       String                              @id @default(cuid())
+  companyId                String                              @unique
+  areaOfficeId             String
+  submittedById            String?
+  registrationKind         RegistrationApplicationKind         @default(NEW_EMPLOYER)
   claimedItfEmployerNumber String?
-  status                 WorkflowStatus                      @default(DRAFT)
-  currentDesk            RegistrationDesk                    @default(COMPANY)
-  correctionReturnDesk   RegistrationDesk?
-  submittedAt            DateTime?
-  completedAt            DateTime?
-  recordTier             RecordTier                          @default(HOT)
-  createdAt              DateTime                            @default(now())
-  updatedAt              DateTime                            @updatedAt
-  company                Company                             @relation(fields: [companyId], references: [id])
-  areaOffice             AreaOffice                          @relation(fields: [areaOfficeId], references: [id])
-  submittedBy            User?                               @relation("SubmittedRegistrationApplications", fields: [submittedById], references: [id])
-  decisions              Decision[]
-  documents              Document[]
-  workItems              WorkItem[]
-  contributionAssessment RegistrationContributionAssessment?
-  certificate            RegistrationCertificate?
+  status                   WorkflowStatus                      @default(DRAFT)
+  currentDesk              RegistrationDesk                    @default(COMPANY)
+  correctionReturnDesk     RegistrationDesk?
+  submittedAt              DateTime?
+  completedAt              DateTime?
+  recordTier               RecordTier                          @default(HOT)
+  createdAt                DateTime                            @default(now())
+  updatedAt                DateTime                            @updatedAt
+  company                  Company                             @relation(fields: [companyId], references: [id])
+  areaOffice               AreaOffice                          @relation(fields: [areaOfficeId], references: [id])
+  submittedBy              User?                               @relation("SubmittedRegistrationApplications", fields: [submittedById], references: [id])
+  decisions                Decision[]
+  documents                Document[]
+  workItems                WorkItem[]
+  contributionAssessment   RegistrationContributionAssessment?
+  certificate              RegistrationCertificate?
 
   @@index([areaOfficeId, currentDesk, status, recordTier])
   @@index([registrationKind, status, recordTier])
@@ -711,37 +721,37 @@ model TrainingPlanLineItem {
 }
 
 model TrainingRequest {
-  id                   String                @id @default(cuid())
-  companyId            String
+  id                     String                     @id @default(cuid())
+  companyId              String
   trainingPlanLineItemId String?
-  title                String
-  description          String?
-  trainingType         String?
-  provider             String
-  venue                String?
-  startsAt             DateTime
-  endsAt               DateTime
-  participantCount     Int?
-  estimatedCost        Decimal               @db.Decimal(14, 2)
-  expectedOutcome      String?
-  approvalReference    String?
-  approvedOriginalRef  String?
-  approvedDuplicateRef String?
-  status               WorkflowStatus        @default(DRAFT)
-  currentDesk          TrainingRequestDesk    @default(COMPANY)
-  recordTier           RecordTier            @default(HOT)
-  submittedAt          DateTime?
-  approvedAt           DateTime?
-  createdAt            DateTime              @default(now())
-  updatedAt            DateTime              @updatedAt
-  company              Company               @relation(fields: [companyId], references: [id])
-  trainingPlanLineItem TrainingPlanLineItem?  @relation(fields: [trainingPlanLineItemId], references: [id])
-  documents            Document[]
-  participants         TrainingParticipant[]
-  monitoringRecords    TrainingMonitoringRecord[]
-  claims               ReimbursementClaim[]
-  decisions            Decision[]
-  comments             Comment[]
+  title                  String
+  description            String?
+  trainingType           String?
+  provider               String
+  venue                  String?
+  startsAt               DateTime
+  endsAt                 DateTime
+  participantCount       Int?
+  estimatedCost          Decimal                    @db.Decimal(14, 2)
+  expectedOutcome        String?
+  approvalReference      String?
+  approvedOriginalRef    String?
+  approvedDuplicateRef   String?
+  status                 WorkflowStatus             @default(DRAFT)
+  currentDesk            TrainingRequestDesk        @default(COMPANY)
+  recordTier             RecordTier                 @default(HOT)
+  submittedAt            DateTime?
+  approvedAt             DateTime?
+  createdAt              DateTime                   @default(now())
+  updatedAt              DateTime                   @updatedAt
+  company                Company                    @relation(fields: [companyId], references: [id])
+  trainingPlanLineItem   TrainingPlanLineItem?      @relation(fields: [trainingPlanLineItemId], references: [id])
+  documents              Document[]
+  participants           TrainingParticipant[]
+  monitoringRecords      TrainingMonitoringRecord[]
+  claims                 ReimbursementClaim[]
+  decisions              Decision[]
+  comments               Comment[]
 
   @@index([companyId, status, recordTier])
   @@index([currentDesk, status, recordTier])
@@ -771,27 +781,27 @@ model TrainingParticipant {
 }
 
 model TrainingMonitoringRecord {
-  id                       String                 @id @default(cuid())
-  trainingRequestId        String
-  mode                     TrainingMonitoringMode
-  monitoringDate           DateTime?
-  startsAt                 DateTime?
-  endsAt                   DateTime?
-  meetingId                String?
-  passcode                 String?
-  virtualLink              String?
-  monitoringOfficerName    String?
-  monitoringOfficerTitle   String?
-  headOfDivisionName       String?
-  directorName             String?
-  status                   WorkflowStatus         @default(DRAFT)
-  recordTier               RecordTier             @default(HOT)
-  createdAt                DateTime               @default(now())
-  updatedAt                DateTime               @updatedAt
-  trainingRequest          TrainingRequest        @relation(fields: [trainingRequestId], references: [id])
-  documents                Document[]
-  evaluations              TrainingMonitoringEvaluation[]
-  workItems                WorkItem[]
+  id                     String                         @id @default(cuid())
+  trainingRequestId      String
+  mode                   TrainingMonitoringMode
+  monitoringDate         DateTime?
+  startsAt               DateTime?
+  endsAt                 DateTime?
+  meetingId              String?
+  passcode               String?
+  virtualLink            String?
+  monitoringOfficerName  String?
+  monitoringOfficerTitle String?
+  headOfDivisionName     String?
+  directorName           String?
+  status                 WorkflowStatus                 @default(DRAFT)
+  recordTier             RecordTier                     @default(HOT)
+  createdAt              DateTime                       @default(now())
+  updatedAt              DateTime                       @updatedAt
+  trainingRequest        TrainingRequest                @relation(fields: [trainingRequestId], references: [id])
+  documents              Document[]
+  evaluations            TrainingMonitoringEvaluation[]
+  workItems              WorkItem[]
 
   @@index([trainingRequestId, status, recordTier])
   @@index([mode, status, recordTier])
@@ -871,7 +881,7 @@ model ReimbursementClaimLine {
 }
 
 model Document {
-  id                         String                   @id @default(cuid())
+  id                         String                    @id @default(cuid())
   organizationId             String
   companyId                  String?
   registrationApplicationId  String?
@@ -892,28 +902,28 @@ model Document {
   checksum                   String
   mimeType                   String
   fileSize                   Int
-  access                     DocumentAccess           @default(PRIVATE)
-  scanStatus                 DocumentScanStatus       @default(PENDING_SCAN)
+  access                     DocumentAccess            @default(PRIVATE)
+  scanStatus                 DocumentScanStatus        @default(PENDING_SCAN)
   scannedAt                  DateTime?
   scanReason                 String?
-  classification             String                   @default("OFFICIAL")
+  classification             String                    @default("OFFICIAL")
   retentionPolicy            String?
   expiresAt                  DateTime?
   revokedAt                  DateTime?
-  recordTier                 RecordTier               @default(HOT)
-  isActive                   Boolean                  @default(true)
-  createdAt                  DateTime                 @default(now())
-  organization               Organization             @relation(fields: [organizationId], references: [id])
-  company                    Company?                 @relation(fields: [companyId], references: [id])
-  registrationApplication    RegistrationApplication? @relation(fields: [registrationApplicationId], references: [id])
-  complianceYear             ComplianceYear?          @relation(fields: [complianceYearId], references: [id])
-  trainingPlanSubmission     TrainingPlanSubmission?  @relation(fields: [trainingPlanSubmissionId], references: [id])
-  trainingRequest            TrainingRequest?         @relation(fields: [trainingRequestId], references: [id])
+  recordTier                 RecordTier                @default(HOT)
+  isActive                   Boolean                   @default(true)
+  createdAt                  DateTime                  @default(now())
+  organization               Organization              @relation(fields: [organizationId], references: [id])
+  company                    Company?                  @relation(fields: [companyId], references: [id])
+  registrationApplication    RegistrationApplication?  @relation(fields: [registrationApplicationId], references: [id])
+  complianceYear             ComplianceYear?           @relation(fields: [complianceYearId], references: [id])
+  trainingPlanSubmission     TrainingPlanSubmission?   @relation(fields: [trainingPlanSubmissionId], references: [id])
+  trainingRequest            TrainingRequest?          @relation(fields: [trainingRequestId], references: [id])
   trainingMonitoringRecord   TrainingMonitoringRecord? @relation(fields: [trainingMonitoringRecordId], references: [id])
-  reimbursementClaim         ReimbursementClaim?      @relation(fields: [reimbursementClaimId], references: [id])
-  uploadedBy                 User                     @relation("UploadedDocuments", fields: [uploadedById], references: [id])
-  certificateTemplateDesigns CertificateTemplate[]    @relation("CertificateTemplateDesignDocument")
-  signatureAssets            SignatureAsset[]         @relation("SignatureAssetDocument")
+  reimbursementClaim         ReimbursementClaim?       @relation(fields: [reimbursementClaimId], references: [id])
+  uploadedBy                 User                      @relation("UploadedDocuments", fields: [uploadedById], references: [id])
+  certificateTemplateDesigns CertificateTemplate[]     @relation("CertificateTemplateDesignDocument")
+  signatureAssets            SignatureAsset[]          @relation("SignatureAssetDocument")
   decisions                  Decision[]
   comments                   Comment[]
 
@@ -977,38 +987,38 @@ model Comment {
 }
 
 model WorkItem {
-  id                        String                   @id @default(cuid())
-  workspaceId               String
-  organizationId            String?
-  areaOfficeId              String?
-  companyId                 String?
-  registrationApplicationId String?
-  complianceYearId          String?
-  trainingPlanSubmissionId  String?
+  id                         String                    @id @default(cuid())
+  workspaceId                String
+  organizationId             String?
+  areaOfficeId               String?
+  companyId                  String?
+  registrationApplicationId  String?
+  complianceYearId           String?
+  trainingPlanSubmissionId   String?
   trainingMonitoringRecordId String?
-  assignedUserId            String?
-  assignedRole              Role?
-  app                       WorkspaceApp             @default(REIMBURSEMENT)
-  kind                      WorkItemKind
-  status                    WorkItemStatus           @default(OPEN)
-  priority                  WorkItemPriority         @default(NORMAL)
-  title                     String
-  summary                   String?
-  targetHref                String
-  sourceKey                 String                   @unique
-  resolvedAt                DateTime?
-  recordTier                RecordTier               @default(HOT)
-  createdAt                 DateTime                 @default(now())
-  updatedAt                 DateTime                 @updatedAt
-  workspace                 Workspace                @relation(fields: [workspaceId], references: [id])
-  organization              Organization?            @relation(fields: [organizationId], references: [id])
-  areaOffice                AreaOffice?              @relation(fields: [areaOfficeId], references: [id])
-  company                   Company?                 @relation(fields: [companyId], references: [id])
-  registrationApplication   RegistrationApplication? @relation(fields: [registrationApplicationId], references: [id])
-  complianceYear            ComplianceYear?          @relation(fields: [complianceYearId], references: [id])
-  trainingPlanSubmission    TrainingPlanSubmission?  @relation(fields: [trainingPlanSubmissionId], references: [id])
-  trainingMonitoringRecord  TrainingMonitoringRecord? @relation(fields: [trainingMonitoringRecordId], references: [id])
-  assignedUser              User?                    @relation("AssignedWorkItems", fields: [assignedUserId], references: [id])
+  assignedUserId             String?
+  assignedRole               Role?
+  app                        WorkspaceApp              @default(REIMBURSEMENT)
+  kind                       WorkItemKind
+  status                     WorkItemStatus            @default(OPEN)
+  priority                   WorkItemPriority          @default(NORMAL)
+  title                      String
+  summary                    String?
+  targetHref                 String
+  sourceKey                  String                    @unique
+  resolvedAt                 DateTime?
+  recordTier                 RecordTier                @default(HOT)
+  createdAt                  DateTime                  @default(now())
+  updatedAt                  DateTime                  @updatedAt
+  workspace                  Workspace                 @relation(fields: [workspaceId], references: [id])
+  organization               Organization?             @relation(fields: [organizationId], references: [id])
+  areaOffice                 AreaOffice?               @relation(fields: [areaOfficeId], references: [id])
+  company                    Company?                  @relation(fields: [companyId], references: [id])
+  registrationApplication    RegistrationApplication?  @relation(fields: [registrationApplicationId], references: [id])
+  complianceYear             ComplianceYear?           @relation(fields: [complianceYearId], references: [id])
+  trainingPlanSubmission     TrainingPlanSubmission?   @relation(fields: [trainingPlanSubmissionId], references: [id])
+  trainingMonitoringRecord   TrainingMonitoringRecord? @relation(fields: [trainingMonitoringRecordId], references: [id])
+  assignedUser               User?                     @relation("AssignedWorkItems", fields: [assignedUserId], references: [id])
 
   @@index([workspaceId, app, status, recordTier, createdAt])
   @@index([areaOfficeId, assignedRole, status, recordTier])

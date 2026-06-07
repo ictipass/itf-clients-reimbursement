@@ -204,6 +204,11 @@ export default async function UserDirectoryPage({
                             {membership.areaOffice?.name ??
                               membership.organization?.name ??
                               "Workspace"}
+                            {!membership.isActive ? (
+                              <span className="ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-semibold text-zinc-600">
+                                inactive assignment
+                              </span>
+                            ) : null}
                           </p>
                         ))}
                       </div>

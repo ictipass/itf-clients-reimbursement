@@ -25,6 +25,7 @@ export default async function DashboardLayout({
           name: true,
           email: true,
           memberships: {
+            where: { isActive: true },
             select: {
               organizationId: true,
               areaOfficeId: true,

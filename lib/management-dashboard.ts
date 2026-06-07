@@ -98,6 +98,7 @@ export async function getManagementDashboardScope(input: {
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           areaOfficeId: true,
           areaOffice: {

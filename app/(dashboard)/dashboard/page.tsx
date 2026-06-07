@@ -85,6 +85,7 @@ export default async function DashboardPage() {
             organizationId: {
               not: null,
             },
+            isActive: true,
           },
           select: {
             organizationId: true,
@@ -347,6 +348,7 @@ export default async function DashboardPage() {
             areaOfficeId: {
               not: null,
             },
+            isActive: true,
           },
           select: {
             areaOfficeId: true,

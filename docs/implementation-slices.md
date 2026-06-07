@@ -2920,3 +2920,24 @@ Files:
 - `lib/registry.ts`
 - registry list, creation, detail, evidence, compliance, and Training Plan pages
 - registry company-creation action
+
+### Post-Slice 145: Membership Lifecycle Foundation
+
+Goal: preserve user identity and audit history when organizational or office access changes.
+
+Implemented design:
+
+- Added active, activation, deactivation, actor, reason, and update metadata to memberships
+- Enforced active memberships throughout authentication and workflow authorization lookups
+- Revalidated session roles against active directory memberships
+- Changed office-assignment removal from deletion to membership deactivation
+- Allowed a removed office assignment to be reactivated through reassignment
+- Prevented removal of an organization's final active Employer Administrator
+- Preserved inactive assignments in the user directory for administrative visibility
+
+Files:
+
+- Prisma schema and migration
+- `lib/membership-lifecycle.ts`
+- authentication, registry, workflow authorization, attention, and dashboard services
+- office-management and user-directory interfaces

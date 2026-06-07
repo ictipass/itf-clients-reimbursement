@@ -39,6 +39,7 @@ async function getEmployerOrganizationIds(requesterEmail: string) {
       user: { email: requesterEmail.toLowerCase() },
       role: { in: ["EMPLOYER_ADMIN", "EMPLOYER_SUBMITTER", "EMPLOYER_VIEWER"] },
       organizationId: { not: null },
+      isActive: true,
     },
     select: { organizationId: true },
   });
@@ -368,7 +369,7 @@ export async function createCompany(input: CreateCompanyInput) {
       select: {
         id: true,
         memberships: {
-          where: { role: "EMPLOYER_ADMIN" },
+          where: { role: "EMPLOYER_ADMIN", isActive: true },
           select: { id: true, workspaceId: true, organizationId: true },
         },
       },

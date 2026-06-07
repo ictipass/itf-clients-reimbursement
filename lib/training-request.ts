@@ -129,6 +129,7 @@ export async function createTrainingRequestFromLineItem(
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -536,6 +537,7 @@ async function getWorkflowActor(email: string) {
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
           areaOfficeId: true,

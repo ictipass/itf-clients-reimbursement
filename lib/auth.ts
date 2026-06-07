@@ -57,6 +57,7 @@ async function getDevelopmentTestUser(email: string, password: string) {
       name: true,
       isActive: true,
       memberships: {
+        where: { isActive: true },
         select: {
           role: true,
         },
@@ -85,7 +86,7 @@ async function getAuthorizedDirectoryUser(email: string) {
       email: true,
       name: true,
       isActive: true,
-      memberships: { select: { role: true }, take: 1 },
+      memberships: { where: { isActive: true }, select: { role: true }, take: 1 },
     },
   });
 
@@ -254,10 +255,17 @@ export const authOptions: NextAuthOptions = {
       return baseUrl;
     },
     async jwt({ token, user }) {
-      if (user) {
-        const directoryUser = user.email ? await getAuthorizedDirectoryUser(user.email) : null;
-        token.role = (user as User & { role?: Role }).role ?? directoryUser?.role ?? fallbackAdmin.role;
-        token.sub = directoryUser?.id ?? user.id;
+      const email = user?.email ?? token.email;
+      const directoryUser = email ? await getAuthorizedDirectoryUser(email) : null;
+
+      if (directoryUser) {
+        token.role = directoryUser.role;
+        token.sub = directoryUser.id;
+      } else if (user) {
+        token.role = (user as User & { role?: Role }).role ?? "EMPLOYER_VIEWER";
+        token.sub = user.id;
+      } else {
+        token.role = "EMPLOYER_VIEWER";
       }
 
       return token;

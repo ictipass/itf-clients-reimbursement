@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { deactivateMembership } from "@/lib/membership-lifecycle";
 import { can, type Role } from "@/lib/rbac";
 
 const areaOfficeOfficerRoles = [
@@ -35,6 +36,7 @@ export type AssignOfficeOfficerInput = {
 };
 
 export type RemoveOfficeOfficerInput = {
+  requesterEmail: string;
   requesterRole: Role;
   membershipId: string;
 };
@@ -77,6 +79,7 @@ export async function listOfficeManagementData(input: { requesterRole: Role }) {
         memberships: {
           where: {
             areaOfficeId: null,
+            isActive: true,
             role: {
               in: [...headquartersOfficerRoles],
             },
@@ -116,6 +119,7 @@ export async function listOfficeManagementData(input: { requesterRole: Role }) {
         },
         memberships: {
           where: {
+            isActive: true,
             role: {
               in: [...areaOfficeOfficerRoles],
             },
@@ -213,6 +217,11 @@ export async function assignOfficeOfficer(input: AssignOfficeOfficerInput) {
     },
     update: {
       areaOfficeId: office.areaOfficeId,
+      isActive: true,
+      activatedAt: new Date(),
+      deactivatedAt: null,
+      deactivatedById: null,
+      deactivatedReason: null,
     },
     create: {
       id: membershipId,
@@ -303,13 +312,11 @@ export async function removeOfficeOfficer(input: RemoveOfficeOfficerInput) {
     throw new Error("You do not have permission to remove office officers.");
   }
 
-  return getDb().membership.delete({
-    where: {
-      id: input.membershipId,
-    },
-    select: {
-      id: true,
-    },
+  return deactivateMembership({
+    requesterEmail: input.requesterEmail,
+    requesterRole: input.requesterRole,
+    membershipId: input.membershipId,
+    reason: "Officer assignment removed from office management.",
   });
 }
 

@@ -106,6 +106,7 @@ export async function removeOfficeOfficerAction(formData: FormData) {
 
   try {
     await removeOfficeOfficer({
+      requesterEmail: session.user.email,
       requesterRole: session.user.role,
       membershipId: readRequiredString(formData, "membershipId"),
     });

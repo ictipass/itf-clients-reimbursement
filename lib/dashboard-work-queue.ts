@@ -27,6 +27,7 @@ export async function listEmployerDashboardActions(input: {
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },

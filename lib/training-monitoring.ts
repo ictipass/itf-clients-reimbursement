@@ -486,6 +486,7 @@ async function assertTrainingMonitoringAccess(input: {
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           areaOfficeId: true,
         },

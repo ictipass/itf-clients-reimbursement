@@ -195,6 +195,7 @@ export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubm
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -300,6 +301,7 @@ export async function importTrainingPlanCsv(input: ImportTrainingPlanCsvInput) {
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -441,6 +443,7 @@ export async function uploadTrainingPlanEvidence(input: UploadTrainingPlanEviden
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -592,6 +595,7 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -735,6 +739,7 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           areaOfficeId: true,
         },

@@ -86,6 +86,7 @@ export async function writeIdentitySecurityAuditEvent(event: IdentitySecurityAud
             id: true,
             email: true,
             memberships: {
+              where: { isActive: true },
               select: {
                 workspaceId: true,
                 organizationId: true,

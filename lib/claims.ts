@@ -126,6 +126,7 @@ export async function createClaimFromTrainingRequest(
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -221,6 +222,7 @@ export async function updateClaimForm(input: UpdateClaimFormInput) {
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -305,6 +307,7 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -401,6 +404,7 @@ export async function updateClaimRecommendation(input: UpdateClaimRecommendation
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           areaOfficeId: true,
         },
@@ -529,6 +533,7 @@ async function assertClaimLineAccess(input: {
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
           areaOfficeId: true,

@@ -233,6 +233,7 @@ export async function createComplianceYear(input: CreateComplianceYearInput) {
     },
     select: {
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -355,6 +356,7 @@ export async function uploadComplianceEvidence(input: UploadComplianceEvidenceIn
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -526,6 +528,7 @@ export async function updateComplianceYearStatus(input: UpdateComplianceYearStat
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
@@ -652,6 +655,7 @@ export async function issueComplianceCertificate(input: IssueComplianceCertifica
     select: {
       id: true,
       memberships: {
+        where: { isActive: true },
         select: {
           organizationId: true,
         },
