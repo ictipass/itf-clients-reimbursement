@@ -3055,3 +3055,15 @@ Implemented design:
 - Scoped company creation and organization-user administration to the active organization
 - Scoped dashboard company context to the active organization
 - Returned a guided organization-selection prerequisite when a selection is required
+
+### Post-Slice 145: Resend Email Delivery Foundation
+
+Goal: provide a controlled switch between development links and production transactional email.
+
+Implemented design:
+
+- Added a package-free Resend HTTPS delivery adapter
+- Added development-link, Resend-plus-link, and Resend-only delivery modes
+- Required Resend-only delivery in production
+- Added safe application URL and HTML-escaping helpers
+- Documented local testing and production sender-domain configuration
