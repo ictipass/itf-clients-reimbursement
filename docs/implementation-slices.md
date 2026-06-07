@@ -2782,3 +2782,20 @@ Files:
 - `lib/feature-gates.ts`
 - `docs/rbac-enforcement-audit.md`
 - workflow docs
+
+### Slice 142: Security Headers and Content Security Policy
+
+Goal: add browser-level production security controls using Next.js 16 configuration.
+
+Implemented design:
+
+- Added a baseline Content Security Policy
+- Blocked framing and object embedding
+- Added nosniff, referrer, and browser permissions policies
+- Added HSTS outside development
+- Preserved existing development-origin and bundler settings
+
+Files:
+
+- `next.config.ts`
+- workflow docs
