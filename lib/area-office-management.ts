@@ -55,12 +55,32 @@ export function getHeadquartersOfficerRoles() {
   return headquartersOfficerRoles;
 }
 
-export async function listOfficeManagementData(input: { requesterRole: Role }) {
+export async function listOfficeManagementData(input: {
+  requesterRole: Role;
+  query?: string;
+  page?: number;
+  pageSize?: number;
+}) {
   if (!can(input.requesterRole, "workspace:manage")) {
     throw new Error("You do not have permission to manage office officers.");
   }
 
   const db = getDb();
+  const query = input.query?.trim();
+  const pageSize = Math.min(Math.max(input.pageSize ?? 12, 5), 50);
+  const requestedPage = Math.max(input.page ?? 1, 1);
+  const areaOfficeWhere = query
+    ? {
+        OR: [
+          { name: { contains: query, mode: "insensitive" as const } },
+          { slug: { contains: query, mode: "insensitive" as const } },
+          { code: { contains: query, mode: "insensitive" as const } },
+        ],
+      }
+    : {};
+  const totalAreaOffices = await db.areaOffice.count({ where: areaOfficeWhere });
+  const totalPages = Math.max(Math.ceil(totalAreaOffices / pageSize), 1);
+  const page = Math.min(requestedPage, totalPages);
   const [itfOrganization, areaOffices, users] = await Promise.all([
     db.organization.findFirst({
       where: {
@@ -102,6 +122,9 @@ export async function listOfficeManagementData(input: { requesterRole: Role }) {
       },
     }),
     db.areaOffice.findMany({
+      where: areaOfficeWhere,
+      skip: (page - 1) * pageSize,
+      take: pageSize,
       orderBy: {
         name: "asc",
       },
@@ -161,6 +184,10 @@ export async function listOfficeManagementData(input: { requesterRole: Role }) {
     headquarters: itfOrganization,
     areaOffices,
     users,
+    totalAreaOffices,
+    page,
+    pageSize,
+    totalPages,
   };
 }
 
