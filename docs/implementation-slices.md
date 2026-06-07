@@ -3113,3 +3113,12 @@ Implemented design:
 - Added employer-role and active-status filters
 - Paginated organization memberships within the selected active organization
 - Preserved invitations and member-access actions alongside filtered results
+
+### Slice 156: Integration Stabilization and Migration Verification
+
+- Added a repeatable `npm run verify` command for Prisma validation, TypeScript, ESLint, and the
+  Next.js Webpack production build
+- Confirmed that the password-reset migration remains the only new migration that must be applied
+  by the developer database owner
+- Kept database migration execution separate from application verification to avoid destructive
+  reset behavior when a development database has drift

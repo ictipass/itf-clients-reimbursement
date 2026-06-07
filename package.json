@@ -8,6 +8,7 @@
     "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
     "build": "next build",
+    "verify": "prisma validate && tsc --noEmit && eslint && next build --webpack",
     "start": "next start",
     "lint": "eslint"
   },
