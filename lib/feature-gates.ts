@@ -64,10 +64,16 @@ export const featureGates: FeatureGate[] = [
     permissions: ["audit:read"],
   },
   {
-    key: "settings",
-    label: "Settings",
+    key: "settings-numbers",
+    label: "Number registry",
+    routePrefix: "/settings/numbers",
+    permissions: ["numbers:manage"],
+  },
+  {
+    key: "settings-workspace",
+    label: "Workspace settings",
     routePrefix: "/settings",
-    permissions: ["workspace:manage", "numbers:manage"],
+    permissions: ["workspace:manage"],
   },
 ];
 

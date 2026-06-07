@@ -2764,3 +2764,21 @@ Files:
 - `lib/validation.ts`
 - user-directory server actions
 - workflow docs
+
+### Slice 141: Complete RBAC Enforcement Audit
+
+Goal: tighten route-level permissions and document the complete authorization model.
+
+Implemented design:
+
+- Audited navigation, proxy, page, action, and domain-service authorization layers
+- Added explicit settings route boundaries for audit logs and number management
+- Restricted all remaining settings routes to workspace managers
+- Closed the route-gate gap that could expose unrelated settings routes to number managers
+- Documented organization, Area Office, and Headquarters scope rules
+
+Files:
+
+- `lib/feature-gates.ts`
+- `docs/rbac-enforcement-audit.md`
+- workflow docs
