@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
 import { createComplianceYearAction } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
+import { authOptions } from "@/lib/auth";
 import { getEmployerCompany } from "@/lib/registry";
 
 export default async function NewComplianceYearPage({
@@ -13,7 +15,12 @@ export default async function NewComplianceYearPage({
 }>) {
   const { companyId } = await params;
   const query = await searchParams;
-  const company = await getEmployerCompany(companyId);
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  const company = await getEmployerCompany(companyId, {
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
 
   if (!company) {
     notFound();

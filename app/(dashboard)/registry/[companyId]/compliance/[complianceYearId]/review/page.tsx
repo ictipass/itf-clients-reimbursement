@@ -59,7 +59,11 @@ export default async function ComplianceReviewPage({
 }>) {
   const { companyId, complianceYearId } = await params;
   const session = await getServerSession(authOptions);
-  const company = await getEmployerCompany(companyId);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  const company = await getEmployerCompany(companyId, {
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
 
   if (!company) {
     notFound();
@@ -71,7 +75,7 @@ export default async function ComplianceReviewPage({
     notFound();
   }
 
-  const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const activeRole = session.user.role;
   const canReviewCompliance = canManageAnnualCompliance(activeRole);
   const availableTransitions = canReviewCompliance
     ? getAvailableReviewTransitions(complianceYear.status)

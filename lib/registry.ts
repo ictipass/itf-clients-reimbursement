@@ -1,8 +1,12 @@
+import { randomUUID } from "node:crypto";
+
 import { getDb } from "@/lib/db";
 import { listCachedActiveAreaOffices } from "@/lib/reference-data";
+import { isItfRole, type Role } from "@/lib/rbac";
 
 export type CreateCompanyInput = {
-  organizationId: string;
+  requesterEmail: string;
+  requesterRole: Role;
   areaOfficeId: string;
   legalName: string;
   rcNumber?: string;
@@ -15,12 +19,45 @@ export type CreateCompanyInput = {
   establishedAt?: Date;
 };
 
-export async function listEmployerCompanies() {
+type RegistryRequester = {
+  requesterEmail: string;
+  requesterRole: Role;
+};
+
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function getEmployerOrganizationIds(requesterEmail: string) {
+  const memberships = await getDb().membership.findMany({
+    where: {
+      user: { email: requesterEmail.toLowerCase() },
+      role: { in: ["EMPLOYER_ADMIN", "EMPLOYER_SUBMITTER", "EMPLOYER_VIEWER"] },
+      organizationId: { not: null },
+    },
+    select: { organizationId: true },
+  });
+
+  return memberships
+    .map((membership) => membership.organizationId)
+    .filter((organizationId): organizationId is string => Boolean(organizationId));
+}
+
+export async function listEmployerCompanies(input: RegistryRequester) {
   const db = getDb();
+  const organizationIds = isItfRole(input.requesterRole)
+    ? null
+    : await getEmployerOrganizationIds(input.requesterEmail);
 
   return db.company.findMany({
     where: {
       recordTier: "HOT",
+      ...(organizationIds ? { organizationId: { in: organizationIds } } : {}),
     },
     orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
     select: {
@@ -48,13 +85,17 @@ export async function listEmployerCompanies() {
   });
 }
 
-export async function getEmployerCompany(companyId: string) {
+export async function getEmployerCompany(companyId: string, input: RegistryRequester) {
   const db = getDb();
+  const organizationIds = isItfRole(input.requesterRole)
+    ? null
+    : await getEmployerOrganizationIds(input.requesterEmail);
 
   return db.company.findFirst({
     where: {
       id: companyId,
       recordTier: "HOT",
+      ...(organizationIds ? { organizationId: { in: organizationIds } } : {}),
     },
     select: {
       id: true,
@@ -310,25 +351,6 @@ export async function getEmployerCompany(companyId: string) {
   });
 }
 
-export async function listEmployerOrganizations() {
-  const db = getDb();
-
-  return db.organization.findMany({
-    where: {
-      organizationType: "EMPLOYER",
-      isActive: true,
-    },
-    orderBy: {
-      name: "asc",
-    },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-    },
-  });
-}
-
 export async function listAreaOffices() {
   return listCachedActiveAreaOffices();
 }
@@ -336,23 +358,71 @@ export async function listAreaOffices() {
 export async function createCompany(input: CreateCompanyInput) {
   const db = getDb();
 
-  return db.company.create({
-    data: {
-      organizationId: input.organizationId,
-      areaOfficeId: input.areaOfficeId,
-      legalName: input.legalName,
-      rcNumber: input.rcNumber,
-      taxId: input.taxId,
-      businessAddress: input.businessAddress,
-      postalAddress: input.postalAddress,
-      email: input.email,
-      telephone: input.telephone,
-      natureOfBusiness: input.natureOfBusiness,
-      establishedAt: input.establishedAt,
-      status: "DRAFT",
-    },
-    select: {
-      id: true,
-    },
+  if (input.requesterRole !== "EMPLOYER_ADMIN") {
+    throw new Error("Only an employer administrator can create a company.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const user = await tx.user.findUnique({
+      where: { email: input.requesterEmail.toLowerCase() },
+      select: {
+        id: true,
+        memberships: {
+          where: { role: "EMPLOYER_ADMIN" },
+          select: { id: true, workspaceId: true, organizationId: true },
+        },
+      },
+    });
+
+    if (!user?.memberships[0]) {
+      throw new Error("Your employer account is not ready for company registration.");
+    }
+
+    const linkedOrganizations = user.memberships.filter((membership) => membership.organizationId);
+    if (linkedOrganizations.length > 1) {
+      throw new Error("Select an active organization before creating another company.");
+    }
+
+    let organizationId = linkedOrganizations[0]?.organizationId;
+
+    if (!organizationId) {
+      const workspaceId = user.memberships[0].workspaceId;
+      const baseSlug = slugify(input.legalName) || "employer";
+      const organization = await tx.organization.create({
+        data: {
+          workspaceId,
+          name: input.legalName,
+          slug: `${baseSlug}-${randomUUID().slice(0, 8)}`,
+          organizationType: "EMPLOYER",
+        },
+        select: { id: true },
+      });
+      organizationId = organization.id;
+
+      await tx.membership.update({
+        where: { id: user.memberships[0].id },
+        data: { organizationId },
+      });
+    }
+
+    return tx.company.create({
+      data: {
+        organizationId,
+        areaOfficeId: input.areaOfficeId,
+        legalName: input.legalName,
+        rcNumber: input.rcNumber,
+        taxId: input.taxId,
+        businessAddress: input.businessAddress,
+        postalAddress: input.postalAddress,
+        email: input.email,
+        telephone: input.telephone,
+        natureOfBusiness: input.natureOfBusiness,
+        establishedAt: input.establishedAt,
+        status: "DRAFT",
+      },
+      select: {
+        id: true,
+      },
+    });
   });
 }

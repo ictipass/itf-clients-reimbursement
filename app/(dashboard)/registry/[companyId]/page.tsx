@@ -458,13 +458,17 @@ export default async function CompanyDetailPage({
   const { companyId } = await params;
   const query = await searchParams;
   const session = await getServerSession(authOptions);
-  const company = await getEmployerCompany(companyId);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  const company = await getEmployerCompany(companyId, {
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
 
   if (!company) {
     notFound();
   }
 
-  const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const activeRole = session.user.role;
   const roleFocus = getRegistryRoleFocus(activeRole);
   const adminOverride = isAdminRole(activeRole);
   const canDeleteEvidence =

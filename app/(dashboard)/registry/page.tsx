@@ -1,18 +1,31 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 
+import { authOptions } from "@/lib/auth";
+import { isItfRole } from "@/lib/rbac";
 import { listEmployerCompanies } from "@/lib/registry";
 
 export default async function RegistryPage() {
-  const companies = await listEmployerCompanies();
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  const companies = await listEmployerCompanies({
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
+  const canCreateCompany = session.user.role === "EMPLOYER_ADMIN";
+  const hasItfScope = isItfRole(session.user.role);
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
-          <h1 className="text-3xl font-semibold tracking-tight">Employer registry</h1>
+          <h1 className="text-3xl font-semibold tracking-tight">
+            {hasItfScope ? "Employer registry" : "Your companies"}
+          </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-            Company onboarding records are loaded from PostgreSQL and filtered to active
-            operational records by default.
+            {hasItfScope
+              ? "Review employer onboarding records available to your ITF registry role."
+              : "Manage only the companies owned by your employer organization."}
           </p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
@@ -21,21 +34,20 @@ export default async function RegistryPage() {
         </div>
       </div>
 
-      <div className="mt-6">
+      {canCreateCompany ? <div className="mt-6">
         <Link
           href="/registry/new"
           className="inline-flex min-h-11 items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
         >
           New company
         </Link>
-      </div>
+      </div> : null}
 
       {companies.length === 0 ? (
         <section className="mt-8 rounded-lg border border-dashed border-zinc-300 bg-white p-8">
           <h2 className="text-xl font-semibold tracking-tight">No employer records yet</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">
-            The foundation database has workspace and admin seed data, but no employer
-            company records. The next registry slice can add the create-company workflow.
+            No company is linked to your current organization or operational scope.
           </p>
         </section>
       ) : (
@@ -44,7 +56,7 @@ export default async function RegistryPage() {
             <thead className="bg-zinc-50 text-xs uppercase tracking-[0.12em] text-zinc-500">
               <tr>
                 <th className="px-4 py-3 font-semibold">Company</th>
-                <th className="px-4 py-3 font-semibold">Organization</th>
+                {hasItfScope ? <th className="px-4 py-3 font-semibold">Organization</th> : null}
                 <th className="px-4 py-3 font-semibold">Area office</th>
                 <th className="px-4 py-3 font-semibold">ITF No.</th>
                 <th className="px-4 py-3 font-semibold">Contact</th>
@@ -68,9 +80,11 @@ export default async function RegistryPage() {
                       <p className="mt-1 text-xs text-zinc-500">{company.natureOfBusiness}</p>
                     ) : null}
                   </td>
-                  <td className="px-4 py-4 align-top text-zinc-700">
-                    {company.organization.name}
-                  </td>
+                  {hasItfScope ? (
+                    <td className="px-4 py-4 align-top text-zinc-700">
+                      {company.organization.name}
+                    </td>
+                  ) : null}
                   <td className="px-4 py-4 align-top text-zinc-700">
                     {company.areaOffice?.name ?? "Not selected"}
                   </td>

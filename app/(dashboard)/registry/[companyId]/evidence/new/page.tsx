@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 
 import { uploadCompanyEvidenceAction } from "@/app/(dashboard)/registry/[companyId]/evidence/actions";
+import { authOptions } from "@/lib/auth";
 import { getCompanyEvidenceKinds } from "@/lib/evidence";
 import { getEmployerCompany } from "@/lib/registry";
 import { notFound } from "next/navigation";
@@ -18,7 +20,12 @@ export default async function NewEvidencePage({
   params: Promise<{ companyId: string }>;
 }>) {
   const { companyId } = await params;
-  const company = await getEmployerCompany(companyId);
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  const company = await getEmployerCompany(companyId, {
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
 
   if (!company) {
     notFound();

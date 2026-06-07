@@ -1,8 +1,10 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
 import { createTrainingPlanSubmissionAction } from "@/app/(dashboard)/registry/[companyId]/training-plans/actions";
 import { PersonnelFields } from "@/app/(dashboard)/registry/[companyId]/training-plans/new/personnel-fields";
+import { authOptions } from "@/lib/auth";
 import { getEmployerCompany } from "@/lib/registry";
 
 export default async function NewTrainingPlanSubmissionPage({
@@ -14,7 +16,12 @@ export default async function NewTrainingPlanSubmissionPage({
 }>) {
   const { companyId } = await params;
   const query = await searchParams;
-  const company = await getEmployerCompany(companyId);
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  const company = await getEmployerCompany(companyId, {
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
 
   if (!company) {
     notFound();

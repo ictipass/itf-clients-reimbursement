@@ -2900,3 +2900,23 @@ Files:
 - `lib/auth.ts`
 - employer registration and email verification pages
 - `.env.example`
+
+### Post-Slice 145: Employer Registry Ownership Isolation
+
+Goal: prevent employer accounts from seeing or assigning companies outside their organization.
+
+Implemented design:
+
+- Scoped employer registry listings and company detail pages to organization memberships
+- Preserved cross-company registry visibility for authorized ITF operational roles
+- Removed the global organization selector from employer company creation
+- Required the authenticated Employer Administrator role to create a company
+- Created and linked an employer organization automatically with the first company
+- Assigned subsequent companies to the employer administrator's existing organization
+- Returned not found when an employer attempts to open another organization's company
+
+Files:
+
+- `lib/registry.ts`
+- registry list, creation, detail, evidence, compliance, and Training Plan pages
+- registry company-creation action

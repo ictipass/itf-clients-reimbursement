@@ -1,8 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
+import { authOptions } from "@/lib/auth";
 import { createCompany } from "@/lib/registry";
 
 function readOptionalString(formData: FormData, name: string) {
@@ -37,8 +39,12 @@ function readOptionalDate(formData: FormData, name: string) {
 }
 
 export async function createCompanyAction(formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+
   await createCompany({
-    organizationId: readRequiredString(formData, "organizationId"),
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
     areaOfficeId: readRequiredString(formData, "areaOfficeId"),
     legalName: readRequiredString(formData, "legalName"),
     rcNumber: readOptionalString(formData, "rcNumber"),
