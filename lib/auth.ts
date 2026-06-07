@@ -5,6 +5,7 @@ import GoogleProvider from "next-auth/providers/google";
 import { writeIdentitySecurityAuditEvent } from "@/lib/audit";
 import { getDb } from "@/lib/db";
 import { seedRoles } from "@/lib/domain";
+import { authenticatePortalAccount, provisionVerifiedGoogleEmployer } from "@/lib/employer-accounts";
 import { checkRateLimit, RateLimitError } from "@/lib/rate-limit";
 import { roles, type Role } from "@/lib/rbac";
 
@@ -176,6 +177,22 @@ export const authOptions: NextAuthOptions = {
         }
 
         if (email && password) {
+          const portalUser = await authenticatePortalAccount(email, password);
+          if (portalUser) {
+            await writeIdentitySecurityAuditEvent({
+              email,
+              action: "LOGIN",
+              eventType: "AUTH_ATTEMPT",
+              entityId: email,
+              reason: "Employer portal credential sign-in succeeded.",
+              metadata: {
+                outcome: "SUCCESS",
+                authenticationMethod: "PORTAL_CREDENTIALS",
+              },
+            });
+            return portalUser;
+          }
+
           const developmentUser = await getDevelopmentTestUser(email, password);
 
           await writeIdentitySecurityAuditEvent({
@@ -213,9 +230,15 @@ export const authOptions: NextAuthOptions = {
     ...oauthProviders,
   ],
   callbacks: {
-    async signIn({ user, account }) {
+    async signIn({ user, account, profile }) {
       if (account?.provider === "credentials") return true;
       if (!user.email) return false;
+
+      if (account?.provider === "google") {
+        const googleProfile = profile as { email_verified?: boolean } | undefined;
+        if (googleProfile?.email_verified !== true) return false;
+        await provisionVerifiedGoogleEmployer(user.email, user.name ?? user.email);
+      }
 
       return Boolean(await getAuthorizedDirectoryUser(user.email));
     },

@@ -299,6 +299,8 @@ model User {
   phoneNumber                                      String?
   department                                       String?
   jobTitle                                         String?
+  passwordHash                                     String?
+  emailVerifiedAt                                  DateTime?
   isActive                                         Boolean                              @default(true)
   createdAt                                        DateTime                             @default(now())
   updatedAt                                        DateTime                             @updatedAt
@@ -318,6 +320,19 @@ model User {
   issuedManagedNumbers                             ManagedRegistrationNumber[]          @relation("IssuedManagedNumbers")
   voidedManagedNumbers                             ManagedRegistrationNumber[]          @relation("VoidedManagedNumbers")
   auditEvents                                      AuditEvent[]
+  emailVerificationTokens                          EmailVerificationToken[]
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt, usedAt])
 }
 
 model Membership {

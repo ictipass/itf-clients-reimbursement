@@ -1,11 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { registerEmployerAccountAction } from "@/app/get-started/actions";
 import { getConfiguredOAuthProviders } from "@/lib/auth";
 
-export default function GetStartedPage() {
+export default async function GetStartedPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<{ error?: string; registered?: string; token?: string }> }>) {
+  const params = await searchParams;
   const googleEnabled = getConfiguredOAuthProviders().some((provider) => provider.id === "google");
-  const registrationCallback = encodeURIComponent("/registry/new");
+  const registrationCallback = encodeURIComponent("/dashboard");
 
   return (
     <main className="min-h-screen bg-zinc-100 px-6 py-10 text-zinc-950">
@@ -30,32 +34,35 @@ export default function GetStartedPage() {
         <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
           <h2 className="text-xl font-semibold">Register on the new Reimbursement Platform</h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-            Choose how you want to establish your portal identity, then continue to the employer registration form.
+            Create an employer portal account, then verify your email before beginning company registration.
           </p>
-          <div className="mt-6 grid gap-4 md:grid-cols-2">
-            <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-              <h3 className="font-semibold">Register with a portal account</h3>
-              <p className="mt-2 text-sm leading-6 text-zinc-600">
-                Continue using your authorized work email and portal credentials.
-              </p>
-              <Link href="/sign-in?callbackUrl=/registry/new" className="mt-4 inline-flex min-h-11 items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                Continue with portal account
-              </Link>
+          {params.error ? <p className="mt-5 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{params.error}</p> : null}
+          {params.registered ? (
+            <div className="mt-5 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+              Account created. Check your email to verify your account.
+              {params.token ? <Link href={`/verify-email/confirm?token=${encodeURIComponent(params.token)}`} className="mt-2 block font-semibold underline">Development only: verify this account</Link> : null}
             </div>
-            <div className="rounded-md border border-zinc-200 bg-zinc-50 p-4">
-              <h3 className="font-semibold">Register with Google</h3>
-              <p className="mt-2 text-sm leading-6 text-zinc-600">
-                Continue with a verified Google identity authorized for the ITF workspace.
-              </p>
-              {googleEnabled ? (
-                <Link href={`/api/auth/signin/google?callbackUrl=${registrationCallback}`} className="mt-4 inline-flex min-h-11 items-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-900">
-                  Continue with Google
-                </Link>
-              ) : (
-                <p className="mt-4 rounded-md bg-white px-3 py-2 text-sm text-zinc-600">Google registration will be available when Workspace identity is configured.</p>
-              )}
+          ) : null}
+          <form action={registerEmployerAccountAction} className="mt-6 grid gap-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium">First name<input name="firstName" required autoComplete="given-name" className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
+              <label className="grid gap-2 text-sm font-medium">Last name<input name="lastName" required autoComplete="family-name" className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
             </div>
-          </div>
+            <label className="grid gap-2 text-sm font-medium">Work email<input name="email" type="email" required autoComplete="email" className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="grid gap-2 text-sm font-medium">Password<input name="password" type="password" required minLength={12} autoComplete="new-password" className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
+              <label className="grid gap-2 text-sm font-medium">Confirm password<input name="confirmPassword" type="password" required minLength={12} autoComplete="new-password" className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
+            </div>
+            <button className="min-h-11 w-fit rounded-md bg-[#800020] px-5 text-sm font-semibold text-white">Create portal account</button>
+          </form>
+          <div className="my-6 flex items-center gap-3"><span className="h-px flex-1 bg-zinc-200" /><span className="text-xs font-semibold uppercase text-zinc-500">or</span><span className="h-px flex-1 bg-zinc-200" /></div>
+          {googleEnabled ? (
+            <Link href={`/api/auth/signin/google?callbackUrl=${registrationCallback}`} className="inline-flex min-h-11 items-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-900">
+              Continue with Google
+            </Link>
+          ) : (
+            <p className="rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">Google registration will be available when Workspace identity is configured.</p>
+          )}
           <p className="mt-5 border-t border-zinc-100 pt-4 text-sm text-zinc-600">
             Already registered on this reimbursement platform?{" "}
             <Link href="/sign-in" className="font-semibold text-[#800020]">Continue to sign in</Link>.

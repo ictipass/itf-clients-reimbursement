@@ -2876,3 +2876,27 @@ Files:
 - `.env.example`
 - `docs/workspace-integration.md`
 - workflow docs
+
+### Post-Slice 145: Verified Employer Portal Account Registration
+
+Goal: let employer representatives create and activate secure portal identities before company registration.
+
+Implemented design:
+
+- Added a single employer account registration form with first name, last name, email, password, and confirmation
+- Hashed portal passwords with Argon2id and never stored plaintext passwords
+- Added one-time, hashed, expiring email verification tokens
+- Kept new portal accounts inactive until email verification, then activated them automatically
+- Assigned verified employer identities the Employer Administrator role
+- Allowed verified new Google identities to register while preserving existing ITF staff roles
+- Prevented public registration from overwriting existing user accounts
+- Added registration rate limiting and portal credential authentication
+- Exposed a development-only verification link until transactional email delivery is connected
+
+Files:
+
+- Prisma schema and migration
+- `lib/employer-accounts.ts`
+- `lib/auth.ts`
+- employer registration and email verification pages
+- `.env.example`
