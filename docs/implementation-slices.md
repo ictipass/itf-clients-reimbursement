@@ -2672,3 +2672,21 @@ Files:
 
 - `lib/audit.ts`
 - workflow docs
+
+### Slice 136: Authentication Security Audit Integration
+
+Goal: connect security audit logging to real credential authentication outcomes.
+
+Implemented design:
+
+- Added a safe identity-based security audit writer
+- Resolved the user's workspace, organization, actor, and role when the identity exists
+- Used the active workspace for unknown or failed-login identities
+- Recorded successful credential sign-ins, failed sign-ins, missing credentials, and sign-in rate-limit blocks
+- Kept audit persistence failures from interrupting authentication
+
+Files:
+
+- `lib/audit.ts`
+- `lib/auth.ts`
+- workflow docs

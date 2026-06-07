@@ -1,9 +1,10 @@
 import type { NextAuthOptions, User } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 
+import { writeIdentitySecurityAuditEvent } from "@/lib/audit";
 import { getDb } from "@/lib/db";
 import { seedRoles } from "@/lib/domain";
-import { assertRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit } from "@/lib/rate-limit";
 import { roles, type Role } from "@/lib/rbac";
 
 const fallbackRole: Role = "SYSTEM_ADMIN";
@@ -101,23 +102,80 @@ export const authOptions: NextAuthOptions = {
         const password = credentials?.password;
 
         if (email) {
-          assertRateLimit({
+          const rateLimit = checkRateLimit({
             key: `auth:${email}`,
             limit: 5,
             windowMs: 5 * 60 * 1000,
           });
+
+          if (!rateLimit.allowed) {
+            await writeIdentitySecurityAuditEvent({
+              email,
+              action: "REJECT",
+              eventType: "RATE_LIMITED",
+              entityId: email,
+              reason: "Credential sign-in attempt exceeded the configured rate limit.",
+              metadata: {
+                resetAt: rateLimit.resetAt.toISOString(),
+              },
+            });
+
+            throw new Error(
+              `Too many requests. Try again after ${rateLimit.resetAt.toLocaleTimeString()}.`,
+            );
+          }
         }
 
         if (
           email === bootstrapUser.email?.toLowerCase() &&
           password === expectedPassword
         ) {
+          await writeIdentitySecurityAuditEvent({
+            email,
+            action: "LOGIN",
+            eventType: "AUTH_ATTEMPT",
+            entityId: email ?? "bootstrap-admin",
+            reason: "Credential sign-in succeeded.",
+            metadata: {
+              outcome: "SUCCESS",
+              authenticationMethod: "BOOTSTRAP_CREDENTIALS",
+            },
+          });
+
           return bootstrapUser;
         }
 
         if (email && password) {
-          return getDevelopmentTestUser(email, password);
+          const developmentUser = await getDevelopmentTestUser(email, password);
+
+          await writeIdentitySecurityAuditEvent({
+            email,
+            action: developmentUser ? "LOGIN" : "REJECT",
+            eventType: "AUTH_ATTEMPT",
+            entityId: email,
+            reason: developmentUser
+              ? "Development credential sign-in succeeded."
+              : "Credential sign-in failed.",
+            metadata: {
+              outcome: developmentUser ? "SUCCESS" : "FAILED",
+              authenticationMethod: "DEVELOPMENT_CREDENTIALS",
+            },
+          });
+
+          return developmentUser;
         }
+
+        await writeIdentitySecurityAuditEvent({
+          email,
+          action: "REJECT",
+          eventType: "AUTH_ATTEMPT",
+          entityId: email ?? "missing-email",
+          reason: "Credential sign-in failed because required credentials were missing.",
+          metadata: {
+            outcome: "FAILED",
+            authenticationMethod: "CREDENTIALS",
+          },
+        });
 
         return null;
       },

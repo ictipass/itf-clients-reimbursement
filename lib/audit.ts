@@ -63,3 +63,85 @@ export async function writeSecurityAuditEvent(event: SecurityAuditEventInput) {
     },
   });
 }
+
+export type IdentitySecurityAuditEventInput = {
+  email?: string;
+  action?: SecurityAuditEventInput["action"];
+  eventType: SecurityAuditEventInput["eventType"];
+  entityId: string;
+  reason?: string;
+  metadata?: SecurityAuditEventInput["metadata"];
+};
+
+export async function writeIdentitySecurityAuditEvent(event: IdentitySecurityAuditEventInput) {
+  try {
+    const db = getDb();
+    const normalizedEmail = event.email?.trim().toLowerCase();
+    const user = normalizedEmail
+      ? await db.user.findUnique({
+          where: {
+            email: normalizedEmail,
+          },
+          select: {
+            id: true,
+            email: true,
+            memberships: {
+              select: {
+                workspaceId: true,
+                organizationId: true,
+                role: true,
+              },
+              take: 1,
+            },
+          },
+        })
+      : null;
+    const membership = user?.memberships[0];
+    const workspaceId =
+      membership?.workspaceId ??
+      (
+        await db.workspace.findFirst({
+          where: {
+            isActive: true,
+          },
+          select: {
+            id: true,
+          },
+        })
+      )?.id;
+
+    if (!workspaceId) {
+      console.warn("[security-audit] No active workspace was available.", {
+        eventType: event.eventType,
+        entityId: event.entityId,
+      });
+
+      return null;
+    }
+
+    return writeSecurityAuditEvent({
+      workspaceId,
+      organizationId: membership?.organizationId ?? undefined,
+      actor:
+        user && membership
+          ? {
+              id: user.id,
+              email: user.email,
+              role: membership.role,
+            }
+          : undefined,
+      action: event.action,
+      eventType: event.eventType,
+      entityId: event.entityId,
+      reason: event.reason,
+      metadata: {
+        ...event.metadata,
+        attemptedEmail: normalizedEmail ?? null,
+      },
+    });
+  } catch (error) {
+    console.error("[security-audit] Failed to write security audit event.", error);
+
+    return null;
+  }
+}
