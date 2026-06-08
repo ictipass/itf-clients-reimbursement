@@ -62,7 +62,8 @@ export default async function GetStartedPage({
           </form>
           <div className="my-6 flex items-center gap-3"><span className="h-px flex-1 bg-zinc-200" /><span className="text-xs font-semibold uppercase text-zinc-500">or</span><span className="h-px flex-1 bg-zinc-200" /></div>
           {googleEnabled ? (
-            <Link href={`/api/auth/signin/google?callbackUrl=${registrationCallback}`} className="inline-flex min-h-11 items-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-900">
+            <Link href={`/api/auth/signin/google?callbackUrl=${registrationCallback}`} className="inline-flex min-h-11 items-center gap-3 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-900">
+              <Image src="/google-g.svg" alt="" width={18} height={18} aria-hidden="true" />
               Continue with Google
             </Link>
           ) : (

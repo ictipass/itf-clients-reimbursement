@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { useState } from "react";
 
@@ -53,8 +54,11 @@ export function SignInForm({ callbackUrl, initialError, oauthProviders }: SignIn
               key={provider.id}
               type="button"
               onClick={() => signIn(provider.id, { callbackUrl: safeCallbackUrl(callbackUrl) })}
-              className="min-h-11 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800"
+              className="inline-flex min-h-11 items-center justify-center gap-3 rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold text-zinc-800"
             >
+              {provider.id === "google" ? (
+                <Image src="/google-g.svg" alt="" width={18} height={18} aria-hidden="true" />
+              ) : null}
               Sign in with {provider.name}
             </button>
           ))}
