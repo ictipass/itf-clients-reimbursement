@@ -39,5 +39,5 @@ export async function changePasswordAction(formData: FormData) {
   } catch (error) {
     back(error instanceof Error ? error.message : "Password could not be changed.");
   }
-  back("Password changed.");
+  redirect("/password-change-complete");
 }

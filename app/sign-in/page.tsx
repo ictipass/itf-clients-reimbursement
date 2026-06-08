@@ -7,11 +7,16 @@ import { getConfiguredOAuthProviders } from "@/lib/auth";
 export default async function SignInPage({
   searchParams,
 }: Readonly<{
-  searchParams: Promise<{ callbackUrl?: string | string[]; error?: string | string[] }>;
+  searchParams: Promise<{
+    callbackUrl?: string | string[];
+    error?: string | string[];
+    message?: string | string[];
+  }>;
 }>) {
   const params = await searchParams;
   const callbackUrl = Array.isArray(params.callbackUrl) ? params.callbackUrl[0] : params.callbackUrl;
   const error = Array.isArray(params.error) ? params.error[0] : params.error;
+  const message = Array.isArray(params.message) ? params.message[0] : params.message;
   const oauthProviders = getConfiguredOAuthProviders();
 
   return (
@@ -22,6 +27,11 @@ export default async function SignInPage({
         <p className="mt-2 text-sm leading-6 text-zinc-600">
           Sign in with your authorized portal account or configured Workspace identity.
         </p>
+        {message ? (
+          <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800">
+            {message}
+          </p>
+        ) : null}
         <SignInForm callbackUrl={callbackUrl ?? "/dashboard"} initialError={error} oauthProviders={oauthProviders} />
         <Link href="/forgot-password" className="mt-4 block text-sm font-semibold text-[#800020]">Forgot password?</Link>
         <div className="mt-5 flex items-center justify-between gap-4 border-t border-zinc-100 pt-4">
