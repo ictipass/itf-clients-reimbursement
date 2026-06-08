@@ -3,6 +3,7 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
 import { writeIdentitySecurityAuditEvent } from "@/lib/audit";
+import { requiresApplicationPasswordChange } from "@/lib/authentication-policy";
 import { getDb } from "@/lib/db";
 import { seedRoles } from "@/lib/domain";
 import { authenticatePortalAccount, provisionVerifiedGoogleEmployer } from "@/lib/employer-accounts";
@@ -57,6 +58,7 @@ async function getDevelopmentTestUser(email: string, password: string) {
       name: true,
       isActive: true,
       mustChangePassword: true,
+      authenticationSource: true,
       memberships: {
         where: { isActive: true },
         select: {
@@ -76,7 +78,10 @@ async function getDevelopmentTestUser(email: string, password: string) {
     name: user.name,
     email: user.email,
     role: user.memberships[0].role,
-    mustChangePassword: user.mustChangePassword,
+    mustChangePassword: requiresApplicationPasswordChange(
+      user.authenticationSource,
+      user.mustChangePassword,
+    ),
   };
 }
 
@@ -89,13 +94,23 @@ async function getAuthorizedDirectoryUser(email: string) {
       name: true,
       isActive: true,
       mustChangePassword: true,
+      authenticationSource: true,
       memberships: { where: { isActive: true }, select: { role: true }, take: 1 },
     },
   });
 
   if (!user?.isActive || !user.memberships[0]) return null;
 
-  return { id: user.id, email: user.email, name: user.name, role: user.memberships[0].role, mustChangePassword: user.mustChangePassword };
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.memberships[0].role,
+    mustChangePassword: requiresApplicationPasswordChange(
+      user.authenticationSource,
+      user.mustChangePassword,
+    ),
+  };
 }
 
 export function getConfiguredOAuthProviders() {

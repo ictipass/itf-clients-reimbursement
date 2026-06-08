@@ -176,7 +176,11 @@ export async function provisionVerifiedGoogleEmployer(email: string, name: strin
 
     await db.user.update({
       where: { id: existing.id },
-      data: { emailVerifiedAt: new Date() },
+      data: {
+        emailVerifiedAt: new Date(),
+        authenticationSource: "GOOGLE",
+        mustChangePassword: false,
+      },
     });
     return;
   }
@@ -187,6 +191,7 @@ export async function provisionVerifiedGoogleEmployer(email: string, name: strin
       name,
       isActive: true,
       emailVerifiedAt: new Date(),
+      authenticationSource: "GOOGLE",
     },
     select: { id: true },
   });
