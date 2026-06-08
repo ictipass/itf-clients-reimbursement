@@ -339,6 +339,26 @@ When management changes a policy:
 7. Update user/support documentation before rollout.
 8. Use a feature flag or staged rollout for high-risk changes.
 
+## Identity Provisioning Extension Point
+
+`User.authenticationSource` separates `LOCAL`, `GOOGLE`, and future `WORKSPACE_SSO` identities.
+Only local identities use `mustChangePassword`. Keep provider-managed password and MFA rules at
+the identity provider.
+
+- `lib/officer-provisioning.ts`: password generation, Argon2 hashing, development credentials.
+- `lib/user-directory.ts`: atomic user creation/import and local-access reset.
+- `lib/email.ts`: welcome delivery through the configured email adapter.
+- `lib/authentication-policy.ts`: provider-aware password-change policy.
+- `proxy.ts`: first-login protected-route enforcement.
+
+Never persist plaintext passwords in Prisma records, audit metadata, logs, or production files.
+
+## Evidence Immutability
+
+`lib/evidence.ts` is the server-side authority for deletion. UI visibility is only a convenience.
+When adding a new evidence-bearing workflow, update `lib/evidence-deletion.ts`, link the workflow
+status in the deletion query, and add regression tests before exposing deletion controls.
+
 ## Documentation Maintenance
 
 For every completed slice:

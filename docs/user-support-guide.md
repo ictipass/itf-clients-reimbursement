@@ -307,6 +307,30 @@ Authorized administrators can manage:
 - Production Workspace identity integration remains future work.
 - The current automated-test suite is foundational, not comprehensive.
 
+## Officer Account Provisioning
+
+System Administrators create ITF officers from **Settings > Users**, individually or by CSV
+import. Successful creation generates a temporary password, sends a welcome email, and requires
+the officer to change that password at first sign-in.
+
+During development, temporary credentials are also written to:
+
+```text
+storage/development-officer-credentials/<officer-email>.txt
+```
+
+This directory is git-ignored and is never written in production. **Reset local access** creates
+fresh credentials when an officer loses local access. Google and future Workspace SSO users manage
+passwords through their identity provider instead.
+
+## Employer Evidence Policy
+
+- Employers can delete evidence only while its workflow is `DRAFT` or `CHANGES_REQUESTED`.
+- Submitted evidence is permanently locked.
+- ITF officers cannot delete employer-uploaded evidence.
+- Employers cannot delete evidence uploaded by ITF officers.
+- **Other Supporting Evidence** requires a descriptive document name.
+
 ## Adding a New Workflow Module to This Guide
 
 Copy this structure:
