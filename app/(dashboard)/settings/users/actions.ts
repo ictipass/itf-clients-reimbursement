@@ -6,7 +6,8 @@ import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { sendOfficerWelcomeEmail } from "@/lib/email";
+import { getAppBaseUrl, sendOfficerWelcomeEmail } from "@/lib/email";
+import { writeDevelopmentOfficerCredentials } from "@/lib/officer-provisioning";
 import { createDirectoryUser, updateDirectoryUser, updateDirectoryUserStatus } from "@/lib/user-directory";
 import { directoryUserSchema, parseFormData } from "@/lib/validation";
 
@@ -26,6 +27,11 @@ export async function createDirectoryUserAction(formData: FormData) {
     const user = await createDirectoryUser({
       requesterRole: session.user.role,
       ...values,
+    });
+    await writeDevelopmentOfficerCredentials({
+      email: user.email,
+      temporaryPassword: user.temporaryPassword,
+      signInUrl: `${getAppBaseUrl()}/sign-in`,
     });
     const delivery = await sendOfficerWelcomeEmail({
       to: user.email,
