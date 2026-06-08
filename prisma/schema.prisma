@@ -30,6 +30,12 @@ enum Role {
   EMPLOYER_VIEWER
 }
 
+enum AuthenticationSource {
+  LOCAL
+  GOOGLE
+  WORKSPACE_SSO
+}
+
 enum OrganizationType {
   ITF_INTERNAL
   EMPLOYER
@@ -309,6 +315,11 @@ model User {
   jobTitle                                         String?
   passwordHash                                     String?
   emailVerifiedAt                                  DateTime?
+  authenticationSource                            AuthenticationSource                 @default(LOCAL)
+  mustChangePassword                              Boolean                              @default(false)
+  provisionedAt                                   DateTime?
+  welcomeEmailSentAt                              DateTime?
+  lastSignedInAt                                  DateTime?
   isActive                                         Boolean                              @default(true)
   workflowEmailNotifications                       Boolean                              @default(true)
   createdAt                                        DateTime                             @default(now())

@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { generateTemporaryPassword, hashTemporaryPassword } from "@/lib/officer-provisioning";
 import { writeAuditEvent } from "@/lib/audit";
 import { can, roles, type Role } from "@/lib/rbac";
 import { maxUploadBytes, sanitizeFileName } from "@/lib/storage/security";
@@ -132,31 +133,37 @@ export async function createDirectoryUser(input: CreateDirectoryUserInput) {
 
   await assertStaffNumberAvailable(normalized.staffNumber, normalized.email);
 
-  return getDb().user.upsert({
-    where: {
-      email: normalized.email,
-    },
-    update: {
-      name: normalized.name,
-      staffNumber: normalized.staffNumber,
-      phoneNumber: normalized.phoneNumber,
-      department: normalized.department,
-      jobTitle: normalized.jobTitle,
-      isActive: true,
-    },
-    create: {
-      email: normalized.email,
-      name: normalized.name,
-      staffNumber: normalized.staffNumber,
-      phoneNumber: normalized.phoneNumber,
-      department: normalized.department,
-      jobTitle: normalized.jobTitle,
-      isActive: true,
-    },
-    select: {
-      id: true,
-    },
+  const db = getDb();
+  const existing = await db.user.findUnique({
+    where: { email: normalized.email },
+    select: { id: true },
   });
+
+  if (existing) {
+    throw new Error("A user already exists with this email address. Edit the existing user instead.");
+  }
+
+  const temporaryPassword = generateTemporaryPassword();
+  const passwordHash = await hashTemporaryPassword(temporaryPassword);
+  const user = await db.user.create({
+    data: {
+      email: normalized.email,
+      name: normalized.name,
+      staffNumber: normalized.staffNumber,
+      phoneNumber: normalized.phoneNumber,
+      department: normalized.department,
+      jobTitle: normalized.jobTitle,
+      passwordHash,
+      emailVerifiedAt: new Date(),
+      authenticationSource: "LOCAL",
+      mustChangePassword: true,
+      provisionedAt: new Date(),
+      isActive: true,
+    },
+    select: { id: true, email: true, name: true },
+  });
+
+  return { ...user, temporaryPassword };
 }
 
 export async function updateDirectoryUser(input: UpdateDirectoryUserInput) {
