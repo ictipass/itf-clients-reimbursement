@@ -1,6 +1,9 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { getDb } from "@/lib/db";
+import { getAppBaseUrl, sendOfficerWelcomeEmail } from "@/lib/email";
+import { writeDevelopmentOfficerCredentials } from "@/lib/officer-provisioning";
 import { importDirectoryUsers } from "@/lib/user-directory";
 
 export const dynamic = "force-dynamic";
@@ -37,8 +40,28 @@ export async function POST(request: Request) {
       requesterRole: session.user.role,
       file: readRequiredFile(formData),
     });
+    for (const user of result.provisioned) {
+      await writeDevelopmentOfficerCredentials({
+        email: user.email,
+        temporaryPassword: user.temporaryPassword,
+        signInUrl: `${getAppBaseUrl()}/sign-in`,
+      });
+      const delivery = await sendOfficerWelcomeEmail({
+        to: user.email,
+        name: user.name,
+        temporaryPassword: user.temporaryPassword,
+      });
+      if (delivery.delivered) {
+        await getDb().user.update({
+          where: { id: user.id },
+          data: { welcomeEmailSentAt: new Date() },
+        });
+      }
+    }
 
-    return redirectToUsers(`${result.imported} user${result.imported === 1 ? "" : "s"} imported.`);
+    return redirectToUsers(
+      `${result.imported} user${result.imported === 1 ? "" : "s"} imported and provisioned.`,
+    );
   } catch (error) {
     return redirectToUsers(
       error instanceof Error ? error.message : "User CSV import failed.",

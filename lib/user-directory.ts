@@ -248,37 +248,52 @@ export async function importDirectoryUsers(input: ImportDirectoryUsersInput) {
 
   const parsedRows = await parseUserCsvFile(input.file);
   const db = getDb();
+  const credentials = await Promise.all(
+    parsedRows.map(async (row) => {
+      const temporaryPassword = generateTemporaryPassword();
+      return {
+        row,
+        temporaryPassword,
+        passwordHash: await hashTemporaryPassword(temporaryPassword),
+      };
+    }),
+  );
 
   return db.$transaction(async (tx) => {
-    for (const parsedRow of parsedRows) {
-      await assertStaffNumberAvailable(parsedRow.staffNumber, parsedRow.email);
+    const existing = await tx.user.findMany({
+      where: { email: { in: parsedRows.map((row) => row.email) } },
+      select: { email: true },
+    });
+    if (existing.length > 0) {
+      throw new Error(`User already exists: ${existing.map((user) => user.email).join(", ")}.`);
+    }
 
-      await tx.user.upsert({
-        where: {
-          email: parsedRow.email,
-        },
-        update: {
-          name: parsedRow.name,
-          staffNumber: parsedRow.staffNumber,
-          phoneNumber: parsedRow.phoneNumber,
-          department: parsedRow.department,
-          jobTitle: parsedRow.jobTitle,
+    const provisioned = [];
+    for (const credential of credentials) {
+      await assertStaffNumberAvailable(credential.row.staffNumber, credential.row.email);
+      const user = await tx.user.create({
+        data: {
+          email: credential.row.email,
+          name: credential.row.name,
+          staffNumber: credential.row.staffNumber,
+          phoneNumber: credential.row.phoneNumber,
+          department: credential.row.department,
+          jobTitle: credential.row.jobTitle,
+          passwordHash: credential.passwordHash,
+          emailVerifiedAt: new Date(),
+          authenticationSource: "LOCAL",
+          mustChangePassword: true,
+          provisionedAt: new Date(),
           isActive: true,
         },
-        create: {
-          email: parsedRow.email,
-          name: parsedRow.name,
-          staffNumber: parsedRow.staffNumber,
-          phoneNumber: parsedRow.phoneNumber,
-          department: parsedRow.department,
-          jobTitle: parsedRow.jobTitle,
-          isActive: true,
-        },
+        select: { id: true, email: true, name: true },
       });
+      provisioned.push({ ...user, temporaryPassword: credential.temporaryPassword });
     }
 
     return {
       imported: parsedRows.length,
+      provisioned,
     };
   });
 }
