@@ -59,6 +59,7 @@ export async function uploadComplianceEvidenceAction(
     uploadedByEmail: session.user.email,
     requesterRole: session.user.role,
     kind: readEvidenceKind(formData),
+    documentName: formData.get("documentName")?.toString(),
     file: readRequiredFile(formData),
   });
 

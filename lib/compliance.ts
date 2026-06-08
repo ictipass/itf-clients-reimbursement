@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { normalizeEvidenceDocumentName } from "@/lib/evidence-metadata";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import {
   findActiveCertificateTemplate,
@@ -59,6 +60,7 @@ export type UploadComplianceEvidenceInput = {
   uploadedByEmail: string;
   requesterRole: Role;
   kind: ComplianceEvidenceKind;
+  documentName?: string;
   file: File;
 };
 
@@ -313,6 +315,8 @@ export async function uploadComplianceEvidence(input: UploadComplianceEvidenceIn
     throw new Error("You do not have permission to upload compliance evidence.");
   }
 
+  const documentName = normalizeEvidenceDocumentName(input.kind, input.documentName);
+
   await assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
@@ -395,6 +399,7 @@ export async function uploadComplianceEvidence(input: UploadComplianceEvidenceIn
       complianceYearId: complianceYear.id,
       uploadedById: user.id,
       kind: input.kind,
+      documentName,
       fileName: safeFileName,
       storageProvider: stored.storageProvider,
       scanStatus: stored.scanStatus,

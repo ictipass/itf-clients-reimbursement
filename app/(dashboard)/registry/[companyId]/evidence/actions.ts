@@ -40,12 +40,19 @@ function readRequiredFile(formData: FormData) {
 }
 
 export async function uploadCompanyEvidenceAction(formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
   const companyId = readRequiredString(formData, "companyId");
 
   await uploadCompanyEvidence({
     companyId,
-    uploadedByEmail: process.env.BOOTSTRAP_ADMIN_EMAIL ?? "admin@itf.local",
+    uploadedByEmail: session.user.email,
     kind: readEvidenceKind(formData),
+    documentName: formData.get("documentName")?.toString(),
     file: readRequiredFile(formData),
   });
 

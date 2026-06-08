@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { uploadComplianceEvidenceAction } from "@/app/(dashboard)/registry/[companyId]/compliance/[complianceYearId]/evidence/actions";
+import { EvidenceTypeField } from "@/app/(dashboard)/registry/[companyId]/evidence/evidence-type-field";
 import {
   getComplianceEvidenceKinds,
   getComplianceYearForUpload,
@@ -46,21 +47,12 @@ export default async function NewComplianceEvidencePage({
       </p>
 
       <form action={action} className="mt-6 grid gap-5 rounded-lg border border-zinc-200 bg-white p-6">
-        <label className="grid gap-2 text-sm font-medium">
-          Evidence type
-          <select
-            name="kind"
-            required
-            className="min-h-11 rounded-md border border-zinc-300 bg-white px-3"
-          >
-            <option value="">Select evidence type</option>
-            {evidenceKinds.map((kind) => (
-              <option key={kind} value={kind}>
-                {evidenceLabels[kind]}
-              </option>
-            ))}
-          </select>
-        </label>
+        <EvidenceTypeField
+          options={evidenceKinds.map((kind) => ({
+            value: kind,
+            label: evidenceLabels[kind],
+          }))}
+        />
 
         <label className="grid gap-2 text-sm font-medium">
           Evidence file

@@ -16,7 +16,7 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
-  allowedDevOrigins: ["192.168.0.3"],
+  allowedDevOrigins: ["192.168.137.215"],
   experimental: {
     serverActions: {
       bodySizeLimit: "12mb",

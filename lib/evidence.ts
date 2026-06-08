@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { assertDocumentSafe } from "@/lib/document-security";
+import { normalizeEvidenceDocumentName } from "@/lib/evidence-metadata";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 import { downloadObject, uploadObject } from "@/lib/storage";
@@ -18,6 +19,7 @@ export type UploadCompanyEvidenceInput = {
   companyId: string;
   uploadedByEmail: string;
   kind: CompanyEvidenceKind;
+  documentName?: string;
   file: File;
 };
 
@@ -40,6 +42,8 @@ export function getCompanyEvidenceKinds() {
 }
 
 export async function uploadCompanyEvidence(input: UploadCompanyEvidenceInput) {
+  const documentName = normalizeEvidenceDocumentName(input.kind, input.documentName);
+
   await assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
@@ -87,6 +91,7 @@ export async function uploadCompanyEvidence(input: UploadCompanyEvidenceInput) {
       companyId: company.id,
       uploadedById: user.id,
       kind: input.kind,
+      documentName,
       fileName: safeFileName,
       storageProvider: stored.storageProvider,
       scanStatus: stored.scanStatus,

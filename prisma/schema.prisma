@@ -951,6 +951,7 @@ model Document {
   reimbursementClaimId       String?
   uploadedById               String
   kind                       DocumentKind
+  documentName               String?
   fileName                   String
   storageProvider            StorageProvider
   bucket                     String?

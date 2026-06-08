@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 
 import { uploadCompanyEvidenceAction } from "@/app/(dashboard)/registry/[companyId]/evidence/actions";
+import { EvidenceTypeField } from "@/app/(dashboard)/registry/[companyId]/evidence/evidence-type-field";
 import { authOptions } from "@/lib/auth";
 import { getCompanyEvidenceKinds } from "@/lib/evidence";
 import { getEmployerCompany } from "@/lib/registry";
@@ -48,21 +49,12 @@ export default async function NewEvidencePage({
       >
         <input type="hidden" name="companyId" value={company.id} />
 
-        <label className="grid gap-2 text-sm font-medium">
-          Evidence type
-          <select
-            name="kind"
-            required
-            className="min-h-11 rounded-md border border-zinc-300 bg-white px-3"
-          >
-            <option value="">Select evidence type</option>
-            {getCompanyEvidenceKinds().map((kind) => (
-              <option key={kind} value={kind}>
-                {evidenceLabels[kind]}
-              </option>
-            ))}
-          </select>
-        </label>
+        <EvidenceTypeField
+          options={getCompanyEvidenceKinds().map((kind) => ({
+            value: kind,
+            label: evidenceLabels[kind],
+          }))}
+        />
 
         <label className="grid gap-2 text-sm font-medium">
           Evidence file

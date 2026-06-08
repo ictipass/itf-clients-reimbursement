@@ -158,9 +158,13 @@ export default async function ComplianceReviewPage({
             <div className="mt-4 grid gap-3">
               {complianceYear.documents.map((document) => (
                 <div key={document.id} className="rounded-md border border-zinc-100 p-3 text-sm">
-                  <p className="font-semibold text-zinc-950">{document.fileName}</p>
+                  <p className="font-semibold text-zinc-950">
+                    {document.documentName ?? document.fileName}
+                  </p>
                   <p className="mt-1 text-xs text-zinc-500">
-                    {document.kind.replaceAll("_", " ")} · {formatDate(document.createdAt)}
+                    {document.kind.replaceAll("_", " ")}
+                    {document.documentName ? ` · ${document.fileName}` : ""} ·{" "}
+                    {formatDate(document.createdAt)}
                   </p>
                   <Link
                     href={`/registry/${company.id}/evidence/${document.id}?disposition=inline`}

@@ -162,6 +162,7 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
             select: {
               id: true,
               kind: true,
+              documentName: true,
               fileName: true,
               createdAt: true,
             },
@@ -209,6 +210,7 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
         select: {
           id: true,
           kind: true,
+          documentName: true,
           fileName: true,
           createdAt: true,
         },
@@ -262,6 +264,7 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
             select: {
               id: true,
               kind: true,
+              documentName: true,
               fileName: true,
               createdAt: true,
             },
@@ -306,6 +309,7 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
             select: {
               id: true,
               kind: true,
+              documentName: true,
               fileName: true,
               createdAt: true,
             },

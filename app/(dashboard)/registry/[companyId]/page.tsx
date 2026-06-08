@@ -1485,9 +1485,13 @@ export default async function CompanyDetailPage({
                 >
                   <summary className="grid cursor-pointer list-none gap-2 rounded-md p-1 sm:grid-cols-[1fr_auto] sm:items-center">
                     <span>
-                      <span className="block font-semibold">{document.fileName}</span>
+                      <span className="block font-semibold">
+                        {document.documentName ?? document.fileName}
+                      </span>
                       <span className="mt-1 block text-xs text-zinc-500">
-                        {document.kind.replaceAll("_", " ")} · {formatDate(document.createdAt)}
+                        {document.kind.replaceAll("_", " ")}
+                        {document.documentName ? ` · ${document.fileName}` : ""} ·{" "}
+                        {formatDate(document.createdAt)}
                       </span>
                     </span>
                     <span className="text-xs font-semibold text-[#800020] group-open:hidden">
