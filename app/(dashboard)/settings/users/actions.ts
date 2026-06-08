@@ -8,7 +8,7 @@ import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getAppBaseUrl, sendOfficerWelcomeEmail } from "@/lib/email";
 import { writeDevelopmentOfficerCredentials } from "@/lib/officer-provisioning";
-import { createDirectoryUser, updateDirectoryUser, updateDirectoryUserStatus } from "@/lib/user-directory";
+import { createDirectoryUser, resetDirectoryUserLocalAccess, updateDirectoryUser, updateDirectoryUserStatus } from "@/lib/user-directory";
 import { directoryUserSchema, parseFormData } from "@/lib/validation";
 
 function redirectToUsers(message: string) {
@@ -89,4 +89,35 @@ export async function updateDirectoryUserStatusAction(formData: FormData) {
   }
   revalidatePath("/settings/users");
   redirectToUsers("User status updated.");
+}
+
+export async function resetDirectoryUserLocalAccessAction(formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  try {
+    const user = await resetDirectoryUserLocalAccess({
+      requesterRole: session.user.role,
+      userId: String(formData.get("userId") ?? ""),
+    });
+    await writeDevelopmentOfficerCredentials({
+      email: user.email,
+      temporaryPassword: user.temporaryPassword,
+      signInUrl: `${getAppBaseUrl()}/sign-in`,
+    });
+    const delivery = await sendOfficerWelcomeEmail({
+      to: user.email,
+      name: user.name,
+      temporaryPassword: user.temporaryPassword,
+    });
+    if (delivery.delivered) {
+      await getDb().user.update({
+        where: { id: user.id },
+        data: { welcomeEmailSentAt: new Date() },
+      });
+    }
+  } catch (error) {
+    redirectToUsers(error instanceof Error ? error.message : "Local access could not be reset.");
+  }
+  revalidatePath("/settings/users");
+  redirectToUsers("Local access reset and welcome credentials sent.");
 }

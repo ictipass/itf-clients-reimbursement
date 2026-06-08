@@ -95,6 +95,11 @@ export async function listDirectoryUsers(input: {
       department: true,
       jobTitle: true,
       isActive: true,
+      authenticationSource: true,
+      mustChangePassword: true,
+      provisionedAt: true,
+      welcomeEmailSentAt: true,
+      lastSignedInAt: true,
       updatedAt: true,
       memberships: {
         select: {
@@ -122,6 +127,31 @@ export async function listDirectoryUsers(input: {
   });
 
   return { items, total, page: currentPage, pageSize, totalPages };
+}
+
+export async function resetDirectoryUserLocalAccess(input: {
+  requesterRole: Role;
+  userId: string;
+}) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to reset officer access.");
+  }
+  const temporaryPassword = generateTemporaryPassword();
+  const passwordHash = await hashTemporaryPassword(temporaryPassword);
+  const user = await getDb().user.update({
+    where: { id: input.userId },
+    data: {
+      passwordHash,
+      authenticationSource: "LOCAL",
+      mustChangePassword: true,
+      provisionedAt: new Date(),
+      welcomeEmailSentAt: null,
+      isActive: true,
+      emailVerifiedAt: new Date(),
+    },
+    select: { id: true, email: true, name: true },
+  });
+  return { ...user, temporaryPassword };
 }
 
 export async function createDirectoryUser(input: CreateDirectoryUserInput) {

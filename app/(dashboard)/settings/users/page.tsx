@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
-import { createDirectoryUserAction, updateDirectoryUserStatusAction } from "@/app/(dashboard)/settings/users/actions";
+import { createDirectoryUserAction, resetDirectoryUserLocalAccessAction, updateDirectoryUserStatusAction } from "@/app/(dashboard)/settings/users/actions";
 import { UserEditDialog } from "@/app/(dashboard)/settings/users/user-edit-dialog";
 import { authOptions } from "@/lib/auth";
 import { can, roles } from "@/lib/rbac";
@@ -220,6 +220,7 @@ export default async function UserDirectoryPage({
                 <th className="px-4 py-3">Staff details</th>
                 <th className="px-4 py-3">Assignments</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Provisioning</th>
                 <th className="px-4 py-3 text-right">Actions</th>
               </tr>
             </thead>
@@ -273,9 +274,22 @@ export default async function UserDirectoryPage({
                       {user.isActive ? "Active" : "Inactive"}
                     </span>
                   </td>
+                  <td className="px-4 py-4 align-top text-xs leading-5 text-zinc-600">
+                    <p className="font-semibold text-zinc-800">{formatRole(user.authenticationSource)}</p>
+                    <p>{user.mustChangePassword ? "Password change required" : "Access ready"}</p>
+                    <p>Provisioned: {user.provisionedAt?.toLocaleDateString("en-NG") ?? "Not provisioned"}</p>
+                    <p>Welcome email: {user.welcomeEmailSentAt?.toLocaleDateString("en-NG") ?? "Not delivered"}</p>
+                    <p>Last sign-in: {user.lastSignedInAt?.toLocaleDateString("en-NG") ?? "Never"}</p>
+                  </td>
                   <td className="px-4 py-4 text-right align-top">
                     <div className="flex justify-end gap-2">
                       <UserEditDialog user={user} />
+                      <form action={resetDirectoryUserLocalAccessAction}>
+                        <input type="hidden" name="userId" value={user.id} />
+                        <button className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold">
+                          Reset local access
+                        </button>
+                      </form>
                       <form action={updateDirectoryUserStatusAction}>
                         <input type="hidden" name="userId" value={user.id} />
                         <input type="hidden" name="isActive" value={user.isActive ? "false" : "true"} />
@@ -288,7 +302,7 @@ export default async function UserDirectoryPage({
                 </tr>
               ))}
               {users.items.length === 0 ? (
-                <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-zinc-600">No users matched these filters.</td></tr>
+                <tr><td colSpan={6} className="px-4 py-8 text-center text-sm text-zinc-600">No users matched these filters.</td></tr>
               ) : null}
             </tbody>
           </table>

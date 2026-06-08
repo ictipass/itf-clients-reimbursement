@@ -198,6 +198,10 @@ export const authOptions: NextAuthOptions = {
         if (email && password) {
           const portalUser = await authenticatePortalAccount(email, password);
           if (portalUser) {
+            await getDb().user.update({
+              where: { id: portalUser.id },
+              data: { lastSignedInAt: new Date() },
+            });
             await writeIdentitySecurityAuditEvent({
               email,
               action: "LOGIN",
@@ -213,6 +217,12 @@ export const authOptions: NextAuthOptions = {
           }
 
           const developmentUser = await getDevelopmentTestUser(email, password);
+          if (developmentUser) {
+            await getDb().user.update({
+              where: { id: developmentUser.id },
+              data: { lastSignedInAt: new Date() },
+            });
+          }
 
           await writeIdentitySecurityAuditEvent({
             email,
@@ -257,6 +267,10 @@ export const authOptions: NextAuthOptions = {
         const googleProfile = profile as { email_verified?: boolean } | undefined;
         if (googleProfile?.email_verified !== true) return false;
         await provisionVerifiedGoogleEmployer(user.email, user.name ?? user.email);
+        await getDb().user.update({
+          where: { email: user.email.toLowerCase() },
+          data: { lastSignedInAt: new Date() },
+        });
       }
 
       return Boolean(await getAuthorizedDirectoryUser(user.email));
