@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { getDb } from "@/lib/db";
+import { sendOfficerWelcomeEmail } from "@/lib/email";
 import { createDirectoryUser, updateDirectoryUser, updateDirectoryUserStatus } from "@/lib/user-directory";
 import { directoryUserSchema, parseFormData } from "@/lib/validation";
 
@@ -21,10 +23,21 @@ export async function createDirectoryUserAction(formData: FormData) {
 
   try {
     const values = parseFormData(directoryUserSchema.omit({ userId: true }), formData);
-    await createDirectoryUser({
+    const user = await createDirectoryUser({
       requesterRole: session.user.role,
       ...values,
     });
+    const delivery = await sendOfficerWelcomeEmail({
+      to: user.email,
+      name: user.name,
+      temporaryPassword: user.temporaryPassword,
+    });
+    if (delivery.delivered) {
+      await getDb().user.update({
+        where: { id: user.id },
+        data: { welcomeEmailSentAt: new Date() },
+      });
+    }
   } catch (error) {
     redirectToUsers(error instanceof Error ? error.message : "User could not be saved.");
   }

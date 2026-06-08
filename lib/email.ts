@@ -192,6 +192,26 @@ export async function sendPasswordResetEmail(input: { to: string; name: string; 
   });
 }
 
+export async function sendOfficerWelcomeEmail(input: {
+  to: string;
+  name: string;
+  temporaryPassword: string;
+}) {
+  const actionUrl = `${getAppBaseUrl()}/sign-in`;
+  return sendTransactionalEmail({
+    to: input.to,
+    subject: "Your ITF Reimbursement Platform officer account",
+    html: actionEmail({
+      recipientName: input.name,
+      heading: "Your officer account is ready",
+      message: `Sign in with your email address and temporary password: ${input.temporaryPassword}. You must create a new password when you first sign in.`,
+      actionLabel: "Sign in",
+      actionUrl,
+    }),
+    text: `Your ITF Reimbursement Platform officer account is ready.\nSign in: ${actionUrl}\nEmail: ${input.to}\nTemporary password: ${input.temporaryPassword}\nYou must create a new password when you first sign in.`,
+  });
+}
+
 export async function sendWorkflowAttentionEmail(input: { to: string; name: string; title: string; summary?: string | null; targetHref: string }) {
   const actionUrl = `${getAppBaseUrl()}${input.targetHref}`;
   return sendTransactionalEmail({
