@@ -33,7 +33,10 @@ export async function changeUserPassword(input: {
     throw new Error("Current password is incorrect.");
   }
   const passwordHash = await hash(input.newPassword, { type: 2, memoryCost: 65536, timeCost: 3, parallelism: 1 });
-  await db.user.update({ where: { id: user.id }, data: { passwordHash } });
+  await db.user.update({
+    where: { id: user.id },
+    data: { passwordHash, mustChangePassword: false },
+  });
   const membership = user.memberships[0];
   if (membership) await writeAuditEvent({
     action: "UPDATE",

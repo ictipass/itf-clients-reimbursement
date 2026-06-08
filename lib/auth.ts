@@ -56,6 +56,7 @@ async function getDevelopmentTestUser(email: string, password: string) {
       email: true,
       name: true,
       isActive: true,
+      mustChangePassword: true,
       memberships: {
         where: { isActive: true },
         select: {
@@ -75,6 +76,7 @@ async function getDevelopmentTestUser(email: string, password: string) {
     name: user.name,
     email: user.email,
     role: user.memberships[0].role,
+    mustChangePassword: user.mustChangePassword,
   };
 }
 
@@ -86,13 +88,14 @@ async function getAuthorizedDirectoryUser(email: string) {
       email: true,
       name: true,
       isActive: true,
+      mustChangePassword: true,
       memberships: { where: { isActive: true }, select: { role: true }, take: 1 },
     },
   });
 
   if (!user?.isActive || !user.memberships[0]) return null;
 
-  return { id: user.id, email: user.email, name: user.name, role: user.memberships[0].role };
+  return { id: user.id, email: user.email, name: user.name, role: user.memberships[0].role, mustChangePassword: user.mustChangePassword };
 }
 
 export function getConfiguredOAuthProviders() {
@@ -261,9 +264,11 @@ export const authOptions: NextAuthOptions = {
       if (directoryUser) {
         token.role = directoryUser.role;
         token.sub = directoryUser.id;
+        token.mustChangePassword = directoryUser.mustChangePassword;
       } else if (user) {
         token.role = (user as User & { role?: Role }).role ?? "EMPLOYER_VIEWER";
         token.sub = user.id;
+        token.mustChangePassword = Boolean((user as User & { mustChangePassword?: boolean }).mustChangePassword);
       } else {
         token.role = "EMPLOYER_VIEWER";
       }
@@ -274,6 +279,7 @@ export const authOptions: NextAuthOptions = {
       if (session.user) {
         session.user.id = token.sub ?? fallbackAdmin.id;
         session.user.role = (token.role as Role | undefined) ?? fallbackAdmin.role;
+        session.user.mustChangePassword = Boolean(token.mustChangePassword);
       }
 
       return session;

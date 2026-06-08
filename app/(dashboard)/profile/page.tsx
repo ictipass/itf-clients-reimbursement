@@ -14,6 +14,11 @@ export default async function ProfilePage({ searchParams }: Readonly<{ searchPar
     <div className="mx-auto grid max-w-5xl gap-6 px-6 py-8 lg:px-8">
       <section><p className="text-sm font-semibold uppercase text-[#800020]">Account</p><h1 className="mt-2 text-3xl font-semibold">Profile and security</h1></section>
       {query.message ? <p className="rounded-md border border-zinc-200 bg-white px-4 py-3 text-sm">{query.message}</p> : null}
+      {session.user.mustChangePassword ? (
+        <p className="rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-medium text-amber-900">
+          You are using a temporary password. Change it before accessing other platform features.
+        </p>
+      ) : null}
       <div className="grid gap-6 lg:grid-cols-2">
         <form action={updateProfileAction} className="grid content-start gap-4 rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="text-xl font-semibold">Profile</h2>

@@ -141,13 +141,20 @@ export async function authenticatePortalAccount(email: string, password: string)
       passwordHash: true,
       emailVerifiedAt: true,
       isActive: true,
+      mustChangePassword: true,
       memberships: { where: { isActive: true }, select: { role: true }, take: 1 },
     },
   });
 
   if (!user?.passwordHash || !user.emailVerifiedAt || !user.isActive || !user.memberships[0]) return null;
   if (!(await verify(user.passwordHash, password))) return null;
-  return { id: user.id, email: user.email, name: user.name, role: user.memberships[0].role };
+  return {
+    id: user.id,
+    email: user.email,
+    name: user.name,
+    role: user.memberships[0].role,
+    mustChangePassword: user.mustChangePassword,
+  };
 }
 
 export async function provisionVerifiedGoogleEmployer(email: string, name: string) {

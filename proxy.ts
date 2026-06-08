@@ -45,6 +45,12 @@ export async function proxy(request: NextRequest) {
 
   const role = resolveTokenRole(token.role);
 
+  if (token.mustChangePassword === true && pathname !== "/profile") {
+    return NextResponse.redirect(
+      new URL("/profile?message=Change%20your%20temporary%20password%20to%20continue.", request.url),
+    );
+  }
+
   if (!role || !canAccessPath(role, pathname)) {
     return NextResponse.redirect(new URL("/dashboard", request.url));
   }
