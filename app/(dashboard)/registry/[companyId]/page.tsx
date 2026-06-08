@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
 import { deleteCompanyEvidenceAction } from "@/app/(dashboard)/registry/[companyId]/evidence/actions";
+import { EvidenceDeleteButton } from "@/app/(dashboard)/registry/[companyId]/evidence/evidence-delete-button";
 import {
   generateComplianceCertificatePdfAction,
   issueComplianceCertificateAction,
@@ -28,8 +29,9 @@ import {
 } from "@/app/(dashboard)/registry/[companyId]/registration/actions";
 import { RegistrationSubmissionFields } from "@/app/(dashboard)/registry/[companyId]/registration/RegistrationSubmissionFields";
 import { authOptions } from "@/lib/auth";
+import { isEvidenceWorkflowEditable } from "@/lib/evidence-deletion";
 import { listAvailableManagedNumbers } from "@/lib/managed-numbers";
-import { can, canManageAnnualCompliance, type Role } from "@/lib/rbac";
+import { canManageAnnualCompliance, type Role } from "@/lib/rbac";
 import { getEmployerCompany } from "@/lib/registry";
 
 function formatDate(date: Date | null) {
@@ -139,10 +141,12 @@ function EvidenceActions({
   companyId,
   documentId,
   canDelete,
+  showLocked,
 }: Readonly<{
   companyId: string;
   documentId: string;
   canDelete: boolean;
+  showLocked?: boolean;
 }>) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -155,11 +159,16 @@ function EvidenceActions({
         View
       </Link>
       {canDelete ? (
-        <form action={deleteCompanyEvidenceAction.bind(null, companyId, documentId)}>
-          <button className="inline-flex min-h-8 items-center rounded-md border border-red-200 bg-white px-2 text-xs font-semibold text-red-700">
-            Delete
-          </button>
-        </form>
+        <EvidenceDeleteButton
+          action={deleteCompanyEvidenceAction.bind(null, companyId, documentId)}
+        />
+      ) : showLocked ? (
+        <span
+          className="inline-flex min-h-8 items-center rounded-md bg-zinc-100 px-2 text-xs font-semibold text-zinc-500"
+          title="Submitted evidence is permanently locked."
+        >
+          Locked after submission
+        </span>
       ) : null}
     </div>
   );
@@ -471,12 +480,10 @@ export default async function CompanyDetailPage({
   const activeRole = session.user.role;
   const roleFocus = getRegistryRoleFocus(activeRole);
   const adminOverride = isAdminRole(activeRole);
-  const canDeleteEvidence =
-    adminOverride ||
-    isEmployerRole(activeRole) ||
-    can(activeRole, "registry:review") ||
-    can(activeRole, "compliance:review") ||
-    can(activeRole, "training:approve");
+  const canDeleteEvidence = isEmployerRole(activeRole);
+  const registrationEvidenceEditable = isEvidenceWorkflowEditable([
+    company.registrationApplication?.status,
+  ]);
   const currentYear = new Date().getFullYear();
   const evidenceDocumentsPerPage = 5;
   const evidenceTotalPages = Math.ceil(company.documents.length / evidenceDocumentsPerPage);
@@ -1023,7 +1030,8 @@ export default async function CompanyDetailPage({
                         <EvidenceActions
                           companyId={company.id}
                           documentId={document.id}
-                          canDelete={canDeleteEvidence}
+                          canDelete={canDeleteEvidence && registrationEvidenceEditable}
+                          showLocked={canDeleteEvidence && !registrationEvidenceEditable}
                         />
                       </div>
                     ))}
@@ -1505,7 +1513,8 @@ export default async function CompanyDetailPage({
                     <EvidenceActions
                       companyId={company.id}
                       documentId={document.id}
-                      canDelete={canDeleteEvidence}
+                      canDelete={canDeleteEvidence && registrationEvidenceEditable}
+                      showLocked={canDeleteEvidence && !registrationEvidenceEditable}
                     />
                   </div>
                 </details>
@@ -1803,7 +1812,14 @@ export default async function CompanyDetailPage({
                           <EvidenceActions
                             companyId={company.id}
                             documentId={document.id}
-                            canDelete={canDeleteEvidence}
+                            canDelete={
+                              canDeleteEvidence &&
+                              isEvidenceWorkflowEditable([complianceYear.status])
+                            }
+                            showLocked={
+                              canDeleteEvidence &&
+                              !isEvidenceWorkflowEditable([complianceYear.status])
+                            }
                           />
                         </div>
                       ))}
@@ -2108,7 +2124,14 @@ export default async function CompanyDetailPage({
                           <EvidenceActions
                             companyId={company.id}
                             documentId={document.id}
-                            canDelete={canDeleteEvidence}
+                            canDelete={
+                              canDeleteEvidence &&
+                              isEvidenceWorkflowEditable([submission.status])
+                            }
+                            showLocked={
+                              canDeleteEvidence &&
+                              !isEvidenceWorkflowEditable([submission.status])
+                            }
                           />
                         </div>
                       ))}
