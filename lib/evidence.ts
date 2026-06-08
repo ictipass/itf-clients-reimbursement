@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { assertDocumentSafe } from "@/lib/document-security";
+import { isEvidenceWorkflowEditable } from "@/lib/evidence-deletion";
 import { normalizeEvidenceDocumentName } from "@/lib/evidence-metadata";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -198,15 +199,11 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
 }
 
 export async function deleteCompanyEvidence(input: DeleteCompanyEvidenceInput) {
-  if (
-    !can(input.requesterRole, "company:manage") &&
-    !can(input.requesterRole, "registry:submit") &&
-    !can(input.requesterRole, "compliance:submit") &&
-    !can(input.requesterRole, "training:submit") &&
-    !can(input.requesterRole, "registry:review") &&
-    !can(input.requesterRole, "compliance:review") &&
-    !can(input.requesterRole, "training:approve")
-  ) {
+  if (isItfRole(input.requesterRole)) {
+    throw new Error("ITF officers cannot remove employer-uploaded evidence.");
+  }
+
+  if (!can(input.requesterRole, "company:manage") && !can(input.requesterRole, "registry:submit")) {
     throw new Error("You do not have permission to remove evidence documents.");
   }
 
@@ -233,12 +230,72 @@ export async function deleteCompanyEvidence(input: DeleteCompanyEvidenceInput) {
       companyId: true,
       complianceYearId: true,
       trainingPlanSubmissionId: true,
+      trainingRequestId: true,
+      trainingMonitoringRecordId: true,
+      reimbursementClaimId: true,
       fileName: true,
+      uploadedBy: {
+        select: {
+          memberships: {
+            where: { isActive: true },
+            select: { role: true },
+          },
+        },
+      },
+      company: {
+        select: {
+          registrationApplication: {
+            select: { status: true },
+          },
+        },
+      },
+      registrationApplication: {
+        select: { status: true },
+      },
+      complianceYear: {
+        select: { status: true },
+      },
+      trainingPlanSubmission: {
+        select: { status: true },
+      },
+      trainingRequest: {
+        select: { status: true },
+      },
+      trainingMonitoringRecord: {
+        select: { status: true },
+      },
+      reimbursementClaim: {
+        select: { status: true },
+      },
     },
   });
 
   if (!document) {
     throw new Error("Evidence document was not found.");
+  }
+
+  if (document.uploadedBy.memberships.some((membership) => isItfRole(membership.role))) {
+    throw new Error("Employer users cannot remove evidence uploaded by ITF officers.");
+  }
+
+  if (
+    !isEvidenceWorkflowEditable([
+      document.registrationApplication?.status ??
+        (document.complianceYearId ||
+        document.trainingPlanSubmissionId ||
+        document.trainingRequestId ||
+        document.trainingMonitoringRecordId ||
+        document.reimbursementClaimId
+          ? null
+          : document.company?.registrationApplication?.status),
+      document.complianceYear?.status,
+      document.trainingPlanSubmission?.status,
+      document.trainingRequest?.status,
+      document.trainingMonitoringRecord?.status,
+      document.reimbursementClaim?.status,
+    ])
+  ) {
+    throw new Error("Submitted evidence is permanently locked and cannot be removed.");
   }
 
   const requester = await db.user.findUnique({
@@ -260,9 +317,9 @@ export async function deleteCompanyEvidence(input: DeleteCompanyEvidenceInput) {
     throw new Error("User account was not found.");
   }
 
-  const hasOrganizationAccess =
-    isItfRole(input.requesterRole) ||
-    requester.memberships.some((membership) => membership.organizationId === document.organizationId);
+  const hasOrganizationAccess = requester.memberships.some(
+    (membership) => membership.organizationId === document.organizationId,
+  );
 
   if (!hasOrganizationAccess) {
     throw new Error("You do not have access to this organization's evidence.");
