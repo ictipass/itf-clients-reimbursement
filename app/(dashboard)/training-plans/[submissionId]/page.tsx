@@ -12,7 +12,8 @@ import {
 } from "@/app/(dashboard)/training-plans/[submissionId]/actions";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { type Role } from "@/lib/rbac";
+import { getActiveEmployerOrganization } from "@/lib/organization-context";
+import { isItfRole, type Role } from "@/lib/rbac";
 
 const trainingPlanTransitionLabels = {
   am_to_hot: "Forward to HOT",
@@ -107,17 +108,27 @@ function getAvailableTrainingPlanTransitions(currentDesk: string, status: string
 
 export default async function TrainingPlanDetailPage({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ submissionId: string }>;
+  searchParams: Promise<{ importError?: string | string[] }>;
 }>) {
   const { submissionId } = await params;
+  const query = await searchParams;
   const session = await getServerSession(authOptions);
-  const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  const activeRole = session.user.role;
   const adminOverride = isAdminRole(activeRole);
+  const activeOrganization = isItfRole(activeRole)
+    ? null
+    : (await getActiveEmployerOrganization(session.user.email)).active;
   const submission = await getDb().trainingPlanSubmission.findFirst({
     where: {
       id: submissionId,
       recordTier: "HOT",
+      ...(!isItfRole(activeRole)
+        ? { company: { organizationId: activeOrganization?.id ?? "__no_active_organization__" } }
+        : {}),
     },
     select: {
       id: true,
@@ -228,6 +239,7 @@ export default async function TrainingPlanDetailPage({
   const canImportLineItems =
     (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
     (isEmployerRole(activeRole) || adminOverride);
+  const importError = Array.isArray(query.importError) ? query.importError[0] : query.importError;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
@@ -310,6 +322,12 @@ export default async function TrainingPlanDetailPage({
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="text-xl font-semibold tracking-tight">Evidence</h2>
+            {importError ? (
+              <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
+                <p className="font-semibold">CSV import was not completed</p>
+                <p className="mt-1 leading-6">{importError}</p>
+              </div>
+            ) : null}
             {canImportLineItems ? (
               <form
                 action={importTrainingPlanCsvAction.bind(
@@ -342,9 +360,14 @@ export default async function TrainingPlanDetailPage({
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
                 href={`/registry/${submission.company.id}/training-plans/${submission.id}/evidence/new`}
-                className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+                aria-disabled={missingRequiredEvidence.length === 0}
+                className={`inline-flex min-h-9 items-center rounded-md border px-3 text-xs font-semibold ${
+                  missingRequiredEvidence.length === 0
+                    ? "pointer-events-none border-zinc-200 bg-zinc-100 text-zinc-400"
+                    : "border-zinc-200 text-zinc-800"
+                }`}
               >
-                Upload evidence
+                {missingRequiredEvidence.length === 0 ? "Required evidence complete" : "Upload evidence"}
               </Link>
             </div>
             {submission.documents.length === 0 ? (

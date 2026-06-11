@@ -26,6 +26,9 @@ export default async function NewTrainingPlanSubmissionPage({
   if (!company) {
     notFound();
   }
+  if (session.user.role !== "EMPLOYER_ADMIN" && session.user.role !== "EMPLOYER_SUBMITTER") {
+    notFound();
+  }
 
   const action = createTrainingPlanSubmissionAction.bind(null, company.id);
   const currentYear = new Date().getFullYear();

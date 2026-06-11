@@ -1,6 +1,10 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 
+import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { getActiveEmployerOrganization } from "@/lib/organization-context";
+import { isItfRole } from "@/lib/rbac";
 
 function readFilter(value: string | string[] | undefined) {
   const rawValue = Array.isArray(value) ? value[0] : value;
@@ -35,6 +39,11 @@ export default async function TrainingPlanListPage({
   const desk = readFilter(query.desk);
   const companyName = readFilter(query.company);
   const db = getDb();
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  const activeOrganization = isItfRole(session.user.role)
+    ? null
+    : (await getActiveEmployerOrganization(session.user.email)).active;
 
   const submissions = await db.trainingPlanSubmission.findMany({
     where: {
@@ -42,9 +51,15 @@ export default async function TrainingPlanListPage({
       ...(year ? { year: Number.parseInt(year, 10) } : {}),
       ...(status ? { status: status as never } : {}),
       ...(desk ? { currentDesk: desk as never } : {}),
+      ...(!isItfRole(session.user.role)
+        ? { company: { organizationId: activeOrganization?.id ?? "__no_active_organization__" } }
+        : {}),
       ...(companyName
         ? {
             company: {
+              ...(!isItfRole(session.user.role)
+                ? { organizationId: activeOrganization?.id ?? "__no_active_organization__" }
+                : {}),
               legalName: {
                 contains: companyName,
                 mode: "insensitive",

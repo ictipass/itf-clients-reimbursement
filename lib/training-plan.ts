@@ -86,7 +86,12 @@ export function getTrainingPlanEvidenceKinds() {
 }
 
 export function getTrainingPlanCsvTemplate() {
-  return `${requiredTrainingPlanCsvColumns.join(",")}\n`;
+  return [
+    requiredTrainingPlanCsvColumns.join(","),
+    "Ada Okafor,Finance,Advanced spreadsheet analysis,Financial modelling,250000,2026-08-15,Lagos,Example Training Ltd",
+    "Musa Bello,Operations,Supervisory skills,Frontline leadership,180000,2026-09-10,Abuja,Example Learning Hub",
+    "",
+  ].join("\n");
 }
 
 export function getTrainingPlanDeskTransitions() {
@@ -126,7 +131,7 @@ function parseTrainingPlanCsv(text: string) {
     }
 
     if (plannedDate && Number.isNaN(plannedDate.getTime())) {
-      throw new Error(`CSV row ${index + 2} has an invalid date.`);
+      throw new Error(`CSV row ${index + 2} has an invalid date. Use YYYY-MM-DD, for example 2026-08-15.`);
     }
 
     return {
@@ -144,7 +149,7 @@ function parseTrainingPlanCsv(text: string) {
 }
 
 export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubmissionInput) {
-  if (!can(input.requesterRole, "training:submit")) {
+  if (input.requesterRole !== "EMPLOYER_ADMIN" && input.requesterRole !== "EMPLOYER_SUBMITTER") {
     throw new Error("You do not have permission to create training plan submissions.");
   }
 

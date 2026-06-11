@@ -25,13 +25,18 @@ export async function importTrainingPlanCsvAction(
     throw new Error("Training Plan CSV is required.");
   }
 
-  await importTrainingPlanCsv({
-    companyId,
-    submissionId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    file,
-  });
+  try {
+    await importTrainingPlanCsv({
+      companyId,
+      submissionId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      file,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Training Plan CSV could not be imported.";
+    redirect(`/training-plans/${submissionId}?importError=${encodeURIComponent(message.slice(0, 280))}`);
+  }
 
   revalidatePath(`/training-plans/${submissionId}`);
   revalidatePath(`/registry/${companyId}`);
