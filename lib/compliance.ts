@@ -203,7 +203,7 @@ async function resolveComplianceReviewWorkItems(
 }
 
 export async function createComplianceYear(input: CreateComplianceYearInput) {
-  if (!can(input.requesterRole, "compliance:submit")) {
+  if (input.requesterRole !== "EMPLOYER_ADMIN" && input.requesterRole !== "EMPLOYER_SUBMITTER") {
     throw new Error("You do not have permission to create compliance returns.");
   }
 

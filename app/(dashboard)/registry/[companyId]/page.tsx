@@ -11,7 +11,6 @@ import {
 } from "@/app/(dashboard)/registry/[companyId]/compliance/actions";
 import {
   routeTrainingPlanSubmissionAction,
-  submitTrainingPlanSubmissionAction,
 } from "@/app/(dashboard)/registry/[companyId]/training-plans/actions";
 import {
   assessRegistrationContributionAction,
@@ -552,10 +551,7 @@ export default async function CompanyDetailPage({
     Boolean(registrationApplication) &&
     availableRegistrationTransitions.length > 0 &&
     canActAsDesk(activeRole, registrationApplication?.currentDesk) &&
-    !(
-      registrationApplication?.registrationKind === "LEGACY_EMPLOYER" &&
-      registrationApplication.currentDesk === "REVENUE_ACCOUNTANT"
-    );
+    registrationApplication?.currentDesk !== "REVENUE_ACCOUNTANT";
   const canConfirmContribution =
     registrationApplication?.currentDesk === "HORIC" &&
     registrationApplication.status === "SUBMITTED" &&
@@ -611,9 +607,9 @@ export default async function CompanyDetailPage({
     !company.itfEmployerNumber &&
     canRecordLegacyRegistrationRole(activeRole) &&
     (!registrationApplication ||
-      registrationApplication.status === "DRAFT" ||
-      registrationApplication.status === "CHANGES_REQUESTED");
-  const canCreateComplianceYear = Boolean(company.itfEmployerNumber);
+      registrationApplication.registrationKind === "LEGACY_EMPLOYER");
+  const canCreateComplianceYear = Boolean(company.itfEmployerNumber) && isEmployerRole(activeRole);
+  const canCreateTrainingPlan = hasCurrentYearCertifiedCompliance && isEmployerRole(activeRole);
   const hasVisibleRegistrationActions =
     canSubmitRegistration ||
     canRouteRegistration ||
@@ -1436,6 +1432,28 @@ export default async function CompanyDetailPage({
               </button>
             </div>
           </form>
+          <form
+            action={routeRegistrationApplicationAction.bind(null, company.id)}
+            className="mt-4 grid gap-3 border-t border-zinc-100 pt-4"
+          >
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Correction request note
+              <input
+                name="reason"
+                required
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <div>
+              <button
+                name="transition"
+                value="ra_to_company"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-900"
+              >
+                Request employer correction instead
+              </button>
+            </div>
+          </form>
           </ActionGroup>
         ) : null}
         {canUploadReceipt ? (
@@ -1914,18 +1932,18 @@ export default async function CompanyDetailPage({
               personnel CV records.
             </p>
           </div>
-          {hasCurrentYearCertifiedCompliance ? (
+          {canCreateTrainingPlan ? (
             <Link
               href={`/registry/${company.id}/training-plans/new`}
               className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
             >
               Create submission
             </Link>
-          ) : (
+          ) : !hasCurrentYearCertifiedCompliance ? (
             <span className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm font-semibold text-zinc-500">
               Compliance required
             </span>
-          )}
+          ) : null}
         </div>
 
         {!hasCurrentYearCertifiedCompliance ? (
@@ -2029,7 +2047,7 @@ export default async function CompanyDetailPage({
                       >
                         View detail
                       </Link>
-                    {hasCertifiedSubmissionYear ? (
+                    {hasCertifiedSubmissionYear && isEmployerRole(activeRole) && missingRequiredEvidence.length > 0 ? (
                       <Link
                         href={`/registry/${company.id}/training-plans/${submission.id}/evidence/new`}
                         className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
@@ -2040,25 +2058,9 @@ export default async function CompanyDetailPage({
                     </div>
                   </div>
                   {canSubmitTrainingPlan ? (
-                    <form
-                      action={submitTrainingPlanSubmissionAction.bind(
-                        null,
-                        company.id,
-                        submission.id,
-                      )}
-                      className="mt-3 grid gap-3 rounded-md border border-zinc-100 bg-zinc-50 p-3"
-                    >
-                      <label className="grid gap-2 text-xs font-medium text-zinc-700">
-                        Submission note
-                        <input
-                          name="note"
-                          className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-                        />
-                      </label>
-                      <button className="min-h-9 w-fit rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
-                        Submit Training Plan package
-                      </button>
-                    </form>
+                    <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                      Package is ready to submit. Open View detail to review and submit it.
+                    </p>
                   ) : null}
                   {canRouteTrainingPlan ? (
                     <form

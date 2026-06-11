@@ -25,6 +25,9 @@ export default async function NewComplianceYearPage({
   if (!company) {
     notFound();
   }
+  if (session.user.role !== "EMPLOYER_ADMIN" && session.user.role !== "EMPLOYER_SUBMITTER") {
+    notFound();
+  }
 
   const action = createComplianceYearAction.bind(null, company.id);
   const currentYear = new Date().getFullYear();
