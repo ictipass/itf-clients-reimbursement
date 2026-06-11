@@ -5,13 +5,42 @@ import { authOptions } from "@/lib/auth";
 import { isItfRole } from "@/lib/rbac";
 import { listEmployerCompanies } from "@/lib/registry";
 
-export default async function RegistryPage() {
+function readValue(value: string | string[] | undefined) {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return raw?.trim() || undefined;
+}
+
+function registryHref(input: { query?: string; status?: string; areaOffice?: string; page?: number }) {
+  const params = new URLSearchParams();
+  if (input.query) params.set("query", input.query);
+  if (input.status) params.set("status", input.status);
+  if (input.areaOffice) params.set("areaOffice", input.areaOffice);
+  if (input.page && input.page > 1) params.set("page", String(input.page));
+  const query = params.toString();
+  return query ? `/registry?${query}` : "/registry";
+}
+
+export default async function RegistryPage({
+  searchParams,
+}: Readonly<{
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}>) {
+  const queryParams = await searchParams;
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) throw new Error("Authentication is required.");
-  const companies = await listEmployerCompanies({
+  const query = readValue(queryParams.query);
+  const status = readValue(queryParams.status);
+  const areaOffice = readValue(queryParams.areaOffice);
+  const requestedPage = Number.parseInt(readValue(queryParams.page) ?? "1", 10);
+  const registry = await listEmployerCompanies({
     requesterEmail: session.user.email,
     requesterRole: session.user.role,
+    query,
+    status,
+    areaOffice,
+    page: Number.isInteger(requestedPage) ? requestedPage : 1,
   });
+  const { companies } = registry;
   const canCreateCompany = session.user.role === "EMPLOYER_ADMIN";
   const hasItfScope = isItfRole(session.user.role);
 
@@ -29,8 +58,8 @@ export default async function RegistryPage() {
           </p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white px-4 py-3 text-sm">
-          <span className="font-semibold text-[#800020]">{companies.length}</span>{" "}
-          {companies.length === 1 ? "company" : "companies"}
+          <span className="font-semibold text-[#800020]">{registry.total}</span>{" "}
+          {registry.total === 1 ? "company" : "companies"}
         </div>
       </div>
 
@@ -42,6 +71,30 @@ export default async function RegistryPage() {
           New company
         </Link>
       </div> : null}
+
+      <form className="mt-6 grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-4">
+        <label className="grid gap-2 text-sm font-medium text-zinc-700">
+          Company, RC, ITF No. or email
+          <input name="query" defaultValue={query} className="min-h-10 rounded-md border border-zinc-200 px-3" />
+        </label>
+        <label className="grid gap-2 text-sm font-medium text-zinc-700">
+          Area office
+          <input name="areaOffice" defaultValue={areaOffice} className="min-h-10 rounded-md border border-zinc-200 px-3" />
+        </label>
+        <label className="grid gap-2 text-sm font-medium text-zinc-700">
+          Status
+          <select name="status" defaultValue={status ?? ""} className="min-h-10 rounded-md border border-zinc-200 px-3">
+            <option value="">Any status</option>
+            {["DRAFT", "PENDING_REGISTRATION", "ACTIVE", "SUSPENDED", "ARCHIVED"].map((value) => (
+              <option key={value} value={value}>{value.replaceAll("_", " ")}</option>
+            ))}
+          </select>
+        </label>
+        <div className="flex items-end gap-2">
+          <button className="min-h-10 flex-1 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Apply filters</button>
+          <Link href="/registry" className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 px-3 text-sm font-semibold">Clear</Link>
+        </div>
+      </form>
 
       {companies.length === 0 ? (
         <section className="mt-8 rounded-lg border border-dashed border-zinc-300 bg-white p-8">
@@ -106,6 +159,15 @@ export default async function RegistryPage() {
           </table>
         </div>
       )}
+      {registry.totalPages > 1 ? (
+        <div className="mt-4 flex items-center justify-between gap-3 text-sm text-zinc-600">
+          <p>Page {registry.page} of {registry.totalPages}</p>
+          <div className="flex gap-2">
+            {registry.page > 1 ? <Link className="rounded-md border border-zinc-200 bg-white px-3 py-2 font-semibold" href={registryHref({ query, status, areaOffice, page: registry.page - 1 })}>Previous</Link> : null}
+            {registry.page < registry.totalPages ? <Link className="rounded-md border border-zinc-200 bg-white px-3 py-2 font-semibold" href={registryHref({ query, status, areaOffice, page: registry.page + 1 })}>Next</Link> : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

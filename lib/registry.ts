@@ -25,6 +25,14 @@ type RegistryRequester = {
   requesterRole: Role;
 };
 
+export type EmployerRegistryFilters = {
+  query?: string;
+  status?: string;
+  areaOffice?: string;
+  page?: number;
+  pageSize?: number;
+};
+
 function slugify(value: string) {
   return value
     .trim()
@@ -39,41 +47,65 @@ async function getEmployerOrganizationIds(requesterEmail: string) {
   return context.active ? [context.active.id] : [];
 }
 
-export async function listEmployerCompanies(input: RegistryRequester) {
+export async function listEmployerCompanies(input: RegistryRequester & EmployerRegistryFilters) {
   const db = getDb();
   const organizationIds = isItfRole(input.requesterRole)
     ? null
     : await getEmployerOrganizationIds(input.requesterEmail);
+  const pageSize = Math.min(Math.max(input.pageSize ?? 20, 1), 100);
+  const page = Math.max(input.page ?? 1, 1);
+  const where = {
+    recordTier: "HOT" as const,
+    ...(organizationIds ? { organizationId: { in: organizationIds } } : {}),
+    ...(input.status ? { status: input.status as never } : {}),
+    ...(input.areaOffice
+      ? { areaOffice: { name: { contains: input.areaOffice, mode: "insensitive" as const } } }
+      : {}),
+    ...(input.query
+      ? {
+          OR: [
+            { legalName: { contains: input.query, mode: "insensitive" as const } },
+            { rcNumber: { contains: input.query, mode: "insensitive" as const } },
+            { itfEmployerNumber: { contains: input.query, mode: "insensitive" as const } },
+            { email: { contains: input.query, mode: "insensitive" as const } },
+          ],
+        }
+      : {}),
+  };
 
-  return db.company.findMany({
-    where: {
-      recordTier: "HOT",
-      ...(organizationIds ? { organizationId: { in: organizationIds } } : {}),
-    },
-    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
-    select: {
-      id: true,
-      legalName: true,
-      areaOffice: {
-        select: {
-          name: true,
+  const [total, companies] = await db.$transaction([
+    db.company.count({ where }),
+    db.company.findMany({
+      where,
+      orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+      skip: (page - 1) * pageSize,
+      take: pageSize,
+      select: {
+        id: true,
+        legalName: true,
+        areaOffice: {
+          select: {
+            name: true,
+          },
+        },
+        rcNumber: true,
+        itfEmployerNumber: true,
+        email: true,
+        telephone: true,
+        natureOfBusiness: true,
+        status: true,
+        updatedAt: true,
+        organization: {
+          select: {
+            name: true,
+            slug: true,
+          },
         },
       },
-      rcNumber: true,
-      itfEmployerNumber: true,
-      email: true,
-      telephone: true,
-      natureOfBusiness: true,
-      status: true,
-      updatedAt: true,
-      organization: {
-        select: {
-          name: true,
-          slug: true,
-        },
-      },
-    },
-  });
+    }),
+  ]);
+
+  return { companies, page, pageSize, total, totalPages: Math.max(Math.ceil(total / pageSize), 1) };
 }
 
 export async function getEmployerCompany(companyId: string, input: RegistryRequester) {
