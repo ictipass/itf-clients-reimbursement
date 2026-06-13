@@ -239,6 +239,25 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
                   issuedAt: true,
                   generatedDocumentId: true,
                   generatedAt: true,
+                  payments: {
+                    where: {
+                      provider: "REMITA",
+                      recordTier: "HOT",
+                    },
+                    select: {
+                      id: true,
+                      providerReference: true,
+                      status: true,
+                      statusMessage: true,
+                      paymentUrl: true,
+                      lastCheckedAt: true,
+                      confirmedAt: true,
+                    },
+                    orderBy: {
+                      createdAt: "desc",
+                    },
+                    take: 1,
+                  },
                 },
               },
             },

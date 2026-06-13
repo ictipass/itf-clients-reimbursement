@@ -18,9 +18,11 @@ import {
   confirmRegistrationContributionAction,
   forwardRegistrationToDivisionAction,
   generateContributionInvoicePdfAction,
+  initiateRemitaPaymentAction,
   notifyRegistrationHeadquartersAction,
   recordLegacyRegistrationAction,
   releaseRegistrationContributionAction,
+  reconcileRemitaPaymentAction,
   reviewLegacyRegistrationClaimAction,
   reviewRegistrationContributionReceiptAction,
   routeRegistrationApplicationAction,
@@ -31,6 +33,7 @@ import { RegistrationSubmissionFields } from "@/app/(dashboard)/registry/[compan
 import { authOptions } from "@/lib/auth";
 import { isEvidenceWorkflowEditable } from "@/lib/evidence-deletion";
 import { listAvailableManagedNumbers } from "@/lib/managed-numbers";
+import { isRemitaConfigured } from "@/lib/remita";
 import { canManageAnnualCompliance, type Role } from "@/lib/rbac";
 import { getEmployerCompany } from "@/lib/registry";
 
@@ -482,6 +485,7 @@ export default async function CompanyDetailPage({
   const roleFocus = getRegistryRoleFocus(activeRole);
   const adminOverride = isAdminRole(activeRole);
   const canDeleteEvidence = isEmployerRole(activeRole);
+  const remitaConfigured = isRemitaConfigured();
   const registrationEvidenceEditable = isEvidenceWorkflowEditable([
     company.registrationApplication?.status,
   ]);
@@ -576,7 +580,8 @@ export default async function CompanyDetailPage({
     registrationApplication?.currentDesk === "AREA_MANAGER" &&
     registrationApplication.status === "IN_REVIEW" &&
     Boolean(registrationApplication.contributionAssessment?.amReleasedAt) &&
-    registrationApplication.documents.length > 0 &&
+    (registrationApplication.documents.length > 0 ||
+      registrationApplication.contributionAssessment?.invoice?.status === "PAID") &&
     canActAsDesk(activeRole, "AREA_MANAGER");
   const canAssessContribution =
     registrationApplication?.currentDesk === "REVENUE_ACCOUNTANT" &&
@@ -594,6 +599,7 @@ export default async function CompanyDetailPage({
     registrationApplication?.currentDesk === "COMPANY" &&
     registrationApplication.status === "SUBMITTED" &&
     Boolean(registrationApplication.contributionAssessment?.amReleasedAt) &&
+    registrationApplication.contributionAssessment?.invoice?.status !== "PAID" &&
     (isEmployerRole(activeRole) || adminOverride);
   const canForwardToDivision =
     !company.itfEmployerNumber &&
@@ -1053,6 +1059,83 @@ export default async function CompanyDetailPage({
                           </form>
                         )}
                       </div>
+                      <div className="mt-3 border-t border-zinc-100 pt-3">
+                        {company.registrationApplication.contributionAssessment.invoice
+                          .payments[0] ? (
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-semibold text-zinc-900">
+                                Remita payment:{" "}
+                                {
+                                  company.registrationApplication.contributionAssessment.invoice
+                                    .payments[0].status
+                                }
+                              </p>
+                              <p className="mt-1 text-xs text-zinc-500">
+                                RRR:{" "}
+                                {company.registrationApplication.contributionAssessment.invoice
+                                  .payments[0].providerReference ?? "Pending generation"}
+                                {company.registrationApplication.contributionAssessment.invoice
+                                  .payments[0].statusMessage
+                                  ? ` · ${company.registrationApplication.contributionAssessment.invoice.payments[0].statusMessage}`
+                                  : ""}
+                              </p>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {company.registrationApplication.contributionAssessment.invoice
+                                .payments[0].paymentUrl &&
+                              company.registrationApplication.contributionAssessment.invoice
+                                .payments[0].status !== "SUCCESSFUL" ? (
+                                <a
+                                  href={
+                                    company.registrationApplication.contributionAssessment.invoice
+                                      .payments[0].paymentUrl ?? undefined
+                                  }
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex min-h-9 items-center rounded-md bg-[#800020] px-3 text-xs font-semibold text-white"
+                                >
+                                  Continue with Remita
+                                </a>
+                              ) : null}
+                              {company.registrationApplication.contributionAssessment.invoice
+                                .payments[0].providerReference &&
+                              company.registrationApplication.contributionAssessment.invoice
+                                .payments[0].status !== "SUCCESSFUL" ? (
+                                <form
+                                  action={reconcileRemitaPaymentAction.bind(
+                                    null,
+                                    company.id,
+                                    company.registrationApplication.contributionAssessment.invoice
+                                      .payments[0].providerReference ?? "",
+                                  )}
+                                >
+                                  <button className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800">
+                                    Check payment status
+                                  </button>
+                                </form>
+                              ) : null}
+                            </div>
+                          </div>
+                        ) : isEmployerRole(activeRole) && remitaConfigured ? (
+                          <form
+                            action={initiateRemitaPaymentAction.bind(
+                              null,
+                              company.id,
+                              company.registrationApplication.contributionAssessment.invoice.id,
+                            )}
+                          >
+                            <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                              Pay with Remita
+                            </button>
+                          </form>
+                        ) : isEmployerRole(activeRole) ? (
+                          <p className="text-xs leading-5 text-zinc-500">
+                            Remita payment will become available after ITF configures the approved
+                            merchant credentials and endpoint templates.
+                          </p>
+                        ) : null}
+                      </div>
                     </div>
                   ) : null}
                 </div>
@@ -1063,7 +1146,13 @@ export default async function CompanyDetailPage({
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
                   Payment receipt
                 </p>
-                {company.registrationApplication.documents.length === 0 ? (
+                {company.registrationApplication.contributionAssessment?.invoice?.status ===
+                "PAID" ? (
+                  <p className="mt-2 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                    Payment was confirmed directly through Remita. A separate receipt upload is not
+                    required.
+                  </p>
+                ) : company.registrationApplication.documents.length === 0 ? (
                   <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
                     No contribution payment receipt has been uploaded yet.
                   </p>

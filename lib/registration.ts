@@ -1493,14 +1493,25 @@ export async function reviewRegistrationContributionReceipt(
           },
         },
       },
-      documents: {
-        some: {
-          kind: "CONTRIBUTION_RECEIPT",
-          isActive: true,
-          recordTier: "HOT",
-          revokedAt: null,
+      OR: [
+        {
+          documents: {
+            some: {
+              kind: "CONTRIBUTION_RECEIPT",
+              isActive: true,
+              recordTier: "HOT",
+              revokedAt: null,
+            },
+          },
         },
-      },
+        {
+          contributionInvoice: {
+            is: {
+              status: "PAID",
+            },
+          },
+        },
+      ],
     },
     select: {
       id: true,
@@ -1725,6 +1736,17 @@ export async function notifyRegistrationHeadquarters(
         reason: ["Area Office notified Headquarters for registration completion", input.note]
           .filter(Boolean)
           .join(": "),
+      },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        registrationApplicationId: registrationApplication.id,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
       },
     });
 

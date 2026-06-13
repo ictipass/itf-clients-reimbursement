@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
 import { generateContributionInvoicePdf } from "@/lib/contribution-invoices";
+import { initiateRemitaPayment, reconcileRemitaPayment } from "@/lib/remita";
 import {
   assessRegistrationContribution,
   completeRegistrationAtHeadquarters,
@@ -249,6 +250,40 @@ export async function generateContributionInvoicePdfAction(
     requesterRole: session.user.role,
   });
 
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+export async function initiateRemitaPaymentAction(companyId: string, invoiceId: string) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  const payment = await initiateRemitaPayment({
+    companyId,
+    invoiceId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
+
+  redirect(payment.paymentUrl ?? `/registry/${companyId}`);
+}
+
+export async function reconcileRemitaPaymentAction(
+  companyId: string,
+  providerReference: string,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await reconcileRemitaPayment({ providerReference });
+
+  revalidatePath(`/dashboard`);
   revalidatePath(`/registry/${companyId}`);
   redirect(`/registry/${companyId}`);
 }

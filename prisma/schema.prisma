@@ -147,6 +147,18 @@ enum ContributionInvoiceStatus {
   EXPIRED
 }
 
+enum PaymentProvider {
+  REMITA
+}
+
+enum ContributionPaymentStatus {
+  INITIATED
+  PENDING
+  SUCCESSFUL
+  FAILED
+  CANCELLED
+}
+
 enum RegistrationCertificateStatus {
   ACTIVE
   REVOKED
@@ -340,6 +352,7 @@ model User {
   horicReviewedRegistrationContributionAssessments RegistrationContributionAssessment[] @relation("HoricReviewedRegistrationContributionAssessments")
   amReleasedRegistrationContributionAssessments    RegistrationContributionAssessment[] @relation("AmReleasedRegistrationContributionAssessments")
   issuedContributionInvoices                       ContributionInvoice[]                 @relation("IssuedContributionInvoices")
+  initiatedContributionPayments                    ContributionPayment[]                 @relation("InitiatedContributionPayments")
   issuedRegistrationCertificates                   RegistrationCertificate[]            @relation("IssuedRegistrationCertificates")
   issuedComplianceCertificates                     ComplianceCertificate[]              @relation("IssuedComplianceCertificates")
   decisions                                        Decision[]
@@ -474,6 +487,7 @@ model Company {
   registrationApplication             RegistrationApplication?
   registrationContributionAssessments RegistrationContributionAssessment[]
   contributionInvoices                 ContributionInvoice[]
+  contributionPayments                 ContributionPayment[]
   registrationCertificates            RegistrationCertificate[]
   managedNumbers                      ManagedRegistrationNumber[]
   workItems                           WorkItem[]
@@ -685,9 +699,39 @@ model ContributionInvoice {
   registrationApplication   RegistrationApplication   @relation(fields: [registrationApplicationId], references: [id])
   contributionAssessment    RegistrationContributionAssessment @relation(fields: [contributionAssessmentId], references: [id])
   issuedBy                  User                      @relation("IssuedContributionInvoices", fields: [issuedById], references: [id])
+  payments                  ContributionPayment[]
 
   @@index([companyId, status, recordTier])
   @@index([issuedById, recordTier])
+}
+
+model ContributionPayment {
+  id                String                    @id @default(cuid())
+  invoiceId         String
+  companyId         String
+  initiatedById     String
+  provider          PaymentProvider           @default(REMITA)
+  orderId           String                    @unique
+  providerReference String?                   @unique
+  amount            Decimal                   @db.Decimal(14, 2)
+  status            ContributionPaymentStatus @default(INITIATED)
+  statusCode        String?
+  statusMessage     String?
+  paymentUrl        String?
+  initiatedAt       DateTime                  @default(now())
+  lastCheckedAt     DateTime?
+  confirmedAt       DateTime?
+  recordTier        RecordTier                @default(HOT)
+  createdAt         DateTime                  @default(now())
+  updatedAt         DateTime                  @updatedAt
+  invoice           ContributionInvoice       @relation(fields: [invoiceId], references: [id])
+  company           Company                   @relation(fields: [companyId], references: [id])
+  initiatedBy       User                      @relation("InitiatedContributionPayments", fields: [initiatedById], references: [id])
+
+  @@unique([invoiceId, provider])
+  @@index([companyId, status, recordTier])
+  @@index([provider, status, lastCheckedAt])
+  @@index([initiatedById, recordTier])
 }
 
 model ComplianceYear {
