@@ -64,6 +64,14 @@ export type UploadComplianceEvidenceInput = {
   file: File;
 };
 
+export type AttachExistingPaymentEvidenceInput = {
+  companyId: string;
+  complianceYearId: string;
+  documentId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+};
+
 export type UpdateComplianceYearStatusInput = {
   companyId: string;
   complianceYearId: string;
@@ -304,9 +312,177 @@ export async function getComplianceYearForUpload(companyId: string, complianceYe
         select: {
           id: true,
           legalName: true,
+          documents: {
+            where: {
+              kind: "CONTRIBUTION_RECEIPT",
+              complianceYearId: null,
+              isActive: true,
+              recordTier: "HOT",
+              revokedAt: null,
+            },
+            select: {
+              id: true,
+              fileName: true,
+              createdAt: true,
+            },
+            orderBy: {
+              createdAt: "desc",
+            },
+          },
         },
       },
     },
+  });
+}
+
+export async function attachExistingPaymentEvidence(
+  input: AttachExistingPaymentEvidenceInput,
+) {
+  if (!can(input.requesterRole, "compliance:submit")) {
+    throw new Error("You do not have permission to attach compliance payment evidence.");
+  }
+
+  const db = getDb();
+  const complianceYear = await db.complianceYear.findFirst({
+    where: {
+      id: input.complianceYearId,
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: {
+        in: ["DRAFT", "CHANGES_REQUESTED"],
+      },
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!complianceYear) {
+    throw new Error("An editable compliance year was not found.");
+  }
+
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        where: { isActive: true },
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    requester.memberships.some(
+      (membership) => membership.organizationId === complianceYear.company.organizationId,
+    );
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to this compliance year.");
+  }
+
+  const source = await db.document.findFirst({
+    where: {
+      id: input.documentId,
+      companyId: input.companyId,
+      kind: "CONTRIBUTION_RECEIPT",
+      complianceYearId: null,
+      isActive: true,
+      recordTier: "HOT",
+      revokedAt: null,
+    },
+    select: {
+      organizationId: true,
+      companyId: true,
+      uploadedById: true,
+      kind: true,
+      documentName: true,
+      fileName: true,
+      storageProvider: true,
+      bucket: true,
+      objectKey: true,
+      url: true,
+      etag: true,
+      versionId: true,
+      checksum: true,
+      mimeType: true,
+      fileSize: true,
+      access: true,
+      scanStatus: true,
+      scannedAt: true,
+      scanReason: true,
+      classification: true,
+      retentionPolicy: true,
+      expiresAt: true,
+    },
+  });
+
+  if (!source) {
+    throw new Error("The selected payment receipt is no longer available.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const existing = await tx.document.findFirst({
+      where: {
+        complianceYearId: complianceYear.id,
+        kind: "CONTRIBUTION_RECEIPT",
+        objectKey: source.objectKey,
+        checksum: source.checksum,
+        isActive: true,
+        recordTier: "HOT",
+        revokedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existing) {
+      throw new Error("This payment receipt is already attached to the compliance year.");
+    }
+
+    const document = await tx.document.create({
+      data: {
+        ...source,
+        complianceYearId: complianceYear.id,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: requester.id,
+        companyId: complianceYear.companyId,
+        complianceYearId: complianceYear.id,
+        documentId: document.id,
+        action: "SUBMIT",
+        reason: `Attached existing contribution payment receipt: ${source.fileName}`,
+      },
+    });
+
+    return document;
   });
 }
 

@@ -1,7 +1,10 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { uploadComplianceEvidenceAction } from "@/app/(dashboard)/registry/[companyId]/compliance/[complianceYearId]/evidence/actions";
+import {
+  attachExistingPaymentEvidenceAction,
+  uploadComplianceEvidenceAction,
+} from "@/app/(dashboard)/registry/[companyId]/compliance/[complianceYearId]/evidence/actions";
 import { EvidenceTypeField } from "@/app/(dashboard)/registry/[companyId]/evidence/evidence-type-field";
 import {
   getComplianceEvidenceKinds,
@@ -32,6 +35,7 @@ export default async function NewComplianceEvidencePage({
   }
 
   const action = uploadComplianceEvidenceAction.bind(null, companyId, complianceYearId);
+  const attachAction = attachExistingPaymentEvidenceAction.bind(null, companyId, complianceYearId);
   const evidenceKinds = getComplianceEvidenceKinds();
 
   return (
@@ -45,6 +49,42 @@ export default async function NewComplianceEvidencePage({
         Add evidence for {complianceYear.company.legalName} for compliance year{" "}
         {complianceYear.year}. This upload flow accepts PDF, JPEG, and PNG files up to 10MB.
       </p>
+
+      {complianceYear.company.documents.length > 0 ? (
+        <form
+          action={attachAction}
+          className="mt-6 grid gap-4 rounded-lg border border-emerald-200 bg-emerald-50/40 p-6"
+        >
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Use existing payment evidence</h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-600">
+              Select a contribution receipt already uploaded during registration. The secured file
+              will be linked to this compliance year without uploading it again.
+            </p>
+          </div>
+          <label className="grid gap-2 text-sm font-medium">
+            Existing contribution receipt
+            <select
+              name="documentId"
+              required
+              className="min-h-11 rounded-md border border-zinc-300 bg-white px-3"
+            >
+              <option value="">Select payment evidence</option>
+              {complianceYear.company.documents.map((document) => (
+                <option key={document.id} value={document.id}>
+                  {document.fileName} ·{" "}
+                  {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(
+                    document.createdAt,
+                  )}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="min-h-11 w-fit rounded-md bg-[#800020] px-5 text-sm font-semibold text-white">
+            Attach selected receipt
+          </button>
+        </form>
+      ) : null}
 
       <form action={action} className="mt-6 grid gap-5 rounded-lg border border-zinc-200 bg-white p-6">
         <EvidenceTypeField

@@ -236,6 +236,9 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
       },
       documents: {
         where: {
+          kind: {
+            not: "CERTIFICATE",
+          },
           isActive: true,
           recordTier: "HOT",
         },
@@ -290,6 +293,9 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
           },
           documents: {
             where: {
+              kind: {
+                not: "CERTIFICATE",
+              },
               isActive: true,
               recordTier: "HOT",
             },

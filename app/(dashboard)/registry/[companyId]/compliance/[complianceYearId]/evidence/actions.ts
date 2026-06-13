@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
 import {
+  attachExistingPaymentEvidence,
   getComplianceEvidenceKinds,
   uploadComplianceEvidence,
   type ComplianceEvidenceKind,
@@ -61,6 +62,29 @@ export async function uploadComplianceEvidenceAction(
     kind: readEvidenceKind(formData),
     documentName: formData.get("documentName")?.toString(),
     file: readRequiredFile(formData),
+  });
+
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+export async function attachExistingPaymentEvidenceAction(
+  companyId: string,
+  complianceYearId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await attachExistingPaymentEvidence({
+    companyId,
+    complianceYearId,
+    documentId: readRequiredString(formData, "documentId"),
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
   });
 
   revalidatePath(`/registry/${companyId}`);

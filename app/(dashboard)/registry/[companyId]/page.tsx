@@ -1576,6 +1576,56 @@ export default async function CompanyDetailPage({
         </div>
 
         <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <h2 className="text-xl font-semibold tracking-tight">Certificates</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Issued annual compliance certificates are listed separately from supporting evidence.
+          </p>
+          {company.complianceYears.every((complianceYear) => !complianceYear.certificate) ? (
+            <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+              No annual compliance certificate has been issued yet.
+            </p>
+          ) : (
+            <div className="mt-4 grid gap-3">
+              {company.complianceYears
+                .filter((complianceYear) => complianceYear.certificate)
+                .map((complianceYear) => (
+                  <div
+                    key={complianceYear.id}
+                    className="rounded-md border border-zinc-100 p-3 text-sm"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-zinc-950">
+                          {complianceYear.year} compliance certificate
+                        </p>
+                        <p className="mt-1 text-xs leading-5 text-zinc-500">
+                          {complianceYear.certificate?.certificateNumber} ·{" "}
+                          {complianceYear.certificate?.status.replaceAll("_", " ")} · Issued{" "}
+                          {formatDate(complianceYear.certificate?.issuedAt ?? null)}
+                        </p>
+                      </div>
+                      {complianceYear.certificate?.generatedDocumentId ? (
+                        <Link
+                          href={`/registry/${company.id}/compliance/${complianceYear.id}/certificate/${complianceYear.certificate.id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex min-h-9 items-center rounded-md bg-[#800020] px-3 text-xs font-semibold text-white"
+                        >
+                          View certificate
+                        </Link>
+                      ) : (
+                        <span className="inline-flex min-h-9 items-center rounded-md bg-zinc-100 px-3 text-xs font-semibold text-zinc-500">
+                          PDF pending
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <h2 className="text-xl font-semibold tracking-tight">Compliance years</h2>
             {canCreateComplianceYear ? (
