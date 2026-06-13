@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 
+import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { isItfRole } from "@/lib/rbac";
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -13,15 +16,67 @@ function formatDate(date: Date | null) {
 }
 
 export default async function TrainingMonitoringPage() {
-  const records = await getDb().trainingMonitoringRecord.findMany({
+  const session = await getServerSession(authOptions);
+  const role = session?.user?.role ?? "SYSTEM_ADMIN";
+  const db = getDb();
+  const requester = session?.user?.email
+    ? await db.user.findUnique({
+        where: {
+          email: session.user.email,
+        },
+        select: {
+          memberships: {
+            where: {
+              isActive: true,
+            },
+            select: {
+              organizationId: true,
+              areaOfficeId: true,
+            },
+          },
+        },
+      })
+    : null;
+  const organizationIds = requester?.memberships
+    .map((membership) => membership.organizationId)
+    .filter((id): id is string => Boolean(id)) ?? [];
+  const areaOfficeIds = requester?.memberships
+    .map((membership) => membership.areaOfficeId)
+    .filter((id): id is string => Boolean(id)) ?? [];
+  const isAdmin = role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
+  const records = await db.trainingMonitoringRecord.findMany({
     where: {
       recordTier: "HOT",
+      ...(!isAdmin && isItfRole(role)
+        ? {
+            trainingRequest: {
+              company: {
+                areaOfficeId: {
+                  in: areaOfficeIds,
+                },
+              },
+            },
+          }
+        : {}),
+      ...(!isAdmin && !isItfRole(role)
+        ? {
+            trainingRequest: {
+              company: {
+                organizationId: {
+                  in: organizationIds,
+                },
+              },
+            },
+          }
+        : {}),
     },
     select: {
       id: true,
       mode: true,
       monitoringDate: true,
       status: true,
+      currentDesk: true,
+      decisionOutcome: true,
       trainingRequest: {
         select: {
           id: true,
@@ -41,10 +96,8 @@ export default async function TrainingMonitoringPage() {
         },
       },
     },
-    orderBy: {
-      updatedAt: "desc",
-    },
-    take: 50,
+    orderBy: [{ monitoringDate: "asc" }, { updatedAt: "desc" }],
+    take: 200,
   });
 
   return (
@@ -55,10 +108,10 @@ export default async function TrainingMonitoringPage() {
             Training monitoring
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            Form 6A and 6B Monitoring
+            Area Office Monitoring Calendar
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-            Monitoring records created from approved Training Approval Requests.
+            Approved trainings scheduled for monitoring, review, and employer feedback.
           </p>
         </div>
         <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
@@ -81,6 +134,8 @@ export default async function TrainingMonitoringPage() {
                   <th className="px-4 py-3">Form</th>
                   <th className="px-4 py-3">Monitoring date</th>
                   <th className="px-4 py-3">Status</th>
+                  <th className="px-4 py-3">Current desk</th>
+                  <th className="px-4 py-3">Decision</th>
                   <th className="px-4 py-3">Action</th>
                 </tr>
               </thead>
@@ -104,6 +159,10 @@ export default async function TrainingMonitoringPage() {
                     <td className="px-4 py-4">{record.mode.replaceAll("_", " ")}</td>
                     <td className="px-4 py-4">{formatDate(record.monitoringDate)}</td>
                     <td className="px-4 py-4">{record.status.replaceAll("_", " ")}</td>
+                    <td className="px-4 py-4">{record.currentDesk.replaceAll("_", " ")}</td>
+                    <td className="px-4 py-4">
+                      {record.decisionOutcome?.replaceAll("_", " ") ?? "Pending"}
+                    </td>
                     <td className="px-4 py-4">
                       <Link
                         href={`/training-monitoring/${record.id}`}

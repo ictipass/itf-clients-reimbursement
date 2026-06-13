@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 
 import {
   addTrainingParticipantAction,
-  createTrainingMonitoringRecordAction,
   createClaimFromTrainingRequestAction,
   deleteTrainingParticipantAction,
   routeTrainingRequestAction,
@@ -17,13 +16,11 @@ import { type Role } from "@/lib/rbac";
 
 const transitionLabels = {
   am_to_hot: "Forward to HOT",
-  am_to_company: "Request employer correction",
   hot_to_ro: "Forward to Reimbursement Officer",
-  hot_to_company: "Request employer correction",
-  ro_to_hot: "Return to HOT",
-  ro_to_company: "Request employer correction",
-  hot_to_am: "Return to AM",
-  am_approve: "Approve request",
+  ro_approve: "Approve and return to HOT",
+  ro_reject: "Reject and return to HOT",
+  hot_to_am: "Forward decision to AM",
+  am_release: "Release decision to employer",
 } as const;
 
 function formatDate(date: Date | null) {
@@ -55,21 +52,21 @@ function isEmployerRole(role: Role) {
   return role === "EMPLOYER_ADMIN" || role === "EMPLOYER_SUBMITTER";
 }
 
-function getAvailableTransitions(currentDesk: string, status: string) {
+function getAvailableTransitions(currentDesk: string, status: string, decisionOutcome: string | null) {
   if (currentDesk === "AREA_MANAGER") {
     if (status === "IN_REVIEW") {
-      return ["am_approve", "am_to_company"] as const;
+      return ["am_release", "am_to_hot"] as const;
     }
 
-    return ["am_to_hot", "am_to_company"] as const;
+    return ["am_to_hot"] as const;
   }
 
   if (currentDesk === "HEAD_OF_TRAINING") {
-    return ["hot_to_ro", "hot_to_am", "hot_to_company"] as const;
+    return decisionOutcome ? (["hot_to_am", "hot_to_ro"] as const) : (["hot_to_ro"] as const);
   }
 
   if (currentDesk === "REIMBURSEMENT_OFFICER") {
-    return ["ro_to_hot", "ro_to_company"] as const;
+    return ["ro_approve", "ro_reject"] as const;
   }
 
   return [] as const;
@@ -162,6 +159,9 @@ export default async function TrainingRequestDetailPage({
       approvalReference: true,
       status: true,
       currentDesk: true,
+      decisionOutcome: true,
+      decisionReason: true,
+      feedbackReleasedAt: true,
       company: {
         select: {
           id: true,
@@ -220,6 +220,7 @@ export default async function TrainingRequestDetailPage({
           id: true,
           mode: true,
           status: true,
+          decisionOutcome: true,
           createdAt: true,
         },
         orderBy: {
@@ -270,18 +271,15 @@ export default async function TrainingRequestDetailPage({
     (request.status === "DRAFT" || request.status === "CHANGES_REQUESTED") &&
     (isEmployerRole(activeRole) || adminOverride);
   const missingRequirements = getMissingRequirements(request);
-  const availableTransitions = getAvailableTransitions(request.currentDesk, request.status);
+  const availableTransitions = getAvailableTransitions(
+    request.currentDesk,
+    request.status,
+    request.decisionOutcome,
+  );
   const canRoute =
     availableTransitions.length > 0 && canActAsDesk(activeRole, request.currentDesk);
-  const canCreateMonitoring =
-    request.status === "APPROVED" &&
-    (adminOverride ||
-      activeRole === "AREA_MANAGER" ||
-      activeRole === "HEAD_OF_TRAINING" ||
-      activeRole === "REIMBURSEMENT_OFFICER" ||
-      activeRole === "ITF_TRAINING_APPROVER");
   const hasApprovedMonitoring = request.monitoringRecords.some(
-    (record) => record.status === "APPROVED",
+    (record) => record.status === "APPROVED" && record.decisionOutcome === "ACCEPTED",
   );
   const canCreateClaim =
     request.status === "APPROVED" &&
@@ -570,36 +568,12 @@ export default async function TrainingRequestDetailPage({
             )}
           </div>
 
-          {canCreateMonitoring ? (
-            <form
-              action={createTrainingMonitoringRecordAction.bind(null, request.id)}
-              className="rounded-lg border border-zinc-200 bg-white p-5"
-            >
-              <h2 className="text-xl font-semibold tracking-tight">Create monitoring record</h2>
-              <p className="mt-2 text-sm leading-6 text-zinc-600">
-                Open Form 6A or 6B monitoring for this approved Training Approval Request.
-              </p>
-              <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
-                Monitoring form
-                <select
-                  name="mode"
-                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-                >
-                  <option value="LOCAL_PHYSICAL">Form 6A - local physical</option>
-                  <option value="LOCAL_VIRTUAL">Form 6B - local virtual</option>
-                </select>
-              </label>
-              <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                Create monitoring record
-              </button>
-            </form>
-          ) : null}
-
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="text-xl font-semibold tracking-tight">Monitoring records</h2>
             {request.monitoringRecords.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">
-                No Form 6A or 6B monitoring record has been created for this request.
+                A monitoring calendar entry will be created automatically when an approval is
+                released to the employer.
               </p>
             ) : (
               <div className="mt-4 grid gap-2">
@@ -615,6 +589,19 @@ export default async function TrainingRequestDetailPage({
                 ))}
               </div>
             )}
+          </div>
+
+          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+            <h2 className="text-xl font-semibold tracking-tight">Approval feedback</h2>
+            <p className="mt-3 text-sm leading-6 text-zinc-600">
+              Decision: {request.decisionOutcome?.replaceAll("_", " ") ?? "Pending"}
+            </p>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Reason: {request.decisionReason ?? "No decision reason recorded yet."}
+            </p>
+            <p className="mt-2 text-xs text-zinc-500">
+              Released: {formatDate(request.feedbackReleasedAt)}
+            </p>
           </div>
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
@@ -693,9 +680,10 @@ export default async function TrainingRequestDetailPage({
             >
               <h2 className="text-xl font-semibold tracking-tight">Workflow action</h2>
               <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
-                Routing note
+                Decision/review reason
                 <input
                   name="note"
+                  required={request.currentDesk === "REIMBURSEMENT_OFFICER"}
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
                 />
               </label>

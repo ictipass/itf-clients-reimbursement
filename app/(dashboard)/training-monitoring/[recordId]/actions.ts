@@ -182,6 +182,7 @@ export async function routeTrainingMonitoringRecordAction(
     requesterEmail: session.user.email,
     requesterRole: session.user.role,
     transition: readMonitoringTransition(formData),
+    note: readOptionalString(formData, "note"),
   });
 
   revalidatePath(`/training-monitoring`);

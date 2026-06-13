@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import type { Prisma } from "@/lib/generated/prisma/client";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
@@ -20,13 +21,11 @@ export type CreateTrainingRequestFromLineItemInput = {
 
 const trainingRequestTransitions = [
   "am_to_hot",
-  "am_to_company",
   "hot_to_ro",
-  "hot_to_company",
-  "ro_to_hot",
-  "ro_to_company",
+  "ro_approve",
+  "ro_reject",
   "hot_to_am",
-  "am_approve",
+  "am_release",
 ] as const;
 
 export type TrainingRequestTransition = (typeof trainingRequestTransitions)[number];
@@ -206,7 +205,14 @@ export async function submitTrainingRequest(input: SubmitTrainingRequestInput) {
       company: {
         select: {
           organizationId: true,
+          areaOfficeId: true,
+          legalName: true,
           isActive: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
         },
       },
     },
@@ -254,6 +260,18 @@ export async function submitTrainingRequest(input: SubmitTrainingRequestInput) {
         action: "SUBMIT",
         reason: input.note,
       },
+    });
+
+    await createTrainingRequestWorkItem(tx, {
+      requestId: request.id,
+      companyId: request.companyId,
+      organizationId: request.company.organizationId,
+      workspaceId: request.company.organization.workspaceId,
+      areaOfficeId: request.company.areaOfficeId,
+      assignedRole: "AREA_MANAGER",
+      title: "Review Form 4A training approval request",
+      summary: `${request.company.legalName} submitted a Form 4A training approval request.`,
+      sourceSuffix: "area-manager",
     });
 
     return updated;
@@ -311,6 +329,10 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
     throw new Error(`Only ${transition.allowedRoles.join(" or ")} can perform this action.`);
   }
 
+  if (transition.outcome && !input.note?.trim()) {
+    throw new Error("A reason is required for the Reimbursement Officer's decision.");
+  }
+
   const db = getDb();
   const request = await db.trainingRequest.findFirst({
     where: {
@@ -324,10 +346,22 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
     select: {
       id: true,
       companyId: true,
+      title: true,
+      trainingType: true,
+      startsAt: true,
+      endsAt: true,
+      decisionOutcome: true,
       company: {
         select: {
           areaOfficeId: true,
+          organizationId: true,
+          legalName: true,
           isActive: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
         },
       },
     },
@@ -350,14 +384,28 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
   }
 
   return db.$transaction(async (tx) => {
+    if (transition.requiresOutcome && !request.decisionOutcome) {
+      throw new Error("The Reimbursement Officer must record an approval or rejection first.");
+    }
+
+    const decisionOutcome = transition.outcome ?? (transition.clearOutcome ? null : request.decisionOutcome);
+    const nextStatus = transition.release
+      ? decisionOutcome === "ACCEPTED"
+        ? "APPROVED"
+        : "REJECTED"
+      : transition.nextStatus;
+    const now = new Date();
     const updated = await tx.trainingRequest.update({
       where: {
         id: request.id,
       },
       data: {
         currentDesk: transition.to,
-        status: transition.nextStatus,
-        approvedAt: transition.nextStatus === "APPROVED" ? new Date() : undefined,
+        status: nextStatus,
+        decisionOutcome,
+        decisionReason: transition.outcome ? input.note : transition.clearOutcome ? null : undefined,
+        approvedAt: nextStatus === "APPROVED" ? now : undefined,
+        feedbackReleasedAt: transition.release ? now : undefined,
       },
       select: {
         id: true,
@@ -373,6 +421,113 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
         reason: [transition.reason, input.note].filter(Boolean).join(": "),
       },
     });
+
+    await tx.workItem.updateMany({
+      where: {
+        sourceKey: {
+          startsWith: `training-request:${request.id}:`,
+        },
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: now,
+      },
+    });
+
+    if (transition.assignedRole) {
+      await createTrainingRequestWorkItem(tx, {
+        requestId: request.id,
+        companyId: request.companyId,
+        organizationId: request.company.organizationId,
+        workspaceId: request.company.organization.workspaceId,
+        areaOfficeId: request.company.areaOfficeId,
+        assignedRole: transition.assignedRole,
+        title: transition.workItemTitle,
+        summary: `${request.company.legalName} ${transition.workItemSummary}`,
+        sourceSuffix: transition.to.toLowerCase(),
+      });
+    }
+
+    if (transition.release) {
+      await tx.workItem.upsert({
+        where: {
+          sourceKey: `training-request:${request.id}:employer-feedback`,
+        },
+        create: {
+          workspaceId: request.company.organization.workspaceId,
+          organizationId: request.company.organizationId,
+          areaOfficeId: request.company.areaOfficeId,
+          companyId: request.companyId,
+          assignedRole: "EMPLOYER_ADMIN",
+          app: "REIMBURSEMENT",
+          kind: "TRAINING_FEEDBACK",
+          status: "OPEN",
+          priority: "NORMAL",
+          title: `Form 4A ${nextStatus === "APPROVED" ? "approved" : "rejected"}`,
+          summary: `${request.title} has completed Area Office review. Open the request to view the decision and reasons.`,
+          targetHref: `/training-requests/${request.id}`,
+          sourceKey: `training-request:${request.id}:employer-feedback`,
+        },
+        update: {
+          status: "OPEN",
+          resolvedAt: null,
+          emailNotifiedAt: null,
+          title: `Form 4A ${nextStatus === "APPROVED" ? "approved" : "rejected"}`,
+          summary: `${request.title} has completed Area Office review. Open the request to view the decision and reasons.`,
+        },
+      });
+    }
+
+    if (nextStatus === "APPROVED") {
+      const existingMonitoringRecord = await tx.trainingMonitoringRecord.findFirst({
+        where: {
+          trainingRequestId: request.id,
+          recordTier: "HOT",
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (!existingMonitoringRecord) {
+        const monitoringRecord = await tx.trainingMonitoringRecord.create({
+          data: {
+            trainingRequestId: request.id,
+            mode: request.trainingType?.toLowerCase().includes("virtual")
+              ? "LOCAL_VIRTUAL"
+              : "LOCAL_PHYSICAL",
+            monitoringDate: request.startsAt,
+            startsAt: request.startsAt,
+            endsAt: request.endsAt,
+            status: "DRAFT",
+            currentDesk: "REIMBURSEMENT_OFFICER",
+          },
+          select: {
+            id: true,
+          },
+        });
+
+        await tx.workItem.create({
+          data: {
+            workspaceId: request.company.organization.workspaceId,
+            organizationId: request.company.organizationId,
+            areaOfficeId: request.company.areaOfficeId,
+            companyId: request.companyId,
+            trainingMonitoringRecordId: monitoringRecord.id,
+            assignedRole: "REIMBURSEMENT_OFFICER",
+            app: "REIMBURSEMENT",
+            kind: "TRAINING_MONITORING_REVIEW",
+            status: "OPEN",
+            priority: "NORMAL",
+            title: "Monitor approved training",
+            summary: `${request.company.legalName}'s approved training is scheduled for monitoring.`,
+            targetHref: `/training-monitoring/${monitoringRecord.id}`,
+            sourceKey: `training-monitoring:${monitoringRecord.id}:reimbursement-officer`,
+          },
+        });
+      }
+    }
 
     return updated;
   });
@@ -619,6 +774,51 @@ function assertTrainingRequestOrganizationAccess(input: {
   }
 }
 
+async function createTrainingRequestWorkItem(
+  tx: Prisma.TransactionClient,
+  input: {
+    requestId: string;
+    companyId: string;
+    organizationId: string;
+    workspaceId: string;
+    areaOfficeId: string | null;
+    assignedRole: Role;
+    title: string;
+    summary: string;
+    sourceSuffix: string;
+  },
+) {
+  return tx.workItem.upsert({
+    where: {
+      sourceKey: `training-request:${input.requestId}:${input.sourceSuffix}`,
+    },
+    create: {
+      workspaceId: input.workspaceId,
+      organizationId: input.organizationId,
+      areaOfficeId: input.areaOfficeId,
+      companyId: input.companyId,
+      assignedRole: input.assignedRole,
+      app: "REIMBURSEMENT",
+      kind: "TRAINING_REQUEST_REVIEW",
+      status: "OPEN",
+      priority: "NORMAL",
+      title: input.title,
+      summary: input.summary,
+      targetHref: `/training-requests/${input.requestId}`,
+      sourceKey: `training-request:${input.requestId}:${input.sourceSuffix}`,
+    },
+    update: {
+      status: "OPEN",
+      resolvedAt: null,
+      emailNotifiedAt: null,
+      assignedRole: input.assignedRole,
+      title: input.title,
+      summary: input.summary,
+      targetHref: `/training-requests/${input.requestId}`,
+    },
+  });
+}
+
 function resolveTrainingRequestTransition(transition: TrainingRequestTransition) {
   const transitions = {
     am_to_hot: {
@@ -627,53 +827,63 @@ function resolveTrainingRequestTransition(transition: TrainingRequestTransition)
       allowedRoles: ["AREA_MANAGER"],
       allowedStatuses: ["SUBMITTED", "IN_REVIEW"],
       nextStatus: "IN_REVIEW",
+      outcome: null,
+      clearOutcome: true,
+      requiresOutcome: false,
+      release: false,
+      assignedRole: "HEAD_OF_TRAINING",
       action: "FORWARD",
       reason: "AM forwarded Training Approval Request to Head of Training",
-    },
-    am_to_company: {
-      from: "AREA_MANAGER",
-      to: "COMPANY",
-      allowedRoles: ["AREA_MANAGER"],
-      allowedStatuses: ["SUBMITTED", "IN_REVIEW"],
-      nextStatus: "CHANGES_REQUESTED",
-      action: "REQUEST_CHANGES",
-      reason: "AM requested employer correction on Training Approval Request",
+      workItemTitle: "Review Form 4A training approval request",
+      workItemSummary: "is awaiting Head of Training review.",
     },
     hot_to_ro: {
       from: "HEAD_OF_TRAINING",
       to: "REIMBURSEMENT_OFFICER",
       allowedRoles: ["HEAD_OF_TRAINING"],
-      allowedStatuses: ["IN_REVIEW"],
+      allowedStatuses: ["IN_REVIEW", "CHANGES_REQUESTED"],
       nextStatus: "IN_REVIEW",
+      outcome: null,
+      clearOutcome: true,
+      requiresOutcome: false,
+      release: false,
+      assignedRole: "REIMBURSEMENT_OFFICER",
       action: "FORWARD",
       reason: "HOT forwarded Training Approval Request to Reimbursement Officer",
+      workItemTitle: "Decide Form 4A training approval request",
+      workItemSummary: "is awaiting the Reimbursement Officer's approval decision.",
     },
-    hot_to_company: {
-      from: "HEAD_OF_TRAINING",
-      to: "COMPANY",
-      allowedRoles: ["HEAD_OF_TRAINING"],
-      allowedStatuses: ["IN_REVIEW"],
-      nextStatus: "CHANGES_REQUESTED",
-      action: "REQUEST_CHANGES",
-      reason: "HOT requested employer correction on Training Approval Request",
-    },
-    ro_to_hot: {
+    ro_approve: {
       from: "REIMBURSEMENT_OFFICER",
       to: "HEAD_OF_TRAINING",
       allowedRoles: ["REIMBURSEMENT_OFFICER"],
       allowedStatuses: ["IN_REVIEW"],
       nextStatus: "IN_REVIEW",
-      action: "RECOMMEND",
-      reason: "Reimbursement Officer returned Training Approval Request to HOT",
+      outcome: "ACCEPTED",
+      clearOutcome: false,
+      requiresOutcome: false,
+      release: false,
+      assignedRole: "HEAD_OF_TRAINING",
+      action: "APPROVE",
+      reason: "Reimbursement Officer approved Training Approval Request",
+      workItemTitle: "Review Form 4A approval feedback",
+      workItemSummary: "was approved by the Reimbursement Officer and is awaiting feedback review.",
     },
-    ro_to_company: {
+    ro_reject: {
       from: "REIMBURSEMENT_OFFICER",
-      to: "COMPANY",
+      to: "HEAD_OF_TRAINING",
       allowedRoles: ["REIMBURSEMENT_OFFICER"],
       allowedStatuses: ["IN_REVIEW"],
-      nextStatus: "CHANGES_REQUESTED",
-      action: "REQUEST_CHANGES",
-      reason: "Reimbursement Officer requested employer correction on Training Approval Request",
+      nextStatus: "IN_REVIEW",
+      outcome: "REJECTED",
+      clearOutcome: false,
+      requiresOutcome: false,
+      release: false,
+      assignedRole: "HEAD_OF_TRAINING",
+      action: "REJECT",
+      reason: "Reimbursement Officer rejected Training Approval Request",
+      workItemTitle: "Review Form 4A rejection feedback",
+      workItemSummary: "was rejected by the Reimbursement Officer and is awaiting feedback review.",
     },
     hot_to_am: {
       from: "HEAD_OF_TRAINING",
@@ -681,17 +891,31 @@ function resolveTrainingRequestTransition(transition: TrainingRequestTransition)
       allowedRoles: ["HEAD_OF_TRAINING"],
       allowedStatuses: ["IN_REVIEW"],
       nextStatus: "IN_REVIEW",
+      outcome: null,
+      clearOutcome: false,
+      requiresOutcome: true,
+      release: false,
+      assignedRole: "AREA_MANAGER",
       action: "FORWARD",
-      reason: "HOT returned Training Approval Request to AM",
+      reason: "HOT forwarded the Reimbursement Officer decision to AM",
+      workItemTitle: "Release Form 4A decision to employer",
+      workItemSummary: "has completed review and is awaiting Area Manager feedback release.",
     },
-    am_approve: {
+    am_release: {
       from: "AREA_MANAGER",
       to: "COMPANY",
       allowedRoles: ["AREA_MANAGER"],
       allowedStatuses: ["IN_REVIEW"],
-      nextStatus: "APPROVED",
-      action: "APPROVE",
-      reason: "AM approved Training Approval Request",
+      nextStatus: "IN_REVIEW",
+      outcome: null,
+      clearOutcome: false,
+      requiresOutcome: true,
+      release: true,
+      assignedRole: null,
+      action: "FORWARD",
+      reason: "AM released the Training Approval Request decision to the employer",
+      workItemTitle: "",
+      workItemSummary: "",
     },
   } as const;
 

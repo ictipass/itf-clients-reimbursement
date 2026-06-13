@@ -89,10 +89,12 @@ export async function createClaimFromTrainingRequest(
     where: {
       id: input.trainingRequestId,
       status: "APPROVED",
+      decisionOutcome: "ACCEPTED",
       recordTier: "HOT",
       monitoringRecords: {
         some: {
           status: "APPROVED",
+          decisionOutcome: "ACCEPTED",
           recordTier: "HOT",
         },
       },

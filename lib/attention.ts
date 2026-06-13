@@ -2,7 +2,7 @@ import { getDb } from "@/lib/db";
 import type { WorkItemKind } from "@/lib/generated/prisma/client";
 import { type Role } from "@/lib/rbac";
 
-const awarenessWorkItemKinds: WorkItemKind[] = ["COMPLIANCE_AWARENESS"];
+const awarenessWorkItemKinds: WorkItemKind[] = ["COMPLIANCE_AWARENESS", "TRAINING_FEEDBACK"];
 
 export type AttentionSummaryInput = {
   requesterEmail?: string | null;

@@ -425,7 +425,7 @@ export default async function DashboardPage() {
               },
             },
             status: {
-              in: ["SUBMITTED", "IN_REVIEW", "CHANGES_REQUESTED"],
+              in: ["DRAFT", "SUBMITTED", "IN_REVIEW", "CHANGES_REQUESTED"],
             },
             recordTier: "HOT",
           },

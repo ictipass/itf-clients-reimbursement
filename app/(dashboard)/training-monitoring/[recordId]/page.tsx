@@ -10,7 +10,7 @@ import {
 } from "@/app/(dashboard)/training-monitoring/[recordId]/actions";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { can } from "@/lib/rbac";
+import { type Role } from "@/lib/rbac";
 import { getTrainingMonitoringEvidenceKinds } from "@/lib/training-monitoring";
 
 function formatDate(date: Date | null) {
@@ -42,23 +42,41 @@ function formatDateTimeInput(date: Date | null) {
 }
 
 const transitionLabels = {
-  submit: "Submit monitoring record",
-  start_review: "Start review",
-  approve: "Approve monitoring",
-  request_changes: "Request changes",
+  ro_submit: "Submit monitoring report to HOT",
+  hot_accept: "Accept training implementation",
+  hot_reject: "Reject training implementation",
+  hot_to_ro: "Return report to Reimbursement Officer",
+  am_release: "Release decision to employer",
+  am_to_hot: "Return decision to HOT",
 } as const;
 
-function getMonitoringTransitions(status: string) {
-  if (status === "DRAFT" || status === "CHANGES_REQUESTED") {
-    return ["submit"] as const;
+function isAdminRole(role: Role) {
+  return role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
+}
+
+function canActAsMonitoringDesk(role: Role, desk: string) {
+  return (
+    isAdminRole(role) ||
+    (desk === "REIMBURSEMENT_OFFICER" && role === "REIMBURSEMENT_OFFICER") ||
+    (desk === "HEAD_OF_TRAINING" && role === "HEAD_OF_TRAINING") ||
+    (desk === "AREA_MANAGER" && role === "AREA_MANAGER")
+  );
+}
+
+function getMonitoringTransitions(status: string, desk: string) {
+  if (
+    desk === "REIMBURSEMENT_OFFICER" &&
+    (status === "DRAFT" || status === "CHANGES_REQUESTED")
+  ) {
+    return ["ro_submit"] as const;
   }
 
-  if (status === "SUBMITTED") {
-    return ["start_review"] as const;
+  if (desk === "HEAD_OF_TRAINING" && status === "SUBMITTED") {
+    return ["hot_accept", "hot_reject", "hot_to_ro"] as const;
   }
 
-  if (status === "IN_REVIEW") {
-    return ["approve", "request_changes"] as const;
+  if (desk === "AREA_MANAGER" && status === "IN_REVIEW") {
+    return ["am_release", "am_to_hot"] as const;
   }
 
   return [] as const;
@@ -72,7 +90,6 @@ export default async function TrainingMonitoringDetailPage({
   const { recordId } = await params;
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
-  const canManageMonitoring = can(activeRole, "training:approve");
   const evidenceKinds = getTrainingMonitoringEvidenceKinds();
   const record = await getDb().trainingMonitoringRecord.findFirst({
     where: {
@@ -93,6 +110,10 @@ export default async function TrainingMonitoringDetailPage({
       headOfDivisionName: true,
       directorName: true,
       status: true,
+      currentDesk: true,
+      decisionOutcome: true,
+      decisionReason: true,
+      feedbackReleasedAt: true,
       documents: {
         where: {
           isActive: true,
@@ -116,6 +137,25 @@ export default async function TrainingMonitoringDetailPage({
           score: true,
           note: true,
           createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+      },
+      decisions: {
+        where: {
+          recordTier: "HOT",
+        },
+        select: {
+          id: true,
+          action: true,
+          reason: true,
+          createdAt: true,
+          actor: {
+            select: {
+              name: true,
+            },
+          },
         },
         orderBy: {
           createdAt: "desc",
@@ -149,7 +189,13 @@ export default async function TrainingMonitoringDetailPage({
     notFound();
   }
 
-  const availableTransitions = getMonitoringTransitions(record.status);
+  const availableTransitions = getMonitoringTransitions(record.status, record.currentDesk);
+  const canRouteMonitoring =
+    availableTransitions.length > 0 && canActAsMonitoringDesk(activeRole, record.currentDesk);
+  const canEditMonitoring =
+    (isAdminRole(activeRole) || activeRole === "REIMBURSEMENT_OFFICER") &&
+    record.currentDesk === "REIMBURSEMENT_OFFICER" &&
+    (record.status === "DRAFT" || record.status === "CHANGES_REQUESTED");
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
@@ -268,15 +314,51 @@ export default async function TrainingMonitoringDetailPage({
         </div>
       </section>
 
-      {canManageMonitoring && availableTransitions.length > 0 ? (
+      <section className="mt-8 grid gap-4 md:grid-cols-3">
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            Current desk
+          </p>
+          <p className="mt-2 text-sm font-semibold text-zinc-950">
+            {record.currentDesk.replaceAll("_", " ")}
+          </p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            Implementation decision
+          </p>
+          <p className="mt-2 text-sm font-semibold text-zinc-950">
+            {record.decisionOutcome?.replaceAll("_", " ") ?? "Pending"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            Feedback released
+          </p>
+          <p className="mt-2 text-sm font-semibold text-zinc-950">
+            {formatDate(record.feedbackReleasedAt)}
+          </p>
+        </div>
+      </section>
+
+      {canRouteMonitoring ? (
         <form
           action={routeTrainingMonitoringRecordAction.bind(null, record.id)}
           className="mt-8 rounded-lg border border-zinc-200 bg-white p-5"
         >
           <h2 className="text-xl font-semibold tracking-tight">Monitoring workflow</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-600">
-            Move this Form 6A/6B record through submission, review, and approval.
+            Route the monitoring report through Reimbursement Officer, Head of Training, Area
+            Manager, and employer feedback.
           </p>
+          <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
+            Decision/review reason
+            <input
+              name="note"
+              required={record.currentDesk === "HEAD_OF_TRAINING"}
+              className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            />
+          </label>
           <div className="mt-4 flex flex-wrap gap-2">
             {availableTransitions.map((transition) => (
               <button
@@ -292,7 +374,7 @@ export default async function TrainingMonitoringDetailPage({
         </form>
       ) : null}
 
-      {canManageMonitoring ? (
+      {canEditMonitoring ? (
         <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="text-xl font-semibold tracking-tight">Edit monitoring details</h2>
           <form
@@ -419,7 +501,7 @@ export default async function TrainingMonitoringDetailPage({
             </div>
           )}
 
-          {canManageMonitoring ? (
+          {canEditMonitoring ? (
             <form
               action={uploadTrainingMonitoringEvidenceAction.bind(null, record.id)}
               className="mt-5 grid gap-3 border-t border-zinc-100 pt-5"
@@ -476,7 +558,7 @@ export default async function TrainingMonitoringDetailPage({
             </div>
           )}
 
-          {canManageMonitoring ? (
+          {canEditMonitoring ? (
             <form
               action={addTrainingMonitoringEvaluationAction.bind(null, record.id)}
               className="mt-5 grid gap-3 border-t border-zinc-100 pt-5"
@@ -527,6 +609,35 @@ export default async function TrainingMonitoringDetailPage({
               </button>
             </form>
           ) : null}
+        </div>
+      </section>
+
+      <section className="mt-8 grid gap-6 lg:grid-cols-2">
+        <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <h2 className="text-xl font-semibold tracking-tight">Employer feedback</h2>
+          <p className="mt-3 text-sm leading-6 text-zinc-600">
+            {record.decisionReason ?? "No final monitoring reason has been recorded yet."}
+          </p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <h2 className="text-xl font-semibold tracking-tight">Decision trail</h2>
+          {record.decisions.length === 0 ? (
+            <p className="mt-3 text-sm leading-6 text-zinc-600">No monitoring decision recorded yet.</p>
+          ) : (
+            <div className="mt-4 grid gap-2">
+              {record.decisions.map((decision) => (
+                <div key={decision.id} className="rounded-md bg-zinc-50 px-3 py-2 text-xs">
+                  <p className="font-semibold text-zinc-900">
+                    {decision.action.replaceAll("_", " ")}
+                  </p>
+                  <p className="mt-1 leading-5 text-zinc-600">
+                    {decision.actor.name} · {formatDate(decision.createdAt)}
+                    {decision.reason ? ` · ${decision.reason}` : ""}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </section>
     </div>

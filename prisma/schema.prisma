@@ -135,6 +135,18 @@ enum TrainingMonitoringMode {
   LOCAL_VIRTUAL
 }
 
+enum TrainingMonitoringDesk {
+  REIMBURSEMENT_OFFICER
+  HEAD_OF_TRAINING
+  AREA_MANAGER
+  COMPANY
+}
+
+enum TrainingDecisionOutcome {
+  ACCEPTED
+  REJECTED
+}
+
 enum RecommendationReleaseChannel {
   DASHBOARD
   DASHBOARD_AND_EMAIL
@@ -201,7 +213,9 @@ enum WorkItemKind {
   COMPLIANCE_AWARENESS
   COMPLIANCE_REVIEW
   TRAINING_PLAN_REVIEW
+  TRAINING_REQUEST_REVIEW
   TRAINING_MONITORING_REVIEW
+  TRAINING_FEEDBACK
 }
 
 enum WorkItemStatus {
@@ -335,11 +349,11 @@ model User {
   jobTitle                                         String?
   passwordHash                                     String?
   emailVerifiedAt                                  DateTime?
-  authenticationSource                            AuthenticationSource                 @default(LOCAL)
-  mustChangePassword                              Boolean                              @default(false)
-  provisionedAt                                   DateTime?
-  welcomeEmailSentAt                              DateTime?
-  lastSignedInAt                                  DateTime?
+  authenticationSource                             AuthenticationSource                 @default(LOCAL)
+  mustChangePassword                               Boolean                              @default(false)
+  provisionedAt                                    DateTime?
+  welcomeEmailSentAt                               DateTime?
+  lastSignedInAt                                   DateTime?
   isActive                                         Boolean                              @default(true)
   workflowEmailNotifications                       Boolean                              @default(true)
   createdAt                                        DateTime                             @default(now())
@@ -351,8 +365,8 @@ model User {
   registrationContributionAssessments              RegistrationContributionAssessment[] @relation("RegistrationContributionAssessments")
   horicReviewedRegistrationContributionAssessments RegistrationContributionAssessment[] @relation("HoricReviewedRegistrationContributionAssessments")
   amReleasedRegistrationContributionAssessments    RegistrationContributionAssessment[] @relation("AmReleasedRegistrationContributionAssessments")
-  issuedContributionInvoices                       ContributionInvoice[]                 @relation("IssuedContributionInvoices")
-  initiatedContributionPayments                    ContributionPayment[]                 @relation("InitiatedContributionPayments")
+  issuedContributionInvoices                       ContributionInvoice[]                @relation("IssuedContributionInvoices")
+  initiatedContributionPayments                    ContributionPayment[]                @relation("InitiatedContributionPayments")
   issuedRegistrationCertificates                   RegistrationCertificate[]            @relation("IssuedRegistrationCertificates")
   issuedComplianceCertificates                     ComplianceCertificate[]              @relation("IssuedComplianceCertificates")
   decisions                                        Decision[]
@@ -486,8 +500,8 @@ model Company {
   reimbursementClaims                 ReimbursementClaim[]
   registrationApplication             RegistrationApplication?
   registrationContributionAssessments RegistrationContributionAssessment[]
-  contributionInvoices                 ContributionInvoice[]
-  contributionPayments                 ContributionPayment[]
+  contributionInvoices                ContributionInvoice[]
+  contributionPayments                ContributionPayment[]
   registrationCertificates            RegistrationCertificate[]
   managedNumbers                      ManagedRegistrationNumber[]
   workItems                           WorkItem[]
@@ -679,26 +693,26 @@ model RegistrationContributionAssessment {
 }
 
 model ContributionInvoice {
-  id                        String                    @id @default(cuid())
+  id                        String                             @id @default(cuid())
   companyId                 String
-  registrationApplicationId String                    @unique
-  contributionAssessmentId  String                    @unique
+  registrationApplicationId String                             @unique
+  contributionAssessmentId  String                             @unique
   issuedById                String
-  invoiceNumber             String                    @unique
-  amount                    Decimal                   @db.Decimal(14, 2)
-  status                    ContributionInvoiceStatus @default(ISSUED)
+  invoiceNumber             String                             @unique
+  amount                    Decimal                            @db.Decimal(14, 2)
+  status                    ContributionInvoiceStatus          @default(ISSUED)
   generatedDocumentId       String?
   generatedAt               DateTime?
-  issuedAt                  DateTime                  @default(now())
+  issuedAt                  DateTime                           @default(now())
   paidAt                    DateTime?
   cancelledAt               DateTime?
-  recordTier                RecordTier                @default(HOT)
-  createdAt                 DateTime                  @default(now())
-  updatedAt                 DateTime                  @updatedAt
-  company                   Company                   @relation(fields: [companyId], references: [id])
-  registrationApplication   RegistrationApplication   @relation(fields: [registrationApplicationId], references: [id])
+  recordTier                RecordTier                         @default(HOT)
+  createdAt                 DateTime                           @default(now())
+  updatedAt                 DateTime                           @updatedAt
+  company                   Company                            @relation(fields: [companyId], references: [id])
+  registrationApplication   RegistrationApplication            @relation(fields: [registrationApplicationId], references: [id])
   contributionAssessment    RegistrationContributionAssessment @relation(fields: [contributionAssessmentId], references: [id])
-  issuedBy                  User                      @relation("IssuedContributionInvoices", fields: [issuedById], references: [id])
+  issuedBy                  User                               @relation("IssuedContributionInvoices", fields: [issuedById], references: [id])
   payments                  ContributionPayment[]
 
   @@index([companyId, status, recordTier])
@@ -891,9 +905,12 @@ model TrainingRequest {
   approvedDuplicateRef   String?
   status                 WorkflowStatus             @default(DRAFT)
   currentDesk            TrainingRequestDesk        @default(COMPANY)
+  decisionOutcome        TrainingDecisionOutcome?
+  decisionReason         String?
   recordTier             RecordTier                 @default(HOT)
   submittedAt            DateTime?
   approvedAt             DateTime?
+  feedbackReleasedAt     DateTime?
   createdAt              DateTime                   @default(now())
   updatedAt              DateTime                   @updatedAt
   company                Company                    @relation(fields: [companyId], references: [id])
@@ -947,15 +964,23 @@ model TrainingMonitoringRecord {
   headOfDivisionName     String?
   directorName           String?
   status                 WorkflowStatus                 @default(DRAFT)
+  currentDesk            TrainingMonitoringDesk         @default(REIMBURSEMENT_OFFICER)
+  decisionOutcome        TrainingDecisionOutcome?
+  decisionReason         String?
+  submittedAt            DateTime?
+  decidedAt              DateTime?
+  feedbackReleasedAt     DateTime?
   recordTier             RecordTier                     @default(HOT)
   createdAt              DateTime                       @default(now())
   updatedAt              DateTime                       @updatedAt
   trainingRequest        TrainingRequest                @relation(fields: [trainingRequestId], references: [id])
   documents              Document[]
   evaluations            TrainingMonitoringEvaluation[]
+  decisions              Decision[]
   workItems              WorkItem[]
 
   @@index([trainingRequestId, status, recordTier])
+  @@index([currentDesk, status, recordTier])
   @@index([mode, status, recordTier])
 }
 
@@ -1088,31 +1113,34 @@ model Document {
 }
 
 model Decision {
-  id                        String                   @id @default(cuid())
-  actorId                   String
-  companyId                 String?
-  registrationApplicationId String?
-  complianceYearId          String?
-  trainingPlanSubmissionId  String?
-  trainingRequestId         String?
-  reimbursementClaimId      String?
-  documentId                String?
-  action                    DecisionAction
-  reason                    String?
-  recordTier                RecordTier               @default(HOT)
-  createdAt                 DateTime                 @default(now())
-  actor                     User                     @relation(fields: [actorId], references: [id])
-  company                   Company?                 @relation(fields: [companyId], references: [id])
-  registrationApplication   RegistrationApplication? @relation(fields: [registrationApplicationId], references: [id])
-  complianceYear            ComplianceYear?          @relation(fields: [complianceYearId], references: [id])
-  trainingPlanSubmission    TrainingPlanSubmission?  @relation(fields: [trainingPlanSubmissionId], references: [id])
-  trainingRequest           TrainingRequest?         @relation(fields: [trainingRequestId], references: [id])
-  reimbursementClaim        ReimbursementClaim?      @relation(fields: [reimbursementClaimId], references: [id])
-  document                  Document?                @relation(fields: [documentId], references: [id])
+  id                         String                    @id @default(cuid())
+  actorId                    String
+  companyId                  String?
+  registrationApplicationId  String?
+  complianceYearId           String?
+  trainingPlanSubmissionId   String?
+  trainingRequestId          String?
+  trainingMonitoringRecordId String?
+  reimbursementClaimId       String?
+  documentId                 String?
+  action                     DecisionAction
+  reason                     String?
+  recordTier                 RecordTier                @default(HOT)
+  createdAt                  DateTime                  @default(now())
+  actor                      User                      @relation(fields: [actorId], references: [id])
+  company                    Company?                  @relation(fields: [companyId], references: [id])
+  registrationApplication    RegistrationApplication?  @relation(fields: [registrationApplicationId], references: [id])
+  complianceYear             ComplianceYear?           @relation(fields: [complianceYearId], references: [id])
+  trainingPlanSubmission     TrainingPlanSubmission?   @relation(fields: [trainingPlanSubmissionId], references: [id])
+  trainingRequest            TrainingRequest?          @relation(fields: [trainingRequestId], references: [id])
+  trainingMonitoringRecord   TrainingMonitoringRecord? @relation(fields: [trainingMonitoringRecordId], references: [id])
+  reimbursementClaim         ReimbursementClaim?       @relation(fields: [reimbursementClaimId], references: [id])
+  document                   Document?                 @relation(fields: [documentId], references: [id])
 
   @@index([actorId, recordTier, createdAt])
   @@index([registrationApplicationId, recordTier, createdAt])
   @@index([trainingPlanSubmissionId, recordTier, createdAt])
+  @@index([trainingMonitoringRecordId, recordTier, createdAt])
 }
 
 model Comment {
