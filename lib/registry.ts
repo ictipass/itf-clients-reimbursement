@@ -230,6 +230,17 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
                   name: true,
                 },
               },
+              invoice: {
+                select: {
+                  id: true,
+                  invoiceNumber: true,
+                  amount: true,
+                  status: true,
+                  issuedAt: true,
+                  generatedDocumentId: true,
+                  generatedAt: true,
+                },
+              },
             },
           },
         },
@@ -237,7 +248,7 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
       documents: {
         where: {
           kind: {
-            not: "CERTIFICATE",
+            notIn: ["CERTIFICATE", "CONTRIBUTION_INVOICE"],
           },
           isActive: true,
           recordTier: "HOT",

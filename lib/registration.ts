@@ -1,4 +1,8 @@
 import { getDb } from "@/lib/db";
+import {
+  generateContributionInvoicePdf,
+  issueContributionInvoice,
+} from "@/lib/contribution-invoices";
 import { sendContributionRecommendationEmail } from "@/lib/email";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
@@ -1221,6 +1225,20 @@ export async function releaseRegistrationContribution(input: ReleaseRegistration
 
     return updated;
   });
+
+  const invoice = await issueContributionInvoice({
+    contributionAssessmentId: contributionAssessment.id,
+    requesterEmail: input.requesterEmail,
+    requesterRole: input.requesterRole,
+  });
+
+  await Promise.allSettled([
+    generateContributionInvoicePdf({
+      invoiceId: invoice.id,
+      requesterEmail: input.requesterEmail,
+      requesterRole: input.requesterRole,
+    }),
+  ]);
 
   if (input.releaseChannel === "DASHBOARD_AND_EMAIL") {
     const recipients = await db.user.findMany({

@@ -17,6 +17,7 @@ import {
   completeRegistrationAtHeadquartersAction,
   confirmRegistrationContributionAction,
   forwardRegistrationToDivisionAction,
+  generateContributionInvoicePdfAction,
   notifyRegistrationHeadquartersAction,
   recordLegacyRegistrationAction,
   releaseRegistrationContributionAction,
@@ -1000,6 +1001,59 @@ export default async function CompanyDetailPage({
                         ? ` · ${company.registrationApplication.contributionAssessment.releaseChannel.replaceAll("_", " ")}`
                         : ""}
                     </p>
+                  ) : null}
+                  {company.registrationApplication.contributionAssessment.invoice ? (
+                    <div className="md:col-span-3 rounded-md border border-[#800020]/15 bg-white p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                            Contribution invoice
+                          </p>
+                          <p className="mt-1 font-semibold text-zinc-950">
+                            {
+                              company.registrationApplication.contributionAssessment.invoice
+                                .invoiceNumber
+                            }{" "}
+                            ·{" "}
+                            {formatMoney(
+                              company.registrationApplication.contributionAssessment.invoice.amount,
+                            )}
+                          </p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {
+                              company.registrationApplication.contributionAssessment.invoice
+                                .status
+                            }{" "}
+                            · Issued{" "}
+                            {formatDate(
+                              company.registrationApplication.contributionAssessment.invoice
+                                .issuedAt,
+                            )}
+                          </p>
+                        </div>
+                        {company.registrationApplication.contributionAssessment.invoice
+                          .generatedDocumentId ? (
+                          <Link
+                            href={`/registry/${company.id}/registration/invoice/${company.registrationApplication.contributionAssessment.invoice.id}`}
+                            className="inline-flex min-h-9 items-center rounded-md bg-[#800020] px-3 text-xs font-semibold text-white"
+                          >
+                            Download invoice
+                          </Link>
+                        ) : (
+                          <form
+                            action={generateContributionInvoicePdfAction.bind(
+                              null,
+                              company.id,
+                              company.registrationApplication.contributionAssessment.invoice.id,
+                            )}
+                          >
+                            <button className="min-h-9 rounded-md border border-[#800020]/20 bg-white px-3 text-xs font-semibold text-[#65001a]">
+                              Generate invoice PDF
+                            </button>
+                          </form>
+                        )}
+                      </div>
+                    </div>
                   ) : null}
                 </div>
               </div>

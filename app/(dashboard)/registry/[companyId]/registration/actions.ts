@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { generateContributionInvoicePdf } from "@/lib/contribution-invoices";
 import {
   assessRegistrationContribution,
   completeRegistrationAtHeadquarters,
@@ -226,6 +227,26 @@ export async function releaseRegistrationContributionAction(companyId: string, f
     requesterRole: session.user.role,
     releaseChannel: readReleaseChannel(formData),
     releaseNote: readOptionalString(formData, "releaseNote"),
+  });
+
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+export async function generateContributionInvoicePdfAction(
+  companyId: string,
+  invoiceId: string,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await generateContributionInvoicePdf({
+    invoiceId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
   });
 
   revalidatePath(`/registry/${companyId}`);

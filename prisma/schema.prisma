@@ -70,6 +70,7 @@ enum DocumentKind {
   SIGNED_DECLARATION
   OFFICIAL_STAMPED_COPY
   OTHER_SUPPORTING_EVIDENCE
+  CONTRIBUTION_INVOICE
 }
 
 enum StorageProvider {
@@ -137,6 +138,13 @@ enum TrainingMonitoringMode {
 enum RecommendationReleaseChannel {
   DASHBOARD
   DASHBOARD_AND_EMAIL
+}
+
+enum ContributionInvoiceStatus {
+  ISSUED
+  PAID
+  CANCELLED
+  EXPIRED
 }
 
 enum RegistrationCertificateStatus {
@@ -331,6 +339,7 @@ model User {
   registrationContributionAssessments              RegistrationContributionAssessment[] @relation("RegistrationContributionAssessments")
   horicReviewedRegistrationContributionAssessments RegistrationContributionAssessment[] @relation("HoricReviewedRegistrationContributionAssessments")
   amReleasedRegistrationContributionAssessments    RegistrationContributionAssessment[] @relation("AmReleasedRegistrationContributionAssessments")
+  issuedContributionInvoices                       ContributionInvoice[]                 @relation("IssuedContributionInvoices")
   issuedRegistrationCertificates                   RegistrationCertificate[]            @relation("IssuedRegistrationCertificates")
   issuedComplianceCertificates                     ComplianceCertificate[]              @relation("IssuedComplianceCertificates")
   decisions                                        Decision[]
@@ -464,6 +473,7 @@ model Company {
   reimbursementClaims                 ReimbursementClaim[]
   registrationApplication             RegistrationApplication?
   registrationContributionAssessments RegistrationContributionAssessment[]
+  contributionInvoices                 ContributionInvoice[]
   registrationCertificates            RegistrationCertificate[]
   managedNumbers                      ManagedRegistrationNumber[]
   workItems                           WorkItem[]
@@ -497,6 +507,7 @@ model RegistrationApplication {
   documents                Document[]
   workItems                WorkItem[]
   contributionAssessment   RegistrationContributionAssessment?
+  contributionInvoice      ContributionInvoice?
   certificate              RegistrationCertificate?
 
   @@index([areaOfficeId, currentDesk, status, recordTier])
@@ -644,12 +655,39 @@ model RegistrationContributionAssessment {
   assessedBy                User                          @relation("RegistrationContributionAssessments", fields: [assessedById], references: [id])
   horicReviewedBy           User?                         @relation("HoricReviewedRegistrationContributionAssessments", fields: [horicReviewedById], references: [id])
   amReleasedBy              User?                         @relation("AmReleasedRegistrationContributionAssessments", fields: [amReleasedById], references: [id])
+  invoice                   ContributionInvoice?
 
   @@index([companyId, recordTier])
   @@index([areaOfficeId, recordTier])
   @@index([assessedById, recordTier])
   @@index([horicReviewedById, recordTier])
   @@index([amReleasedById, recordTier])
+}
+
+model ContributionInvoice {
+  id                        String                    @id @default(cuid())
+  companyId                 String
+  registrationApplicationId String                    @unique
+  contributionAssessmentId  String                    @unique
+  issuedById                String
+  invoiceNumber             String                    @unique
+  amount                    Decimal                   @db.Decimal(14, 2)
+  status                    ContributionInvoiceStatus @default(ISSUED)
+  generatedDocumentId       String?
+  generatedAt               DateTime?
+  issuedAt                  DateTime                  @default(now())
+  paidAt                    DateTime?
+  cancelledAt               DateTime?
+  recordTier                RecordTier                @default(HOT)
+  createdAt                 DateTime                  @default(now())
+  updatedAt                 DateTime                  @updatedAt
+  company                   Company                   @relation(fields: [companyId], references: [id])
+  registrationApplication   RegistrationApplication   @relation(fields: [registrationApplicationId], references: [id])
+  contributionAssessment    RegistrationContributionAssessment @relation(fields: [contributionAssessmentId], references: [id])
+  issuedBy                  User                      @relation("IssuedContributionInvoices", fields: [issuedById], references: [id])
+
+  @@index([companyId, status, recordTier])
+  @@index([issuedById, recordTier])
 }
 
 model ComplianceYear {
