@@ -50,7 +50,8 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
         OR: buildAssigneeScope(input.requesterRole, requester),
       };
 
-  const [workItemTotal, awarenessWorkItemTotal, workItems] = await db.$transaction([
+  const [workItemTotal, awarenessWorkItemTotal, actionWorkItems, awarenessWorkItems] =
+    await db.$transaction([
     db.workItem.count({
       where: scopedWhere,
     }),
@@ -63,7 +64,12 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
       },
     }),
     db.workItem.findMany({
-      where: scopedWhere,
+      where: {
+        ...scopedWhere,
+        kind: {
+          notIn: awarenessWorkItemKinds,
+        },
+      },
       select: {
         id: true,
         kind: true,
@@ -94,24 +100,58 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
       orderBy: [{ priority: "desc" }, { createdAt: "desc" }],
       take: input.take ?? 5,
     }),
+    db.workItem.findMany({
+      where: {
+        ...scopedWhere,
+        kind: {
+          in: awarenessWorkItemKinds,
+        },
+      },
+      select: {
+        id: true,
+        kind: true,
+        priority: true,
+        assignedRole: true,
+        title: true,
+        summary: true,
+        targetHref: true,
+        createdAt: true,
+        assignedUserId: true,
+        registrationApplicationId: true,
+        company: {
+          select: {
+            legalName: true,
+          },
+        },
+        areaOffice: {
+          select: {
+            name: true,
+          },
+        },
+        organization: {
+          select: {
+            name: true,
+          },
+        },
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 100,
+    }),
   ]);
   const derivedItems = await getDerivedRegistrationDeskItems({
     requesterRole: input.requesterRole,
     requester,
-    excludedRegistrationApplicationIds: workItems
+    excludedRegistrationApplicationIds: actionWorkItems
       .map((item) => item.registrationApplicationId)
       .filter((value): value is string => Boolean(value)),
     take: input.take ?? 5,
   });
-  const items = [...workItems, ...derivedItems]
+  const items = [...actionWorkItems, ...derivedItems]
     .sort((left, right) => right.createdAt.getTime() - left.createdAt.getTime())
     .slice(0, input.take ?? 5)
-    .map((item) => ({
-      ...item,
-      queueCategory: getQueueCategory(item.kind),
-      queueLabel: getQueueLabel(item.kind),
-      ownershipLabel: getOwnershipLabel(item.assignedUserId, item.areaOffice?.name),
-    }));
+    .map(decorateQueueItem);
   const actionTotal = workItemTotal - awarenessWorkItemTotal + derivedItems.length;
 
   return {
@@ -119,6 +159,7 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
     actionTotal,
     awarenessTotal: awarenessWorkItemTotal,
     items,
+    awarenessItems: awarenessWorkItems.map(decorateQueueItem),
   };
 }
 
@@ -181,6 +222,19 @@ function getQueueCategory(kind: string) {
 
 function getQueueLabel(kind: string) {
   return getQueueCategory(kind) === "AWARENESS" ? "For awareness" : "Action required";
+}
+
+function decorateQueueItem<T extends {
+  kind: string;
+  assignedUserId: string | null;
+  areaOffice: { name: string } | null;
+}>(item: T) {
+  return {
+    ...item,
+    queueCategory: getQueueCategory(item.kind),
+    queueLabel: getQueueLabel(item.kind),
+    ownershipLabel: getOwnershipLabel(item.assignedUserId, item.areaOffice?.name),
+  };
 }
 
 function getModuleForWorkItem(kind: string, targetHref: string) {

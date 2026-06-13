@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { sendContributionRecommendationEmail } from "@/lib/email";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -18,6 +19,7 @@ export type RegistrationApplicationKind = (typeof registrationApplicationKinds)[
 const registrationDeskTransitions = [
   "am_to_horic",
   "horic_to_ra",
+  "horic_to_ra_for_correction",
   "ra_to_horic",
   "ra_to_company",
   "horic_to_am",
@@ -410,6 +412,17 @@ function resolveDeskTransition(transition: RegistrationDeskTransition) {
     };
   }
 
+  if (transition === "horic_to_ra_for_correction") {
+    return {
+      from: "HORIC" as const,
+      to: "REVENUE_ACCOUNTANT" as const,
+      allowedRoles: ["HORIC"] as const,
+      label: "Returned from HORIC to RA for recommendation correction",
+      workItemTitle: "Revise registration contribution recommendation",
+      workItemSummary: "is awaiting a revised Revenue Accountant recommendation.",
+    };
+  }
+
   if (transition === "ra_to_horic") {
     return {
       from: "REVENUE_ACCOUNTANT" as const,
@@ -560,6 +573,10 @@ export async function routeRegistrationApplication(input: RouteRegistrationAppli
     throw new Error(`Registration is currently with ${registrationApplication.currentDesk}.`);
   }
 
+  if (input.transition === "horic_to_ra_for_correction" && !input.reason?.trim()) {
+    throw new Error("HORIC must provide a correction note when returning a recommendation to RA.");
+  }
+
   if (
     input.transition === "horic_to_am" &&
     registrationApplication.contributionAssessment &&
@@ -609,6 +626,25 @@ export async function routeRegistrationApplication(input: RouteRegistrationAppli
   const reason = [transition.label, input.reason].filter(Boolean).join(": ");
 
   return db.$transaction(async (tx) => {
+    if (
+      input.transition === "horic_to_ra_for_correction" &&
+      registrationApplication.contributionAssessment
+    ) {
+      await tx.registrationContributionAssessment.update({
+        where: {
+          id: registrationApplication.contributionAssessment.id,
+        },
+        data: {
+          horicReviewedById: null,
+          horicReviewNote: null,
+          horicReviewedAt: null,
+        },
+        select: {
+          id: true,
+        },
+      });
+    }
+
     const updated = await tx.registrationApplication.update({
       where: {
         id: registrationApplication.id,
@@ -669,6 +705,7 @@ export async function routeRegistrationApplication(input: RouteRegistrationAppli
           status: "OPEN",
           resolvedAt: null,
           priority: "NORMAL",
+          title: transition.workItemTitle,
           summary: `${registrationApplication.company.legalName} ${transition.workItemSummary}`,
           targetHref: `/registry/${registrationApplication.companyId}`,
         },
@@ -898,6 +935,17 @@ export async function confirmRegistrationContribution(input: ConfirmRegistration
           recommendedAmount: true,
         },
       },
+      company: {
+        select: {
+          legalName: true,
+          organizationId: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -979,8 +1027,53 @@ export async function confirmRegistrationContribution(input: ConfirmRegistration
       },
     });
 
+    await tx.workItem.updateMany({
+      where: {
+        registrationApplicationId: registrationApplication.id,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
+      },
+    });
+
+    await tx.workItem.upsert({
+      where: {
+        sourceKey: `registration:${registrationApplication.id}:area_manager`,
+      },
+      create: {
+        workspaceId: registrationApplication.company.organization.workspaceId,
+        organizationId: registrationApplication.company.organizationId,
+        areaOfficeId: registrationApplication.areaOfficeId,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        assignedRole: "AREA_MANAGER",
+        app: "REIMBURSEMENT",
+        kind: "REGISTRATION_AREA_MANAGER_REVIEW",
+        status: "OPEN",
+        priority: "NORMAL",
+        title: "Release contribution recommendation",
+        summary: `${registrationApplication.company.legalName} has a HORIC-confirmed contribution recommendation ready for release.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+        sourceKey: `registration:${registrationApplication.id}:area_manager`,
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        priority: "NORMAL",
+        title: "Release contribution recommendation",
+        summary: `${registrationApplication.company.legalName} has a HORIC-confirmed contribution recommendation ready for release.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+      },
+      select: {
+        id: true,
+      },
+    });
+
     return updated;
   });
+
 }
 
 export async function releaseRegistrationContribution(input: ReleaseRegistrationContributionInput) {
@@ -1026,6 +1119,12 @@ export async function releaseRegistrationContribution(input: ReleaseRegistration
           recommendedAmount: true,
         },
       },
+      company: {
+        select: {
+          legalName: true,
+          organizationId: true,
+        },
+      },
     },
   });
 
@@ -1065,7 +1164,7 @@ export async function releaseRegistrationContribution(input: ReleaseRegistration
     throw new Error("You do not have access to this Area Office registration.");
   }
 
-  return db.$transaction(async (tx) => {
+  const updated = await db.$transaction(async (tx) => {
     const updated = await tx.registrationContributionAssessment.update({
       where: {
         id: contributionAssessment.id,
@@ -1109,8 +1208,55 @@ export async function releaseRegistrationContribution(input: ReleaseRegistration
       },
     });
 
+    await tx.workItem.updateMany({
+      where: {
+        registrationApplicationId: registrationApplication.id,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
+      },
+    });
+
     return updated;
   });
+
+  if (input.releaseChannel === "DASHBOARD_AND_EMAIL") {
+    const recipients = await db.user.findMany({
+      where: {
+        isActive: true,
+        memberships: {
+          some: {
+            organizationId: registrationApplication.company.organizationId,
+            isActive: true,
+            role: {
+              in: ["EMPLOYER_ADMIN", "EMPLOYER_SUBMITTER"],
+            },
+          },
+        },
+      },
+      select: {
+        email: true,
+        name: true,
+      },
+    });
+
+    await Promise.allSettled(
+      recipients.map((recipient) =>
+        sendContributionRecommendationEmail({
+          to: recipient.email,
+          name: recipient.name,
+          companyName: registrationApplication.company.legalName,
+          companyId: registrationApplication.companyId,
+          recommendedAmount: contributionAssessment.recommendedAmount.toString(),
+          releaseNote: input.releaseNote,
+        }),
+      ),
+    );
+  }
+
+  return updated;
 }
 
 export async function uploadRegistrationContributionReceipt(
@@ -1411,6 +1557,22 @@ export async function reviewRegistrationContributionReceipt(
           .join(": "),
       },
     });
+
+    if (!accepted) {
+      await tx.document.updateMany({
+        where: {
+          registrationApplicationId: registrationApplication.id,
+          kind: "CONTRIBUTION_RECEIPT",
+          isActive: true,
+          recordTier: "HOT",
+          revokedAt: null,
+        },
+        data: {
+          isActive: false,
+          revokedAt: new Date(),
+        },
+      });
+    }
 
     await tx.workItem.updateMany({
       where: {

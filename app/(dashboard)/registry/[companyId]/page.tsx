@@ -184,6 +184,7 @@ const transitionLabels = {
 const registrationTransitionLabels = {
   am_to_horic: "Forward to HORIC",
   horic_to_ra: "Forward to RA",
+  horic_to_ra_for_correction: "Return recommendation to RA",
   ra_to_horic: "Return to HORIC",
   ra_to_company: "Request employer correction",
   horic_to_am: "Return to AM",
@@ -338,7 +339,7 @@ function getAvailableRegistrationTransitions(
 
   if (currentDesk === "HORIC") {
     if (hasContributionAssessment) {
-      return [] as const;
+      return ["horic_to_ra_for_correction"] as const;
     }
 
     return ["horic_to_ra", "horic_to_am"] as const;

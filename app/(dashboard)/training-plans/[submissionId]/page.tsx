@@ -304,8 +304,8 @@ export default async function TrainingPlanDetailPage({
       </section>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.8fr]">
-        <div className="grid gap-6">
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+        <div className="contents">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-1 lg:row-span-2">
             <h2 className="text-xl font-semibold tracking-tight">L&amp;D personnel</h2>
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               {submission.personnel.map((person) => (
@@ -320,7 +320,7 @@ export default async function TrainingPlanDetailPage({
             </div>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-5 lg:col-span-2">
             <h2 className="text-xl font-semibold tracking-tight">Evidence</h2>
             {importError ? (
               <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
@@ -397,8 +397,8 @@ export default async function TrainingPlanDetailPage({
           </div>
         </div>
 
-        <div className="grid gap-6">
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+        <div className="contents">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-6 lg:col-span-2">
             <h2 className="text-xl font-semibold tracking-tight">Structured training plan rows</h2>
             {submission.lineItems.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">
@@ -450,7 +450,7 @@ export default async function TrainingPlanDetailPage({
             )}
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-2">
             <h2 className="text-xl font-semibold tracking-tight">Summary</h2>
             <p className="mt-3 text-sm leading-6 text-zinc-600">
               {submission.trainingPlanSummary ?? "No summary provided."}
@@ -467,7 +467,7 @@ export default async function TrainingPlanDetailPage({
                 submission.company.id,
                 submission.id,
               )}
-              className="rounded-lg border border-zinc-200 bg-white p-5"
+              className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-1"
             >
               <h2 className="text-xl font-semibold tracking-tight">Submit package</h2>
               <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
@@ -490,7 +490,7 @@ export default async function TrainingPlanDetailPage({
                 submission.company.id,
                 submission.id,
               )}
-              className="rounded-lg border border-zinc-200 bg-white p-5"
+              className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-3 lg:col-span-2"
             >
               <h2 className="text-xl font-semibold tracking-tight">Workflow action</h2>
               <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
@@ -515,7 +515,7 @@ export default async function TrainingPlanDetailPage({
             </form>
           ) : null}
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-4 lg:col-span-2">
             <h2 className="text-xl font-semibold tracking-tight">Decision trail</h2>
             {submission.decisions.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">No decision recorded yet.</p>

@@ -224,16 +224,16 @@ export default async function TrainingPlanListPage({
                     <td className="px-4 py-4">{formatDate(submission.dueDate)}</td>
                     <td className="px-4 py-4">
                       <Link
-                        href={`/training-plans/${submission.id}`}
+                        href={`/registry/${submission.company.id}`}
                         className="mr-2 inline-flex min-h-8 items-center rounded-md border border-zinc-200 px-2 text-xs font-semibold text-zinc-800"
                       >
-                        View detail
+                        Open company
                       </Link>
                       <Link
-                        href={`/registry/${submission.company.id}`}
-                        className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 px-2 text-xs font-semibold text-zinc-800"
+                        href={`/training-plans/${submission.id}`}
+                        className="inline-flex min-h-8 items-center rounded-md bg-[#800020] px-3 text-xs font-semibold text-white"
                       >
-                        Open company
+                        View Details
                       </Link>
                     </td>
                   </tr>

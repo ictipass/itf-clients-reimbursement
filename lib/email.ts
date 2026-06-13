@@ -227,4 +227,33 @@ export async function sendWorkflowAttentionEmail(input: { to: string; name: stri
     text: `${input.title}: ${actionUrl}`,
   });
 }
+
+export async function sendContributionRecommendationEmail(input: {
+  to: string;
+  name: string;
+  companyName: string;
+  companyId: string;
+  recommendedAmount: string;
+  releaseNote?: string;
+}) {
+  const actionUrl = `${getAppBaseUrl()}/registry/${input.companyId}`;
+  const amount = Number(input.recommendedAmount).toLocaleString("en-NG", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const note = input.releaseNote ? ` Area Manager note: ${input.releaseNote}` : "";
+
+  return sendTransactionalEmail({
+    to: input.to,
+    subject: `ITF contribution recommendation for ${input.companyName}`,
+    html: actionEmail({
+      recipientName: input.name,
+      heading: "Contribution recommendation released",
+      message: `ITF has released a recommended training contribution of NGN ${amount} for ${input.companyName}.${note}`,
+      actionLabel: "Review recommendation",
+      actionUrl,
+    }),
+    text: `ITF released a recommended training contribution of NGN ${amount} for ${input.companyName}.${note}\nReview recommendation: ${actionUrl}`,
+  });
+}
 import { getDb } from "@/lib/db";
