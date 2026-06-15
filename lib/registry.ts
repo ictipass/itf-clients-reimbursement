@@ -25,6 +25,13 @@ type RegistryRequester = {
   requesterRole: Role;
 };
 
+type RegistryCompanyScope =
+  | { type: "ITF_GLOBAL" }
+  | { type: "ITF_AREA_OFFICE"; areaOfficeIds: string[] }
+  | { type: "EMPLOYER"; organizationIds: string[] };
+
+const registryAdminRoles: Role[] = ["SYSTEM_ADMIN", "WORKSPACE_APP_ADMIN"];
+
 export type EmployerRegistryFilters = {
   query?: string;
   status?: string;
@@ -47,16 +54,79 @@ async function getEmployerOrganizationIds(requesterEmail: string) {
   return context.active ? [context.active.id] : [];
 }
 
+async function getRegistryCompanyScope(input: RegistryRequester): Promise<RegistryCompanyScope> {
+  if (!isItfRole(input.requesterRole)) {
+    return {
+      type: "EMPLOYER",
+      organizationIds: await getEmployerOrganizationIds(input.requesterEmail),
+    };
+  }
+
+  if (registryAdminRoles.includes(input.requesterRole)) {
+    return { type: "ITF_GLOBAL" };
+  }
+
+  const requester = await getDb().user.findUnique({
+    where: {
+      email: input.requesterEmail.toLowerCase(),
+    },
+    select: {
+      memberships: {
+        where: {
+          isActive: true,
+          role: input.requesterRole,
+        },
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  const memberships = requester?.memberships ?? [];
+  if (memberships.some((membership) => !membership.areaOfficeId)) {
+    return { type: "ITF_GLOBAL" };
+  }
+
+  const areaOfficeIds = Array.from(
+    new Set(
+      memberships
+        .map((membership) => membership.areaOfficeId)
+        .filter((areaOfficeId): areaOfficeId is string => Boolean(areaOfficeId)),
+    ),
+  );
+
+  return { type: "ITF_AREA_OFFICE", areaOfficeIds };
+}
+
+function companyScopeWhere(scope: RegistryCompanyScope) {
+  if (scope.type === "ITF_GLOBAL") {
+    return {};
+  }
+
+  if (scope.type === "ITF_AREA_OFFICE") {
+    return {
+      areaOfficeId: {
+        in: scope.areaOfficeIds,
+      },
+    };
+  }
+
+  return {
+    organizationId: {
+      in: scope.organizationIds,
+    },
+  };
+}
+
 export async function listEmployerCompanies(input: RegistryRequester & EmployerRegistryFilters) {
   const db = getDb();
-  const organizationIds = isItfRole(input.requesterRole)
-    ? null
-    : await getEmployerOrganizationIds(input.requesterEmail);
+  const scope = await getRegistryCompanyScope(input);
   const pageSize = Math.min(Math.max(input.pageSize ?? 20, 1), 100);
   const page = Math.max(input.page ?? 1, 1);
   const where = {
     recordTier: "HOT" as const,
-    ...(organizationIds ? { organizationId: { in: organizationIds } } : {}),
+    ...companyScopeWhere(scope),
     ...(input.status ? { status: input.status as never } : {}),
     ...(input.areaOffice
       ? { areaOffice: { name: { contains: input.areaOffice, mode: "insensitive" as const } } }
@@ -110,15 +180,13 @@ export async function listEmployerCompanies(input: RegistryRequester & EmployerR
 
 export async function getEmployerCompany(companyId: string, input: RegistryRequester) {
   const db = getDb();
-  const organizationIds = isItfRole(input.requesterRole)
-    ? null
-    : await getEmployerOrganizationIds(input.requesterEmail);
+  const scope = await getRegistryCompanyScope(input);
 
   return db.company.findFirst({
     where: {
       id: companyId,
       recordTier: "HOT",
-      ...(organizationIds ? { organizationId: { in: organizationIds } } : {}),
+      ...companyScopeWhere(scope),
     },
     select: {
       id: true,

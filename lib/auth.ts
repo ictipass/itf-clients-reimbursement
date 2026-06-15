@@ -41,9 +41,9 @@ async function getDevelopmentTestUser(email: string, password: string) {
     return null;
   }
 
-  const expectedPassword = process.env.DEV_TEST_USER_PASSWORD ?? "password123";
+  const expectedPassword = process.env.DEV_TEST_USER_PASSWORD?.trim();
 
-  if (password !== expectedPassword) {
+  if (!expectedPassword || expectedPassword === "password123" || password !== expectedPassword) {
     return null;
   }
 

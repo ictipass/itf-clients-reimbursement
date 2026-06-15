@@ -60,11 +60,12 @@ http://localhost:3000/sign-in
 
 Use the bootstrap credentials from `.env.local`.
 
-For role-specific workflow testing, run the foundation seed and use the shared local-only
-password:
+For role-specific workflow testing, run the foundation seed and set a strong local-only
+`DEV_TEST_USER_PASSWORD` in your environment. The application intentionally does not accept
+the old `password123` default.
 
 ```text
-password123
+DEV_TEST_USER_PASSWORD="replace-with-a-strong-local-secret"
 ```
 
 Seeded test accounts:
@@ -85,10 +86,8 @@ The requested labels `REVENUE_OFFICER`, `HQ_REVENUE_OFFICER`, and
 `HEAD_REIMBURSEMENT_DIVISION` are mapped to the closest currently implemented app roles above.
 We can formalize those exact role names later if the workflow needs them as separate permissions.
 
-For local development only, seeded `@itf.local` Area Office test accounts can act across
-Area Offices so that workflow testing is not blocked by whichever Area Office was selected
-on a demo company. Production keeps Area Office access restricted to assigned
-memberships.
+Seeded Area Office test accounts follow their assigned Area Office memberships in the
+registry. Use an HQ role or bootstrap administrator when a test needs all companies.
 
 After sign-in, the app should redirect to:
 
@@ -110,7 +109,8 @@ The seed creates:
 - `Industrial Training Fund` internal organization
 - Bootstrap admin user from the `BOOTSTRAP_ADMIN_*` environment variables
 - `SYSTEM_ADMIN` membership for the bootstrap admin
-- Local role test users with password `DEV_TEST_USER_PASSWORD` or `password123`
+- Local role test users only when `DEV_TEST_USER_PASSWORD` is explicitly configured to a
+  non-default value
 
 The script is idempotent, so it can be run more than once.
 
