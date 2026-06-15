@@ -79,7 +79,7 @@ export default async function VerifyCertificatePage({
           <h1 className="text-3xl font-semibold tracking-tight">Verify certificate authenticity</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
             Enter an ITF employer number or annual compliance certificate number to confirm whether the
-            record is active in the ITF reimbursement portal.
+            record is active in the ITF Integrated Contribution and Reimbursement Platform.
           </p>
 
           <form className="mt-6 grid gap-3 md:grid-cols-[1fr_auto]" action="/verify">

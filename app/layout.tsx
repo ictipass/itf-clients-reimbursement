@@ -1,10 +1,13 @@
 import type { Metadata } from "next";
+
+import { appName } from "@/lib/domain";
+
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "ITF Reimbursement Gateway",
+  title: appName,
   description:
-    "Enterprise workflow platform for ITF employer registration, training approval, and reimbursement claim governance.",
+    "Integrated platform for ITF employer registration, contribution assessment and payment, compliance, training approval, monitoring, and reimbursement claims.",
 };
 
 export default function RootLayout({

@@ -4,9 +4,9 @@ Last reviewed: 7 June 2026
 
 ## Purpose
 
-This guide helps future developers safely maintain, extend, and adapt the ITF Reimbursement
-Gateway as policies change. It is organized by stable architectural boundaries rather than by a
-single implementation timeline.
+This guide helps future developers safely maintain, extend, and adapt the ITF Integrated
+Contribution and Reimbursement Platform as policies change. It is organized by stable
+architectural boundaries rather than by a single implementation timeline.
 
 ## Technology Baseline
 

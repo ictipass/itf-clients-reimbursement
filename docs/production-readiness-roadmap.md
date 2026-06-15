@@ -4,7 +4,7 @@ Last reviewed: 7 June 2026
 
 ## Purpose
 
-This roadmap describes what remains before the ITF Reimbursement Gateway can be treated as a
+This roadmap describes what remains before the ITF Integrated Contribution and Reimbursement Platform can be treated as a
 production-grade national workflow platform. It is an estimate, not a fixed promise. Claims,
 payments, statutory forms, retention, and approval limits still require approved ITF policy and
 Standard Operating Procedures.

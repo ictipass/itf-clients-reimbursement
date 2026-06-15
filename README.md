@@ -1,4 +1,4 @@
-# ITF Reimbursement Gateway
+# ITF Integrated Contribution and Reimbursement Platform
 
 An enterprise workflow application for Industrial Training Fund employer registration, annual
 compliance, training governance, and reimbursement administration.
@@ -11,7 +11,7 @@ compliance, training governance, and reimbursement administration.
 
 ## Overview
 
-The ITF Reimbursement Gateway provides a secure, auditable digital workspace for employers and ITF
+The ITF Integrated Contribution and Reimbursement Platform provides a secure, auditable digital workspace for employers and ITF
 officers involved in the reimbursement scheme. It is designed as a child application within the
 broader ITF Workspace and enforces role, organization, Area Office, and workflow-desk boundaries.
 
@@ -257,7 +257,7 @@ To test Resend while retaining development links:
 ```env
 EMAIL_DELIVERY_MODE="resend_and_development_link"
 RESEND_API_KEY="re_..."
-EMAIL_FROM="ITF Reimbursement <onboarding@resend.dev>"
+EMAIL_FROM="ITF Contribution and Reimbursement <onboarding@resend.dev>"
 ```
 
 Production requires `EMAIL_DELIVERY_MODE="resend"` and a verified sender domain.

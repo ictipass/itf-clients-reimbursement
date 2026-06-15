@@ -6,7 +6,7 @@ Last reviewed: 7 June 2026
 
 This guide helps:
 
-- Employers use the ITF Reimbursement Gateway.
+- Employers use the ITF Integrated Contribution and Reimbursement Platform.
 - ITF officers understand their workflow responsibilities.
 - System supporters diagnose common user problems.
 - Stakeholders understand the product's implemented capabilities.
@@ -16,7 +16,7 @@ rewriting the entire guide.
 
 ## Product Overview
 
-The ITF Reimbursement Gateway manages the employer lifecycle from registration through annual
+The ITF Integrated Contribution and Reimbursement Platform manages the employer lifecycle from registration through annual
 compliance, Training Plan submission, training approval, monitoring, and reimbursement claims.
 
 The application separates:

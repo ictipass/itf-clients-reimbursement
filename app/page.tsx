@@ -9,6 +9,10 @@ const statutoryWorkflows = [
     scope: "Submit employer registration details and supporting evidence through the selected ITF Area Office.",
   },
   {
+    title: "Contribution assessment and payment",
+    scope: "Receive contribution recommendations, download invoices, make payments, and retain verified payment evidence.",
+  },
+  {
     title: "Annual compliance",
     scope: "File annual contribution records, payment evidence, and receive downloadable compliance certificates.",
   },
@@ -53,12 +57,17 @@ export default function Home() {
 
         <div className="mx-auto grid max-w-7xl gap-8 px-6 py-14 lg:grid-cols-[1fr_0.75fr] lg:px-8">
           <div>
-            <p className="text-sm font-semibold uppercase text-rose-100">Statutory reimbursement portal</p>
+            <p className="text-sm font-semibold uppercase text-rose-100">
+              Integrated employer contribution and reimbursement services
+            </p>
             <h2 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight">
-              Employer registration, annual compliance, training approval, and reimbursement processing.
+              From employer registration and contribution payment to training governance and
+              reimbursement claims.
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-100">
-              Secure access for employers of labour and authorized Industrial Training Fund officers involved in the reimbursement scheme.
+              Secure access for employers of labour and authorized Industrial Training Fund
+              officers managing contribution, compliance, training, monitoring, and reimbursement
+              workflows.
             </p>
           </div>
           <div className="grid content-start gap-3 rounded-lg border border-white/15 bg-black/25 p-5 backdrop-blur">
@@ -74,7 +83,9 @@ export default function Home() {
       </section>
 
       <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
-        <p className="text-sm font-semibold uppercase text-[#800020]">Reimbursement scheme services</p>
+        <p className="text-sm font-semibold uppercase text-[#800020]">
+          Integrated employer services
+        </p>
         <h2 className="mt-2 text-2xl font-semibold">Operational workflows</h2>
         <div className="mt-5 grid gap-3 md:grid-cols-2">
           {statutoryWorkflows.map((item) => (

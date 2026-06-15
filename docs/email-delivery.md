@@ -15,7 +15,7 @@ Required Resend settings:
 ```env
 EMAIL_DELIVERY_MODE="resend_and_development_link"
 RESEND_API_KEY="re_..."
-EMAIL_FROM="ITF Reimbursement <onboarding@resend.dev>"
+EMAIL_FROM="ITF Contribution and Reimbursement <onboarding@resend.dev>"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ```
 

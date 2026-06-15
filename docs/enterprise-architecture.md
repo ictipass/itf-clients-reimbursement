@@ -2,13 +2,13 @@
 
 ## Recommended Product Name
 
-Recommended working name: **ITF Reimbursement Gateway**.
+Recommended working name: **ITF Integrated Contribution and Reimbursement Platform**.
 
 Rationale: the name sounds institutional, fits within a broader ITF Workspace app launcher, and communicates a controlled entry point for employer registration, training approval, claims packaging, and reimbursement governance. Management can still rename it later without changing the domain model.
 
 ## Architectural Positioning
 
-ITF Reimbursement Gateway should be a domain application inside ITF Workspace.
+ITF Integrated Contribution and Reimbursement Platform should be a domain application inside ITF Workspace.
 
 ITF Workspace remains responsible for:
 

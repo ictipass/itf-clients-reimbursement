@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { registerEmployerAccountAction } from "@/app/get-started/actions";
 import { getConfiguredOAuthProviders } from "@/lib/auth";
+import { appName } from "@/lib/domain";
 import { getOrganizationInvitation } from "@/lib/employer-members";
 
 export default async function GetStartedPage({
@@ -23,7 +24,7 @@ export default async function GetStartedPage({
             <Image src="/favicon.ico" alt="Industrial Training Fund logo" width={44} height={44} className="h-11 w-11 rounded-full bg-white p-1" />
             <div>
               <p className="text-xs font-semibold uppercase text-[#800020]">Industrial Training Fund</p>
-              <p className="text-sm font-semibold">Reimbursement Platform</p>
+              <p className="text-sm font-semibold">{appName}</p>
             </div>
           </div>
           <Link href="/" className="text-sm font-semibold text-[#800020]">Back to home</Link>
@@ -36,7 +37,9 @@ export default async function GetStartedPage({
           </p>
         </section>
         <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
-          <h2 className="text-xl font-semibold">Register on the new Reimbursement Platform</h2>
+          <h2 className="text-xl font-semibold">
+            Register on the Integrated Contribution and Reimbursement Platform
+          </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
             Create an employer portal account, then verify your email before beginning company registration.
           </p>
@@ -70,7 +73,7 @@ export default async function GetStartedPage({
             <p className="rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">Google registration will be available when Workspace identity is configured.</p>
           )}
           <p className="mt-5 border-t border-zinc-100 pt-4 text-sm text-zinc-600">
-            Already registered on this reimbursement platform?{" "}
+            Already registered on this platform?{" "}
             <Link href="/sign-in" className="font-semibold text-[#800020]">Continue to sign in</Link>.
           </p>
         </section>

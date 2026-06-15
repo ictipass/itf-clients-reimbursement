@@ -13,7 +13,7 @@ export type WorkspaceAppDefinition = {
 export const workspaceApps: WorkspaceAppDefinition[] = [
   {
     key: "reimbursement",
-    name: "Reimbursement",
+    name: "Contribution & Reimbursement",
     description: "Employer registration, compliance, training approvals, monitoring, and claims.",
     href: "/dashboard",
     status: "AVAILABLE",

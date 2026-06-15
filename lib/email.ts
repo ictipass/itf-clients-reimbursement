@@ -1,3 +1,6 @@
+import { getDb } from "@/lib/db";
+import { appName } from "@/lib/domain";
+
 export type EmailDeliveryMode = "development_link" | "resend" | "resend_and_development_link";
 
 export type TransactionalEmail = {
@@ -144,7 +147,7 @@ export async function sendEmployerVerificationEmail(input: {
   const actionUrl = `${getAppBaseUrl()}/verify-email/confirm?${params}`;
   return sendTransactionalEmail({
     to: input.to,
-    subject: "Verify your ITF Reimbursement Platform account",
+    subject: `Verify your ${appName} account`,
     html: actionEmail({
       recipientName: input.name,
       heading: "Verify your portal account",
@@ -152,7 +155,7 @@ export async function sendEmployerVerificationEmail(input: {
       actionLabel: "Verify account",
       actionUrl,
     }),
-    text: `Verify your ITF Reimbursement Platform account: ${actionUrl}`,
+    text: `Verify your ${appName} account: ${actionUrl}`,
   });
 }
 
@@ -168,7 +171,7 @@ export async function sendOrganizationInvitationEmail(input: {
     html: actionEmail({
       recipientName: input.to,
       heading: "Organization access invitation",
-      message: `You have been invited to access ${input.organizationName} on the ITF Reimbursement Platform.`,
+      message: `You have been invited to access ${input.organizationName} on the ${appName}.`,
       actionLabel: "Review invitation",
       actionUrl,
     }),
@@ -180,7 +183,7 @@ export async function sendPasswordResetEmail(input: { to: string; name: string; 
   const actionUrl = `${getAppBaseUrl()}/reset-password?token=${encodeURIComponent(input.token)}`;
   return sendTransactionalEmail({
     to: input.to,
-    subject: "Reset your ITF Reimbursement Platform password",
+    subject: `Reset your ${appName} password`,
     html: actionEmail({
       recipientName: input.name,
       heading: "Reset your password",
@@ -188,7 +191,7 @@ export async function sendPasswordResetEmail(input: { to: string; name: string; 
       actionLabel: "Reset password",
       actionUrl,
     }),
-    text: `Reset your ITF Reimbursement Platform password: ${actionUrl}`,
+    text: `Reset your ${appName} password: ${actionUrl}`,
   });
 }
 
@@ -200,7 +203,7 @@ export async function sendOfficerWelcomeEmail(input: {
   const actionUrl = `${getAppBaseUrl()}/sign-in`;
   return sendTransactionalEmail({
     to: input.to,
-    subject: "Your ITF Reimbursement Platform officer account",
+    subject: `Your ${appName} officer account`,
     html: actionEmail({
       recipientName: input.name,
       heading: "Your officer account is ready",
@@ -208,7 +211,7 @@ export async function sendOfficerWelcomeEmail(input: {
       actionLabel: "Sign in",
       actionUrl,
     }),
-    text: `Your ITF Reimbursement Platform officer account is ready.\nSign in: ${actionUrl}\nEmail: ${input.to}\nTemporary password: ${input.temporaryPassword}\nYou must create a new password when you first sign in.`,
+    text: `Your ${appName} officer account is ready.\nSign in: ${actionUrl}\nEmail: ${input.to}\nTemporary password: ${input.temporaryPassword}\nYou must create a new password when you first sign in.`,
   });
 }
 
@@ -256,4 +259,3 @@ export async function sendContributionRecommendationEmail(input: {
     text: `ITF released a recommended training contribution of NGN ${amount} for ${input.companyName}.${note}\nReview recommendation: ${actionUrl}`,
   });
 }
-import { getDb } from "@/lib/db";

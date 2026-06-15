@@ -1,6 +1,6 @@
 import type { Permission, Role } from "@/lib/rbac";
 
-export const appName = "ITF Reimbursement Gateway";
+export const appName = "ITF Integrated Contribution and Reimbursement Platform";
 
 export const workflowStages = [
   {

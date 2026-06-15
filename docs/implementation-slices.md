@@ -1,4 +1,4 @@
-# ITF Reimbursement Gateway Implementation Slices
+# ITF Integrated Contribution and Reimbursement Platform Implementation Slices
 
 This project is being built one reviewable slice at a time. After each slice, implementation pauses for review before the next slice begins.
 
@@ -289,7 +289,7 @@ Expected design:
 - Workspace application registry
 - User/app entitlement checks
 - Waffle launcher in the dashboard shell
-- Links to ITF Reimbursement Gateway and future workspace apps
+- Links to ITF Integrated Contribution and Reimbursement Platform and future workspace apps
 
 Expected files:
 
