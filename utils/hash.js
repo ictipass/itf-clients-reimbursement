@@ -30,6 +30,12 @@ async function generateHash() {
     console.log("  - Time Cost: 3 iterations");
     console.log("  - Parallelism: 1 thread");
     console.log("\n💾 You can now use this hash in your database.");
+    console.log("\nDatabase checklist:");
+    console.log("  - Paste only the value after 'Hash:' into User.passwordHash.");
+    console.log("  - User.emailVerifiedAt must be set.");
+    console.log("  - User.isActive must be true.");
+    console.log("  - The user must have at least one active Membership row.");
+    console.log("  - Bootstrap admin login also accepts BOOTSTRAP_ADMIN_PASSWORD directly.");
     
   } catch (error) {
     console.error("❌ Error generating hash:", error.message);

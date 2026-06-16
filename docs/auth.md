@@ -107,12 +107,18 @@ The seed creates:
 
 - `ITF Workspace`
 - `Industrial Training Fund` internal organization
-- Bootstrap admin user from the `BOOTSTRAP_ADMIN_*` environment variables
+- Bootstrap admin user from the `BOOTSTRAP_ADMIN_*` environment variables, including an
+  Argon2id `User.passwordHash` for `BOOTSTRAP_ADMIN_PASSWORD`
 - `SYSTEM_ADMIN` membership for the bootstrap admin
 - Local role test users only when `DEV_TEST_USER_PASSWORD` is explicitly configured to a
   non-default value
 
 The script is idempotent, so it can be run more than once.
+
+If manually setting a local password in the database, paste the Argon2 value into
+`User.passwordHash` only. Database-backed credential login also requires `User.emailVerifiedAt`,
+`User.isActive = true`, and at least one active `Membership`. The bootstrap administrator can
+also sign in through the direct `BOOTSTRAP_ADMIN_PASSWORD` environment check.
 
 ## Real-World Direction
 

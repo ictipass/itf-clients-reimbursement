@@ -2,6 +2,7 @@ import "dotenv/config";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { hash } from "argon2";
 import pg from "pg";
 
 const { Client } = pg;
@@ -53,6 +54,11 @@ function resolveRole(value: string | undefined): Role {
   return "SYSTEM_ADMIN";
 }
 
+function shouldSeedTestUsers() {
+  const password = process.env.DEV_TEST_USER_PASSWORD?.trim();
+  return Boolean(password && password !== "password123" && process.env.NODE_ENV !== "production");
+}
+
 function slugify(value: string) {
   return value
     .trim()
@@ -60,6 +66,15 @@ function slugify(value: string) {
     .replace(/&/g, "and")
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+async function hashPassword(password: string) {
+  return hash(password, {
+    type: 2,
+    memoryCost: 65536,
+    timeCost: 3,
+    parallelism: 1,
+  });
 }
 
 async function readAreaOfficeNames() {
@@ -93,6 +108,7 @@ const seed = {
     id: process.env.BOOTSTRAP_ADMIN_ID ?? "system-admin",
     name: process.env.BOOTSTRAP_ADMIN_NAME ?? "System Administrator",
     email: process.env.BOOTSTRAP_ADMIN_EMAIL ?? "admin@itf.local",
+    password: process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "ChangeMe123!",
     role: resolveRole(process.env.BOOTSTRAP_ADMIN_ROLE),
   },
 };
@@ -183,6 +199,7 @@ async function main() {
 
   try {
     const areaOfficeNames = await readAreaOfficeNames();
+    const adminPasswordHash = await hashPassword(seed.admin.password);
 
     await client.query(
       `
@@ -305,12 +322,19 @@ async function main() {
 
     await client.query(
       `
-        insert into "User" ("id", "email", "name", "updatedAt")
-        values ($1, $2, $3, now())
+        insert into "User" (
+          "id", "email", "name", "passwordHash", "emailVerifiedAt", "authenticationSource", "updatedAt"
+        )
+        values ($1, $2, $3, $4, now(), 'LOCAL', now())
         on conflict ("email")
-        do update set "name" = excluded."name", "updatedAt" = now()
+        do update set
+          "name" = excluded."name",
+          "passwordHash" = excluded."passwordHash",
+          "emailVerifiedAt" = coalesce("User"."emailVerifiedAt", excluded."emailVerifiedAt"),
+          "authenticationSource" = 'LOCAL',
+          "updatedAt" = now()
       `,
-      [seed.admin.id, seed.admin.email, seed.admin.name],
+      [seed.admin.id, seed.admin.email, seed.admin.name, adminPasswordHash],
     );
 
     const userResult = await client.query(`select "id" from "User" where "email" = $1 limit 1`, [
@@ -324,18 +348,25 @@ async function main() {
     }
 
     const userId = user.id;
+    const seedLocalTestUsers = shouldSeedTestUsers();
 
     await client.query(
       `
         insert into "Membership" ("id", "userId", "workspaceId", "organizationId", "role")
         values ($1, $2, $3, $4, $5)
         on conflict ("userId", "workspaceId", "organizationId", "role")
-        do nothing
+        do update set
+          "isActive" = true,
+          "activatedAt" = now(),
+          "deactivatedAt" = null,
+          "deactivatedById" = null,
+          "deactivatedReason" = null,
+          "updatedAt" = now()
       `,
       [`${userId}-${seed.admin.role.toLowerCase()}`, userId, seed.workspace.id, organizationId, seed.admin.role],
     );
 
-    for (const testUser of testUsers) {
+    for (const testUser of seedLocalTestUsers ? testUsers : []) {
       await client.query(
         `
           insert into "User" ("id", "email", "name", "updatedAt")
@@ -403,7 +434,7 @@ async function main() {
     console.log(`- Area offices: ${areaOfficeNames.length}`);
     console.log(`- Bootstrap admin: ${seed.admin.email}`);
     console.log(`- Role: ${seed.admin.role}`);
-    console.log(`- Test users: ${testUsers.length}`);
+    console.log(`- Test users: ${seedLocalTestUsers ? testUsers.length : 0}`);
     console.log("- Certificate template: ITF Employer Registration Certificate v2026.1");
   } catch (error) {
     await client.query("rollback");
