@@ -44,6 +44,41 @@ function formatMoney(value: { toString(): string } | null) {
   })}`;
 }
 
+function readFilter(value: string | string[] | undefined) {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  const trimmed = rawValue?.trim();
+
+  return trimmed ? trimmed : undefined;
+}
+
+function readPositiveInteger(value: string | string[] | undefined, fallback = 1) {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  const parsed = rawValue ? Number.parseInt(rawValue, 10) : fallback;
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function clampPage(page: number, totalPages: number) {
+  return Math.min(Math.max(page, 1), Math.max(totalPages, 1));
+}
+
+function buildTrainingRequestHref(
+  requestId: string,
+  searchParams: Record<string, string | number | undefined>,
+) {
+  const params = new URLSearchParams();
+
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (value !== undefined) {
+      params.set(key, String(value));
+    }
+  });
+
+  const queryString = params.toString();
+
+  return queryString ? `/training-requests/${requestId}?${queryString}` : `/training-requests/${requestId}`;
+}
+
 function isAdminRole(role: Role) {
   return role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
 }
@@ -124,7 +159,7 @@ function getMissingRequirements(request: {
   }
 
   if (request.documents.length === 0) {
-    missing.push("at least one evidence document");
+    missing.push("at least one evidence document; the programme's synopsis is preferred");
   }
 
   return missing;
@@ -132,10 +167,17 @@ function getMissingRequirements(request: {
 
 export default async function TrainingRequestDetailPage({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ requestId: string }>;
+  searchParams: Promise<{
+    participantPage?: string | string[];
+    participantQ?: string | string[];
+  }>;
 }>) {
   const { requestId } = await params;
+  const query = await searchParams;
+  const participantSearch = readFilter(query.participantQ);
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
   const adminOverride = isAdminRole(activeRole);
@@ -266,6 +308,42 @@ export default async function TrainingRequestDetailPage({
     notFound();
   }
 
+  const filteredParticipants = request.participants.filter((participant) => {
+    if (!participantSearch) {
+      return true;
+    }
+
+    const normalizedSearch = participantSearch.toLowerCase();
+
+    return [
+      participant.name,
+      participant.jobTitle,
+      participant.trainingArea,
+      participant.educationalQualification,
+      participant.nationality,
+      participant.courseTitle,
+      participant.courseOrganiser,
+      participant.venue,
+    ]
+      .filter(Boolean)
+      .some((value) => value?.toLowerCase().includes(normalizedSearch));
+  });
+  const participantsPerPage = 6;
+  const participantTotalPages = Math.ceil(filteredParticipants.length / participantsPerPage);
+  const participantPage = clampPage(
+    readPositiveInteger(query.participantPage),
+    participantTotalPages,
+  );
+  const visibleParticipants = filteredParticipants.slice(
+    (participantPage - 1) * participantsPerPage,
+    participantPage * participantsPerPage,
+  );
+  const participantHref = (overrides: Record<string, string | number | undefined>) =>
+    buildTrainingRequestHref(request.id, {
+      participantQ: participantSearch,
+      participantPage: participantPage > 1 ? participantPage : undefined,
+      ...overrides,
+    });
   const canSubmit =
     request.currentDesk === "COMPANY" &&
     (request.status === "DRAFT" || request.status === "CHANGES_REQUESTED") &&
@@ -312,6 +390,15 @@ export default async function TrainingRequestDetailPage({
           {request.status.replaceAll("_", " ")}
         </span>
       </div>
+
+      <section className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+        <p className="font-semibold">Training approval request deadline</p>
+        <p className="mt-1">
+          Local training requests should be submitted not later than two (2) weeks before the
+          training starts. International training requests should be submitted not later than three
+          (3) weeks before the training starts.
+        </p>
+      </section>
 
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -371,91 +458,188 @@ export default async function TrainingRequestDetailPage({
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="text-xl font-semibold tracking-tight">Participants</h2>
-            {request.participants.length === 0 ? (
+            <form className="mt-4 flex flex-col gap-3 rounded-md bg-zinc-50 p-3 sm:flex-row sm:items-end">
+              <label className="grid flex-1 gap-1 text-xs font-medium text-zinc-700">
+                Search participants
+                <input
+                  name="participantQ"
+                  defaultValue={participantSearch}
+                  className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                />
+              </label>
+              <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+                Filter
+              </button>
+            </form>
+            {filteredParticipants.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">
-                No participant has been added to this Form 4A yet.
+                {request.participants.length === 0
+                  ? "No participant has been added to this Form 4A yet."
+                  : "No participant matches the selected filter."}
               </p>
             ) : (
-              <div className="mt-4 grid gap-3">
-                {request.participants.map((participant) => (
-                  <div key={participant.id} className="rounded-md border border-zinc-100 p-3">
-                    <form
-                      action={updateTrainingParticipantAction.bind(
-                        null,
-                        request.id,
-                        participant.id,
-                      )}
-                      className="grid gap-3 md:grid-cols-2"
-                    >
-                      <input
-                        name="name"
-                        defaultValue={participant.name}
-                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                      />
-                      <input
-                        name="jobTitle"
-                        defaultValue={participant.jobTitle ?? ""}
-                        placeholder="Job title"
-                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                      />
-                      <input
-                        name="trainingArea"
-                        defaultValue={participant.trainingArea ?? ""}
-                        placeholder="Training area"
-                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                      />
-                      <input
-                        name="educationalQualification"
-                        defaultValue={participant.educationalQualification ?? ""}
-                        placeholder="Educational qualification"
-                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                      />
-                      <input
-                        name="nationality"
-                        defaultValue={participant.nationality ?? ""}
-                        placeholder="Nationality"
-                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                      />
-                      <input
-                        name="courseTitle"
-                        defaultValue={participant.courseTitle ?? ""}
-                        placeholder="Course title"
-                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                      />
-                      <input
-                        name="courseOrganiser"
-                        defaultValue={participant.courseOrganiser ?? ""}
-                        placeholder="Course organiser"
-                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                      />
-                      <input
-                        name="venue"
-                        defaultValue={participant.venue ?? ""}
-                        placeholder="Venue"
-                        className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                      />
-                      {canSubmit ? (
-                        <button className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm font-semibold">
-                          Save participant
-                        </button>
+              <div className="mt-4 overflow-x-auto">
+                <table className="min-w-full divide-y divide-zinc-100 text-sm">
+                  <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
+                    <tr>
+                      <th className="px-3 py-2">Participant</th>
+                      <th className="px-3 py-2">Training</th>
+                      <th className="px-3 py-2">Course</th>
+                      <th className="px-3 py-2">Venue</th>
+                      <th className="px-3 py-2">Action</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-100">
+                    {visibleParticipants.map((participant) => (
+                      <tr key={participant.id}>
+                        <td className="px-3 py-3 align-top">
+                          <p className="font-semibold text-zinc-950">{participant.name}</p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {participant.jobTitle ?? "Job title not provided"}
+                          </p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {participant.nationality ?? "Nationality not provided"}
+                          </p>
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <p className="font-medium text-zinc-900">
+                            {participant.trainingArea ?? "Not provided"}
+                          </p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {participant.educationalQualification ??
+                              "Qualification not provided"}
+                          </p>
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          <p className="font-medium text-zinc-900">
+                            {participant.courseTitle ?? "Not provided"}
+                          </p>
+                          <p className="mt-1 text-xs text-zinc-500">
+                            {participant.courseOrganiser ?? "Organiser not provided"}
+                          </p>
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          {participant.venue ?? "Not provided"}
+                        </td>
+                        <td className="px-3 py-3 align-top">
+                          {canSubmit ? (
+                            <div className="flex flex-wrap gap-2">
+                              <details className="group">
+                                <summary className="inline-flex min-h-8 cursor-pointer list-none items-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800">
+                                  Edit
+                                </summary>
+                                <div className="mt-2 w-72 rounded-md border border-zinc-200 bg-white p-3 shadow-sm md:w-96">
+                                  <form
+                                    action={updateTrainingParticipantAction.bind(
+                                      null,
+                                      request.id,
+                                      participant.id,
+                                    )}
+                                    className="grid gap-2"
+                                  >
+                                    <input
+                                      name="name"
+                                      defaultValue={participant.name}
+                                      className="min-h-9 rounded-md border border-zinc-200 px-3 text-sm"
+                                    />
+                                    <input
+                                      name="jobTitle"
+                                      defaultValue={participant.jobTitle ?? ""}
+                                      placeholder="Job title"
+                                      className="min-h-9 rounded-md border border-zinc-200 px-3 text-sm"
+                                    />
+                                    <input
+                                      name="trainingArea"
+                                      defaultValue={participant.trainingArea ?? ""}
+                                      placeholder="Training area"
+                                      className="min-h-9 rounded-md border border-zinc-200 px-3 text-sm"
+                                    />
+                                    <input
+                                      name="educationalQualification"
+                                      defaultValue={participant.educationalQualification ?? ""}
+                                      placeholder="Educational qualification"
+                                      className="min-h-9 rounded-md border border-zinc-200 px-3 text-sm"
+                                    />
+                                    <input
+                                      name="nationality"
+                                      defaultValue={participant.nationality ?? ""}
+                                      placeholder="Nationality"
+                                      className="min-h-9 rounded-md border border-zinc-200 px-3 text-sm"
+                                    />
+                                    <input
+                                      name="courseTitle"
+                                      defaultValue={participant.courseTitle ?? ""}
+                                      placeholder="Course title"
+                                      className="min-h-9 rounded-md border border-zinc-200 px-3 text-sm"
+                                    />
+                                    <input
+                                      name="courseOrganiser"
+                                      defaultValue={participant.courseOrganiser ?? ""}
+                                      placeholder="Course organiser"
+                                      className="min-h-9 rounded-md border border-zinc-200 px-3 text-sm"
+                                    />
+                                    <input
+                                      name="venue"
+                                      defaultValue={participant.venue ?? ""}
+                                      placeholder="Venue"
+                                      className="min-h-9 rounded-md border border-zinc-200 px-3 text-sm"
+                                    />
+                                    <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+                                      Save
+                                    </button>
+                                  </form>
+                                </div>
+                              </details>
+                              <form
+                                action={deleteTrainingParticipantAction.bind(
+                                  null,
+                                  request.id,
+                                  participant.id,
+                                )}
+                              >
+                                <button
+                                  className="min-h-8 rounded-md border border-red-200 bg-white px-2 text-xs font-semibold text-red-700"
+                                  title="Remove participant"
+                                >
+                                  Remove
+                                </button>
+                              </form>
+                            </div>
+                          ) : (
+                            <span className="text-xs text-zinc-500">Locked</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {participantTotalPages > 1 ? (
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                    <p>
+                      Page {participantPage} of {participantTotalPages} · Showing{" "}
+                      {visibleParticipants.length} of {filteredParticipants.length} participant
+                      {filteredParticipants.length === 1 ? "" : "s"}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {participantPage > 1 ? (
+                        <Link
+                          href={participantHref({ participantPage: participantPage - 1 })}
+                          className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                        >
+                          Previous
+                        </Link>
                       ) : null}
-                    </form>
-                    {canSubmit ? (
-                      <form
-                        action={deleteTrainingParticipantAction.bind(
-                          null,
-                          request.id,
-                          participant.id,
-                        )}
-                        className="mt-2"
-                      >
-                        <button className="min-h-9 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700">
-                          Delete participant
-                        </button>
-                      </form>
-                    ) : null}
+                      {participantPage < participantTotalPages ? (
+                        <Link
+                          href={participantHref({ participantPage: participantPage + 1 })}
+                          className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                        >
+                          Next
+                        </Link>
+                      ) : null}
+                    </div>
                   </div>
-                ))}
+                ) : null}
               </div>
             )}
 
