@@ -428,8 +428,7 @@ export default async function TrainingRequestDetailPage({
       </section>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.8fr]">
-        <div className="grid gap-6 lg:contents">
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:row-span-2 lg:row-start-1">
             <h2 className="text-xl font-semibold tracking-tight">Request details</h2>
             <dl className="mt-4 grid gap-3 text-sm leading-6 md:grid-cols-2">
               <div className="md:col-span-2">
@@ -457,7 +456,7 @@ export default async function TrainingRequestDetailPage({
             </dl>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2 lg:row-start-3">
             <h2 className="text-xl font-semibold tracking-tight">Participants</h2>
             <form className="mt-4 flex flex-col gap-3 rounded-md bg-zinc-50 p-3 sm:flex-row sm:items-end">
               <label className="grid flex-1 gap-1 text-xs font-medium text-zinc-700">
@@ -699,7 +698,7 @@ export default async function TrainingRequestDetailPage({
             ) : null}
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-1 lg:row-start-4">
             <h2 className="text-xl font-semibold tracking-tight">Evidence</h2>
             <Link
               href={`/training-requests/${request.id}/evidence/new`}
@@ -732,10 +731,8 @@ export default async function TrainingRequestDetailPage({
               </div>
             )}
           </div>
-        </div>
 
-        <div className="grid gap-6 lg:col-start-2 lg:row-start-1">
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-2 lg:row-start-1">
             <h2 className="text-xl font-semibold tracking-tight">Training Plan source</h2>
             {request.trainingPlanLineItem ? (
               <div className="mt-3 text-sm leading-6 text-zinc-600">
@@ -753,7 +750,7 @@ export default async function TrainingRequestDetailPage({
             )}
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-2 lg:row-start-2">
             <h2 className="text-xl font-semibold tracking-tight">Monitoring records</h2>
             {request.monitoringRecords.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">
@@ -776,7 +773,7 @@ export default async function TrainingRequestDetailPage({
             )}
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-2 lg:row-start-5">
             <h2 className="text-xl font-semibold tracking-tight">Approval feedback</h2>
             <p className="mt-3 text-sm leading-6 text-zinc-600">
               Decision: {request.decisionOutcome?.replaceAll("_", " ") ?? "Pending"}
@@ -789,7 +786,7 @@ export default async function TrainingRequestDetailPage({
             </p>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-2 lg:row-start-6">
             <h2 className="text-xl font-semibold tracking-tight">Claims</h2>
             {request.claims.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">
@@ -825,7 +822,7 @@ export default async function TrainingRequestDetailPage({
           {canSubmit ? (
             <form
               action={submitTrainingRequestAction.bind(null, request.id)}
-              className="rounded-lg border border-zinc-200 bg-white p-5"
+              className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-1 lg:row-span-2 lg:row-start-5"
             >
               <h2 className="text-xl font-semibold tracking-tight">Submit request</h2>
               {missingRequirements.length === 0 ? (
@@ -861,7 +858,7 @@ export default async function TrainingRequestDetailPage({
           {canRoute ? (
             <form
               action={routeTrainingRequestAction.bind(null, request.id)}
-              className="rounded-lg border border-zinc-200 bg-white p-5"
+              className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2"
             >
               <h2 className="text-xl font-semibold tracking-tight">Workflow action</h2>
               <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
@@ -887,7 +884,7 @@ export default async function TrainingRequestDetailPage({
             </form>
           ) : null}
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
             <h2 className="text-xl font-semibold tracking-tight">Decision trail</h2>
             {request.decisions.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">No decision recorded yet.</p>
@@ -907,7 +904,6 @@ export default async function TrainingRequestDetailPage({
               </div>
             )}
           </div>
-        </div>
       </section>
     </div>
   );
