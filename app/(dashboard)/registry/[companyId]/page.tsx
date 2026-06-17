@@ -871,10 +871,22 @@ export default async function CompanyDetailPage({
         </section>
       )}
 
-      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
-        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <details
+        open={Boolean(
+          company.registrationApplication &&
+            company.registrationApplication.status !== "APPROVED",
+        )}
+        className="group mt-8 rounded-lg border border-zinc-200 bg-white p-5"
+      >
+        <summary className="flex cursor-pointer list-none flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-xl font-semibold tracking-tight">Registration workflow</h2>
+            <p className="mt-1 text-xs font-semibold text-[#800020] group-open:hidden">
+              Expand card
+            </p>
+            <p className="mt-1 hidden text-xs font-semibold text-zinc-500 group-open:block">
+              Collapse card
+            </p>
             {company.registrationApplication ? (
               <p className="mt-2 text-sm leading-6 text-zinc-600">
                 Current desk:{" "}
@@ -894,7 +906,7 @@ export default async function CompanyDetailPage({
               </p>
             )}
           </div>
-        </div>
+        </summary>
         {company.registrationApplication ? (
           <div className="mt-4 grid gap-3 border-t border-zinc-100 pt-4 text-sm md:grid-cols-3">
             <div>
@@ -1648,12 +1660,25 @@ export default async function CompanyDetailPage({
           </form>
           </ActionGroup>
         ) : null}
-      </section>
+      </details>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
-        <div className="order-2 rounded-lg border border-zinc-200 bg-white p-5">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-xl font-semibold tracking-tight">Evidence summary</h2>
+        <details className="group order-2 rounded-lg border border-zinc-200 bg-white p-5">
+          <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">Evidence summary</h2>
+              <p className="mt-1 text-xs font-semibold text-[#800020] group-open:hidden">
+                Expand card
+              </p>
+              <p className="mt-1 hidden text-xs font-semibold text-zinc-500 group-open:block">
+                Collapse card
+              </p>
+            </div>
+          </summary>
+          <div className="mt-4 flex flex-col gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-zinc-600">
+              Supporting files uploaded for this company profile.
+            </p>
             <Link
               href={`/registry/${company.id}/evidence/new`}
               className="inline-flex min-h-10 items-center rounded-md bg-[#800020] px-3 text-sm font-semibold text-white"
@@ -1736,11 +1761,19 @@ export default async function CompanyDetailPage({
               ) : null}
             </div>
           )}
-        </div>
+        </details>
 
-        <div className="order-3 rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-xl font-semibold tracking-tight">Certificates</h2>
-          <p className="mt-2 text-sm leading-6 text-zinc-600">
+        <details className="group order-3 rounded-lg border border-zinc-200 bg-white p-5">
+          <summary className="cursor-pointer list-none">
+            <h2 className="text-xl font-semibold tracking-tight">Certificates</h2>
+            <p className="mt-1 text-xs font-semibold text-[#800020] group-open:hidden">
+              Expand card
+            </p>
+            <p className="mt-1 hidden text-xs font-semibold text-zinc-500 group-open:block">
+              Collapse card
+            </p>
+          </summary>
+          <p className="mt-4 border-t border-zinc-100 pt-4 text-sm leading-6 text-zinc-600">
             Issued annual compliance certificates are listed separately from supporting evidence.
           </p>
           {company.complianceYears.every((complianceYear) => !complianceYear.certificate) ? (
@@ -1783,10 +1816,10 @@ export default async function CompanyDetailPage({
                       )}
                     </div>
                   </div>
-                ))}
+              ))}
             </div>
           )}
-        </div>
+        </details>
 
         <details
           open={hasActionableComplianceYear}
