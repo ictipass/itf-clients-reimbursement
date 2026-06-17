@@ -98,6 +98,49 @@ export function getTrainingPlanDeskTransitions() {
   return trainingPlanDeskTransitions;
 }
 
+function normalizeTrainingPlanReviewDesk(desk: string | null | undefined) {
+  if (
+    desk === "AREA_MANAGER" ||
+    desk === "HEAD_OF_TRAINING" ||
+    desk === "REIMBURSEMENT_OFFICER"
+  ) {
+    return desk;
+  }
+
+  return "AREA_MANAGER";
+}
+
+function normalizeTrainingPlanReviewStatus(status: string | null | undefined) {
+  return status === "IN_REVIEW" ? "IN_REVIEW" : "SUBMITTED";
+}
+
+function getTrainingPlanDeskWorkItem(desk: "AREA_MANAGER" | "HEAD_OF_TRAINING" | "REIMBURSEMENT_OFFICER") {
+  if (desk === "HEAD_OF_TRAINING") {
+    return {
+      assignedRole: "HEAD_OF_TRAINING" as const,
+      sourceSuffix: "head-of-training-review",
+      title: "Resume Training Plan and L&D review",
+      summary: "resubmitted Training Plan and L&D corrections for Head of Training review.",
+    };
+  }
+
+  if (desk === "REIMBURSEMENT_OFFICER") {
+    return {
+      assignedRole: "REIMBURSEMENT_OFFICER" as const,
+      sourceSuffix: "reimbursement-officer-review",
+      title: "Resume Training Plan and L&D evidence review",
+      summary: "resubmitted Training Plan and L&D corrections for Reimbursement Officer review.",
+    };
+  }
+
+  return {
+    assignedRole: "AREA_MANAGER" as const,
+    sourceSuffix: "area-manager-review",
+    title: "Review Training Plan and L&D submission",
+    summary: "resubmitted Training Plan and L&D corrections for Area Manager review.",
+  };
+}
+
 function parseTrainingPlanCsv(text: string) {
   const lines = text
     .split(/\r?\n/)
@@ -536,6 +579,8 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
       year: true,
       companyId: true,
       dueDate: true,
+      correctionReturnDesk: true,
+      correctionReturnStatus: true,
       documents: {
         where: {
           isActive: true,
@@ -624,13 +669,21 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
   const promptSubmissionScore = submittedAt <= submission.dueDate ? "1.00" : "0.00";
 
   return db.$transaction(async (tx) => {
+    const targetDesk = normalizeTrainingPlanReviewDesk(submission.correctionReturnDesk);
+    const targetStatus = normalizeTrainingPlanReviewStatus(submission.correctionReturnStatus);
+    const workItem = getTrainingPlanDeskWorkItem(targetDesk);
+    const workItemSummary = submission.correctionReturnDesk
+      ? `${submission.company.legalName} ${workItem.summary}`
+      : `${submission.company.legalName} submitted the ${submission.year} Training Plan and L&D package.`;
     const updated = await tx.trainingPlanSubmission.update({
       where: {
         id: submission.id,
       },
       data: {
-        status: "SUBMITTED",
-        currentDesk: "AREA_MANAGER",
+        status: targetStatus,
+        currentDesk: targetDesk,
+        correctionReturnDesk: null,
+        correctionReturnStatus: null,
         submittedAt,
         promptSubmissionScore,
       },
@@ -651,7 +704,7 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
 
     await tx.workItem.upsert({
       where: {
-        sourceKey: `training-plan:${submission.id}:area-manager-review`,
+        sourceKey: `training-plan:${submission.id}:${workItem.sourceSuffix}`,
       },
       create: {
         workspaceId: submission.company.organization.workspaceId,
@@ -659,21 +712,21 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
         areaOfficeId: submission.company.areaOfficeId,
         companyId: submission.companyId,
         trainingPlanSubmissionId: submission.id,
-        assignedRole: "AREA_MANAGER",
+        assignedRole: workItem.assignedRole,
         app: "REIMBURSEMENT",
         kind: "TRAINING_PLAN_REVIEW",
         status: "OPEN",
         priority: "NORMAL",
-        title: "Review Training Plan and L&D submission",
-        summary: `${submission.company.legalName} submitted the ${submission.year} Training Plan and L&D package.`,
+        title: workItem.title,
+        summary: workItemSummary,
         targetHref: `/registry/${submission.companyId}`,
-        sourceKey: `training-plan:${submission.id}:area-manager-review`,
+        sourceKey: `training-plan:${submission.id}:${workItem.sourceSuffix}`,
       },
       update: {
         status: "OPEN",
         resolvedAt: null,
         priority: "NORMAL",
-        summary: `${submission.company.legalName} submitted the ${submission.year} Training Plan and L&D package.`,
+        summary: workItemSummary,
         targetHref: `/registry/${submission.companyId}`,
       },
       select: {
@@ -774,6 +827,10 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
       data: {
         currentDesk: transition.to,
         status: transition.nextStatus,
+        correctionReturnDesk:
+          transition.nextStatus === "CHANGES_REQUESTED" ? transition.from : null,
+        correctionReturnStatus:
+          transition.nextStatus === "CHANGES_REQUESTED" ? submission.status : null,
         approvedAt: transition.nextStatus === "APPROVED" ? new Date() : undefined,
       },
       select: {

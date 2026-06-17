@@ -826,26 +826,28 @@ model ComplianceBranchReturn {
 }
 
 model TrainingPlanSubmission {
-  id                    String                  @id @default(cuid())
-  companyId             String
-  year                  Int
-  trainingPlanSummary   String?
-  dueDate               DateTime
-  promptSubmissionScore Decimal?                @db.Decimal(5, 2)
-  status                WorkflowStatus          @default(DRAFT)
-  currentDesk           TrainingPlanDesk        @default(COMPANY)
-  submittedAt           DateTime?
-  approvedAt            DateTime?
-  recordTier            RecordTier              @default(HOT)
-  createdAt             DateTime                @default(now())
-  updatedAt             DateTime                @updatedAt
-  company               Company                 @relation(fields: [companyId], references: [id])
-  personnel             TrainingPlanPersonnel[]
-  lineItems             TrainingPlanLineItem[]
-  documents             Document[]
-  decisions             Decision[]
-  comments              Comment[]
-  workItems             WorkItem[]
+  id                     String                  @id @default(cuid())
+  companyId              String
+  year                   Int
+  trainingPlanSummary    String?
+  dueDate                DateTime
+  promptSubmissionScore  Decimal?                @db.Decimal(5, 2)
+  status                 WorkflowStatus          @default(DRAFT)
+  currentDesk            TrainingPlanDesk        @default(COMPANY)
+  correctionReturnDesk   TrainingPlanDesk?
+  correctionReturnStatus WorkflowStatus?
+  submittedAt            DateTime?
+  approvedAt             DateTime?
+  recordTier             RecordTier              @default(HOT)
+  createdAt              DateTime                @default(now())
+  updatedAt              DateTime                @updatedAt
+  company                Company                 @relation(fields: [companyId], references: [id])
+  personnel              TrainingPlanPersonnel[]
+  lineItems              TrainingPlanLineItem[]
+  documents              Document[]
+  decisions              Decision[]
+  comments               Comment[]
+  workItems              WorkItem[]
 
   @@unique([companyId, year])
   @@index([companyId, status, recordTier])
