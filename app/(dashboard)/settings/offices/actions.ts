@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import {
   assignOfficeOfficer,
+  createAreaOffice,
   getAreaOfficeOfficerRoles,
   getHeadquartersOfficerRoles,
   removeOfficeOfficer,
@@ -95,6 +96,30 @@ export async function assignOfficeOfficerAction(formData: FormData) {
 
   revalidateOfficeSettings();
   redirectToOfficeSettings("Officer assignment saved.");
+}
+
+export async function createAreaOfficeAction(formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  try {
+    await createAreaOffice({
+      requesterRole: session.user.role,
+      name: readRequiredString(formData, "name"),
+      code: readOptionalString(formData, "code"),
+      slug: readOptionalString(formData, "slug"),
+    });
+  } catch (error) {
+    redirectToOfficeSettings(
+      error instanceof Error ? error.message : "Area Office creation failed.",
+    );
+  }
+
+  revalidateOfficeSettings();
+  redirectToOfficeSettings("Area Office saved.");
 }
 
 export async function removeOfficeOfficerAction(formData: FormData) {

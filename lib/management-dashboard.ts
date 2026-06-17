@@ -22,8 +22,12 @@ const hqManagementRoles: Role[] = [
   "HQ_REVENUE_ACCOUNTANT",
 ];
 
+export function canViewManagementDashboard(role: Role) {
+  return isItfRole(role) && (can(role, "workspace:manage") || can(role, "audit:read") || hqManagementRoles.includes(role));
+}
+
 function requireManagementAccess(role: Role) {
-  if (!isItfRole(role) || (!can(role, "workspace:manage") && !can(role, "audit:read"))) {
+  if (!canViewManagementDashboard(role)) {
     throw new Error("You do not have permission to view management statistics.");
   }
 }

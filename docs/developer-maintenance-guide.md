@@ -36,6 +36,9 @@ npm run db:seed
 npm run dev:webpack
 ```
 
+Before running `npm run db:seed`, set `SYSTEM_ADMIN_INITIAL_PASSWORD` in the local environment.
+The seed creates only the first system administrator and marks that account for password change.
+
 Use Webpack locally on the current development machine because Turbopack has previously hung during
 route compilation.
 

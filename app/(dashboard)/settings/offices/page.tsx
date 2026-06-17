@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import {
   assignOfficeOfficerAction,
+  createAreaOfficeAction,
   removeOfficeOfficerAction,
   updateOfficeStatusAction,
 } from "@/app/(dashboard)/settings/offices/actions";
@@ -195,6 +196,47 @@ export default async function OfficeSettingsPage({
           </p>
         ) : null}
 
+        <form
+          action={createAreaOfficeAction}
+          className="mt-6 grid gap-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4"
+        >
+          <div>
+            <h2 className="text-lg font-semibold tracking-tight">Create Area Office</h2>
+            <p className="mt-1 text-sm leading-6 text-zinc-600">
+              Add a newly commissioned Area Office and make it available for assignments and
+              workflow routing.
+            </p>
+          </div>
+          <div className="grid gap-3 md:grid-cols-[1fr_0.6fr_0.8fr_auto] md:items-end">
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Office name
+              <input
+                name="name"
+                required
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Code
+              <input
+                name="code"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Slug
+              <input
+                name="slug"
+                placeholder="auto-generated if blank"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+              Save office
+            </button>
+          </div>
+        </form>
+
         {headquarters ? (
           <details className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50">
             <summary className="cursor-pointer list-none p-4">
@@ -206,6 +248,10 @@ export default async function OfficeSettingsPage({
               </div>
               <p className="mt-1 text-xs text-zinc-500">
                 {headquarters.name} · {headquarters.workspace.name}
+              </p>
+              <p className="mt-2 text-xs leading-5 text-zinc-600">
+                Assign HQ management officers here for national metrics access, or assign
+                additional System Administrators for platform administration.
               </p>
             </summary>
             <div className="mt-4 grid gap-4 lg:grid-cols-[1.2fr_1fr]">

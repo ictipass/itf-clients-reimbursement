@@ -35,7 +35,7 @@ async function generateHash() {
     console.log("  - User.emailVerifiedAt must be set.");
     console.log("  - User.isActive must be true.");
     console.log("  - The user must have at least one active Membership row.");
-    console.log("  - Bootstrap admin login also accepts BOOTSTRAP_ADMIN_PASSWORD directly.");
+    console.log("  - Users with temporary passwords should have mustChangePassword set to true.");
     
   } catch (error) {
     console.error("❌ Error generating hash:", error.message);

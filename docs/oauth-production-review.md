@@ -1,6 +1,8 @@
 # OAuth Production Review
 
-This app currently supports bootstrap/development credential login for implementation testing. Before production, authentication should move behind the ITF Workspace identity provider.
+This app currently supports database-backed local credential login for the seeded system
+administrator and locally provisioned users. Before production, authentication should move behind
+the ITF Workspace identity provider.
 
 ## Provider Checklist
 
@@ -25,7 +27,8 @@ This app currently supports bootstrap/development credential login for implement
 - Provider-specific client ID
 - Provider-specific client secret
 
-## Current Development Login
+## Current Local Login
 
-Development test users are blocked in production by `NODE_ENV === "production"`.
-The bootstrap admin login should be treated as an emergency/admin setup path and disabled or strongly protected after workspace SSO is live.
+The seed creates only the first `SYSTEM_ADMIN` account and stores the initial password as an
+Argon2id database hash. The administrator must change that temporary password on first login.
+Locally provisioned users also receive temporary passwords and must change them before continuing.

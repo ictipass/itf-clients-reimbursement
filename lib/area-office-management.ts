@@ -11,6 +11,9 @@ const areaOfficeOfficerRoles = [
 ] as const satisfies readonly Role[];
 
 const headquartersOfficerRoles = [
+  "SYSTEM_ADMIN",
+  "WORKSPACE_APP_ADMIN",
+  "ITF_AUDITOR",
   "DIRECTOR_FSD",
   "HEAD_OF_DIVISION",
   "HQ_REIMBURSEMENT_OFFICER",
@@ -47,6 +50,13 @@ export type UpdateAreaOfficeStatusInput = {
   isActive: boolean;
 };
 
+export type CreateAreaOfficeInput = {
+  requesterRole: Role;
+  name: string;
+  code?: string;
+  slug?: string;
+};
+
 export function getAreaOfficeOfficerRoles() {
   return areaOfficeOfficerRoles;
 }
@@ -81,9 +91,11 @@ export async function listOfficeManagementData(input: {
   const totalAreaOffices = await db.areaOffice.count({ where: areaOfficeWhere });
   const totalPages = Math.max(Math.ceil(totalAreaOffices / pageSize), 1);
   const page = Math.min(requestedPage, totalPages);
+  const headquarters = await ensureHeadquarters();
   const [itfOrganization, areaOffices, users] = await Promise.all([
     db.organization.findFirst({
       where: {
+        id: headquarters.organizationId,
         organizationType: "ITF_INTERNAL",
         isActive: true,
       },
@@ -191,6 +203,91 @@ export async function listOfficeManagementData(input: {
   };
 }
 
+function slugify(value: string) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/&/g, "and")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+async function getDefaultWorkspace() {
+  const workspace = await getDb().workspace.findFirst({
+    where: {
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  if (!workspace) {
+    throw new Error("No active workspace was found.");
+  }
+
+  return workspace;
+}
+
+async function ensureHeadquarters() {
+  const db = getDb();
+  const existing = await db.organization.findFirst({
+    where: {
+      organizationType: "ITF_INTERNAL",
+      isActive: true,
+    },
+    select: {
+      id: true,
+      workspaceId: true,
+    },
+    orderBy: {
+      createdAt: "asc",
+    },
+  });
+
+  if (existing) {
+    return {
+      workspaceId: existing.workspaceId,
+      organizationId: existing.id,
+      areaOfficeId: null,
+    };
+  }
+
+  const workspace = await getDefaultWorkspace();
+  const organization = await db.organization.upsert({
+    where: {
+      workspaceId_slug: {
+        workspaceId: workspace.id,
+        slug: "itf",
+      },
+    },
+    update: {
+      name: "Industrial Training Fund",
+      organizationType: "ITF_INTERNAL",
+      isActive: true,
+    },
+    create: {
+      workspaceId: workspace.id,
+      name: "Industrial Training Fund",
+      slug: "itf",
+      organizationType: "ITF_INTERNAL",
+    },
+    select: {
+      id: true,
+      workspaceId: true,
+    },
+  });
+
+  return {
+    workspaceId: organization.workspaceId,
+    organizationId: organization.id,
+    areaOfficeId: null,
+  };
+}
+
 export async function assignOfficeOfficer(input: AssignOfficeOfficerInput) {
   if (!can(input.requesterRole, "workspace:manage")) {
     throw new Error("You do not have permission to assign office officers.");
@@ -231,7 +328,8 @@ export async function assignOfficeOfficer(input: AssignOfficeOfficerInput) {
     throw new Error("Selected officer user was not found or is inactive.");
   }
 
-  const membershipId = `${user.id}-${input.role.toLowerCase()}`;
+  const membershipScope = office.areaOfficeId ?? office.organizationId ?? office.workspaceId;
+  const membershipId = `${user.id}-${input.role.toLowerCase()}-${membershipScope}`;
 
   return db.membership.upsert({
     where: {
@@ -270,6 +368,7 @@ async function resolveAreaOffice(areaOfficeId: string | undefined) {
   }
 
   const db = getDb();
+  const headquarters = await ensureHeadquarters();
   const areaOffice = await db.areaOffice.findFirst({
     where: {
       id: areaOfficeId,
@@ -281,6 +380,7 @@ async function resolveAreaOffice(areaOfficeId: string | undefined) {
         select: {
           organizations: {
             where: {
+              id: headquarters.organizationId,
               organizationType: "ITF_INTERNAL",
               isActive: true,
             },
@@ -312,26 +412,50 @@ async function resolveAreaOffice(areaOfficeId: string | undefined) {
 }
 
 async function resolveHeadquarters() {
-  const headquarters = await getDb().organization.findFirst({
+  return ensureHeadquarters();
+}
+
+export async function createAreaOffice(input: CreateAreaOfficeInput) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to create Area Offices.");
+  }
+
+  const name = input.name.trim().replace(/\s+/g, " ");
+  const code = input.code?.trim() || undefined;
+  const slug = slugify(input.slug || name);
+
+  if (name.length < 2) {
+    throw new Error("Area Office name must contain at least two characters.");
+  }
+
+  if (!slug) {
+    throw new Error("Area Office slug could not be generated.");
+  }
+
+  const workspace = await getDefaultWorkspace();
+
+  return getDb().areaOffice.upsert({
     where: {
-      organizationType: "ITF_INTERNAL",
+      workspaceId_slug: {
+        workspaceId: workspace.id,
+        slug,
+      },
+    },
+    update: {
+      name,
+      code,
       isActive: true,
+    },
+    create: {
+      workspaceId: workspace.id,
+      name,
+      slug,
+      code,
     },
     select: {
       id: true,
-      workspaceId: true,
     },
   });
-
-  if (!headquarters) {
-    throw new Error("ITF Headquarters organization was not found.");
-  }
-
-  return {
-    workspaceId: headquarters.workspaceId,
-    organizationId: headquarters.id,
-    areaOfficeId: null,
-  };
 }
 
 export async function removeOfficeOfficer(input: RemoveOfficeOfficerInput) {

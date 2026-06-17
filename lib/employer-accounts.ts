@@ -131,7 +131,7 @@ export async function createReplacementVerificationToken(email: string) {
   return { token, email: user.email, name: user.name };
 }
 
-export async function authenticatePortalAccount(email: string, password: string) {
+export async function authenticateLocalAccount(email: string, password: string) {
   const user = await getDb().user.findUnique({
     where: { email: email.toLowerCase() },
     select: {

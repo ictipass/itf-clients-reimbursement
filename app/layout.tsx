@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { AutoRefresh } from "@/app/AutoRefresh";
 import { appName } from "@/lib/domain";
 
 import "./globals.css";
@@ -17,7 +18,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en" className="h-full">
-      <body className="flex min-h-full flex-col antialiased">{children}</body>
+      <body className="flex min-h-full flex-col antialiased">
+        <AutoRefresh />
+        {children}
+      </body>
     </html>
   );
 }

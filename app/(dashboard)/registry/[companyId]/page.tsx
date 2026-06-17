@@ -111,6 +111,18 @@ function DetailItem({
   );
 }
 
+function HighlightedRemark({ children }: Readonly<{ children: React.ReactNode }>) {
+  if (!children) {
+    return null;
+  }
+
+  return (
+    <span className="ml-1 font-semibold text-[#800020]">
+      · {children}
+    </span>
+  );
+}
+
 function ActionGroup({
   title,
   description,
@@ -519,15 +531,6 @@ export default async function CompanyDetailPage({
     ? "Registered with ITF"
     : "Not yet registered with ITF";
   const canManageComplianceCertificate = canManageAnnualCompliance(activeRole);
-  const availableItfEmployerNumbers =
-    company.registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
-    company.registrationApplication.status === "IN_REVIEW"
-      ? await listAvailableManagedNumbers({
-          requesterRole: activeRole,
-          workspaceId: company.organization.workspaceId,
-          type: "ITF_EMPLOYER_NUMBER",
-        })
-      : [];
   const availableComplianceCertificateNumbers =
     canManageComplianceCertificate
       ? await listAvailableManagedNumbers({
@@ -611,6 +614,14 @@ export default async function CompanyDetailPage({
     registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
     registrationApplication.status === "IN_REVIEW" &&
     canActAsDesk(activeRole, "HEAD_OF_DIVISION");
+  const availableItfEmployerNumbers =
+    canCompleteAtHeadquarters
+      ? await listAvailableManagedNumbers({
+          requesterRole: activeRole,
+          workspaceId: company.organization.workspaceId,
+          type: "ITF_EMPLOYER_NUMBER",
+        })
+      : [];
   const canRecordLegacyRegistration =
     !company.itfEmployerNumber &&
     canRecordLegacyRegistrationRole(activeRole) &&
@@ -672,6 +683,15 @@ export default async function CompanyDetailPage({
   ];
   const currentComplianceYear = company.complianceYears.find(
     (complianceYear) => complianceYear.year === currentYear,
+  );
+  const hasActionableComplianceYear = company.complianceYears.some(
+    (complianceYear) =>
+      getRoleAvailableComplianceTransitions(complianceYear.status, activeRole, adminOverride).length > 0,
+  );
+  const hasActionableTrainingPlanSubmission = company.trainingPlanSubmissions.some(
+    (submission) =>
+      getAvailableTrainingPlanTransitions(submission.currentDesk, submission.status).length > 0 &&
+      canActAsTrainingPlanDesk(activeRole, submission.currentDesk),
   );
   const registeredCompanySteps = [
     {
@@ -930,9 +950,9 @@ export default async function CompanyDetailPage({
                   </span>{" "}
                   by {company.registrationApplication.decisions[0].actor.name} on{" "}
                   {formatDate(company.registrationApplication.decisions[0].createdAt)}
-                  {company.registrationApplication.decisions[0].reason
-                    ? ` · ${company.registrationApplication.decisions[0].reason}`
-                    : ""}
+                  <HighlightedRemark>
+                    {company.registrationApplication.decisions[0].reason}
+                  </HighlightedRemark>
                 </p>
               </div>
             ) : null}
@@ -982,9 +1002,9 @@ export default async function CompanyDetailPage({
                       {formatDate(
                         company.registrationApplication.contributionAssessment.horicReviewedAt,
                       )}
-                      {company.registrationApplication.contributionAssessment.horicReviewNote
-                        ? ` · ${company.registrationApplication.contributionAssessment.horicReviewNote}`
-                        : ""}
+                      <HighlightedRemark>
+                        {company.registrationApplication.contributionAssessment.horicReviewNote}
+                      </HighlightedRemark>
                     </p>
                   ) : null}
                   {company.registrationApplication.contributionAssessment.amReleasedAt ? (
@@ -1000,9 +1020,9 @@ export default async function CompanyDetailPage({
                       {formatDate(
                         company.registrationApplication.contributionAssessment.amReleasedAt,
                       )}
-                      {company.registrationApplication.contributionAssessment.amReleaseNote
-                        ? ` · ${company.registrationApplication.contributionAssessment.amReleaseNote}`
-                        : ""}
+                      <HighlightedRemark>
+                        {company.registrationApplication.contributionAssessment.amReleaseNote}
+                      </HighlightedRemark>
                       {company.registrationApplication.contributionAssessment.releaseChannel
                         ? ` · ${company.registrationApplication.contributionAssessment.releaseChannel.replaceAll("_", " ")}`
                         : ""}
@@ -1768,9 +1788,16 @@ export default async function CompanyDetailPage({
           )}
         </div>
 
-        <div className="order-1 rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <h2 className="text-xl font-semibold tracking-tight">Compliance years</h2>
+        <details
+          open={hasActionableComplianceYear}
+          className="group order-1 rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2"
+        >
+          <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">Compliance years</h2>
+              <p className="mt-1 text-xs font-semibold text-[#800020] group-open:hidden">Expand card</p>
+              <p className="mt-1 hidden text-xs font-semibold text-zinc-500 group-open:block">Collapse card</p>
+            </div>
             {canCreateComplianceYear ? (
               <Link
                 href={`/registry/${company.id}/compliance/new`}
@@ -1778,13 +1805,13 @@ export default async function CompanyDetailPage({
               >
                 Create year
               </Link>
-            ) : (
+            ) : isEmployerRole(activeRole) ? (
               <span className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm font-semibold text-zinc-500">
                 Registration required
               </span>
-            )}
-          </div>
-          {!canCreateComplianceYear ? (
+            ) : null}
+          </summary>
+          {!canCreateComplianceYear && isEmployerRole(activeRole) ? (
             <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
               Compliance year creation opens after ITF completes registration and assigns the ITF
               employer number.
@@ -1830,19 +1857,6 @@ export default async function CompanyDetailPage({
                           >
                             View certificate
                           </Link>
-                          {canManageComplianceCertificate ? (
-                            <form
-                              action={generateComplianceCertificatePdfAction.bind(
-                                null,
-                                company.id,
-                                complianceYear.certificate.id,
-                              )}
-                            >
-                              <button className="min-h-8 rounded-md border border-emerald-200 bg-white px-2 font-semibold text-emerald-900">
-                                Regenerate PDF
-                              </button>
-                            </form>
-                          ) : null}
                         </div>
                       ) : (
                         <div className="mt-2 flex flex-wrap items-center gap-2">
@@ -1874,9 +1888,9 @@ export default async function CompanyDetailPage({
                       </span>{" "}
                       by {complianceYear.decisions[0].actor.name} on{" "}
                       {formatDate(complianceYear.decisions[0].createdAt)}
-                      {complianceYear.decisions[0].reason
-                        ? ` · ${complianceYear.decisions[0].reason}`
-                        : ""}
+                      <HighlightedRemark>
+                        {complianceYear.decisions[0].reason}
+                      </HighlightedRemark>
                     </p>
                   ) : null}
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3">
@@ -2049,7 +2063,7 @@ export default async function CompanyDetailPage({
               ) : null}
             </div>
           )}
-        </div>
+        </details>
       </section>
 
       {canSubmitRegistration ? (
@@ -2089,8 +2103,11 @@ export default async function CompanyDetailPage({
         </section>
       ) : null}
 
-      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <details
+        open={hasActionableTrainingPlanSubmission}
+        className="group mt-8 rounded-lg border border-zinc-200 bg-white p-5"
+      >
+        <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-xl font-semibold tracking-tight">
               Training Plan and L&amp;D submissions
@@ -2099,6 +2116,8 @@ export default async function CompanyDetailPage({
               Yearly Form 3A personnel details, annual training plan evidence, and L&amp;D
               personnel CV records.
             </p>
+            <p className="mt-1 text-xs font-semibold text-[#800020] group-open:hidden">Expand card</p>
+            <p className="mt-1 hidden text-xs font-semibold text-zinc-500 group-open:block">Collapse card</p>
           </div>
           {canCreateTrainingPlan ? (
             <Link
@@ -2112,7 +2131,7 @@ export default async function CompanyDetailPage({
               Compliance required
             </span>
           ) : null}
-        </div>
+        </summary>
 
         {!hasCurrentYearCertifiedCompliance ? (
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -2176,6 +2195,9 @@ export default async function CompanyDetailPage({
                         </span>{" "}
                         by {submission.decisions[0].actor.name} on{" "}
                         {formatDate(submission.decisions[0].createdAt)}
+                        <HighlightedRemark>
+                          {submission.decisions[0].reason}
+                        </HighlightedRemark>
                       </p>
                     ) : null}
                   </div>
@@ -2312,7 +2334,7 @@ export default async function CompanyDetailPage({
             })}
           </div>
         )}
-      </section>
+      </details>
     </div>
   );
 }

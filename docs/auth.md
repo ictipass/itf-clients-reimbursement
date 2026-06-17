@@ -1,26 +1,8 @@
-# Authentication and Environment Setup
+# Authentication and Seed Setup
 
-This project currently uses a temporary bootstrap administrator login while the final ITF Workspace identity integration is still undefined.
-
-## Current Auth Flow
-
-Auth is configured in `lib/auth.ts` using Auth.js/NextAuth credentials auth.
-
-The bootstrap login reads these environment variables:
-
-- `BOOTSTRAP_ADMIN_ID`
-- `BOOTSTRAP_ADMIN_NAME`
-- `BOOTSTRAP_ADMIN_EMAIL`
-- `BOOTSTRAP_ADMIN_PASSWORD`
-- `BOOTSTRAP_ADMIN_ROLE`
-
-If a value is missing, the app falls back to local development defaults:
-
-- Email: `admin@itf.local`
-- Password: `ChangeMe123!`
-- Role: `SYSTEM_ADMIN`
-
-These defaults are only for local development. Shared, staging, and production environments must set explicit values.
+The app uses Auth.js/NextAuth credentials auth, but user passwords live in the
+database. Environment variables are used only to create or reset the first system
+administrator during `npm run db:seed`.
 
 ## Required Environment Variables
 
@@ -30,23 +12,58 @@ Copy `.env.example` to `.env.local` and fill in the values:
 cp .env.example .env.local
 ```
 
-`DATABASE_URL` is required before any database-backed route or server action calls `getDb()`.
+`DATABASE_URL` is required before migrations, seeding, or app routes can use the
+database.
 
-`NEXTAUTH_SECRET` should be a random secret:
+`NEXTAUTH_SECRET` signs session tokens:
 
 ```bash
 openssl rand -base64 32
 ```
 
-`NEXTAUTH_URL` should point to the local app URL:
+`NEXTAUTH_URL` should point to the app URL, for example:
 
 ```text
 http://localhost:3000
 ```
 
-## Local Sign-In Test
+## First System Administrator
 
-Start the stable local dev server:
+Set these values before running the seed:
+
+```text
+SYSTEM_ADMIN_EMAIL="admin@itf.local"
+SYSTEM_ADMIN_NAME="System Administrator"
+SYSTEM_ADMIN_INITIAL_PASSWORD="replace-with-a-strong-temporary-password"
+SYSTEM_ADMIN_RESET_PASSWORD="false"
+```
+
+`SYSTEM_ADMIN_INITIAL_PASSWORD` is a temporary plaintext password. The seed hashes
+it with Argon2id and stores it in `User.passwordHash`. Runtime sign-in does not
+read this environment variable.
+
+Run the seed:
+
+```bash
+npm run db:seed
+```
+
+The seed creates only:
+
+- the minimal active workspace
+- one active `SYSTEM_ADMIN` user
+- one active `SYSTEM_ADMIN` membership
+
+It does not create role test users, demo employers, Area Offices, certificate
+templates, or sample workflow data.
+
+The system administrator is marked with `mustChangePassword = true`. On first
+sign-in, the app redirects them to Profile and Security to set a permanent
+password.
+
+## Normal Sign-In Flow
+
+Start the app:
 
 ```bash
 npm run dev:webpack
@@ -58,74 +75,55 @@ Open:
 http://localhost:3000/sign-in
 ```
 
-Use the bootstrap credentials from `.env.local`.
+Sign in with the seeded admin email and the temporary password from
+`SYSTEM_ADMIN_INITIAL_PASSWORD`. Then change the password immediately. After that,
+the environment variable is no longer part of the login process.
 
-For role-specific workflow testing, run the foundation seed and set a strong local-only
-`DEV_TEST_USER_PASSWORD` in your environment. The application intentionally does not accept
-the old `password123` default.
+Credential login succeeds only when all of these are true:
 
-```text
-DEV_TEST_USER_PASSWORD="replace-with-a-strong-local-secret"
-```
+- `User.passwordHash` contains an Argon2id hash
+- `User.emailVerifiedAt` is set
+- `User.isActive = true`
+- the user has at least one active `Membership`
 
-Seeded test accounts:
+## Existing Users Without Password Hashes
 
-| Email | Implemented app role |
-| --- | --- |
-| `am@itf.local` | `AREA_MANAGER` |
-| `horic@itf.local` | `HORIC` |
-| `ra@itf.local` | `REVENUE_ACCOUNTANT` |
-| `ro@itf.local` | `REIMBURSEMENT_OFFICER` |
-| `hqro@itf.local` | `HQ_REIMBURSEMENT_OFFICER` |
-| `hqra@itf.local` | `HQ_REVENUE_ACCOUNTANT` |
-| `hqhod@itf.local` | `HEAD_OF_DIVISION` |
-| `dfsd@itf.local` | `DIRECTOR_FSD` |
-| `employer@itf.local` | `EMPLOYER_ADMIN` |
+Users that were created before local password provisioning may have no
+`User.passwordHash`. They cannot sign in with email and password until a system
+administrator resets their local access.
 
-The requested labels `REVENUE_OFFICER`, `HQ_REVENUE_OFFICER`, and
-`HEAD_REIMBURSEMENT_DIVISION` are mapped to the closest currently implemented app roles above.
-We can formalize those exact role names later if the workflow needs them as separate permissions.
-
-Seeded Area Office test accounts follow their assigned Area Office memberships in the
-registry. Use an HQ role or bootstrap administrator when a test needs all companies.
-
-After sign-in, the app should redirect to:
+Use:
 
 ```text
-http://localhost:3000/dashboard
+Settings -> Users -> Reset local access
 ```
 
-## Foundation Seed Data
+That creates a temporary password, stores its Argon2id hash, marks the account as
+verified and active, and sets `mustChangePassword = true`. The user signs in with
+the temporary password and must change it before using the platform.
 
-After the first migration, seed the local development database:
+## Emergency Admin Reset
+
+If the system administrator loses access, set:
+
+```text
+SYSTEM_ADMIN_RESET_PASSWORD="true"
+SYSTEM_ADMIN_INITIAL_PASSWORD="new-strong-temporary-password"
+```
+
+Then rerun:
 
 ```bash
 npm run db:seed
 ```
 
-The seed creates:
+Sign in with the new temporary password, change it in Profile and Security, then
+set `SYSTEM_ADMIN_RESET_PASSWORD` back to `false`.
 
-- `ITF Workspace`
-- `Industrial Training Fund` internal organization
-- Bootstrap admin user from the `BOOTSTRAP_ADMIN_*` environment variables, including an
-  Argon2id `User.passwordHash` for `BOOTSTRAP_ADMIN_PASSWORD`
-- `SYSTEM_ADMIN` membership for the bootstrap admin
-- Local role test users only when `DEV_TEST_USER_PASSWORD` is explicitly configured to a
-  non-default value
+## Future Workspace SSO Direction
 
-The script is idempotent, so it can be run more than once.
-
-If manually setting a local password in the database, paste the Argon2 value into
-`User.passwordHash` only. Database-backed credential login also requires `User.emailVerifiedAt`,
-`User.isActive = true`, and at least one active `Membership`. The bootstrap administrator can
-also sign in through the direct `BOOTSTRAP_ADMIN_PASSWORD` environment check.
-
-## Real-World Direction
-
-The bootstrap credentials are a temporary bridge. The production direction is to integrate with ITF Workspace so that:
+The long-term production direction is still to integrate with ITF Workspace:
 
 - ITF Workspace owns identity.
-- This app receives user and organization claims.
-- App roles are mapped from Workspace entitlements.
-- Every mutation checks both role and organization scope.
-- Audit events include the Workspace actor identity.
+- This app keeps reimbursement-specific roles, memberships, and workflow scope.
+- Every page, route handler, and mutation re-checks authorization server-side.

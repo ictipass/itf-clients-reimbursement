@@ -2,10 +2,10 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import {
+  canViewManagementDashboard,
   getManagementDashboard,
   listManagementDashboardAreaOffices,
 } from "@/lib/management-dashboard";
-import { can, isItfRole } from "@/lib/rbac";
 
 function formatMoney(value: number) {
   return `NGN ${value.toLocaleString("en-NG", {
@@ -53,10 +53,7 @@ export default async function ManagementDashboardPage({
 }>) {
   const session = await getServerSession(authOptions);
   const role = session?.user?.role ?? "SYSTEM_ADMIN";
-  const hasManagementAccess =
-    Boolean(session?.user?.email) &&
-    isItfRole(role) &&
-    (can(role, "workspace:manage") || can(role, "audit:read"));
+  const hasManagementAccess = Boolean(session?.user?.email) && canViewManagementDashboard(role);
 
   if (!hasManagementAccess) {
     return (

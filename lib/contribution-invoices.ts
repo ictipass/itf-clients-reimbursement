@@ -1,4 +1,6 @@
 import { randomUUID } from "node:crypto";
+import fs from "node:fs/promises";
+import path from "node:path";
 
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
@@ -41,6 +43,26 @@ function formatDate(value: Date) {
   return new Intl.DateTimeFormat("en-NG", { dateStyle: "long" }).format(value);
 }
 
+async function readFaviconPng() {
+  const file = await fs.readFile(path.join(process.cwd(), "app", "favicon.ico"));
+
+  if (file.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) {
+    return file;
+  }
+
+  if (file.length < 22 || file.readUInt16LE(0) !== 0 || file.readUInt16LE(2) !== 1) {
+    return null;
+  }
+
+  const imageSize = file.readUInt32LE(14);
+  const imageOffset = file.readUInt32LE(18);
+  const image = file.subarray(imageOffset, imageOffset + imageSize);
+
+  return image.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
+    ? image
+    : null;
+}
+
 async function renderContributionInvoicePdf(input: {
   invoiceNumber: string;
   issuedAt: Date;
@@ -54,11 +76,17 @@ async function renderContributionInvoicePdf(input: {
   const page = pdf.addPage([595.28, 841.89]);
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  const logoPng = await readFaviconPng();
+  const logo = logoPng ? await pdf.embedPng(logoPng) : null;
   const burgundy = rgb(0.5, 0, 0.125);
   const text = rgb(0.1, 0.1, 0.12);
   const muted = rgb(0.38, 0.38, 0.42);
 
   page.drawRectangle({ x: 0, y: 770, width: 595.28, height: 71.89, color: burgundy });
+  if (logo) {
+    page.drawEllipse({ x: 516, y: 807, xScale: 23, yScale: 23, color: rgb(1, 1, 1) });
+    page.drawImage(logo, { x: 496, y: 787, width: 40, height: 40 });
+  }
   page.drawText("INDUSTRIAL TRAINING FUND", {
     x: 42,
     y: 806,

@@ -5,85 +5,9 @@ import GoogleProvider from "next-auth/providers/google";
 import { writeIdentitySecurityAuditEvent } from "@/lib/audit";
 import { requiresApplicationPasswordChange } from "@/lib/authentication-policy";
 import { getDb } from "@/lib/db";
-import { seedRoles } from "@/lib/domain";
-import { authenticatePortalAccount, provisionVerifiedGoogleEmployer } from "@/lib/employer-accounts";
+import { authenticateLocalAccount, provisionVerifiedGoogleEmployer } from "@/lib/employer-accounts";
 import { checkRateLimit, RateLimitError } from "@/lib/rate-limit";
 import { roles, type Role } from "@/lib/rbac";
-
-const fallbackRole: Role = "SYSTEM_ADMIN";
-
-const fallbackAdmin = {
-  id: "system-admin",
-  name: "System Administrator",
-  email: "admin@itf.local",
-  role: fallbackRole,
-};
-
-function resolveRole(value: string | undefined): Role {
-  if (value && roles.includes(value as Role)) {
-    return value as Role;
-  }
-
-  return fallbackRole;
-}
-
-function getBootstrapUser(): User & { role: Role } {
-  return {
-    id: process.env.BOOTSTRAP_ADMIN_ID ?? fallbackAdmin.id,
-    name: process.env.BOOTSTRAP_ADMIN_NAME ?? fallbackAdmin.name,
-    email: process.env.BOOTSTRAP_ADMIN_EMAIL ?? fallbackAdmin.email,
-    role: resolveRole(process.env.BOOTSTRAP_ADMIN_ROLE),
-  };
-}
-
-async function getDevelopmentTestUser(email: string, password: string) {
-  if (process.env.NODE_ENV === "production") {
-    return null;
-  }
-
-  const expectedPassword = process.env.DEV_TEST_USER_PASSWORD?.trim();
-
-  if (!expectedPassword || expectedPassword === "password123" || password !== expectedPassword) {
-    return null;
-  }
-
-  const db = getDb();
-  const user = await db.user.findUnique({
-    where: {
-      email: email.toLowerCase(),
-    },
-    select: {
-      id: true,
-      email: true,
-      name: true,
-      isActive: true,
-      mustChangePassword: true,
-      authenticationSource: true,
-      memberships: {
-        where: { isActive: true },
-        select: {
-          role: true,
-        },
-        take: 1,
-      },
-    },
-  });
-
-  if (!user?.isActive || !user.memberships[0]) {
-    return null;
-  }
-
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.memberships[0].role,
-    mustChangePassword: requiresApplicationPasswordChange(
-      user.authenticationSource,
-      user.mustChangePassword,
-    ),
-  };
-}
 
 async function getAuthorizedDirectoryUser(email: string) {
   const user = await getDb().user.findUnique({
@@ -142,14 +66,12 @@ export const authOptions: NextAuthOptions = {
   },
   providers: [
     CredentialsProvider({
-      name: "Bootstrap Admin",
+      name: "Portal Credentials",
       credentials: {
         email: { label: "Email", type: "email" },
         password: { label: "Password", type: "password" },
       },
       async authorize(credentials) {
-        const bootstrapUser = getBootstrapUser();
-        const expectedPassword = process.env.BOOTSTRAP_ADMIN_PASSWORD ?? "ChangeMe123!";
         const email = credentials?.email?.toLowerCase();
         const password = credentials?.password;
 
@@ -176,27 +98,8 @@ export const authOptions: NextAuthOptions = {
           }
         }
 
-        if (
-          email === bootstrapUser.email?.toLowerCase() &&
-          password === expectedPassword
-        ) {
-          await writeIdentitySecurityAuditEvent({
-            email,
-            action: "LOGIN",
-            eventType: "AUTH_ATTEMPT",
-            entityId: email ?? "bootstrap-admin",
-            reason: "Credential sign-in succeeded.",
-            metadata: {
-              outcome: "SUCCESS",
-              authenticationMethod: "BOOTSTRAP_CREDENTIALS",
-            },
-          });
-
-          return bootstrapUser;
-        }
-
         if (email && password) {
-          const portalUser = await authenticatePortalAccount(email, password);
+          const portalUser = await authenticateLocalAccount(email, password);
           if (portalUser) {
             await getDb().user.update({
               where: { id: portalUser.id },
@@ -207,38 +110,28 @@ export const authOptions: NextAuthOptions = {
               action: "LOGIN",
               eventType: "AUTH_ATTEMPT",
               entityId: email,
-              reason: "Employer portal credential sign-in succeeded.",
+              reason: "Local credential sign-in succeeded.",
               metadata: {
                 outcome: "SUCCESS",
-                authenticationMethod: "PORTAL_CREDENTIALS",
+                authenticationMethod: "LOCAL_CREDENTIALS",
               },
             });
             return portalUser;
           }
 
-          const developmentUser = await getDevelopmentTestUser(email, password);
-          if (developmentUser) {
-            await getDb().user.update({
-              where: { id: developmentUser.id },
-              data: { lastSignedInAt: new Date() },
-            });
-          }
-
           await writeIdentitySecurityAuditEvent({
             email,
-            action: developmentUser ? "LOGIN" : "REJECT",
+            action: "REJECT",
             eventType: "AUTH_ATTEMPT",
             entityId: email,
-            reason: developmentUser
-              ? "Development credential sign-in succeeded."
-              : "Credential sign-in failed.",
+            reason: "Credential sign-in failed.",
             metadata: {
-              outcome: developmentUser ? "SUCCESS" : "FAILED",
-              authenticationMethod: "DEVELOPMENT_CREDENTIALS",
+              outcome: "FAILED",
+              authenticationMethod: "LOCAL_CREDENTIALS",
             },
           });
 
-          return developmentUser;
+          return null;
         }
 
         await writeIdentitySecurityAuditEvent({
@@ -306,8 +199,8 @@ export const authOptions: NextAuthOptions = {
     },
     session({ session, token }) {
       if (session.user) {
-        session.user.id = token.sub ?? fallbackAdmin.id;
-        session.user.role = (token.role as Role | undefined) ?? fallbackAdmin.role;
+        session.user.id = token.sub ?? "";
+        session.user.role = (token.role as Role | undefined) ?? "EMPLOYER_VIEWER";
         session.user.mustChangePassword = Boolean(token.mustChangePassword);
       }
 
@@ -315,5 +208,3 @@ export const authOptions: NextAuthOptions = {
     },
   },
 };
-
-export const bootstrapRoles = seedRoles;
