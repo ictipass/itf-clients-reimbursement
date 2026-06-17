@@ -431,29 +431,30 @@ export default async function TrainingRequestDetailPage({
         <div className="grid gap-6 lg:contents">
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="text-xl font-semibold tracking-tight">Request details</h2>
-            <div className="mt-4 grid gap-3 text-sm leading-6 text-zinc-600">
-              <p>{request.description ?? "No description provided."}</p>
-              <p>
-                <span className="font-semibold text-zinc-900">Type:</span>{" "}
-                {request.trainingType ?? "Not provided"}
-              </p>
-              <p>
-                <span className="font-semibold text-zinc-900">Venue:</span>{" "}
-                {request.venue ?? "Not provided"}
-              </p>
-              <p>
-                <span className="font-semibold text-zinc-900">Participants:</span>{" "}
-                {request.participantCount ?? "Not provided"}
-              </p>
-              <p>
-                <span className="font-semibold text-zinc-900">Expected outcome:</span>{" "}
-                {request.expectedOutcome ?? "Not provided"}
-              </p>
-              <p>
-                <span className="font-semibold text-zinc-900">Approval reference:</span>{" "}
-                {request.approvalReference ?? "Pending"}
-              </p>
-            </div>
+            <dl className="mt-4 grid gap-3 text-sm leading-6 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                  Description
+                </dt>
+                <dd className="mt-1 text-zinc-700">
+                  {request.description ?? "No description provided."}
+                </dd>
+              </div>
+              {[
+                ["Type", request.trainingType ?? "Not provided"],
+                ["Venue", request.venue ?? "Not provided"],
+                ["Participants", request.participantCount ?? "Not provided"],
+                ["Expected outcome", request.expectedOutcome ?? "Not provided"],
+                ["Approval reference", request.approvalReference ?? "Pending"],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-md bg-zinc-50 px-3 py-2">
+                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                    {label}
+                  </dt>
+                  <dd className="mt-1 font-medium text-zinc-900">{value}</dd>
+                </div>
+              ))}
+            </dl>
           </div>
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
