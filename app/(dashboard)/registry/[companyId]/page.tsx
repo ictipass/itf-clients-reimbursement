@@ -75,6 +75,13 @@ function readPositiveInteger(value: string | string[] | undefined, fallback = 1)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function readFilter(value: string | string[] | undefined) {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  const trimmed = rawValue?.trim();
+
+  return trimmed ? trimmed : undefined;
+}
+
 function clampPage(page: number, totalPages: number) {
   return Math.min(Math.max(page, 1), Math.max(totalPages, 1));
 }
@@ -120,6 +127,24 @@ function HighlightedRemark({ children }: Readonly<{ children: React.ReactNode }>
     <span className="ml-1 font-semibold text-[#800020]">
       · {children}
     </span>
+  );
+}
+
+function HiddenQueryInputs({
+  values,
+  omit = [],
+}: Readonly<{
+  values: Record<string, string | number | undefined>;
+  omit?: string[];
+}>) {
+  return (
+    <>
+      {Object.entries(values).map(([name, value]) =>
+        value !== undefined && !omit.includes(name) ? (
+          <input key={name} type="hidden" name={name} value={String(value)} />
+        ) : null,
+      )}
+    </>
   );
 }
 
@@ -477,7 +502,18 @@ export default async function CompanyDetailPage({
   params: Promise<{ companyId: string }>;
   searchParams: Promise<{
     compliancePage?: string | string[];
+    complianceStatus?: string | string[];
+    complianceYear?: string | string[];
+    certificatePage?: string | string[];
+    certificateStatus?: string | string[];
+    certificateYear?: string | string[];
     evidencePage?: string | string[];
+    evidenceKind?: string | string[];
+    evidenceQ?: string | string[];
+    trainingDesk?: string | string[];
+    trainingPage?: string | string[];
+    trainingStatus?: string | string[];
+    trainingYear?: string | string[];
   }>;
 }>) {
   const { companyId } = await params;
@@ -502,25 +538,110 @@ export default async function CompanyDetailPage({
     company.registrationApplication?.status,
   ]);
   const currentYear = new Date().getFullYear();
+  const evidenceKind = readFilter(query.evidenceKind);
+  const evidenceSearch = readFilter(query.evidenceQ);
+  const complianceStatus = readFilter(query.complianceStatus);
+  const complianceYear = readFilter(query.complianceYear);
+  const certificateStatus = readFilter(query.certificateStatus);
+  const certificateYear = readFilter(query.certificateYear);
+  const trainingStatus = readFilter(query.trainingStatus);
+  const trainingDesk = readFilter(query.trainingDesk);
+  const trainingYear = readFilter(query.trainingYear);
+  const filteredCompanyDocuments = company.documents.filter((document) => {
+    const matchesKind = evidenceKind ? document.kind === evidenceKind : true;
+    const matchesSearch = evidenceSearch
+      ? [document.documentName, document.fileName, document.kind]
+          .filter(Boolean)
+          .some((value) => value?.toLowerCase().includes(evidenceSearch.toLowerCase()))
+      : true;
+
+    return matchesKind && matchesSearch;
+  });
   const evidenceDocumentsPerPage = 5;
-  const evidenceTotalPages = Math.ceil(company.documents.length / evidenceDocumentsPerPage);
+  const evidenceTotalPages = Math.ceil(filteredCompanyDocuments.length / evidenceDocumentsPerPage);
   const evidencePage = clampPage(readPositiveInteger(query.evidencePage), evidenceTotalPages);
-  const visibleCompanyDocuments = company.documents.slice(
+  const visibleCompanyDocuments = filteredCompanyDocuments.slice(
     (evidencePage - 1) * evidenceDocumentsPerPage,
     evidencePage * evidenceDocumentsPerPage,
   );
+  const filteredComplianceYears = company.complianceYears.filter((complianceYearItem) => {
+    const matchesStatus = complianceStatus ? complianceYearItem.status === complianceStatus : true;
+    const matchesYear = complianceYear
+      ? complianceYearItem.year === Number.parseInt(complianceYear, 10)
+      : true;
+
+    return matchesStatus && matchesYear;
+  });
   const complianceYearsPerPage = 5;
   const complianceYearTotalPages = Math.ceil(
-    company.complianceYears.length / complianceYearsPerPage,
+    filteredComplianceYears.length / complianceYearsPerPage,
   );
   const compliancePage = clampPage(
     readPositiveInteger(query.compliancePage),
     complianceYearTotalPages,
   );
-  const visibleComplianceYears = company.complianceYears.slice(
+  const visibleComplianceYears = filteredComplianceYears.slice(
     (compliancePage - 1) * complianceYearsPerPage,
     compliancePage * complianceYearsPerPage,
   );
+  const certificateComplianceYears = company.complianceYears
+    .filter((complianceYearItem) => complianceYearItem.certificate)
+    .filter((complianceYearItem) => {
+      const matchesStatus = certificateStatus
+        ? complianceYearItem.certificate?.status === certificateStatus
+        : true;
+      const matchesYear = certificateYear
+        ? complianceYearItem.year === Number.parseInt(certificateYear, 10)
+        : true;
+
+      return matchesStatus && matchesYear;
+    });
+  const certificatesPerPage = 5;
+  const certificateTotalPages = Math.ceil(certificateComplianceYears.length / certificatesPerPage);
+  const certificatePage = clampPage(
+    readPositiveInteger(query.certificatePage),
+    certificateTotalPages,
+  );
+  const visibleCertificateComplianceYears = certificateComplianceYears.slice(
+    (certificatePage - 1) * certificatesPerPage,
+    certificatePage * certificatesPerPage,
+  );
+  const filteredTrainingPlanSubmissions = company.trainingPlanSubmissions.filter((submission) => {
+    const matchesStatus = trainingStatus ? submission.status === trainingStatus : true;
+    const matchesDesk = trainingDesk ? submission.currentDesk === trainingDesk : true;
+    const matchesYear = trainingYear ? submission.year === Number.parseInt(trainingYear, 10) : true;
+
+    return matchesStatus && matchesDesk && matchesYear;
+  });
+  const trainingSubmissionsPerPage = 5;
+  const trainingSubmissionTotalPages = Math.ceil(
+    filteredTrainingPlanSubmissions.length / trainingSubmissionsPerPage,
+  );
+  const trainingPage = clampPage(readPositiveInteger(query.trainingPage), trainingSubmissionTotalPages);
+  const visibleTrainingPlanSubmissions = filteredTrainingPlanSubmissions.slice(
+    (trainingPage - 1) * trainingSubmissionsPerPage,
+    trainingPage * trainingSubmissionsPerPage,
+  );
+  const companyPageQuery = {
+    compliancePage: compliancePage > 1 ? compliancePage : undefined,
+    complianceStatus,
+    complianceYear,
+    certificatePage: certificatePage > 1 ? certificatePage : undefined,
+    certificateStatus,
+    certificateYear,
+    evidencePage: evidencePage > 1 ? evidencePage : undefined,
+    evidenceKind,
+    evidenceQ: evidenceSearch,
+    trainingDesk,
+    trainingPage: trainingPage > 1 ? trainingPage : undefined,
+    trainingStatus,
+    trainingYear,
+  };
+  const companyHref = (overrides: Record<string, string | number | undefined>) =>
+    buildCompanyPageHref(company.id, {
+      ...companyPageQuery,
+      ...overrides,
+    });
   const certifiedComplianceYears = new Set(
     company.complianceYears
       .filter((complianceYear) => complianceYear.status === "APPROVED" && complianceYear.certificate)
@@ -1686,9 +1807,45 @@ export default async function CompanyDetailPage({
               Upload evidence
             </Link>
           </div>
-          {company.documents.length === 0 ? (
+          <form className="mt-4 grid gap-3 rounded-md bg-zinc-50 p-3 sm:grid-cols-[1fr_220px_auto]">
+            <HiddenQueryInputs
+              values={companyPageQuery}
+              omit={["evidencePage", "evidenceQ", "evidenceKind"]}
+            />
+            <label className="grid gap-1 text-xs font-medium text-zinc-700">
+              Search evidence
+              <input
+                name="evidenceQ"
+                defaultValue={evidenceSearch}
+                className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-zinc-700">
+              Type
+              <select
+                name="evidenceKind"
+                defaultValue={evidenceKind ?? ""}
+                className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              >
+                <option value="">Any type</option>
+                {Array.from(new Set(company.documents.map((document) => document.kind))).map(
+                  (kind) => (
+                    <option key={kind} value={kind}>
+                      {kind.replaceAll("_", " ")}
+                    </option>
+                  ),
+                )}
+              </select>
+            </label>
+            <div className="flex items-end">
+              <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+                Filter
+              </button>
+            </div>
+          </form>
+          {filteredCompanyDocuments.length === 0 ? (
             <p className="mt-3 text-sm leading-6 text-zinc-600">
-              No supporting evidence has been uploaded for this company yet.
+              No supporting evidence matches the selected filters.
             </p>
           ) : (
             <div className="mt-4 grid gap-3">
@@ -1730,15 +1887,14 @@ export default async function CompanyDetailPage({
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
                   <p>
                     Page {evidencePage} of {evidenceTotalPages} · Showing{" "}
-                    {visibleCompanyDocuments.length} of {company.documents.length} evidence
+                    {visibleCompanyDocuments.length} of {filteredCompanyDocuments.length} evidence
                     documents
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {evidencePage > 1 ? (
                       <Link
-                        href={buildCompanyPageHref(company.id, {
+                        href={companyHref({
                           evidencePage: evidencePage - 1,
-                          compliancePage: compliancePage > 1 ? compliancePage : undefined,
                         })}
                         className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
                       >
@@ -1747,9 +1903,8 @@ export default async function CompanyDetailPage({
                     ) : null}
                     {evidencePage < evidenceTotalPages ? (
                       <Link
-                        href={buildCompanyPageHref(company.id, {
+                        href={companyHref({
                           evidencePage: evidencePage + 1,
-                          compliancePage: compliancePage > 1 ? compliancePage : undefined,
                         })}
                         className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
                       >
@@ -1776,15 +1931,48 @@ export default async function CompanyDetailPage({
           <p className="mt-4 border-t border-zinc-100 pt-4 text-sm leading-6 text-zinc-600">
             Issued annual compliance certificates are listed separately from supporting evidence.
           </p>
-          {company.complianceYears.every((complianceYear) => !complianceYear.certificate) ? (
+          <form className="mt-4 grid gap-3 rounded-md bg-zinc-50 p-3 sm:grid-cols-[1fr_1fr_auto]">
+            <HiddenQueryInputs
+              values={companyPageQuery}
+              omit={["certificatePage", "certificateStatus", "certificateYear"]}
+            />
+            <label className="grid gap-1 text-xs font-medium text-zinc-700">
+              Year
+              <input
+                name="certificateYear"
+                type="number"
+                defaultValue={certificateYear}
+                className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-zinc-700">
+              Status
+              <select
+                name="certificateStatus"
+                defaultValue={certificateStatus ?? ""}
+                className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              >
+                <option value="">Any status</option>
+                {["ACTIVE", "REVOKED", "EXPIRED"].map((status) => (
+                  <option key={status} value={status}>
+                    {status.replaceAll("_", " ")}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-end">
+              <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+                Filter
+              </button>
+            </div>
+          </form>
+          {certificateComplianceYears.length === 0 ? (
             <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
-              No annual compliance certificate has been issued yet.
+              No annual compliance certificate matches the selected filters.
             </p>
           ) : (
             <div className="mt-4 grid gap-3">
-              {company.complianceYears
-                .filter((complianceYear) => complianceYear.certificate)
-                .map((complianceYear) => (
+              {visibleCertificateComplianceYears.map((complianceYear) => (
                   <div
                     key={complianceYear.id}
                     className="rounded-md border border-zinc-100 p-3 text-sm"
@@ -1817,6 +2005,33 @@ export default async function CompanyDetailPage({
                     </div>
                   </div>
               ))}
+              {certificateTotalPages > 1 ? (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                  <p>
+                    Page {certificatePage} of {certificateTotalPages} · Showing{" "}
+                    {visibleCertificateComplianceYears.length} of{" "}
+                    {certificateComplianceYears.length} certificates
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {certificatePage > 1 ? (
+                      <Link
+                        href={companyHref({ certificatePage: certificatePage - 1 })}
+                        className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                      >
+                        Previous
+                      </Link>
+                    ) : null}
+                    {certificatePage < certificateTotalPages ? (
+                      <Link
+                        href={companyHref({ certificatePage: certificatePage + 1 })}
+                        className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                      >
+                        Next
+                      </Link>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
           )}
         </details>
@@ -1844,15 +2059,59 @@ export default async function CompanyDetailPage({
               </span>
             ) : null}
           </summary>
+          <form className="mt-4 grid gap-3 rounded-md bg-zinc-50 p-3 sm:grid-cols-[1fr_1fr_auto]">
+            <HiddenQueryInputs
+              values={companyPageQuery}
+              omit={["compliancePage", "complianceStatus", "complianceYear"]}
+            />
+            <label className="grid gap-1 text-xs font-medium text-zinc-700">
+              Year
+              <input
+                name="complianceYear"
+                type="number"
+                defaultValue={complianceYear}
+                className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+            </label>
+            <label className="grid gap-1 text-xs font-medium text-zinc-700">
+              Status
+              <select
+                name="complianceStatus"
+                defaultValue={complianceStatus ?? ""}
+                className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              >
+                <option value="">Any status</option>
+                {[
+                  "DRAFT",
+                  "SUBMITTED",
+                  "IN_REVIEW",
+                  "CHANGES_REQUESTED",
+                  "APPROVED",
+                  "REJECTED",
+                  "SETTLED",
+                  "ARCHIVED",
+                ].map((status) => (
+                  <option key={status} value={status}>
+                    {status.replaceAll("_", " ")}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <div className="flex items-end">
+              <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+                Filter
+              </button>
+            </div>
+          </form>
           {!canCreateComplianceYear && isEmployerRole(activeRole) ? (
             <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
               Compliance year creation opens after ITF completes registration and assigns the ITF
               employer number.
             </p>
           ) : null}
-          {company.complianceYears.length === 0 ? (
+          {filteredComplianceYears.length === 0 ? (
             <p className="mt-3 text-sm leading-6 text-zinc-600">
-              No annual compliance returns have been created for this company yet.
+              No annual compliance returns match the selected filters.
             </p>
           ) : (
             <div className="mt-4 grid gap-3">
@@ -2065,15 +2324,14 @@ export default async function CompanyDetailPage({
                 <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
                   <p>
                     Page {compliancePage} of {complianceYearTotalPages} · Showing{" "}
-                    {visibleComplianceYears.length} of {company.complianceYears.length} compliance
-                    years
+                    {visibleComplianceYears.length} of {filteredComplianceYears.length} compliance
+                    year{filteredComplianceYears.length === 1 ? "" : "s"}
                   </p>
                   <div className="flex flex-wrap gap-2">
                     {compliancePage > 1 ? (
                       <Link
-                        href={buildCompanyPageHref(company.id, {
+                        href={companyHref({
                           compliancePage: compliancePage - 1,
-                          evidencePage: evidencePage > 1 ? evidencePage : undefined,
                         })}
                         className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
                       >
@@ -2082,9 +2340,8 @@ export default async function CompanyDetailPage({
                     ) : null}
                     {compliancePage < complianceYearTotalPages ? (
                       <Link
-                        href={buildCompanyPageHref(company.id, {
+                        href={companyHref({
                           compliancePage: compliancePage + 1,
-                          evidencePage: evidencePage > 1 ? evidencePage : undefined,
                         })}
                         className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
                       >
@@ -2173,13 +2430,73 @@ export default async function CompanyDetailPage({
           </p>
         ) : null}
 
-        {company.trainingPlanSubmissions.length === 0 ? (
+        <form className="mt-4 grid gap-3 rounded-md bg-zinc-50 p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+          <HiddenQueryInputs
+            values={companyPageQuery}
+            omit={["trainingPage", "trainingStatus", "trainingDesk", "trainingYear"]}
+          />
+          <label className="grid gap-1 text-xs font-medium text-zinc-700">
+            Year
+            <input
+              name="trainingYear"
+              type="number"
+              defaultValue={trainingYear}
+              className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-medium text-zinc-700">
+            Status
+            <select
+              name="trainingStatus"
+              defaultValue={trainingStatus ?? ""}
+              className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            >
+              <option value="">Any status</option>
+              {[
+                "DRAFT",
+                "SUBMITTED",
+                "IN_REVIEW",
+                "CHANGES_REQUESTED",
+                "APPROVED",
+                "REJECTED",
+              ].map((status) => (
+                <option key={status} value={status}>
+                  {status.replaceAll("_", " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-medium text-zinc-700">
+            Desk
+            <select
+              name="trainingDesk"
+              defaultValue={trainingDesk ?? ""}
+              className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            >
+              <option value="">Any desk</option>
+              {["COMPANY", "AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER"].map(
+                (desk) => (
+                  <option key={desk} value={desk}>
+                    {desk.replaceAll("_", " ")}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+          <div className="flex items-end">
+            <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+              Filter
+            </button>
+          </div>
+        </form>
+
+        {filteredTrainingPlanSubmissions.length === 0 ? (
           <p className="mt-4 text-sm leading-6 text-zinc-600">
-            No Training Plan and L&amp;D submission has been created for this company yet.
+            No Training Plan and L&amp;D submission matches the selected filters.
           </p>
         ) : (
           <div className="mt-4 grid gap-3">
-            {company.trainingPlanSubmissions.map((submission) => {
+            {visibleTrainingPlanSubmissions.map((submission) => {
               const submittedDocumentKinds = new Set(
                 submission.documents.map((document) => document.kind),
               );
@@ -2202,15 +2519,27 @@ export default async function CompanyDetailPage({
                 missingRequiredEvidence.length === 0 &&
                 hasCertifiedSubmissionYear &&
                 (isEmployerRole(activeRole) || adminOverride);
+              const shouldOpenSubmission = canRouteTrainingPlan || canSubmitTrainingPlan;
 
               return (
-                <div key={submission.id} className="rounded-md border border-zinc-100 p-3 text-sm">
-                  <div className="grid gap-2 md:grid-cols-4">
+                <details
+                  key={submission.id}
+                  open={shouldOpenSubmission}
+                  className="group rounded-md border border-zinc-100 p-3 text-sm"
+                >
+                  <summary className="grid cursor-pointer list-none gap-2 rounded-md p-1 md:grid-cols-[1fr_1fr_1fr_1fr_auto] md:items-center">
                     <p className="font-semibold">{submission.year}</p>
                     <p>{submission.status.replaceAll("_", " ")}</p>
                     <p>Desk: {formatDesk(submission.currentDesk)}</p>
                     <p>Due {formatDate(submission.dueDate)}</p>
-                  </div>
+                    <span className="text-xs font-semibold text-[#800020] group-open:hidden">
+                      Expand
+                    </span>
+                    <span className="hidden text-xs font-semibold text-zinc-500 group-open:inline">
+                      Collapse
+                    </span>
+                  </summary>
+                  <div className="mt-3 border-t border-zinc-100 pt-3">
                   <div className="mt-3 grid gap-2 rounded-md bg-zinc-50 px-3 py-2 text-xs leading-5 text-zinc-600 md:grid-cols-2">
                     <p>
                       L&amp;D personnel count:{" "}
@@ -2362,9 +2691,38 @@ export default async function CompanyDetailPage({
                       ))}
                     </div>
                   ) : null}
-                </div>
+                  </div>
+                </details>
               );
             })}
+            {trainingSubmissionTotalPages > 1 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                <p>
+                  Page {trainingPage} of {trainingSubmissionTotalPages} · Showing{" "}
+                  {visibleTrainingPlanSubmissions.length} of{" "}
+                  {filteredTrainingPlanSubmissions.length} submission
+                  {filteredTrainingPlanSubmissions.length === 1 ? "" : "s"}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {trainingPage > 1 ? (
+                    <Link
+                      href={companyHref({ trainingPage: trainingPage - 1 })}
+                      className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                    >
+                      Previous
+                    </Link>
+                  ) : null}
+                  {trainingPage < trainingSubmissionTotalPages ? (
+                    <Link
+                      href={companyHref({ trainingPage: trainingPage + 1 })}
+                      className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                    >
+                      Next
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
       </details>

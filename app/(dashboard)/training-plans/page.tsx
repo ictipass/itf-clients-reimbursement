@@ -5,12 +5,38 @@ import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getActiveEmployerOrganization } from "@/lib/organization-context";
 import { isItfRole } from "@/lib/rbac";
+import { getItfTrainingPlanCompanyWhere } from "@/lib/training-plan-access";
 
 function readFilter(value: string | string[] | undefined) {
   const rawValue = Array.isArray(value) ? value[0] : value;
   const trimmed = rawValue?.trim();
 
   return trimmed ? trimmed : undefined;
+}
+
+function readPositiveInteger(value: string | string[] | undefined, fallback = 1) {
+  const rawValue = Array.isArray(value) ? value[0] : value;
+  const parsed = rawValue ? Number.parseInt(rawValue, 10) : fallback;
+
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function clampPage(page: number, totalPages: number) {
+  return Math.min(Math.max(page, 1), Math.max(totalPages, 1));
+}
+
+function buildTrainingPlanHref(searchParams: Record<string, string | number | undefined>) {
+  const params = new URLSearchParams();
+
+  Object.entries(searchParams).forEach(([key, value]) => {
+    if (value !== undefined) {
+      params.set(key, String(value));
+    }
+  });
+
+  const queryString = params.toString();
+
+  return queryString ? `/training-plans?${queryString}` : "/training-plans";
 }
 
 function formatDate(date: Date | null) {
@@ -31,6 +57,7 @@ export default async function TrainingPlanListPage({
     status?: string | string[];
     desk?: string | string[];
     company?: string | string[];
+    page?: string | string[];
   }>;
 }>) {
   const query = await searchParams;
@@ -38,36 +65,39 @@ export default async function TrainingPlanListPage({
   const status = readFilter(query.status);
   const desk = readFilter(query.desk);
   const companyName = readFilter(query.company);
+  const requestedPage = readPositiveInteger(query.page);
+  const pageSize = 15;
   const db = getDb();
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) throw new Error("Authentication is required.");
   const activeOrganization = isItfRole(session.user.role)
     ? null
     : (await getActiveEmployerOrganization(session.user.email)).active;
-
-  const submissions = await db.trainingPlanSubmission.findMany({
-    where: {
-      recordTier: "HOT",
-      ...(year ? { year: Number.parseInt(year, 10) } : {}),
-      ...(status ? { status: status as never } : {}),
-      ...(desk ? { currentDesk: desk as never } : {}),
-      ...(!isItfRole(session.user.role)
-        ? { company: { organizationId: activeOrganization?.id ?? "__no_active_organization__" } }
-        : {}),
+  const companyScopeWhere = isItfRole(session.user.role)
+    ? await getItfTrainingPlanCompanyWhere(session.user.email, session.user.role)
+    : { organizationId: activeOrganization?.id ?? "__no_active_organization__" };
+  const where = {
+    recordTier: "HOT" as const,
+    ...(year ? { year: Number.parseInt(year, 10) } : {}),
+    ...(status ? { status: status as never } : {}),
+    ...(desk ? { currentDesk: desk as never } : {}),
+    company: {
+      ...companyScopeWhere,
       ...(companyName
         ? {
-            company: {
-              ...(!isItfRole(session.user.role)
-                ? { organizationId: activeOrganization?.id ?? "__no_active_organization__" }
-                : {}),
-              legalName: {
-                contains: companyName,
-                mode: "insensitive",
-              },
+            legalName: {
+              contains: companyName,
+              mode: "insensitive" as const,
             },
           }
         : {}),
     },
+  };
+  const totalSubmissions = await db.trainingPlanSubmission.count({ where });
+  const totalPages = Math.max(Math.ceil(totalSubmissions / pageSize), 1);
+  const page = clampPage(requestedPage, totalPages);
+  const submissions = await db.trainingPlanSubmission.findMany({
+    where,
     select: {
       id: true,
       year: true,
@@ -94,8 +124,16 @@ export default async function TrainingPlanListPage({
       },
     },
     orderBy: [{ year: "desc" }, { updatedAt: "desc" }],
-    take: 50,
+    skip: (page - 1) * pageSize,
+    take: pageSize,
   });
+  const pageQuery = {
+    company: companyName,
+    year,
+    status,
+    desk,
+    page: page > 1 ? page : undefined,
+  };
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -120,7 +158,7 @@ export default async function TrainingPlanListPage({
             Preview CSV
           </Link>
           <span className="inline-flex min-h-10 items-center rounded-full bg-zinc-100 px-4 text-sm font-semibold text-zinc-700">
-            {submissions.length} shown
+            {totalSubmissions} matched
           </span>
         </div>
       </div>
@@ -243,6 +281,32 @@ export default async function TrainingPlanListPage({
           </div>
         )}
       </section>
+      {totalSubmissions > 0 ? (
+        <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-sm">
+          <p className="text-zinc-600">
+            Showing {submissions.length} of {totalSubmissions} submission
+            {totalSubmissions === 1 ? "" : "s"} · page {page} of {totalPages}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {page > 1 ? (
+              <Link
+                href={buildTrainingPlanHref({ ...pageQuery, page: page - 1 })}
+                className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800"
+              >
+                Previous
+              </Link>
+            ) : null}
+            {page < totalPages ? (
+              <Link
+                href={buildTrainingPlanHref({ ...pageQuery, page: page + 1 })}
+                className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800"
+              >
+                Next
+              </Link>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

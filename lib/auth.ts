@@ -7,7 +7,7 @@ import { requiresApplicationPasswordChange } from "@/lib/authentication-policy";
 import { getDb } from "@/lib/db";
 import { authenticateLocalAccount, provisionVerifiedGoogleEmployer } from "@/lib/employer-accounts";
 import { checkRateLimit, RateLimitError } from "@/lib/rate-limit";
-import { roles, type Role } from "@/lib/rbac";
+import type { Role } from "@/lib/rbac";
 
 async function getAuthorizedDirectoryUser(email: string) {
   const user = await getDb().user.findUnique({

@@ -14,6 +14,7 @@ import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getActiveEmployerOrganization } from "@/lib/organization-context";
 import { isItfRole, type Role } from "@/lib/rbac";
+import { getItfTrainingPlanCompanyWhere } from "@/lib/training-plan-access";
 
 const trainingPlanTransitionLabels = {
   am_to_hot: "Forward to HOT",
@@ -122,13 +123,14 @@ export default async function TrainingPlanDetailPage({
   const activeOrganization = isItfRole(activeRole)
     ? null
     : (await getActiveEmployerOrganization(session.user.email)).active;
+  const companyScopeWhere = isItfRole(activeRole)
+    ? await getItfTrainingPlanCompanyWhere(session.user.email, activeRole)
+    : { organizationId: activeOrganization?.id ?? "__no_active_organization__" };
   const submission = await getDb().trainingPlanSubmission.findFirst({
     where: {
       id: submissionId,
       recordTier: "HOT",
-      ...(!isItfRole(activeRole)
-        ? { company: { organizationId: activeOrganization?.id ?? "__no_active_organization__" } }
-        : {}),
+      company: companyScopeWhere,
     },
     select: {
       id: true,
