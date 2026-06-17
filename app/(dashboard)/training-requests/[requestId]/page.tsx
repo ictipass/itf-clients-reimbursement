@@ -428,7 +428,7 @@ export default async function TrainingRequestDetailPage({
       </section>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-[1fr_0.8fr]">
-        <div className="grid gap-6">
+        <div className="grid gap-6 lg:contents">
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="text-xl font-semibold tracking-tight">Request details</h2>
             <div className="mt-4 grid gap-3 text-sm leading-6 text-zinc-600">
@@ -456,7 +456,7 @@ export default async function TrainingRequestDetailPage({
             </div>
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
             <h2 className="text-xl font-semibold tracking-tight">Participants</h2>
             <form className="mt-4 flex flex-col gap-3 rounded-md bg-zinc-50 p-3 sm:flex-row sm:items-end">
               <label className="grid flex-1 gap-1 text-xs font-medium text-zinc-700">
@@ -733,7 +733,7 @@ export default async function TrainingRequestDetailPage({
           </div>
         </div>
 
-        <div className="grid gap-6">
+        <div className="grid gap-6 lg:col-start-2 lg:row-start-1">
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <h2 className="text-xl font-semibold tracking-tight">Training Plan source</h2>
             {request.trainingPlanLineItem ? (
