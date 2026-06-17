@@ -413,6 +413,7 @@ export default async function TrainingPlanDetailPage({
                     <tr>
                       <th className="px-3 py-2">Staff</th>
                       <th className="px-3 py-2">Training</th>
+                      <th className="px-3 py-2">Trainer</th>
                       <th className="px-3 py-2">Cost</th>
                       <th className="px-3 py-2">Date</th>
                       {submission.status === "APPROVED" ? (
@@ -430,6 +431,10 @@ export default async function TrainingPlanDetailPage({
                         <td className="px-3 py-3">
                           <p>{item.trainingTitle}</p>
                           <p className="mt-1 text-xs text-zinc-500">{item.gapIdentified}</p>
+                        </td>
+                        <td className="px-3 py-3">
+                          <p className="font-semibold text-zinc-950">{item.trainer}</p>
+                          <p className="mt-1 text-xs text-zinc-500">{item.location}</p>
                         </td>
                         <td className="px-3 py-3">
                           NGN {Number(item.estimatedCost.toString()).toLocaleString("en-NG")}
