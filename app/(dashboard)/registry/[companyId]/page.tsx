@@ -130,6 +130,32 @@ function HighlightedRemark({ children }: Readonly<{ children: React.ReactNode }>
   );
 }
 
+function getTrainingPlanStatusBadgeClass(status: string) {
+  if (status === "APPROVED") {
+    return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  }
+
+  if (status === "REJECTED") {
+    return "bg-red-50 text-red-700 ring-red-200";
+  }
+
+  if (status === "SUBMITTED" || status === "IN_REVIEW") {
+    return "bg-orange-50 text-orange-700 ring-orange-200";
+  }
+
+  return "bg-zinc-100 text-zinc-700 ring-zinc-200";
+}
+
+function TrainingPlanStatusBadge({ status }: Readonly<{ status: string }>) {
+  return (
+    <span
+      className={`inline-flex min-h-7 w-fit items-center rounded-full px-2.5 text-xs font-semibold ring-1 ${getTrainingPlanStatusBadgeClass(status)}`}
+    >
+      {status.replaceAll("_", " ")}
+    </span>
+  );
+}
+
 function HiddenQueryInputs({
   values,
   omit = [],
@@ -2529,7 +2555,7 @@ export default async function CompanyDetailPage({
                 >
                   <summary className="grid cursor-pointer list-none gap-2 rounded-md p-1 md:grid-cols-[1fr_1fr_1fr_1fr_auto] md:items-center">
                     <p className="font-semibold">{submission.year}</p>
-                    <p>{submission.status.replaceAll("_", " ")}</p>
+                    <TrainingPlanStatusBadge status={submission.status} />
                     <p>Desk: {formatDesk(submission.currentDesk)}</p>
                     <p>Due {formatDate(submission.dueDate)}</p>
                     <span className="text-xs font-semibold text-[#800020] group-open:hidden">

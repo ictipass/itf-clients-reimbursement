@@ -47,6 +47,32 @@ function formatPercent(value: { toString(): string } | null) {
   })}%`;
 }
 
+function getTrainingPlanStatusBadgeClass(status: string) {
+  if (status === "APPROVED") {
+    return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  }
+
+  if (status === "REJECTED") {
+    return "bg-red-50 text-red-700 ring-red-200";
+  }
+
+  if (status === "SUBMITTED" || status === "IN_REVIEW") {
+    return "bg-orange-50 text-orange-700 ring-orange-200";
+  }
+
+  return "bg-zinc-100 text-zinc-700 ring-zinc-200";
+}
+
+function TrainingPlanStatusBadge({ status }: Readonly<{ status: string }>) {
+  return (
+    <span
+      className={`inline-flex min-h-9 w-fit items-center rounded-full px-4 text-sm font-semibold ring-1 ${getTrainingPlanStatusBadgeClass(status)}`}
+    >
+      {status.replaceAll("_", " ")}
+    </span>
+  );
+}
+
 function isAdminRole(role: Role) {
   return role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
 }
@@ -269,9 +295,7 @@ export default async function TrainingPlanDetailPage({
             Focused view for Form 3A personnel, annual training plan evidence, and desk routing.
           </p>
         </div>
-        <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
-          {submission.status.replaceAll("_", " ")}
-        </span>
+        <TrainingPlanStatusBadge status={submission.status} />
       </div>
 
       <section className="mt-8 grid gap-4 md:grid-cols-4">

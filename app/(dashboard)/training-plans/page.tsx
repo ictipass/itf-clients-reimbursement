@@ -49,6 +49,32 @@ function formatDate(date: Date | null) {
   }).format(date);
 }
 
+function getTrainingPlanStatusBadgeClass(status: string) {
+  if (status === "APPROVED") {
+    return "bg-emerald-50 text-emerald-700 ring-emerald-200";
+  }
+
+  if (status === "REJECTED") {
+    return "bg-red-50 text-red-700 ring-red-200";
+  }
+
+  if (status === "SUBMITTED" || status === "IN_REVIEW") {
+    return "bg-orange-50 text-orange-700 ring-orange-200";
+  }
+
+  return "bg-zinc-100 text-zinc-700 ring-zinc-200";
+}
+
+function TrainingPlanStatusBadge({ status }: Readonly<{ status: string }>) {
+  return (
+    <span
+      className={`inline-flex min-h-7 items-center rounded-full px-2.5 text-xs font-semibold ring-1 ${getTrainingPlanStatusBadgeClass(status)}`}
+    >
+      {status.replaceAll("_", " ")}
+    </span>
+  );
+}
+
 export default async function TrainingPlanListPage({
   searchParams,
 }: Readonly<{
@@ -253,7 +279,9 @@ export default async function TrainingPlanListPage({
                       </p>
                     </td>
                     <td className="px-4 py-4">{submission.year}</td>
-                    <td className="px-4 py-4">{submission.status.replaceAll("_", " ")}</td>
+                    <td className="px-4 py-4">
+                      <TrainingPlanStatusBadge status={submission.status} />
+                    </td>
                     <td className="px-4 py-4">{submission.currentDesk.replaceAll("_", " ")}</td>
                     <td className="px-4 py-4">
                       {submission._count.documents} document{submission._count.documents === 1 ? "" : "s"} ·{" "}
