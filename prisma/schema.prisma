@@ -25,6 +25,8 @@ enum Role {
   HEAD_OF_DIVISION
   HQ_REIMBURSEMENT_OFFICER
   HQ_REVENUE_ACCOUNTANT
+  DIRECTOR_GENERAL
+  DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE
   EMPLOYER_ADMIN
   EMPLOYER_SUBMITTER
   EMPLOYER_VIEWER
@@ -133,6 +135,18 @@ enum TrainingRequestDesk {
 enum TrainingMonitoringMode {
   LOCAL_PHYSICAL
   LOCAL_VIRTUAL
+}
+
+enum TrainingDeliveryMode {
+  LOCAL_PHYSICAL
+  LOCAL_ONLINE
+}
+
+enum JurisdictionRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
 }
 
 enum TrainingMonitoringDesk {
@@ -312,6 +326,8 @@ model AreaOffice {
   registrationApplications RegistrationApplication[]
   contributionAssessments  RegistrationContributionAssessment[]
   workItems                WorkItem[]
+  jurisdictionRequestsFrom JurisdictionChangeRequest[]          @relation("JurisdictionFromAreaOffice")
+  jurisdictionRequestsTo   JurisdictionChangeRequest[]          @relation("JurisdictionToAreaOffice")
 
   @@unique([workspaceId, slug])
   @@index([workspaceId, isActive])
@@ -356,6 +372,9 @@ model User {
   lastSignedInAt                                   DateTime?
   isActive                                         Boolean                              @default(true)
   workflowEmailNotifications                       Boolean                              @default(true)
+  isManagement                                     Boolean                              @default(false)
+  calendarFeedEnabled                              Boolean                              @default(false)
+  calendarFeedToken                                String?                              @unique
   createdAt                                        DateTime                             @default(now())
   updatedAt                                        DateTime                             @updatedAt
   memberships                                      Membership[]                         @relation("MembershipUser")
@@ -381,6 +400,8 @@ model User {
   passwordResetTokens                              PasswordResetToken[]
   sentOrganizationInvitations                      OrganizationInvitation[]             @relation("OrganizationInvitationInvitedBy")
   acceptedOrganizationInvitations                  OrganizationInvitation[]             @relation("OrganizationInvitationAcceptedBy")
+  requestedJurisdictionChanges                     JurisdictionChangeRequest[]          @relation("JurisdictionRequestedBy")
+  reviewedJurisdictionChanges                      JurisdictionChangeRequest[]          @relation("JurisdictionReviewedBy")
 }
 
 model EmailVerificationToken {
@@ -498,6 +519,7 @@ model Company {
   trainingPlanSubmissions             TrainingPlanSubmission[]
   trainingRequests                    TrainingRequest[]
   reimbursementClaims                 ReimbursementClaim[]
+  jurisdictionChangeRequests          JurisdictionChangeRequest[]
   registrationApplication             RegistrationApplication?
   registrationContributionAssessments RegistrationContributionAssessment[]
   contributionInvoices                ContributionInvoice[]
@@ -889,44 +911,77 @@ model TrainingPlanLineItem {
 }
 
 model TrainingRequest {
-  id                     String                     @id @default(cuid())
-  companyId              String
-  trainingPlanLineItemId String?
-  title                  String
-  description            String?
-  trainingType           String?
-  provider               String
-  venue                  String?
-  startsAt               DateTime
-  endsAt                 DateTime
-  participantCount       Int?
-  estimatedCost          Decimal                    @db.Decimal(14, 2)
-  expectedOutcome        String?
-  approvalReference      String?
-  approvedOriginalRef    String?
-  approvedDuplicateRef   String?
-  status                 WorkflowStatus             @default(DRAFT)
-  currentDesk            TrainingRequestDesk        @default(COMPANY)
-  decisionOutcome        TrainingDecisionOutcome?
-  decisionReason         String?
-  recordTier             RecordTier                 @default(HOT)
-  submittedAt            DateTime?
-  approvedAt             DateTime?
-  feedbackReleasedAt     DateTime?
-  createdAt              DateTime                   @default(now())
-  updatedAt              DateTime                   @updatedAt
-  company                Company                    @relation(fields: [companyId], references: [id])
-  trainingPlanLineItem   TrainingPlanLineItem?      @relation(fields: [trainingPlanLineItemId], references: [id])
-  documents              Document[]
-  participants           TrainingParticipant[]
-  monitoringRecords      TrainingMonitoringRecord[]
-  claims                 ReimbursementClaim[]
-  decisions              Decision[]
-  comments               Comment[]
+  id                       String                     @id @default(cuid())
+  companyId                String
+  trainingPlanLineItemId   String?
+  isAdHoc                  Boolean                    @default(false)
+  adHocJustification       String?
+  title                    String
+  description              String?
+  trainingType             String?
+  deliveryMode             TrainingDeliveryMode       @default(LOCAL_PHYSICAL)
+  provider                 String
+  venue                    String?
+  onlineUrl                String?
+  onlinePassword           String?
+  onlineMeetingId          String?
+  onlineInstructions       String?
+  trainingDetailsUpdatedAt DateTime?
+  startsAt                 DateTime
+  endsAt                   DateTime
+  participantCount         Int?
+  estimatedCost            Decimal                    @db.Decimal(14, 2)
+  expectedOutcome          String?
+  approvalReference        String?
+  approvedOriginalRef      String?
+  approvedDuplicateRef     String?
+  status                   WorkflowStatus             @default(DRAFT)
+  currentDesk              TrainingRequestDesk        @default(COMPANY)
+  decisionOutcome          TrainingDecisionOutcome?
+  decisionReason           String?
+  recordTier               RecordTier                 @default(HOT)
+  submittedAt              DateTime?
+  approvedAt               DateTime?
+  feedbackReleasedAt       DateTime?
+  createdAt                DateTime                   @default(now())
+  updatedAt                DateTime                   @updatedAt
+  company                  Company                    @relation(fields: [companyId], references: [id])
+  trainingPlanLineItem     TrainingPlanLineItem?      @relation(fields: [trainingPlanLineItemId], references: [id])
+  documents                Document[]
+  participants             TrainingParticipant[]
+  monitoringRecords        TrainingMonitoringRecord[]
+  claims                   ReimbursementClaim[]
+  decisions                Decision[]
+  comments                 Comment[]
 
   @@index([companyId, status, recordTier])
   @@index([currentDesk, status, recordTier])
   @@index([trainingPlanLineItemId])
+}
+
+model JurisdictionChangeRequest {
+  id               String                    @id @default(cuid())
+  companyId        String
+  fromAreaOfficeId String?
+  toAreaOfficeId   String
+  requestedById    String
+  reviewedById     String?
+  reason           String
+  reviewNote       String?
+  status           JurisdictionRequestStatus @default(PENDING)
+  requestedAt      DateTime                  @default(now())
+  reviewedAt       DateTime?
+  createdAt        DateTime                  @default(now())
+  updatedAt        DateTime                  @updatedAt
+  company          Company                   @relation(fields: [companyId], references: [id])
+  fromAreaOffice   AreaOffice?               @relation("JurisdictionFromAreaOffice", fields: [fromAreaOfficeId], references: [id])
+  toAreaOffice     AreaOffice                @relation("JurisdictionToAreaOffice", fields: [toAreaOfficeId], references: [id])
+  requestedBy      User                      @relation("JurisdictionRequestedBy", fields: [requestedById], references: [id])
+  reviewedBy       User?                     @relation("JurisdictionReviewedBy", fields: [reviewedById], references: [id])
+
+  @@index([companyId, status])
+  @@index([fromAreaOfficeId, status])
+  @@index([toAreaOfficeId, status])
 }
 
 model TrainingParticipant {

@@ -95,6 +95,7 @@ export async function listDirectoryUsers(input: {
       department: true,
       jobTitle: true,
       isActive: true,
+      isManagement: true,
       authenticationSource: true,
       mustChangePassword: true,
       provisionedAt: true,
@@ -269,6 +270,37 @@ export async function updateDirectoryUserStatus(input: {
       metadata: { targetEmail: user.email, isActive: input.isActive },
     });
   }
+}
+
+export async function updateDirectoryUserManagementStatus(input: {
+  requesterRole: Role;
+  userId: string;
+  isManagement: boolean;
+}) {
+  if (!can(input.requesterRole, "workspace:manage")) {
+    throw new Error("You do not have permission to update management status.");
+  }
+  const user = await getDb().user.findUnique({
+    where: { id: input.userId },
+    select: {
+      id: true,
+      memberships: {
+        where: { isActive: true },
+        select: { organization: { select: { organizationType: true } }, areaOfficeId: true },
+      },
+    },
+  });
+  if (!user) throw new Error("Selected user was not found.");
+  const isItfStaff = user.memberships.some(
+    (membership) => membership.organization?.organizationType === "ITF_INTERNAL" || membership.areaOfficeId,
+  );
+  if (input.isManagement && !isItfStaff) {
+    throw new Error("Assign the user to Headquarters or an Area Office before enabling management access.");
+  }
+  await getDb().user.update({
+    where: { id: user.id },
+    data: { isManagement: input.isManagement },
+  });
 }
 
 export async function importDirectoryUsers(input: ImportDirectoryUsersInput) {

@@ -50,7 +50,9 @@ function isHeadquartersReviewerRole(role: string) {
     role === "DIRECTOR_FSD" ||
     role === "HEAD_OF_DIVISION" ||
     role === "HQ_REIMBURSEMENT_OFFICER" ||
-    role === "HQ_REVENUE_ACCOUNTANT"
+    role === "HQ_REVENUE_ACCOUNTANT" ||
+    role === "DIRECTOR_GENERAL" ||
+    role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE"
   );
 }
 
@@ -431,6 +433,41 @@ export default async function DashboardPage() {
           },
         }),
       ]);
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const tomorrowStart = new Date(todayStart);
+    tomorrowStart.setDate(tomorrowStart.getDate() + 1);
+    const nextWeekEnd = new Date(tomorrowStart);
+    nextWeekEnd.setDate(nextWeekEnd.getDate() + 7);
+    const scheduledMonitoring = await getDb().trainingMonitoringRecord.findMany({
+      where: {
+        recordTier: "HOT",
+        monitoringDate: { gte: todayStart, lt: nextWeekEnd },
+        trainingRequest: {
+          company: { areaOfficeId: { in: areaOfficeIds } },
+        },
+      },
+      select: {
+        id: true,
+        monitoringDate: true,
+        startsAt: true,
+        mode: true,
+        trainingRequest: {
+          select: {
+            title: true,
+            company: { select: { legalName: true } },
+          },
+        },
+      },
+      orderBy: { monitoringDate: "asc" },
+      take: 30,
+    });
+    const happeningToday = scheduledMonitoring.filter(
+      (record) => record.monitoringDate && record.monitoringDate >= todayStart && record.monitoringDate < tomorrowStart,
+    );
+    const comingNextWeek = scheduledMonitoring.filter(
+      (record) => record.monitoringDate && record.monitoringDate >= tomorrowStart && record.monitoringDate < nextWeekEnd,
+    );
 
     return (
       <div className="mx-auto grid max-w-7xl gap-8 px-6 py-8 lg:px-8">
@@ -543,6 +580,34 @@ export default async function DashboardPage() {
               </div>
             )}
           </div>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-2">
+          {[
+            { title: "Happening Today", rows: happeningToday },
+            { title: "Coming Up / Happening Next Week", rows: comingNextWeek },
+          ].map((section) => (
+            <div key={section.title} className="rounded-lg border border-zinc-200 bg-white p-6">
+              <h2 className="text-xl font-semibold tracking-tight">{section.title}</h2>
+              {section.rows.length === 0 ? (
+                <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
+                  No training monitoring entry in this period.
+                </p>
+              ) : (
+                <div className="mt-4 grid gap-3">
+                  {section.rows.map((record) => (
+                    <Link key={record.id} href={`/training-monitoring/${record.id}`} className="rounded-md border border-zinc-100 p-4 transition hover:border-[#800020]/40">
+                      <p className="font-semibold text-zinc-950">{record.trainingRequest.title}</p>
+                      <p className="mt-1 text-sm text-zinc-600">{record.trainingRequest.company.legalName}</p>
+                      <p className="mt-2 text-xs text-zinc-500">
+                        Monitoring · {record.mode.replaceAll("_", " ")} · {record.monitoringDate ? formatDate(record.monitoringDate) : "Date pending"}
+                      </p>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
         </section>
       </div>
     );

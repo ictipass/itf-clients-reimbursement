@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
-import { createDirectoryUserAction, resetDirectoryUserLocalAccessAction, updateDirectoryUserStatusAction } from "@/app/(dashboard)/settings/users/actions";
+import { createDirectoryUserAction, resetDirectoryUserLocalAccessAction, updateDirectoryUserManagementStatusAction, updateDirectoryUserStatusAction } from "@/app/(dashboard)/settings/users/actions";
 import { UserEditDialog } from "@/app/(dashboard)/settings/users/user-edit-dialog";
 import { authOptions } from "@/lib/auth";
 import { can, roles } from "@/lib/rbac";
@@ -212,8 +212,8 @@ export default async function UserDirectoryPage({
           <Link href="/settings/users" className="inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold">Clear</Link>
         </form>
 
-        <div className="mt-6 overflow-hidden rounded-lg border border-zinc-200">
-          <table className="min-w-full divide-y divide-zinc-200 text-sm">
+        <div className="mt-6 overflow-x-auto rounded-lg border border-zinc-200">
+          <table className="min-w-[1200px] divide-y divide-zinc-200 text-sm">
             <thead className="bg-zinc-50 text-left text-xs font-semibold uppercase tracking-[0.12em] text-zinc-500">
               <tr>
                 <th className="px-4 py-3">User</th>
@@ -273,6 +273,9 @@ export default async function UserDirectoryPage({
                     >
                       {user.isActive ? "Active" : "Inactive"}
                     </span>
+                    {user.isManagement ? (
+                      <span className="ml-2 rounded-full bg-[#800020]/10 px-2 py-1 text-xs font-semibold text-[#800020]">Management</span>
+                    ) : null}
                   </td>
                   <td className="px-4 py-4 align-top text-xs leading-5 text-zinc-600">
                     <p className="font-semibold text-zinc-800">{formatRole(user.authenticationSource)}</p>
@@ -281,9 +284,16 @@ export default async function UserDirectoryPage({
                     <p>Welcome email: {user.welcomeEmailSentAt?.toLocaleDateString("en-NG") ?? "Not delivered"}</p>
                     <p>Last sign-in: {user.lastSignedInAt?.toLocaleDateString("en-NG") ?? "Never"}</p>
                   </td>
-                  <td className="px-4 py-4 text-right align-top">
-                    <div className="flex justify-end gap-2">
+                  <td className="whitespace-nowrap px-4 py-4 text-right align-top">
+                    <div className="flex min-w-max justify-end gap-2">
                       <UserEditDialog user={user} />
+                      <form action={updateDirectoryUserManagementStatusAction}>
+                        <input type="hidden" name="userId" value={user.id} />
+                        <input type="hidden" name="isManagement" value={user.isManagement ? "false" : "true"} />
+                        <button className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold">
+                          {user.isManagement ? "Remove management" : "Make management"}
+                        </button>
+                      </form>
                       <form action={resetDirectoryUserLocalAccessAction}>
                         <input type="hidden" name="userId" value={user.id} />
                         <button className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold">

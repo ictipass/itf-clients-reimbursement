@@ -13,6 +13,7 @@ import {
   getTrainingRequestEvidenceKinds,
   routeTrainingRequest,
   submitTrainingRequest,
+  updateTrainingRequestDetails,
   updateTrainingParticipant,
   uploadTrainingRequestEvidence,
   type TrainingRequestEvidenceKind,
@@ -56,6 +57,50 @@ export async function submitTrainingRequestAction(requestId: string, formData: F
   });
 
   revalidatePath(`/training-requests`);
+  revalidatePath(`/training-requests/${requestId}`);
+  redirect(`/training-requests/${requestId}`);
+}
+
+export async function updateTrainingRequestDetailsAction(requestId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+
+  const deliveryMode = readOptionalString(formData, "deliveryMode");
+  if (deliveryMode !== "LOCAL_PHYSICAL" && deliveryMode !== "LOCAL_ONLINE") {
+    throw new Error("Unsupported training delivery mode.");
+  }
+
+  const title = readOptionalString(formData, "title");
+  const provider = readOptionalString(formData, "provider");
+  const startsAt = readOptionalString(formData, "startsAt");
+  const endsAt = readOptionalString(formData, "endsAt");
+  const estimatedCost = Number(readOptionalString(formData, "estimatedCost"));
+
+  if (!title || !provider || !startsAt || !endsAt || !Number.isFinite(estimatedCost)) {
+    throw new Error("Title, provider, dates, and estimated cost are required.");
+  }
+
+  await updateTrainingRequestDetails({
+    requestId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    title,
+    description: readOptionalString(formData, "description"),
+    trainingType: readOptionalString(formData, "trainingType"),
+    provider,
+    venue: readOptionalString(formData, "venue"),
+    startsAt: new Date(startsAt),
+    endsAt: new Date(endsAt),
+    estimatedCost,
+    expectedOutcome: readOptionalString(formData, "expectedOutcome"),
+    deliveryMode,
+    onlineUrl: readOptionalString(formData, "onlineUrl"),
+    onlinePassword: readOptionalString(formData, "onlinePassword"),
+    onlineMeetingId: readOptionalString(formData, "onlineMeetingId"),
+    onlineInstructions: readOptionalString(formData, "onlineInstructions"),
+    adHocJustification: readOptionalString(formData, "adHocJustification"),
+  });
+
   revalidatePath(`/training-requests/${requestId}`);
   redirect(`/training-requests/${requestId}`);
 }

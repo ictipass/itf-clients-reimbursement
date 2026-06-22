@@ -8,6 +8,7 @@ import {
   deleteTrainingParticipantAction,
   routeTrainingRequestAction,
   submitTrainingRequestAction,
+  updateTrainingRequestDetailsAction,
   updateTrainingParticipantAction,
 } from "@/app/(dashboard)/training-requests/[requestId]/actions";
 import { authOptions } from "@/lib/auth";
@@ -42,6 +43,11 @@ function formatMoney(value: { toString(): string } | null) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   })}`;
+}
+
+function formatDateTimeInput(date: Date) {
+  const offset = date.getTimezoneOffset() * 60_000;
+  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
 }
 
 function readFilter(value: string | string[] | undefined) {
@@ -133,6 +139,10 @@ function getMissingRequirements(request: {
   startsAt: Date;
   endsAt: Date;
   estimatedCost: { toString(): string } | null;
+  isAdHoc: boolean;
+  adHocJustification: string | null;
+  deliveryMode: string;
+  onlineUrl: string | null;
   documents: unknown[];
   participants: unknown[];
 }) {
@@ -152,6 +162,14 @@ function getMissingRequirements(request: {
 
   if (!request.estimatedCost || Number(request.estimatedCost.toString()) <= 0) {
     missing.push("estimated cost");
+  }
+
+  if (request.isAdHoc && !request.adHocJustification) {
+    missing.push("ad-hoc training justification");
+  }
+
+  if (request.deliveryMode === "LOCAL_ONLINE" && !request.onlineUrl) {
+    missing.push("online training URL");
   }
 
   if (request.participants.length === 0) {
@@ -191,8 +209,15 @@ export default async function TrainingRequestDetailPage({
       title: true,
       description: true,
       trainingType: true,
+      isAdHoc: true,
+      adHocJustification: true,
+      deliveryMode: true,
       provider: true,
       venue: true,
+      onlineUrl: true,
+      onlinePassword: true,
+      onlineMeetingId: true,
+      onlineInstructions: true,
       startsAt: true,
       endsAt: true,
       participantCount: true,
@@ -441,6 +466,7 @@ export default async function TrainingRequestDetailPage({
               </div>
               {[
                 ["Type", request.trainingType ?? "Not provided"],
+                ["Delivery", request.deliveryMode.replaceAll("_", " ")],
                 ["Venue", request.venue ?? "Not provided"],
                 ["Participants", request.participantCount ?? "Not provided"],
                 ["Expected outcome", request.expectedOutcome ?? "Not provided"],
@@ -453,7 +479,65 @@ export default async function TrainingRequestDetailPage({
                   <dd className="mt-1 font-medium text-zinc-900">{value}</dd>
                 </div>
               ))}
+              {request.isAdHoc ? (
+                <div className="rounded-md bg-amber-50 px-3 py-2 md:col-span-2">
+                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
+                    Unplanned training justification
+                  </dt>
+                  <dd className="mt-1 font-medium text-amber-950">
+                    {request.adHocJustification ?? "Not provided"}
+                  </dd>
+                </div>
+              ) : null}
+              {request.deliveryMode === "LOCAL_ONLINE" ? (
+                <div className="rounded-md border border-blue-100 bg-blue-50 px-3 py-3 md:col-span-2">
+                  <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-blue-700">
+                    Employer-provided online access
+                  </dt>
+                  <dd className="mt-2 grid gap-1 text-blue-950">
+                    <span>URL: {request.onlineUrl ?? "Not provided"}</span>
+                    <span>Meeting ID: {request.onlineMeetingId ?? "Not provided"}</span>
+                    <span>Password: {request.onlinePassword ?? "Not provided"}</span>
+                    <span>Instructions: {request.onlineInstructions ?? "Not provided"}</span>
+                  </dd>
+                </div>
+              ) : null}
             </dl>
+            {canSubmit ? (
+              <details className="mt-5 border-t border-zinc-100 pt-5">
+                <summary className="cursor-pointer text-sm font-semibold text-[#800020]">
+                  Edit training and access details
+                </summary>
+                <form
+                  action={updateTrainingRequestDetailsAction.bind(null, request.id)}
+                  className="mt-4 grid gap-3 md:grid-cols-2"
+                >
+                  <input name="title" defaultValue={request.title} required placeholder="Training title" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="provider" defaultValue={request.provider} required placeholder="Provider" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <select name="deliveryMode" defaultValue={request.deliveryMode} className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm">
+                    <option value="LOCAL_PHYSICAL">Local physical</option>
+                    <option value="LOCAL_ONLINE">Local online</option>
+                  </select>
+                  <input name="venue" defaultValue={request.venue ?? ""} placeholder="Physical venue" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="startsAt" type="datetime-local" defaultValue={formatDateTimeInput(request.startsAt)} required className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="endsAt" type="datetime-local" defaultValue={formatDateTimeInput(request.endsAt)} required className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="estimatedCost" type="number" min="0.01" step="0.01" defaultValue={request.estimatedCost.toString()} required className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="trainingType" defaultValue={request.trainingType ?? ""} placeholder="Training type" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="onlineUrl" type="url" defaultValue={request.onlineUrl ?? ""} placeholder="Online training URL" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="onlineMeetingId" defaultValue={request.onlineMeetingId ?? ""} placeholder="Meeting ID" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="onlinePassword" defaultValue={request.onlinePassword ?? ""} placeholder="Password / passcode" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="onlineInstructions" defaultValue={request.onlineInstructions ?? ""} placeholder="Joining instructions" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <textarea name="description" defaultValue={request.description ?? ""} placeholder="Description" rows={3} className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2" />
+                  <textarea name="expectedOutcome" defaultValue={request.expectedOutcome ?? ""} placeholder="Expected outcome" rows={3} className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2" />
+                  {request.isAdHoc ? (
+                    <textarea name="adHocJustification" defaultValue={request.adHocJustification ?? ""} required placeholder="Impromptu gap / justification" rows={3} className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2" />
+                  ) : null}
+                  <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">
+                    Save details
+                  </button>
+                </form>
+              </details>
+            ) : null}
           </div>
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2 lg:row-start-3">
@@ -698,7 +782,7 @@ export default async function TrainingRequestDetailPage({
             ) : null}
           </div>
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-1 lg:row-start-4">
+          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-1 lg:row-span-2 lg:row-start-5">
             <h2 className="text-xl font-semibold tracking-tight">Evidence</h2>
             <Link
               href={`/training-requests/${request.id}/evidence/new`}
@@ -822,7 +906,7 @@ export default async function TrainingRequestDetailPage({
           {canSubmit ? (
             <form
               action={submitTrainingRequestAction.bind(null, request.id)}
-              className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-1 lg:row-span-2 lg:row-start-5"
+              className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2 lg:row-start-7"
             >
               <h2 className="text-xl font-semibold tracking-tight">Submit request</h2>
               {missingRequirements.length === 0 ? (

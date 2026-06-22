@@ -114,6 +114,18 @@ const roleMetadata: Record<Role, Omit<RoleDefinition, "permissions" | "isSystemM
     title: "HQ Revenue Accountant",
     description: "Headquarters revenue accountant for annual compliance review and certification.",
   },
+  DIRECTOR_GENERAL: {
+    role: "DIRECTOR_GENERAL",
+    scope: "HEADQUARTERS",
+    title: "Director General",
+    description: "National executive oversight across ITF reimbursement operations.",
+  },
+  DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE: {
+    role: "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
+    scope: "HEADQUARTERS",
+    title: "Director, Revenue, Inspectorate & Compliance",
+    description: "National oversight for revenue, inspectorate, and compliance operations.",
+  },
   EMPLOYER_ADMIN: {
     role: "EMPLOYER_ADMIN",
     scope: "EMPLOYER",

@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 
+import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { can } from "@/lib/rbac";
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -24,6 +27,8 @@ function formatMoney(value: { toString(): string } | null) {
 }
 
 export default async function TrainingRequestsPage() {
+  const session = await getServerSession(authOptions);
+  const canCreate = can(session?.user?.role ?? "SYSTEM_ADMIN", "training:submit");
   const requests = await getDb().trainingRequest.findMany({
     where: {
       recordTier: "HOT",
@@ -37,6 +42,7 @@ export default async function TrainingRequestsPage() {
       estimatedCost: true,
       status: true,
       currentDesk: true,
+      isAdHoc: true,
       company: {
         select: {
           id: true,
@@ -77,9 +83,16 @@ export default async function TrainingRequestsPage() {
             Training Plan rows.
           </p>
         </div>
-        <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
-          {requests.length} shown
-        </span>
+        <div className="flex flex-wrap gap-2">
+          {canCreate ? (
+            <Link href="/training-requests/new" className="rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">
+              Request unplanned training
+            </Link>
+          ) : null}
+          <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
+            {requests.length} shown
+          </span>
+        </div>
       </div>
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white">
@@ -113,6 +126,11 @@ export default async function TrainingRequestsPage() {
                     </td>
                     <td className="px-4 py-4">
                       <p>{request.title}</p>
+                      {request.isAdHoc ? (
+                        <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
+                          Unplanned / ad-hoc
+                        </span>
+                      ) : null}
                       {request.trainingPlanLineItem ? (
                         <p className="mt-1 text-xs text-zinc-500">
                           From plan: {request.trainingPlanLineItem.trainingTitle}

@@ -16,6 +16,8 @@ export const roles = [
   "HEAD_OF_DIVISION",
   "HQ_REIMBURSEMENT_OFFICER",
   "HQ_REVENUE_ACCOUNTANT",
+  "DIRECTOR_GENERAL",
+  "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
   "EMPLOYER_ADMIN",
   "EMPLOYER_SUBMITTER",
   "EMPLOYER_VIEWER",
@@ -86,6 +88,8 @@ const permissionsByRole: Record<Role, Permission[]> = {
   ],
   HQ_REIMBURSEMENT_OFFICER: ["claims:review", "company:read", "audit:read"],
   HQ_REVENUE_ACCOUNTANT: ["compliance:review", "company:read", "audit:read"],
+  DIRECTOR_GENERAL: ["registry:review", "compliance:review", "training:approve", "claims:approve", "company:read", "audit:read"],
+  DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE: ["registry:review", "compliance:review", "claims:approve", "company:read", "audit:read"],
   EMPLOYER_ADMIN: [
     "registry:submit",
     "compliance:submit",
@@ -118,6 +122,8 @@ export function canManageAnnualCompliance(role: Role) {
     role === "WORKSPACE_APP_ADMIN" ||
     role === "HEAD_OF_DIVISION" ||
     role === "HQ_REVENUE_ACCOUNTANT"
+    || role === "DIRECTOR_GENERAL"
+    || role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE"
   );
 }
 

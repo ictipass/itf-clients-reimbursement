@@ -39,7 +39,10 @@ const canManageEmployerUsers = (role: Role) => role === "EMPLOYER_ADMIN";
 export const navGroups: NavGroup[] = [
   {
     label: "Desk",
-    items: [{ href: "/dashboard", label: "Overview", module: "dashboard", isVisible: () => true }],
+    items: [
+      { href: "/dashboard", label: "Overview", module: "dashboard", isVisible: () => true },
+      { href: "/settings/preferences", label: "My Settings", module: "settings", isVisible: () => true },
+    ],
   },
   {
     label: "Employer lifecycle",
@@ -50,6 +53,12 @@ export const navGroups: NavGroup[] = [
         label: "Compliance",
         module: "compliance",
         isVisible: canUseCompliance,
+      },
+      {
+        href: "/jurisdiction-requests",
+        label: "Jurisdiction Requests",
+        module: "registry",
+        isVisible: canUseRegistry,
       },
     ],
   },

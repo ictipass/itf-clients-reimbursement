@@ -8,7 +8,7 @@ import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getAppBaseUrl, sendOfficerWelcomeEmail } from "@/lib/email";
 import { writeDevelopmentOfficerCredentials } from "@/lib/officer-provisioning";
-import { createDirectoryUser, resetDirectoryUserLocalAccess, updateDirectoryUser, updateDirectoryUserStatus } from "@/lib/user-directory";
+import { createDirectoryUser, resetDirectoryUserLocalAccess, updateDirectoryUser, updateDirectoryUserManagementStatus, updateDirectoryUserStatus } from "@/lib/user-directory";
 import { directoryUserSchema, parseFormData } from "@/lib/validation";
 
 function redirectToUsers(message: string) {
@@ -120,4 +120,21 @@ export async function resetDirectoryUserLocalAccessAction(formData: FormData) {
   }
   revalidatePath("/settings/users");
   redirectToUsers("Local access reset and welcome credentials sent.");
+}
+
+export async function updateDirectoryUserManagementStatusAction(formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  try {
+    await updateDirectoryUserManagementStatus({
+      requesterRole: session.user.role,
+      userId: String(formData.get("userId") ?? ""),
+      isManagement: String(formData.get("isManagement")) === "true",
+    });
+  } catch (error) {
+    redirectToUsers(error instanceof Error ? error.message : "Management status could not be updated.");
+  }
+  revalidatePath("/settings/users");
+  revalidatePath("/management");
+  redirectToUsers("Management status updated.");
 }

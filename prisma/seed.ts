@@ -123,8 +123,15 @@ async function main() {
 
     await client.query(
       `
-        insert into "Membership" ("id", "userId", "workspaceId", "organizationId", "role")
-        values ($1, $2, $3, null, 'SYSTEM_ADMIN')
+        insert into "Membership" (
+          "id",
+          "userId",
+          "workspaceId",
+          "organizationId",
+          "role",
+          "updatedAt"
+        )
+        values ($1, $2, $3, null, 'SYSTEM_ADMIN', now())
         on conflict ("id")
         do update set
           "userId" = excluded."userId",

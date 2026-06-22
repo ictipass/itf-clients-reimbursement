@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { getDb } from "@/lib/db";
 import {
   canViewManagementDashboard,
   getManagementDashboard,
@@ -53,7 +54,15 @@ export default async function ManagementDashboardPage({
 }>) {
   const session = await getServerSession(authOptions);
   const role = session?.user?.role ?? "SYSTEM_ADMIN";
-  const hasManagementAccess = Boolean(session?.user?.email) && canViewManagementDashboard(role);
+  const managementUser = session?.user?.email
+    ? await getDb().user.findUnique({
+        where: { email: session.user.email },
+        select: { isManagement: true },
+      })
+    : null;
+  const hasManagementAccess =
+    Boolean(session?.user?.email) &&
+    canViewManagementDashboard(role, managementUser?.isManagement ?? false);
 
   if (!hasManagementAccess) {
     return (

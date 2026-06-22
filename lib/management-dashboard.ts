@@ -20,14 +20,16 @@ const hqManagementRoles: Role[] = [
   "HEAD_OF_DIVISION",
   "HQ_REIMBURSEMENT_OFFICER",
   "HQ_REVENUE_ACCOUNTANT",
+  "DIRECTOR_GENERAL",
+  "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
 ];
 
-export function canViewManagementDashboard(role: Role) {
-  return isItfRole(role) && (can(role, "workspace:manage") || can(role, "audit:read") || hqManagementRoles.includes(role));
+export function canViewManagementDashboard(role: Role, isManagement = false) {
+  return isItfRole(role) && (isManagement || can(role, "workspace:manage") || hqManagementRoles.includes(role));
 }
 
-function requireManagementAccess(role: Role) {
-  if (!canViewManagementDashboard(role)) {
+function requireManagementAccess(role: Role, isManagement: boolean) {
+  if (!canViewManagementDashboard(role, isManagement)) {
     throw new Error("You do not have permission to view management statistics.");
   }
 }
@@ -93,14 +95,13 @@ export async function getManagementDashboardScope(input: {
   requesterRole: Role;
   requestedAreaOfficeId?: string;
 }) {
-  requireManagementAccess(input.requesterRole);
-
   const db = getDb();
   const requester = await db.user.findUnique({
     where: {
       email: input.requesterEmail,
     },
     select: {
+      isManagement: true,
       memberships: {
         where: { isActive: true },
         select: {
@@ -120,7 +121,13 @@ export async function getManagementDashboardScope(input: {
     throw new Error("User account was not found.");
   }
 
-  const isHqScope = can(input.requesterRole, "workspace:manage") || hqManagementRoles.includes(input.requesterRole);
+  requireManagementAccess(input.requesterRole, requester.isManagement);
+
+  const isHqScope =
+    can(input.requesterRole, "workspace:manage") ||
+    hqManagementRoles.includes(input.requesterRole) ||
+    (requester.isManagement &&
+      requester.memberships.every((membership) => !membership.areaOfficeId));
 
   if (isHqScope) {
     return {
@@ -155,8 +162,6 @@ export async function getManagementDashboardScope(input: {
 }
 
 export async function getManagementDashboard(input: ManagementDashboardInput) {
-  requireManagementAccess(input.requesterRole);
-
   const db = getDb();
   const filters = input.filters ?? {};
   const scope = await getManagementDashboardScope({

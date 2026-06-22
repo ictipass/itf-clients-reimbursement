@@ -19,6 +19,41 @@ export type CreateTrainingRequestFromLineItemInput = {
   requesterRole: Role;
 };
 
+export type CreateAdHocTrainingRequestInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  title: string;
+  provider: string;
+  startsAt: Date;
+  endsAt: Date;
+  estimatedCost: number;
+  deliveryMode: "LOCAL_PHYSICAL" | "LOCAL_ONLINE";
+  venue?: string;
+  adHocJustification: string;
+};
+
+export type UpdateTrainingRequestDetailsInput = {
+  requestId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  title: string;
+  description?: string;
+  trainingType?: string;
+  provider: string;
+  venue?: string;
+  startsAt: Date;
+  endsAt: Date;
+  estimatedCost: number;
+  expectedOutcome?: string;
+  deliveryMode: "LOCAL_PHYSICAL" | "LOCAL_ONLINE";
+  onlineUrl?: string;
+  onlinePassword?: string;
+  onlineMeetingId?: string;
+  onlineInstructions?: string;
+  adHocJustification?: string;
+};
+
 const trainingRequestTransitions = [
   "am_to_hot",
   "hot_to_ro",
@@ -74,6 +109,140 @@ export function getTrainingRequestTransitions() {
 
 export function getTrainingRequestEvidenceKinds() {
   return trainingRequestEvidenceKinds;
+}
+
+export async function listEmployerTrainingRequestCompanies(input: {
+  requesterEmail: string;
+  requesterRole: Role;
+}) {
+  if (!can(input.requesterRole, "training:submit")) {
+    return [];
+  }
+
+  const actor = await getWorkflowActor(input.requesterEmail);
+  const organizationIds = actor.memberships
+    .map((membership) => membership.organizationId)
+    .filter((value): value is string => Boolean(value));
+
+  return getDb().company.findMany({
+    where: {
+      recordTier: "HOT",
+      isActive: true,
+      ...(isItfRole(input.requesterRole)
+        ? {}
+        : { organizationId: { in: organizationIds } }),
+    },
+    select: {
+      id: true,
+      legalName: true,
+      areaOffice: { select: { name: true } },
+    },
+    orderBy: { legalName: "asc" },
+  });
+}
+
+export async function createAdHocTrainingRequest(input: CreateAdHocTrainingRequestInput) {
+  if (!can(input.requesterRole, "training:submit")) {
+    throw new Error("You do not have permission to create Training Approval Requests.");
+  }
+
+  if (!input.adHocJustification.trim()) {
+    throw new Error("Explain the impromptu gap this training will address.");
+  }
+
+  if (input.endsAt < input.startsAt) {
+    throw new Error("Training end time cannot be before its start time.");
+  }
+
+  if (!Number.isFinite(input.estimatedCost) || input.estimatedCost <= 0) {
+    throw new Error("Estimated cost must be greater than zero.");
+  }
+
+  const db = getDb();
+  const company = await db.company.findFirst({
+    where: { id: input.companyId, recordTier: "HOT", isActive: true },
+    select: { id: true, organizationId: true },
+  });
+  const actor = await getWorkflowActor(input.requesterEmail);
+
+  if (!company) {
+    throw new Error("Selected company was not found.");
+  }
+
+  assertTrainingRequestOrganizationAccess({
+    requesterRole: input.requesterRole,
+    memberships: actor.memberships,
+    organizationId: company.organizationId,
+  });
+
+  return db.trainingRequest.create({
+    data: {
+      companyId: company.id,
+      isAdHoc: true,
+      adHocJustification: input.adHocJustification.trim(),
+      title: input.title.trim(),
+      provider: input.provider.trim(),
+      venue: input.deliveryMode === "LOCAL_PHYSICAL" ? input.venue : null,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      estimatedCost: input.estimatedCost,
+      deliveryMode: input.deliveryMode,
+      status: "DRAFT",
+      currentDesk: "COMPANY",
+    },
+    select: { id: true },
+  });
+}
+
+export async function updateTrainingRequestDetails(input: UpdateTrainingRequestDetailsInput) {
+  const request = await findEditableTrainingRequestForEmployer(input);
+  const actor = await getWorkflowActor(input.requesterEmail);
+
+  assertTrainingRequestOrganizationAccess({
+    requesterRole: input.requesterRole,
+    memberships: actor.memberships,
+    organizationId: request.company.organizationId,
+  });
+
+  if (input.endsAt < input.startsAt) {
+    throw new Error("Training end time cannot be before its start time.");
+  }
+
+  if (input.deliveryMode === "LOCAL_ONLINE" && !input.onlineUrl?.trim()) {
+    throw new Error("Online training URL is required.");
+  }
+
+  if (request.isAdHoc && !input.adHocJustification?.trim()) {
+    throw new Error("Ad-hoc training justification is required.");
+  }
+
+  return getDb().trainingRequest.update({
+    where: { id: request.id },
+    data: {
+      title: input.title.trim(),
+      description: input.description?.trim() || null,
+      trainingType: input.trainingType?.trim() || null,
+      provider: input.provider.trim(),
+      venue: input.deliveryMode === "LOCAL_PHYSICAL" ? input.venue?.trim() || null : null,
+      startsAt: input.startsAt,
+      endsAt: input.endsAt,
+      estimatedCost: input.estimatedCost,
+      expectedOutcome: input.expectedOutcome?.trim() || null,
+      deliveryMode: input.deliveryMode,
+      onlineUrl: input.deliveryMode === "LOCAL_ONLINE" ? input.onlineUrl?.trim() || null : null,
+      onlinePassword:
+        input.deliveryMode === "LOCAL_ONLINE" ? input.onlinePassword?.trim() || null : null,
+      onlineMeetingId:
+        input.deliveryMode === "LOCAL_ONLINE" ? input.onlineMeetingId?.trim() || null : null,
+      onlineInstructions:
+        input.deliveryMode === "LOCAL_ONLINE" ? input.onlineInstructions?.trim() || null : null,
+      adHocJustification: request.isAdHoc
+        ? input.adHocJustification?.trim() || null
+        : request.adHocJustification,
+      trainingDetailsUpdatedAt: new Date(),
+    },
+    select: { id: true },
+  });
 }
 
 export async function createTrainingRequestFromLineItem(
@@ -196,6 +365,10 @@ export async function submitTrainingRequest(input: SubmitTrainingRequestInput) {
       startsAt: true,
       endsAt: true,
       estimatedCost: true,
+      isAdHoc: true,
+      adHocJustification: true,
+      deliveryMode: true,
+      onlineUrl: true,
       _count: {
         select: {
           participants: true,
@@ -284,6 +457,10 @@ function getTrainingRequestMissingRequirements(request: {
   startsAt: Date | null;
   endsAt: Date | null;
   estimatedCost: { toString(): string } | null;
+  isAdHoc: boolean;
+  adHocJustification: string | null;
+  deliveryMode: "LOCAL_PHYSICAL" | "LOCAL_ONLINE";
+  onlineUrl: string | null;
   _count: {
     participants: number;
     documents: number;
@@ -305,6 +482,14 @@ function getTrainingRequestMissingRequirements(request: {
 
   if (!request.estimatedCost || Number(request.estimatedCost.toString()) <= 0) {
     missing.push("estimated cost");
+  }
+
+  if (request.isAdHoc && !request.adHocJustification) {
+    missing.push("ad-hoc training justification");
+  }
+
+  if (request.deliveryMode === "LOCAL_ONLINE" && !request.onlineUrl) {
+    missing.push("online training URL");
   }
 
   if (request._count.participants === 0) {
@@ -731,6 +916,8 @@ async function findEditableTrainingRequestForEmployer(input: {
     },
     select: {
       id: true,
+      isAdHoc: true,
+      adHocJustification: true,
       company: {
         select: {
           organizationId: true,
