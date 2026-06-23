@@ -76,8 +76,11 @@ Recent completed slices include:
 - Area Office Revenue Accountants can record legacy ITF employer numbers only for companies in their assigned Area Office.
 - Employer-submitted legacy registrations store the claimed ITF number on the registration application until ITF validates it.
 - Validating an employer-submitted legacy claim activates the company, records the ITF employer number, and opens the current-year compliance draft.
-- Annual compliance review and certificate issuance are restricted to Head of Reimbursement Division, HQ reimbursement/accountant role, and system/workspace administrators.
-- Annual compliance submission creates awareness work items for AM, HORIC, and RA in the company's Area Office, plus actionable HQ review items for HOD and HQ reimbursement/accountant role.
+- Annual compliance review and certificate issuance are restricted to Head, Inspectorate &
+  Compliance Division, HQ Revenue Accountant, and system/workspace administrators.
+- Annual compliance submission creates awareness work items for AM, HORIC, and RA in the company's
+  Area Office, plus actionable HQ review items for Head, Inspectorate & Compliance Division and HQ
+  Revenue Accountant.
 - Dashboard attention counts separate action-required items from awareness-only items so Area Office officers can track compliance filings without certificate authority.
 - Annual compliance certificates, not registration certificates, are the downloadable certificate path.
 - Training Plan and L&D submission requires approved/certified compliance for that training year.
@@ -96,7 +99,9 @@ Recent completed slices include:
 - Training Approval Requests can optionally link back to structured Training Plan line items, and `/training-requests` lists Form 4A request records.
 - Training Approval Requests now track `currentDesk` with the Area Office training workflow desk enum.
 - `/training-requests/[requestId]` shows Training Approval Request detail, evidence, source Training Plan row, and decision trail.
-- Annual compliance review/certificate authority is `HEAD_OF_DIVISION` plus `HQ_REVENUE_ACCOUNTANT`; `HQ_REIMBURSEMENT_OFFICER` remains for reimbursement/claims work.
+- Annual compliance review/certificate authority is `HEAD_INSPECTORATE_COMPLIANCE` plus
+  `HQ_REVENUE_ACCOUNTANT`; `HEAD_OF_DIVISION` and `HQ_REIMBURSEMENT_OFFICER` remain for
+  reimbursement/claims work.
 - Dashboard work items label direct assignment versus shared role/Area Office desk queues.
 - Training Plan final approval is an explicit AM transition that sets status `APPROVED` and records `approvedAt`.
 - HOT and Area Office Reimbursement Officer can return Training Plan submissions directly to company for correction.

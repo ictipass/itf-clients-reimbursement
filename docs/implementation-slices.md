@@ -558,11 +558,11 @@ Goal: hand payment-verified employer registration from Area Office to Headquarte
 
 Expected design:
 
-- Add `DIRECTOR_FSD` as a registration workflow desk
+- Add `DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE` as a registration workflow desk
 - Add `REGISTRATION_HQ_NOTIFICATION` as an attention item kind
 - AM can notify Headquarters after accepting the contribution receipt
-- Registration moves to the Director FSD desk
-- Director FSD receives an open attention item
+- Registration moves to the Director, Revenue, Inspectorate & Compliance desk
+- Director, Revenue, Inspectorate & Compliance receives an open attention item
 - Company detail page shows that HQ notification is pending
 
 Expected files:
@@ -580,8 +580,10 @@ Goal: let Headquarters complete employer registration after Area Office verifica
 
 Expected design:
 
-- Director FSD forwards the registration to Head of Reimbursement Division
-- Head of Reimbursement Division records the ITF employer number
+- Director, Revenue, Inspectorate & Compliance forwards the registration to Head, Inspectorate &
+  Compliance Division
+- Head, Inspectorate & Compliance Division forwards it to HQ Revenue Accountant
+- HQ Revenue Accountant records the ITF employer number
 - Optional certificate reference and HQ note are captured in the decision trail
 - Company moves to `ACTIVE`
 - Registration application moves to `APPROVED` and gets a completion timestamp
@@ -624,7 +626,7 @@ Expected design:
 
 - Add `RegistrationCertificate` and certificate status values
 - Link each certificate to a company, registration application, and issuing user
-- Create the certificate record when Head of Reimbursement Division completes registration
+- Create the certificate record when HQ Revenue Accountant completes registration
 - Store certificate number, ITF employer number, issue date, and future template/document hooks
 - Show the latest certificate record on the company registry detail page
 - Leave template upload and downloadable PDF generation for later slices
@@ -648,7 +650,7 @@ Expected design:
 - Version templates by workspace using code and version
 - Store template lifecycle fields such as draft, active, retired, effective date, and optional design document reference
 - Link `RegistrationCertificate` to the template used at issue time
-- Attach the latest active template when Head of Reimbursement Division completes a registration
+- Attach the latest active template when HQ Revenue Accountant completes a registration
 - Show the attached template name/version on the registry detail page
 
 Expected files:
@@ -1243,14 +1245,16 @@ Expected files:
 - `app/(dashboard)/registry/[companyId]/page.tsx`
 - architecture and workflow docs
 
-### Slice 56: Head of Division Number Registry Access
+### Slice 56: Inspectorate & Compliance Number Registry Access
 
-Goal: let Head of Reimbursement Division manage the number register needed to complete registrations and issue compliance certificates.
+Goal: let Head, Inspectorate & Compliance Division and HQ Revenue Accountants manage the number
+register needed to complete registrations and issue compliance certificates.
 
 Expected design:
 
 - Add a focused `numbers:manage` permission
-- Grant `numbers:manage` to System Admin, Workspace App Admin, and Head of Reimbursement Division
+- Grant `numbers:manage` to System Admin, Workspace App Admin, Head, Inspectorate & Compliance
+  Division, and HQ Revenue Accountant
 - Use `numbers:manage` for `/settings/numbers` page access and server-side number creation/listing
 - Show the Numbers navigation link to roles with `numbers:manage`
 - Keep wider workspace settings restricted to workspace managers
@@ -1384,7 +1388,8 @@ Goal: let authorized ITF users record employers that registered with ITF before 
 
 Expected design:
 
-- Add a legacy registration action for System Admin, Workspace App Admin, Director FSD, and Head of Reimbursement Division
+- Add a legacy registration action for System Admin, Workspace App Admin, Director RIC, Head,
+  Inspectorate & Compliance Division, and HQ Revenue Accountant
 - Require an existing ITF employer number and onboarding note
 - Prevent duplicate ITF employer numbers
 - Activate the company after the legacy number is recorded
@@ -1810,8 +1815,10 @@ Expected design:
 
 - Add `HQ_REVENUE_ACCOUNTANT` role
 - Keep `HQ_REIMBURSEMENT_OFFICER` for reimbursement/claims work
-- Restrict annual compliance review/certificate issuance to `HEAD_OF_DIVISION` and `HQ_REVENUE_ACCOUNTANT`
-- Route compliance review work items to `HEAD_OF_DIVISION` and `HQ_REVENUE_ACCOUNTANT`
+- Restrict annual compliance review/certificate issuance to `HEAD_INSPECTORATE_COMPLIANCE` and
+  `HQ_REVENUE_ACCOUNTANT`
+- Route compliance review work items to `HEAD_INSPECTORATE_COMPLIANCE` and
+  `HQ_REVENUE_ACCOUNTANT`
 - Update seed/test accounts and role documentation
 
 Expected files:

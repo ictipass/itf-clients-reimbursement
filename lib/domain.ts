@@ -83,12 +83,12 @@ export const seedRoles: { role: Role; scope: string; purpose: string }[] = [
   {
     role: "DIRECTOR_FSD",
     scope: "Headquarters",
-    purpose: "Receive HQ correspondence and forward field services matters to the responsible division.",
+    purpose: "Route and approve Headquarters reimbursement claims.",
   },
   {
     role: "HEAD_OF_DIVISION",
     scope: "Headquarters",
-    purpose: "Coordinate HQ reimbursement division review, complete employer registration, and manage recommendations.",
+    purpose: "Coordinate Headquarters Reimbursement Division claims review and recommendations.",
   },
   {
     role: "HQ_REIMBURSEMENT_OFFICER",
@@ -98,7 +98,12 @@ export const seedRoles: { role: Role; scope: string; purpose: string }[] = [
   {
     role: "HQ_REVENUE_ACCOUNTANT",
     scope: "Headquarters",
-    purpose: "Review annual compliance returns and confirm certificate readiness.",
+    purpose: "Complete employer registration and review annual compliance returns.",
+  },
+  {
+    role: "HEAD_INSPECTORATE_COMPLIANCE",
+    scope: "Headquarters",
+    purpose: "Route employer registrations and oversee annual compliance review.",
   },
   {
     role: "ITF_COMPLIANCE_OFFICER",

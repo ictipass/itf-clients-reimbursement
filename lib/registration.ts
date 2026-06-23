@@ -98,6 +98,13 @@ export type ForwardRegistrationToDivisionInput = {
   note?: string;
 };
 
+export type ForwardRegistrationToRevenueAccountantInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  note?: string;
+};
+
 export type CompleteRegistrationAtHeadquartersInput = {
   companyId: string;
   requesterEmail: string;
@@ -170,8 +177,9 @@ function canRecordLegacyRegistration(role: Role) {
   return (
     role === "SYSTEM_ADMIN" ||
     role === "WORKSPACE_APP_ADMIN" ||
-    role === "DIRECTOR_FSD" ||
-    role === "HEAD_OF_DIVISION" ||
+    role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" ||
+    role === "HEAD_INSPECTORATE_COMPLIANCE" ||
+    role === "HQ_REVENUE_ACCOUNTANT" ||
     role === "REVENUE_ACCOUNTANT"
   );
 }
@@ -1719,7 +1727,7 @@ export async function notifyRegistrationHeadquarters(
         id: registrationApplication.id,
       },
       data: {
-        currentDesk: "DIRECTOR_FSD",
+        currentDesk: "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
         status: "IN_REVIEW",
       },
       select: {
@@ -1760,7 +1768,7 @@ export async function notifyRegistrationHeadquarters(
         areaOfficeId: registrationApplication.areaOfficeId,
         companyId: registrationApplication.companyId,
         registrationApplicationId: registrationApplication.id,
-        assignedRole: "DIRECTOR_FSD",
+        assignedRole: "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
         app: "REIMBURSEMENT",
         kind: "REGISTRATION_HQ_NOTIFICATION",
         status: "OPEN",
@@ -1794,11 +1802,13 @@ export async function forwardRegistrationToDivision(
   }
 
   if (
-    input.requesterRole !== "DIRECTOR_FSD" &&
+    input.requesterRole !== "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" &&
     input.requesterRole !== "SYSTEM_ADMIN" &&
     input.requesterRole !== "WORKSPACE_APP_ADMIN"
   ) {
-    throw new Error("Only Director FSD can forward employer registration to the division.");
+    throw new Error(
+      "Only Director, Revenue, Inspectorate & Compliance can forward employer registration to the division.",
+    );
   }
 
   const db = getDb();
@@ -1807,7 +1817,7 @@ export async function forwardRegistrationToDivision(
       companyId: input.companyId,
       recordTier: "HOT",
       status: "IN_REVIEW",
-      currentDesk: "DIRECTOR_FSD",
+      currentDesk: "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
       company: {
         id: input.companyId,
         recordTier: "HOT",
@@ -1833,7 +1843,9 @@ export async function forwardRegistrationToDivision(
   });
 
   if (!registrationApplication) {
-    throw new Error("A Headquarters registration awaiting Director FSD forwarding was not found.");
+    throw new Error(
+      "A Headquarters registration awaiting Director, Revenue, Inspectorate & Compliance forwarding was not found.",
+    );
   }
 
   const actor = await db.user.findUnique({
@@ -1855,7 +1867,7 @@ export async function forwardRegistrationToDivision(
         id: registrationApplication.id,
       },
       data: {
-        currentDesk: "HEAD_OF_DIVISION",
+        currentDesk: "HEAD_INSPECTORATE_COMPLIANCE",
         status: "IN_REVIEW",
       },
       select: {
@@ -1870,7 +1882,7 @@ export async function forwardRegistrationToDivision(
         registrationApplicationId: registrationApplication.id,
         action: "FORWARD",
         reason: [
-          "Director FSD forwarded employer registration to Head of Reimbursement Division",
+          "Director, Revenue, Inspectorate & Compliance forwarded employer registration to Head, Inspectorate & Compliance Division",
           input.note,
         ]
           .filter(Boolean)
@@ -1901,13 +1913,13 @@ export async function forwardRegistrationToDivision(
         areaOfficeId: registrationApplication.areaOfficeId,
         companyId: registrationApplication.companyId,
         registrationApplicationId: registrationApplication.id,
-        assignedRole: "HEAD_OF_DIVISION",
+        assignedRole: "HEAD_INSPECTORATE_COMPLIANCE",
         app: "REIMBURSEMENT",
         kind: "REGISTRATION_HQ_NOTIFICATION",
         status: "OPEN",
         priority: "HIGH",
         title: "Complete employer registration",
-        summary: `${registrationApplication.company.legalName} has been forwarded by Director FSD for registration completion.`,
+        summary: `${registrationApplication.company.legalName} has been forwarded to Head, Inspectorate & Compliance Division.`,
         targetHref: `/registry/${registrationApplication.companyId}`,
         sourceKey: `registration:${registrationApplication.id}:hq-division-completion`,
       },
@@ -1915,7 +1927,152 @@ export async function forwardRegistrationToDivision(
         status: "OPEN",
         resolvedAt: null,
         priority: "HIGH",
-        summary: `${registrationApplication.company.legalName} has been forwarded by Director FSD for registration completion.`,
+        summary: `${registrationApplication.company.legalName} has been forwarded to Head, Inspectorate & Compliance Division.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function forwardRegistrationToRevenueAccountant(
+  input: ForwardRegistrationToRevenueAccountantInput,
+) {
+  if (!can(input.requesterRole, "registry:review")) {
+    throw new Error("You do not have permission to forward employer registration.");
+  }
+
+  if (
+    input.requesterRole !== "HEAD_INSPECTORATE_COMPLIANCE" &&
+    input.requesterRole !== "SYSTEM_ADMIN" &&
+    input.requesterRole !== "WORKSPACE_APP_ADMIN"
+  ) {
+    throw new Error(
+      "Only Head, Inspectorate & Compliance Division can forward employer registration to HQ Revenue Accountant.",
+    );
+  }
+
+  const db = getDb();
+  const registrationApplication = await db.registrationApplication.findFirst({
+    where: {
+      companyId: input.companyId,
+      recordTier: "HOT",
+      status: "IN_REVIEW",
+      currentDesk: "HEAD_INSPECTORATE_COMPLIANCE",
+      company: {
+        id: input.companyId,
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      areaOfficeId: true,
+      company: {
+        select: {
+          legalName: true,
+          organizationId: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!registrationApplication) {
+    throw new Error(
+      "A Headquarters registration awaiting Inspectorate & Compliance forwarding was not found.",
+    );
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.registrationApplication.update({
+      where: {
+        id: registrationApplication.id,
+      },
+      data: {
+        currentDesk: "HQ_REVENUE_ACCOUNTANT",
+        status: "IN_REVIEW",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        action: "FORWARD",
+        reason: [
+          "Head, Inspectorate & Compliance Division forwarded employer registration to HQ Revenue Accountant",
+          input.note,
+        ]
+          .filter(Boolean)
+          .join(": "),
+      },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        sourceKey: `registration:${registrationApplication.id}:hq-division-completion`,
+        status: {
+          in: ["OPEN", "ACKNOWLEDGED"],
+        },
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
+      },
+    });
+
+    await tx.workItem.upsert({
+      where: {
+        sourceKey: `registration:${registrationApplication.id}:hq-revenue-accountant-completion`,
+      },
+      create: {
+        workspaceId: registrationApplication.company.organization.workspaceId,
+        organizationId: registrationApplication.company.organizationId,
+        areaOfficeId: registrationApplication.areaOfficeId,
+        companyId: registrationApplication.companyId,
+        registrationApplicationId: registrationApplication.id,
+        assignedRole: "HQ_REVENUE_ACCOUNTANT",
+        app: "REIMBURSEMENT",
+        kind: "REGISTRATION_HQ_NOTIFICATION",
+        status: "OPEN",
+        priority: "HIGH",
+        title: "Complete employer registration",
+        summary: `${registrationApplication.company.legalName} is ready for HQ Revenue Accountant registration completion.`,
+        targetHref: `/registry/${registrationApplication.companyId}`,
+        sourceKey: `registration:${registrationApplication.id}:hq-revenue-accountant-completion`,
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        priority: "HIGH",
+        summary: `${registrationApplication.company.legalName} is ready for HQ Revenue Accountant registration completion.`,
         targetHref: `/registry/${registrationApplication.companyId}`,
       },
       select: {
@@ -1935,11 +2092,11 @@ export async function completeRegistrationAtHeadquarters(
   }
 
   if (
-    input.requesterRole !== "HEAD_OF_DIVISION" &&
+    input.requesterRole !== "HQ_REVENUE_ACCOUNTANT" &&
     input.requesterRole !== "SYSTEM_ADMIN" &&
     input.requesterRole !== "WORKSPACE_APP_ADMIN"
   ) {
-    throw new Error("Only Head of Reimbursement Division can complete employer registration.");
+    throw new Error("Only HQ Revenue Accountant can complete employer registration.");
   }
 
   const db = getDb();
@@ -1948,7 +2105,7 @@ export async function completeRegistrationAtHeadquarters(
       companyId: input.companyId,
       recordTier: "HOT",
       status: "IN_REVIEW",
-      currentDesk: "HEAD_OF_DIVISION",
+      currentDesk: "HQ_REVENUE_ACCOUNTANT",
       company: {
         id: input.companyId,
         recordTier: "HOT",
@@ -2103,6 +2260,7 @@ export async function completeRegistrationAtHeadquarters(
           in: [
             `registration:${registrationApplication.id}:hq-notification`,
             `registration:${registrationApplication.id}:hq-division-completion`,
+            `registration:${registrationApplication.id}:hq-revenue-accountant-completion`,
           ],
         },
         status: {
@@ -2425,7 +2583,9 @@ export async function reviewLegacyRegistrationClaim(input: ReviewLegacyRegistrat
   }
 
   const isHeadquartersOverride =
-    input.requesterRole === "DIRECTOR_FSD" || input.requesterRole === "HEAD_OF_DIVISION";
+    input.requesterRole === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" ||
+    input.requesterRole === "HEAD_INSPECTORATE_COMPLIANCE" ||
+    input.requesterRole === "HQ_REVENUE_ACCOUNTANT";
   const hasAreaOfficeAccess =
     isHeadquartersOverride ||
     hasAreaOfficeRegistrationAccess({

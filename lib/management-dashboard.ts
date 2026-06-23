@@ -22,6 +22,7 @@ const hqManagementRoles: Role[] = [
   "HQ_REVENUE_ACCOUNTANT",
   "DIRECTOR_GENERAL",
   "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
+  "HEAD_INSPECTORATE_COMPLIANCE",
 ];
 
 export function canViewManagementDashboard(role: Role, isManagement = false) {

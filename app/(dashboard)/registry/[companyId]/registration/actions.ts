@@ -14,6 +14,7 @@ import {
   getRegistrationApplicationKinds,
   confirmRegistrationContribution,
   forwardRegistrationToDivision,
+  forwardRegistrationToRevenueAccountant,
   getRegistrationDeskTransitions,
   getRecommendationReleaseChannels,
   getRegistrationReceiptReviewActions,
@@ -359,6 +360,28 @@ export async function forwardRegistrationToDivisionAction(companyId: string, for
   }
 
   await forwardRegistrationToDivision({
+    companyId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath(`/dashboard`);
+  revalidatePath(`/registry/${companyId}`);
+  redirect(`/registry/${companyId}`);
+}
+
+export async function forwardRegistrationToRevenueAccountantAction(
+  companyId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await forwardRegistrationToRevenueAccountant({
     companyId,
     requesterEmail: session.user.email,
     requesterRole: session.user.role,

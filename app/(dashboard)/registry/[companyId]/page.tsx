@@ -17,6 +17,7 @@ import {
   completeRegistrationAtHeadquartersAction,
   confirmRegistrationContributionAction,
   forwardRegistrationToDivisionAction,
+  forwardRegistrationToRevenueAccountantAction,
   generateContributionInvoicePdfAction,
   initiateRemitaPaymentAction,
   notifyRegistrationHeadquartersAction,
@@ -348,7 +349,7 @@ function getRegistryRoleFocus(role: Role) {
     };
   }
 
-  if (role === "HEAD_OF_DIVISION" || role === "HQ_REVENUE_ACCOUNTANT") {
+  if (role === "HEAD_INSPECTORATE_COMPLIANCE" || role === "HQ_REVENUE_ACCOUNTANT") {
     return {
       title: "Headquarters compliance desk",
       detail:
@@ -356,11 +357,11 @@ function getRegistryRoleFocus(role: Role) {
     };
   }
 
-  if (role === "DIRECTOR_FSD") {
+  if (role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE") {
     return {
-      title: "Director FSD desk",
+      title: "Director RIC desk",
       detail:
-        "Receive headquarters registration notifications and forward registration packages to the reimbursement division.",
+        "Receive headquarters registration notifications and forward registration packages to Inspectorate & Compliance.",
     };
   }
 
@@ -448,12 +449,16 @@ function canActAsDesk(role: Role, desk: string | null | undefined) {
     return role === "REVENUE_ACCOUNTANT";
   }
 
-  if (desk === "DIRECTOR_FSD") {
-    return role === "DIRECTOR_FSD";
+  if (desk === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE") {
+    return role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE";
   }
 
-  if (desk === "HEAD_OF_DIVISION") {
-    return role === "HEAD_OF_DIVISION";
+  if (desk === "HEAD_INSPECTORATE_COMPLIANCE") {
+    return role === "HEAD_INSPECTORATE_COMPLIANCE";
+  }
+
+  if (desk === "HQ_REVENUE_ACCOUNTANT") {
+    return role === "HQ_REVENUE_ACCOUNTANT";
   }
 
   return false;
@@ -489,6 +494,9 @@ function canRecordLegacyRegistrationRole(role: Role) {
     role === "WORKSPACE_APP_ADMIN" ||
     role === "DIRECTOR_FSD" ||
     role === "HEAD_OF_DIVISION" ||
+    role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" ||
+    role === "HEAD_INSPECTORATE_COMPLIANCE" ||
+    role === "HQ_REVENUE_ACCOUNTANT" ||
     role === "REVENUE_ACCOUNTANT"
   );
 }
@@ -753,14 +761,19 @@ export default async function CompanyDetailPage({
     (isEmployerRole(activeRole) || adminOverride);
   const canForwardToDivision =
     !company.itfEmployerNumber &&
-    registrationApplication?.currentDesk === "DIRECTOR_FSD" &&
+    registrationApplication?.currentDesk === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" &&
     registrationApplication.status === "IN_REVIEW" &&
-    canActAsDesk(activeRole, "DIRECTOR_FSD");
+    canActAsDesk(activeRole, "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE");
+  const canForwardToRevenueAccountant =
+    !company.itfEmployerNumber &&
+    registrationApplication?.currentDesk === "HEAD_INSPECTORATE_COMPLIANCE" &&
+    registrationApplication.status === "IN_REVIEW" &&
+    canActAsDesk(activeRole, "HEAD_INSPECTORATE_COMPLIANCE");
   const canCompleteAtHeadquarters =
     !company.itfEmployerNumber &&
-    registrationApplication?.currentDesk === "HEAD_OF_DIVISION" &&
+    registrationApplication?.currentDesk === "HQ_REVENUE_ACCOUNTANT" &&
     registrationApplication.status === "IN_REVIEW" &&
-    canActAsDesk(activeRole, "HEAD_OF_DIVISION");
+    canActAsDesk(activeRole, "HQ_REVENUE_ACCOUNTANT");
   const availableItfEmployerNumbers =
     canCompleteAtHeadquarters
       ? await listAvailableManagedNumbers({
@@ -787,6 +800,7 @@ export default async function CompanyDetailPage({
     canReviewLegacyRegistrationClaim ||
     canUploadReceipt ||
     canForwardToDivision ||
+    canForwardToRevenueAccountant ||
     canCompleteAtHeadquarters ||
     canRecordLegacyRegistration;
   const newCompanySteps = [
@@ -1358,19 +1372,29 @@ export default async function CompanyDetailPage({
                 )}
               </div>
             ) : null}
-            {company.registrationApplication.currentDesk === "DIRECTOR_FSD" &&
+            {company.registrationApplication.currentDesk ===
+              "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" &&
             company.registrationApplication.status === "IN_REVIEW" ? (
               <div className="md:col-span-3">
                 <p className="rounded-md bg-[#800020]/10 px-3 py-2 text-sm font-semibold text-[#65001a]">
-                  Headquarters notification is pending with Director FSD.
+                  Headquarters notification is pending with Director, Revenue, Inspectorate &
+                  Compliance.
                 </p>
               </div>
             ) : null}
-            {company.registrationApplication.currentDesk === "HEAD_OF_DIVISION" &&
+            {company.registrationApplication.currentDesk === "HEAD_INSPECTORATE_COMPLIANCE" &&
             company.registrationApplication.status === "IN_REVIEW" ? (
               <div className="md:col-span-3">
                 <p className="rounded-md bg-[#800020]/10 px-3 py-2 text-sm font-semibold text-[#65001a]">
-                  Employer registration completion is pending with Head of Reimbursement Division.
+                  Employer registration is pending with Head, Inspectorate & Compliance Division.
+                </p>
+              </div>
+            ) : null}
+            {company.registrationApplication.currentDesk === "HQ_REVENUE_ACCOUNTANT" &&
+            company.registrationApplication.status === "IN_REVIEW" ? (
+              <div className="md:col-span-3">
+                <p className="rounded-md bg-[#800020]/10 px-3 py-2 text-sm font-semibold text-[#65001a]">
+                  Employer registration completion is pending with HQ Revenue Accountant.
                 </p>
               </div>
             ) : null}
@@ -1635,7 +1659,7 @@ export default async function CompanyDetailPage({
         {canForwardToDivision ? (
           <ActionGroup
             title="Headquarters action"
-            description="Forward the verified employer registration from Director FSD to the reimbursement division."
+            description="Forward the verified employer registration from Director RIC to Head, Inspectorate & Compliance Division."
             isAdminOverride={adminOverride}
           >
           <form
@@ -1643,7 +1667,7 @@ export default async function CompanyDetailPage({
             className="grid gap-3"
           >
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
-              Director forwarding note
+              Director RIC forwarding note
               <input
                 name="note"
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
@@ -1651,7 +1675,32 @@ export default async function CompanyDetailPage({
             </label>
             <div>
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                Forward to Head of Division
+                Forward to Head Inspectorate & Compliance
+              </button>
+            </div>
+          </form>
+          </ActionGroup>
+        ) : null}
+        {canForwardToRevenueAccountant ? (
+          <ActionGroup
+            title="Headquarters action"
+            description="Forward the employer registration to HQ Revenue Accountant for number assignment and completion."
+            isAdminOverride={adminOverride}
+          >
+          <form
+            action={forwardRegistrationToRevenueAccountantAction.bind(null, company.id)}
+            className="grid gap-3"
+          >
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Inspectorate & Compliance forwarding note
+              <input
+                name="note"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
+              />
+            </label>
+            <div>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Forward to HQ Revenue Accountant
               </button>
             </div>
           </form>
@@ -1690,7 +1739,7 @@ export default async function CompanyDetailPage({
               </p>
             ) : null}
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
-              Head of Division completion note
+              HQ Revenue Accountant completion note
               <input
                 name="note"
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"

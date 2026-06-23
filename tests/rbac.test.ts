@@ -21,6 +21,8 @@ test("new headquarters directors have national oversight permissions", () => {
     can("DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE", "compliance:review"),
     true,
   );
+  assert.equal(can("DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE", "claims:approve"), false);
+  assert.equal(can("DIRECTOR_FSD", "registry:review"), false);
 });
 
 test("personal settings are available without workspace administration", () => {
@@ -40,6 +42,7 @@ test("participant training areas use the approved classifications", () => {
 
 test("annual compliance certificate authority remains at HQ", () => {
   assert.equal(canManageAnnualCompliance("AREA_MANAGER"), false);
-  assert.equal(canManageAnnualCompliance("HEAD_OF_DIVISION"), true);
+  assert.equal(canManageAnnualCompliance("HEAD_OF_DIVISION"), false);
+  assert.equal(canManageAnnualCompliance("HEAD_INSPECTORATE_COMPLIANCE"), true);
   assert.equal(canManageAnnualCompliance("HQ_REVENUE_ACCOUNTANT"), true);
 });

@@ -10,6 +10,8 @@ const globalTrainingPlanRoles: Role[] = [
   "HEAD_OF_DIVISION",
   "HQ_REIMBURSEMENT_OFFICER",
   "HQ_REVENUE_ACCOUNTANT",
+  "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
+  "HEAD_INSPECTORATE_COMPLIANCE",
 ];
 
 export async function getItfTrainingPlanCompanyWhere(email: string, role: Role) {

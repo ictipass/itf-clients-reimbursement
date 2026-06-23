@@ -101,12 +101,13 @@ Changing the active organization changes the visible records, role, and availabl
 | Revenue Accountant | Registration assessment and legacy-employer validation |
 | Head of Training | Training workflow review |
 | Reimbursement Officer | Training and claims operational review |
-| Director FSD | Headquarters routing and claims authority where configured |
-| Head of Division | Headquarters reimbursement oversight, numbers, and approvals |
-| HQ Revenue Accountant | Annual compliance review and certification |
+| Director FSD | Headquarters reimbursement claims routing and authority |
+| Head of Reimbursement Division | Headquarters reimbursement claims oversight and approvals |
+| HQ Revenue Accountant | Employer registration completion and annual compliance review |
 | HQ Reimbursement Officer | Headquarters reimbursement/claims review |
 | Director General | National executive oversight where assigned |
 | Director, Revenue, Inspectorate & Compliance | National revenue, inspectorate, and compliance oversight |
+| Head, Inspectorate & Compliance Division | Employer registration and annual compliance oversight |
 | System/Workspace Administrator | Technical configuration and emergency administration |
 | Auditor | Read-only audit visibility |
 
@@ -124,10 +125,14 @@ Exact actions remain controlled by the application's role and permission rules.
 8. HORIC verifies the recommendation.
 9. Area Manager releases the recommendation to the employer dashboard, optionally with email.
 10. Employer pays and uploads payment evidence.
-11. Area Office reviews the receipt and notifies Headquarters.
-12. Director FSD forwards the registration to Head of Division.
-13. Head of Division completes registration using a managed ITF employer number.
-14. The company becomes registered, while annual compliance remains the route to a certificate.
+11. Area Office reviews the receipt and notifies Director, Revenue, Inspectorate & Compliance at
+    Headquarters.
+12. Director, Revenue, Inspectorate & Compliance forwards the registration to Head, Inspectorate
+    & Compliance Division.
+13. Head, Inspectorate & Compliance Division forwards the registration to an HQ Revenue
+    Accountant.
+14. HQ Revenue Accountant completes registration using a managed ITF employer number.
+15. The company becomes registered, while annual compliance remains the route to a certificate.
 
 Minor corrections may be returned directly to the employer and then returned to the requesting
 desk.
@@ -152,7 +157,8 @@ scope.
 2. Employer uploads compliance and payment evidence.
 3. Employer submits the compliance filing.
 4. Area Manager, HORIC, and Revenue Accountant receive awareness for their jurisdiction.
-5. Head of Division and HQ Revenue Accountant receive actionable review items.
+5. Head, Inspectorate & Compliance Division and HQ Revenue Accountant receive actionable review
+   items.
 6. Authorized HQ reviewer approves or requests correction.
 7. HQ issues the annual compliance certificate number.
 8. The system generates the downloadable certificate using the active design and signatures.

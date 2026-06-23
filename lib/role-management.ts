@@ -94,13 +94,13 @@ const roleMetadata: Record<Role, Omit<RoleDefinition, "permissions" | "isSystemM
     role: "DIRECTOR_FSD",
     scope: "HEADQUARTERS",
     title: "Director, Field Services Department",
-    description: "Headquarters entry point for Field Services Department correspondence.",
+    description: "Headquarters authority for reimbursement claim routing and approval.",
   },
   HEAD_OF_DIVISION: {
     role: "HEAD_OF_DIVISION",
     scope: "HEADQUARTERS",
     title: "Head of Reimbursement Division",
-    description: "Headquarters division lead for registration completion and claims routing.",
+    description: "Headquarters Reimbursement Division lead for claims routing and approval.",
   },
   HQ_REIMBURSEMENT_OFFICER: {
     role: "HQ_REIMBURSEMENT_OFFICER",
@@ -125,6 +125,13 @@ const roleMetadata: Record<Role, Omit<RoleDefinition, "permissions" | "isSystemM
     scope: "HEADQUARTERS",
     title: "Director, Revenue, Inspectorate & Compliance",
     description: "National oversight for revenue, inspectorate, and compliance operations.",
+  },
+  HEAD_INSPECTORATE_COMPLIANCE: {
+    role: "HEAD_INSPECTORATE_COMPLIANCE",
+    scope: "HEADQUARTERS",
+    title: "Head, Inspectorate & Compliance Division",
+    description:
+      "Headquarters division lead for employer registration and annual compliance review.",
   },
   EMPLOYER_ADMIN: {
     role: "EMPLOYER_ADMIN",

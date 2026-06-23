@@ -52,7 +52,8 @@ function isHeadquartersReviewerRole(role: string) {
     role === "HQ_REIMBURSEMENT_OFFICER" ||
     role === "HQ_REVENUE_ACCOUNTANT" ||
     role === "DIRECTOR_GENERAL" ||
-    role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE"
+    role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" ||
+    role === "HEAD_INSPECTORATE_COMPLIANCE"
   );
 }
 

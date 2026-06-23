@@ -459,6 +459,9 @@ function isHeadquartersRole(role: Role) {
     role === "DIRECTOR_FSD" ||
     role === "HEAD_OF_DIVISION" ||
     role === "HQ_REIMBURSEMENT_OFFICER" ||
-    role === "HQ_REVENUE_ACCOUNTANT"
+    role === "HQ_REVENUE_ACCOUNTANT" ||
+    role === "DIRECTOR_GENERAL" ||
+    role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" ||
+    role === "HEAD_INSPECTORATE_COMPLIANCE"
   );
 }

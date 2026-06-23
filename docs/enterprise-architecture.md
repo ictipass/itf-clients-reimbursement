@@ -108,11 +108,11 @@ Area Manager receipt review can accept the payment evidence or request correctio
 
 Area Office review desks can request minor employer correction without restarting the full routing chain. When the Revenue Accountant returns a registration directly to the company, the registration stores the RA desk as the correction return desk. The employer can resubmit from the company dashboard, and the package returns directly to the Revenue Accountant desk with a fresh attention item.
 
-After receipt acceptance, the Area Manager can notify Headquarters. This moves the registration to the Director FSD desk and creates a `REGISTRATION_HQ_NOTIFICATION` attention item assigned to `DIRECTOR_FSD`.
+After receipt acceptance, the Area Manager can notify Headquarters. This moves the registration to the Director, Revenue, Inspectorate & Compliance desk and creates a `REGISTRATION_HQ_NOTIFICATION` attention item assigned to `DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE`.
 
-Director FSD forwards the registration to the Head of Reimbursement Division. This resolves the Director FSD attention item and opens a Head of Division attention item for registration completion.
+Director, Revenue, Inspectorate & Compliance forwards the registration to Head, Inspectorate & Compliance Division. The Head then forwards the registration to an HQ Revenue Accountant for completion.
 
-Head of Reimbursement Division completes the registration by recording the ITF employer number. Completion activates the company, approves the registration application, opens the current-year annual compliance filing as a draft when one does not already exist, records the completion in the decision trail, and resolves HQ registration attention items. Registration does not issue a standalone certificate; the downloadable certificate belongs to annual compliance.
+HQ Revenue Accountant completes the registration by recording the ITF employer number. Completion activates the company, approves the registration application, opens the current-year annual compliance filing as a draft when one does not already exist, records the completion in the decision trail, and resolves HQ registration attention items. Registration does not issue a standalone certificate; the downloadable certificate belongs to annual compliance.
 
 Certificate templates are versioned by workspace. A template can be draft, active, or retired. New certificate records can point to the active template used at issue time so that future design changes do not rewrite historical certificate records.
 
@@ -130,7 +130,7 @@ Workspace-management users can also preview a certificate template with sample v
 
 Certificate signatures are managed as versioned workspace assets. Workspace-management users upload active PNG or JPEG signature images for the Director-General/CE and the Director, Revenue, Inspectorate & Compliance. Uploading a replacement retires the previous active signature for that office, while certificates already generated remain preserved as their own private PDF documents. Certificate template placement metadata controls where each signature image is rendered.
 
-ITF employer numbers and annual compliance certificate numbers are managed through a formal number registry. Each number has a type, lifecycle status, policy code, batch code, notes, and metadata so future numbering policies can be adopted without redesigning the registration or compliance workflow. System administrators, workspace administrators, and the Head of Reimbursement Division can manage this registry. Head of Reimbursement Division completes employer registration by selecting an available ITF employer number; annual compliance certificates receive certificate numbers during compliance certificate issuance.
+ITF employer numbers and annual compliance certificate numbers are managed through a formal number registry. Each number has a type, lifecycle status, policy code, batch code, notes, and metadata so future numbering policies can be adopted without redesigning the registration or compliance workflow. System administrators, workspace administrators, Head, Inspectorate & Compliance Division, and HQ Revenue Accountants can manage this registry. HQ Revenue Accountant completes employer registration by selecting an available ITF employer number; annual compliance certificates receive certificate numbers during compliance certificate issuance.
 
 Employer registration is a one-time workflow. Once a company receives its ITF employer number and becomes active, subsequent yearly obligations should be handled through annual compliance, training plan submission, training approval, and claims workflows rather than submitting registration again.
 
@@ -144,9 +144,9 @@ Legacy employer validation is reviewed at the Area Office Revenue Accountant des
 
 The ITF employer number is the permanent registration number. Certificate numbers belong to annual compliance certificates, not the one-time registration event. Annual compliance certificates are tied to `ComplianceYear` records and can be issued only after compliance approval.
 
-Annual compliance review and certificate issuance are Headquarters-controlled responsibilities. Head of Reimbursement Division and the HQ reimbursement/accountant role can review annual compliance returns and issue annual compliance certificates. Area Office roles can participate in earlier registration and local workflows but cannot approve annual compliance returns or issue compliance certificates.
+Annual compliance review and certificate issuance are Headquarters-controlled responsibilities. Head, Inspectorate & Compliance Division and HQ Revenue Accountants can review annual compliance returns and issue annual compliance certificates. Area Office roles can participate in earlier registration and local workflows but cannot approve annual compliance returns or issue compliance certificates.
 
-When an employer submits annual compliance, the app creates HQ review work items for Head of Reimbursement Division and the HQ reimbursement/accountant role. It also creates Area Office awareness work items for the Area Manager, HORIC, and Revenue Accountant in the company's selected Area Office so the Area Office knows companies in its jurisdiction have filed, without granting certificate-issuance authority.
+When an employer submits annual compliance, the app creates HQ review work items for Head, Inspectorate & Compliance Division and HQ Revenue Accountants. It also creates Area Office awareness work items for the Area Manager, HORIC, and Revenue Accountant in the company's selected Area Office so the Area Office knows companies in its jurisdiction have filed, without granting certificate-issuance authority.
 
 Dashboard attention is split into action items and awareness items. Action items require a desk decision or employer correction. Awareness items are informational and do not imply authority to approve, reject, or issue certificates. This distinction is especially important for annual compliance, where Area Office officers must be in the know while HQ retains certification authority.
 

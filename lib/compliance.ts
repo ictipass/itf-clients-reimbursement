@@ -99,7 +99,10 @@ export function getComplianceTransitions() {
 }
 
 const complianceAwarenessRoles = ["AREA_MANAGER", "HORIC", "REVENUE_ACCOUNTANT"] as const;
-const complianceReviewRoles = ["HEAD_OF_DIVISION", "HQ_REVENUE_ACCOUNTANT"] as const;
+const complianceReviewRoles = [
+  "HEAD_INSPECTORATE_COMPLIANCE",
+  "HQ_REVENUE_ACCOUNTANT",
+] as const;
 
 type ComplianceWorkItemContext = {
   workspaceId: string;
@@ -650,7 +653,9 @@ export async function updateComplianceYearStatus(input: UpdateComplianceYearStat
     transition.permission === "compliance:review" &&
     !canManageAnnualCompliance(input.requesterRole)
   ) {
-    throw new Error("Only Head of Division or HQ Revenue Accountant can review compliance returns.");
+    throw new Error(
+      "Only Head, Inspectorate & Compliance Division or HQ Revenue Accountant can review compliance returns.",
+    );
   }
 
   if (
@@ -776,7 +781,9 @@ export async function updateComplianceYearStatus(input: UpdateComplianceYearStat
 
 export async function issueComplianceCertificate(input: IssueComplianceCertificateInput) {
   if (!canManageAnnualCompliance(input.requesterRole)) {
-    throw new Error("Only Head of Division or HQ Revenue Accountant can issue compliance certificates.");
+    throw new Error(
+      "Only Head, Inspectorate & Compliance Division or HQ Revenue Accountant can issue compliance certificates.",
+    );
   }
 
   const db = getDb();

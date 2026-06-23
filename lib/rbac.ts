@@ -18,6 +18,7 @@ export const roles = [
   "HQ_REVENUE_ACCOUNTANT",
   "DIRECTOR_GENERAL",
   "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
+  "HEAD_INSPECTORATE_COMPLIANCE",
   "EMPLOYER_ADMIN",
   "EMPLOYER_SUBMITTER",
   "EMPLOYER_VIEWER",
@@ -77,19 +78,30 @@ const permissionsByRole: Record<Role, Permission[]> = {
   REVENUE_ACCOUNTANT: ["registry:review", "compliance:review", "company:read", "audit:read"],
   HEAD_OF_TRAINING: ["training:approve", "claims:review", "company:read", "audit:read"],
   REIMBURSEMENT_OFFICER: ["training:approve", "claims:review", "company:read", "audit:read"],
-  DIRECTOR_FSD: ["registry:review", "claims:approve", "company:read", "audit:read"],
-  HEAD_OF_DIVISION: [
+  DIRECTOR_FSD: ["claims:approve", "company:read", "audit:read"],
+  HEAD_OF_DIVISION: ["claims:review", "claims:approve", "company:read", "audit:read"],
+  HQ_REIMBURSEMENT_OFFICER: ["claims:review", "company:read", "audit:read"],
+  HQ_REVENUE_ACCOUNTANT: [
     "numbers:manage",
     "registry:review",
-    "claims:review",
-    "claims:approve",
+    "compliance:review",
     "company:read",
     "audit:read",
   ],
-  HQ_REIMBURSEMENT_OFFICER: ["claims:review", "company:read", "audit:read"],
-  HQ_REVENUE_ACCOUNTANT: ["compliance:review", "company:read", "audit:read"],
   DIRECTOR_GENERAL: ["registry:review", "compliance:review", "training:approve", "claims:approve", "company:read", "audit:read"],
-  DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE: ["registry:review", "compliance:review", "claims:approve", "company:read", "audit:read"],
+  DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE: [
+    "registry:review",
+    "compliance:review",
+    "company:read",
+    "audit:read",
+  ],
+  HEAD_INSPECTORATE_COMPLIANCE: [
+    "numbers:manage",
+    "registry:review",
+    "compliance:review",
+    "company:read",
+    "audit:read",
+  ],
   EMPLOYER_ADMIN: [
     "registry:submit",
     "compliance:submit",
@@ -120,7 +132,7 @@ export function canManageAnnualCompliance(role: Role) {
   return (
     role === "SYSTEM_ADMIN" ||
     role === "WORKSPACE_APP_ADMIN" ||
-    role === "HEAD_OF_DIVISION" ||
+    role === "HEAD_INSPECTORATE_COMPLIANCE" ||
     role === "HQ_REVENUE_ACCOUNTANT"
     || role === "DIRECTOR_GENERAL"
     || role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE"
@@ -141,5 +153,8 @@ export function isItfRole(role: Role) {
     role === "HEAD_OF_DIVISION" ||
     role === "HQ_REIMBURSEMENT_OFFICER" ||
     role === "HQ_REVENUE_ACCOUNTANT"
+    || role === "DIRECTOR_GENERAL"
+    || role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE"
+    || role === "HEAD_INSPECTORATE_COMPLIANCE"
   );
 }
