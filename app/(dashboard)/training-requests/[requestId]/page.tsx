@@ -4,7 +4,6 @@ import { notFound } from "next/navigation";
 
 import {
   addTrainingParticipantAction,
-  createClaimFromTrainingRequestAction,
   deleteTrainingParticipantAction,
   routeTrainingRequestAction,
   submitTrainingRequestAction,
@@ -14,6 +13,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { type Role } from "@/lib/rbac";
+import { getTrainingAreas } from "@/lib/training-request";
 
 const transitionLabels = {
   am_to_hot: "Forward to HOT",
@@ -23,6 +23,7 @@ const transitionLabels = {
   hot_to_am: "Forward decision to AM",
   am_release: "Release decision to employer",
 } as const;
+const trainingAreas = getTrainingAreas();
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -294,17 +295,19 @@ export default async function TrainingRequestDetailPage({
           createdAt: "desc",
         },
       },
-      claims: {
-        where: {
-          recordTier: "HOT",
-        },
+      claimAttachments: {
         select: {
-          id: true,
-          reference: true,
-          status: true,
+          reimbursementClaim: {
+            select: {
+              id: true,
+              reference: true,
+              status: true,
+              recordTier: true,
+            },
+          },
         },
         orderBy: {
-          createdAt: "desc",
+          attachedAt: "desc",
         },
       },
       decisions: {
@@ -384,10 +387,13 @@ export default async function TrainingRequestDetailPage({
   const hasApprovedMonitoring = request.monitoringRecords.some(
     (record) => record.status === "APPROVED" && record.decisionOutcome === "ACCEPTED",
   );
-  const canCreateClaim =
+  const isAvailableForClaim =
     request.status === "APPROVED" &&
     hasApprovedMonitoring &&
-    (isEmployerRole(activeRole) || adminOverride);
+    request.claimAttachments.length === 0;
+  const activeClaimAttachment = request.claimAttachments.find(
+    ({ reimbursementClaim }) => reimbursementClaim.recordTier === "HOT",
+  );
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
@@ -632,12 +638,26 @@ export default async function TrainingRequestDetailPage({
                                       placeholder="Job title"
                                       className="min-h-9 rounded-md border border-zinc-200 px-3 text-sm"
                                     />
-                                    <input
+                                    <select
                                       name="trainingArea"
                                       defaultValue={participant.trainingArea ?? ""}
-                                      placeholder="Training area"
                                       className="min-h-9 rounded-md border border-zinc-200 px-3 text-sm"
-                                    />
+                                    >
+                                      <option value="">Select training area</option>
+                                      {participant.trainingArea &&
+                                      !trainingAreas.includes(
+                                        participant.trainingArea as (typeof trainingAreas)[number],
+                                      ) ? (
+                                        <option value={participant.trainingArea}>
+                                          {participant.trainingArea}
+                                        </option>
+                                      ) : null}
+                                      {trainingAreas.map((area) => (
+                                        <option key={area} value={area}>
+                                          {area}
+                                        </option>
+                                      ))}
+                                    </select>
                                     <input
                                       name="educationalQualification"
                                       defaultValue={participant.educationalQualification ?? ""}
@@ -743,11 +763,17 @@ export default async function TrainingRequestDetailPage({
                   placeholder="Job title"
                   className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
                 />
-                <input
+                <select
                   name="trainingArea"
-                  placeholder="Training area"
                   className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                />
+                >
+                  <option value="">Select training area</option>
+                  {trainingAreas.map((area) => (
+                    <option key={area} value={area}>
+                      {area}
+                    </option>
+                  ))}
+                </select>
                 <input
                   name="educationalQualification"
                   placeholder="Educational qualification"
@@ -872,29 +898,30 @@ export default async function TrainingRequestDetailPage({
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-2 lg:row-start-6">
             <h2 className="text-xl font-semibold tracking-tight">Claims</h2>
-            {request.claims.length === 0 ? (
-              <p className="mt-3 text-sm leading-6 text-zinc-600">
-                No reimbursement claim has been opened from this Form 4A yet.
-              </p>
+            {activeClaimAttachment ? (
+              <Link
+                href={`/claims/${activeClaimAttachment.reimbursementClaim.id}`}
+                className="mt-4 inline-flex min-h-9 items-center rounded-full bg-blue-50 px-3 text-xs font-semibold text-blue-700"
+              >
+                Attached to claim {activeClaimAttachment.reimbursementClaim.reference}
+              </Link>
+            ) : isAvailableForClaim ? (
+              <span className="mt-4 inline-flex min-h-9 items-center rounded-full bg-emerald-50 px-3 text-xs font-semibold text-emerald-700">
+                Available for reimbursement claim
+              </span>
             ) : (
-              <div className="mt-4 grid gap-2">
-                {request.claims.map((claim) => (
-                  <Link
-                    key={claim.id}
-                    href={`/claims/${claim.id}`}
-                    className="rounded-md border border-zinc-100 px-3 py-2 text-xs font-semibold text-zinc-800"
-                  >
-                    {claim.reference} · {claim.status.replaceAll("_", " ")}
-                  </Link>
-                ))}
-              </div>
+              <span className="mt-4 inline-flex min-h-9 items-center rounded-full bg-zinc-100 px-3 text-xs font-semibold text-zinc-600">
+                Not available for reimbursement claim
+              </span>
             )}
-            {canCreateClaim && request.claims.length === 0 ? (
-              <form action={createClaimFromTrainingRequestAction.bind(null, request.id)}>
-                <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                  Create reimbursement claim
-                </button>
-              </form>
+            {isAvailableForClaim && (isEmployerRole(activeRole) || adminOverride) ? (
+              <p className="mt-3 text-sm leading-6 text-zinc-600">
+                Open{" "}
+                <Link href="/claims" className="font-semibold text-[#800020]">
+                  Claims
+                </Link>{" "}
+                to include this training in a new or draft reimbursement claim.
+              </p>
             ) : null}
             {request.status === "APPROVED" && !hasApprovedMonitoring ? (
               <p className="mt-3 text-sm leading-6 text-amber-700">

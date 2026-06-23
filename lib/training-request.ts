@@ -11,6 +11,15 @@ const trainingRequestEvidenceKinds = [
   "OTHER_SUPPORTING_EVIDENCE",
 ] as const;
 
+const trainingAreas = [
+  "Management",
+  "Supervisory",
+  "Occupational",
+  "Health & Safety",
+] as const;
+
+export type TrainingArea = (typeof trainingAreas)[number];
+
 export type TrainingRequestEvidenceKind = (typeof trainingRequestEvidenceKinds)[number];
 
 export type CreateTrainingRequestFromLineItemInput = {
@@ -109,6 +118,10 @@ export function getTrainingRequestTransitions() {
 
 export function getTrainingRequestEvidenceKinds() {
   return trainingRequestEvidenceKinds;
+}
+
+export function getTrainingAreas() {
+  return trainingAreas;
 }
 
 export async function listEmployerTrainingRequestCompanies(input: {

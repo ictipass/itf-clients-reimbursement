@@ -1,6 +1,10 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
 
+import { createClaimAction } from "@/app/(dashboard)/claims/actions";
+import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { can, isItfRole } from "@/lib/rbac";
 
 function formatMoney(value: { toString(): string } | null) {
   if (!value) {
@@ -14,7 +18,92 @@ function formatMoney(value: { toString(): string } | null) {
 }
 
 export default async function ClaimsPage() {
-  const claims = await getDb().reimbursementClaim.findMany({
+  const session = await getServerSession(authOptions);
+  const activeRole = session?.user?.role ?? "EMPLOYER_VIEWER";
+  const canCreateClaim = can(activeRole, "claims:submit");
+  const db = getDb();
+  const requester = canCreateClaim && session?.user?.email
+    ? await db.user.findUnique({
+        where: {
+          email: session.user.email,
+        },
+        select: {
+          memberships: {
+            where: { isActive: true },
+            select: {
+              organizationId: true,
+            },
+          },
+        },
+      })
+    : null;
+  const organizationIds = requester?.memberships
+    .map((membership) => membership.organizationId)
+    .filter((organizationId): organizationId is string => Boolean(organizationId)) ?? [];
+  const eligibleTrainings = canCreateClaim
+    ? await db.trainingRequest.findMany({
+        where: {
+          status: "APPROVED",
+          decisionOutcome: "ACCEPTED",
+          recordTier: "HOT",
+          claimAttachments: {
+            none: {},
+          },
+          monitoringRecords: {
+            some: {
+              status: "APPROVED",
+              decisionOutcome: "ACCEPTED",
+              recordTier: "HOT",
+            },
+          },
+          company: {
+            recordTier: "HOT",
+            isActive: true,
+            ...(isItfRole(activeRole)
+              ? {}
+              : {
+                  organizationId: {
+                    in: organizationIds,
+                  },
+                }),
+          },
+        },
+        select: {
+          id: true,
+          title: true,
+          approvalReference: true,
+          startsAt: true,
+          endsAt: true,
+          estimatedCost: true,
+          company: {
+            select: {
+              id: true,
+              legalName: true,
+            },
+          },
+        },
+        orderBy: [
+          {
+            company: {
+              legalName: "asc",
+            },
+          },
+          {
+            startsAt: "desc",
+          },
+        ],
+      })
+    : [];
+  const eligibleTrainingsByCompany = eligibleTrainings.reduce(
+    (groups, training) => {
+      const companyTrainings = groups.get(training.company.id) ?? [];
+      companyTrainings.push(training);
+      groups.set(training.company.id, companyTrainings);
+      return groups;
+    },
+    new Map<string, typeof eligibleTrainings>(),
+  );
+  const claims = await db.reimbursementClaim.findMany({
     where: {
       recordTier: "HOT",
     },
@@ -35,10 +124,17 @@ export default async function ClaimsPage() {
           },
         },
       },
-      trainingRequest: {
+      trainingRequests: {
         select: {
-          id: true,
-          title: true,
+          trainingRequest: {
+            select: {
+              id: true,
+              title: true,
+            },
+          },
+        },
+        orderBy: {
+          attachedAt: "asc",
         },
       },
     },
@@ -59,13 +155,72 @@ export default async function ClaimsPage() {
             Reimbursement claims
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-            Claim drafts created from approved and monitored Training Approval Requests.
+            Raise a claim and attach one or more approved, monitored trainings as its evidence.
           </p>
         </div>
         <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
           {claims.length} shown
         </span>
       </div>
+
+      {canCreateClaim ? (
+        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+          <h2 className="text-xl font-semibold tracking-tight">Create reimbursement claim</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-600">
+            Select one or more available trainings for the same company. Their estimated costs
+            provide the claim&apos;s starting amount.
+          </p>
+          {eligibleTrainings.length === 0 ? (
+            <p className="mt-4 rounded-md bg-zinc-50 p-4 text-sm text-zinc-600">
+              No approved and monitored training is currently available for a new claim.
+            </p>
+          ) : (
+            <div className="mt-5 grid gap-4">
+              {[...eligibleTrainingsByCompany.values()].map((trainings) => (
+                <form
+                  key={trainings[0].company.id}
+                  action={createClaimAction}
+                  className="rounded-lg border border-zinc-200 p-4"
+                >
+                  <h3 className="font-semibold text-zinc-950">
+                    {trainings[0].company.legalName}
+                  </h3>
+                  <div className="mt-3 grid gap-2">
+                    {trainings.map((training) => (
+                      <label
+                        key={training.id}
+                        className="flex cursor-pointer gap-3 rounded-md border border-zinc-100 p-3"
+                      >
+                        <input
+                          type="checkbox"
+                          name="trainingRequestIds"
+                          value={training.id}
+                          className="mt-1 size-4 accent-[#800020]"
+                        />
+                        <span className="min-w-0">
+                          <span className="block text-sm font-semibold text-zinc-950">
+                            {training.title}
+                          </span>
+                          <span className="mt-1 block text-xs leading-5 text-zinc-500">
+                            {training.approvalReference ?? "Approval reference pending"} ·{" "}
+                            {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(
+                              training.startsAt,
+                            )}{" "}
+                            · {formatMoney(training.estimatedCost)}
+                          </span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                  <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                    Create claim with selected trainings
+                  </button>
+                </form>
+              ))}
+            </div>
+          )}
+        </section>
+      ) : null}
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white">
         {claims.length === 0 ? (
@@ -79,7 +234,7 @@ export default async function ClaimsPage() {
                 <tr>
                   <th className="px-4 py-3">Company</th>
                   <th className="px-4 py-3">Reference</th>
-                  <th className="px-4 py-3">Training</th>
+                  <th className="px-4 py-3">Trainings</th>
                   <th className="px-4 py-3">Year</th>
                   <th className="px-4 py-3">Claimed amount</th>
                   <th className="px-4 py-3">Status</th>
@@ -96,7 +251,13 @@ export default async function ClaimsPage() {
                       </p>
                     </td>
                     <td className="px-4 py-4">{claim.reference}</td>
-                    <td className="px-4 py-4">{claim.trainingRequest?.title ?? "Not linked"}</td>
+                    <td className="px-4 py-4">
+                      {claim.trainingRequests.length === 0
+                        ? "Not linked"
+                        : claim.trainingRequests
+                            .map(({ trainingRequest }) => trainingRequest.title)
+                            .join(", ")}
+                    </td>
                     <td className="px-4 py-4">{claim.claimYear ?? "Not provided"}</td>
                     <td className="px-4 py-4">{formatMoney(claim.claimedAmount)}</td>
                     <td className="px-4 py-4">{claim.status.replaceAll("_", " ")}</td>

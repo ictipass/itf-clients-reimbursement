@@ -1,12 +1,12 @@
 # Session Handoff
 
-Last updated: 2026-06-03
+Last updated: 2026-06-22
 
 ## Current State
 
 Development is proceeding slice by slice. The latest recorded workflow slice is:
 
-- Slice 92: Training Approval Evidence Upload
+- Post-Slice 165: Training, jurisdiction, settings, and management expansion
 
 Recent completed slices include:
 
@@ -61,6 +61,12 @@ Recent completed slices include:
 - Slice 104: Claim Form 1B reviewer recommendation
 - Slice 105: Claim Form 2A/2B calculation foundation
 - Slice 106-115: production shell, role dashboards, app launcher, and context switcher
+- Post-Slice 165: planned/ad-hoc training requests and local physical/online delivery
+- Post-Slice 165: employer-owned online training access details
+- Post-Slice 165: Area Office jurisdiction change request and Area Manager attention
+- Post-Slice 165: personal settings and private iCalendar subscriptions
+- Post-Slice 165: additional HQ roles, System Administrator assignments, and management designation
+- Post-Slice 165: Area Office dashboard today/next-week monitoring schedule
 
 ## Important Current Rules
 
@@ -106,7 +112,28 @@ Recent completed slices include:
 - Training Monitoring workflow creates dashboard work items for HOT and Area Office Reimbursement Officer queues.
 - Training Approval detail page can add, edit, and delete participant rows before employer submission.
 - Training Approval submission requires core request fields, at least one participant, and at least one evidence document.
-- Employers can create reimbursement claim drafts from approved Form 4A requests with approved monitoring records.
+- Training Approval Requests can be created from approved plan lines or as ad-hoc requests with an
+  impromptu-gap justification.
+- Employers choose local physical or local online delivery and remain responsible for maintaining
+  online URLs, meeting IDs, passcodes, times, and joining instructions.
+- Participant training area is restricted to Management, Supervisory, Occupational, or Health &
+  Safety.
+- Companies can request an Area Office jurisdiction change; the current Area Manager receives a
+  `JURISDICTION_CHANGE_REVIEW` action item and grants or rejects it.
+- Every authenticated user can open `/settings` or `/settings/preferences`; administrative
+  settings remain permission-gated.
+- Users can enable and rotate a private iCalendar feed scoped to their active organization or ITF
+  office assignments.
+- System Administrators create additional admins by creating the user, then assigning
+  `SYSTEM_ADMIN` under Headquarters.
+- ITF staff can be marked as management. HQ management has national summary scope; Area Office
+  management is restricted to the assigned office.
+- Area Office dashboards show training monitoring entries happening today and during the next
+  week.
+- Employers create reimbursement claim drafts from `/claims` and can attach multiple approved Form
+  4A requests with approved monitoring records for the same company.
+- A training request can be attached to only one claim and its detail page shows its reimbursement
+  availability or linked claim.
 - Claim detail page captures Claim Form 1 employer claim/payment/declaration fields.
 - Claim detail page can upload and view claim supporting evidence.
 - Claim review roles can record Form 1B eligible/recommended amounts and remarks.
@@ -124,6 +151,7 @@ Recent slices have been checked with:
 - `npx next typegen`
 - `npx tsc --noEmit`
 - `npm run lint`
+- `npm test`
 
 If resuming after switching projects, start with:
 

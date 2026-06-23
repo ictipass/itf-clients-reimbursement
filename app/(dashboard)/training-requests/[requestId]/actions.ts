@@ -5,18 +5,19 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
-import { createClaimFromTrainingRequest } from "@/lib/claims";
 import {
   addTrainingParticipant,
   deleteTrainingParticipant,
   getTrainingRequestTransitions,
   getTrainingRequestEvidenceKinds,
+  getTrainingAreas,
   routeTrainingRequest,
   submitTrainingRequest,
   updateTrainingRequestDetails,
   updateTrainingParticipant,
   uploadTrainingRequestEvidence,
   type TrainingRequestEvidenceKind,
+  type TrainingArea,
   type TrainingRequestTransition,
 } from "@/lib/training-request";
 
@@ -168,11 +169,16 @@ function readParticipantInput(requestId: string, formData: FormData) {
     throw new Error("Participant name is required.");
   }
 
+  const trainingArea = readOptionalString(formData, "trainingArea");
+  if (trainingArea && !getTrainingAreas().includes(trainingArea as TrainingArea)) {
+    throw new Error("Unsupported training area.");
+  }
+
   return {
     requestId,
     name,
     jobTitle: readOptionalString(formData, "jobTitle"),
-    trainingArea: readOptionalString(formData, "trainingArea"),
+    trainingArea,
     educationalQualification: readOptionalString(formData, "educationalQualification"),
     nationality: readOptionalString(formData, "nationality"),
     courseTitle: readOptionalString(formData, "courseTitle"),
@@ -239,22 +245,4 @@ export async function deleteTrainingParticipantAction(
 
   revalidatePath(`/training-requests/${requestId}`);
   redirect(`/training-requests/${requestId}`);
-}
-
-export async function createClaimFromTrainingRequestAction(requestId: string) {
-  const session = await getServerSession(authOptions);
-
-  if (!session?.user?.email) {
-    throw new Error("Authentication is required.");
-  }
-
-  await createClaimFromTrainingRequest({
-    trainingRequestId: requestId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-  });
-
-  revalidatePath(`/claims`);
-  revalidatePath(`/training-requests/${requestId}`);
-  redirect(`/claims`);
 }

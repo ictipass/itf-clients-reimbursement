@@ -12,9 +12,10 @@ Role-based visibility is a convenience. Authorization must also be enforced at t
 
 ## Settings Boundaries
 
+- `/settings` and `/settings/preferences`: every authenticated user
 - `/settings/audit`: `audit:read`
 - `/settings/numbers`: `numbers:manage`
-- All other `/settings/*` routes: `workspace:manage`
+- All other administrative `/settings/*` routes: `workspace:manage`
 
 This prevents number-registry managers from receiving access to users, offices, roles, certificates, or signatures.
 

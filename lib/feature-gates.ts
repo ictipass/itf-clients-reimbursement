@@ -76,6 +76,12 @@ export const featureGates: FeatureGate[] = [
     permissions: ["numbers:manage"],
   },
   {
+    key: "settings-preferences",
+    label: "Personal settings",
+    routePrefix: "/settings/preferences",
+    permissions: [],
+  },
+  {
     key: "settings-workspace",
     label: "Workspace settings",
     routePrefix: "/settings",
@@ -96,6 +102,10 @@ export function getFeatureGateForPath(pathname: string) {
 }
 
 export function canAccessPath(role: Role, pathname: string) {
+  if (pathname === "/settings") {
+    return true;
+  }
+
   const gate = getFeatureGateForPath(pathname);
 
   return !gate || canUseFeature(role, gate);

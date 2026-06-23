@@ -15,8 +15,15 @@ const claimEvidenceKinds = [
 
 export type ClaimEvidenceKind = (typeof claimEvidenceKinds)[number];
 
-export type CreateClaimFromTrainingRequestInput = {
-  trainingRequestId: string;
+export type CreateClaimInput = {
+  trainingRequestIds: string[];
+  requesterEmail: string;
+  requesterRole: Role;
+};
+
+export type UpdateClaimTrainingsInput = {
+  claimId: string;
+  trainingRequestIds: string[];
   requesterEmail: string;
   requesterRole: Role;
 };
@@ -77,20 +84,29 @@ export function getClaimEvidenceKinds() {
   return claimEvidenceKinds;
 }
 
-export async function createClaimFromTrainingRequest(
-  input: CreateClaimFromTrainingRequestInput,
-) {
+export async function createClaim(input: CreateClaimInput) {
   if (!can(input.requesterRole, "claims:submit")) {
     throw new Error("You do not have permission to create reimbursement claims.");
   }
 
+  const trainingRequestIds = [...new Set(input.trainingRequestIds)];
+
+  if (trainingRequestIds.length === 0) {
+    throw new Error("Select at least one approved training for the claim.");
+  }
+
   const db = getDb();
-  const request = await db.trainingRequest.findFirst({
+  const requests = await db.trainingRequest.findMany({
     where: {
-      id: input.trainingRequestId,
+      id: {
+        in: trainingRequestIds,
+      },
       status: "APPROVED",
       decisionOutcome: "ACCEPTED",
       recordTier: "HOT",
+      claimAttachments: {
+        none: {},
+      },
       monitoringRecords: {
         some: {
           status: "APPROVED",
@@ -106,7 +122,6 @@ export async function createClaimFromTrainingRequest(
     select: {
       id: true,
       companyId: true,
-      title: true,
       startsAt: true,
       estimatedCost: true,
       company: {
@@ -118,8 +133,16 @@ export async function createClaimFromTrainingRequest(
     },
   });
 
-  if (!request) {
-    throw new Error("Claims can only be created from approved and monitored Training Approval Requests.");
+  if (requests.length !== trainingRequestIds.length) {
+    throw new Error(
+      "Claims can only include available, approved, and monitored Training Approval Requests.",
+    );
+  }
+
+  const companyIds = new Set(requests.map((request) => request.companyId));
+
+  if (companyIds.size !== 1) {
+    throw new Error("All trainings attached to a claim must belong to the same company.");
   }
 
   const requester = await db.user.findUnique({
@@ -143,36 +166,36 @@ export async function createClaimFromTrainingRequest(
   const hasOrganizationAccess =
     isItfRole(input.requesterRole) ||
     requester.memberships.some(
-      (membership) => membership.organizationId === request.company.organizationId,
+      (membership) => membership.organizationId === requests[0].company.organizationId,
     );
 
   if (!hasOrganizationAccess) {
-    throw new Error("You do not have access to create a claim for this training.");
+    throw new Error("You do not have access to create a claim for these trainings.");
   }
 
-  const existingClaim = await db.reimbursementClaim.findFirst({
-    where: {
-      trainingRequestId: request.id,
-      recordTier: "HOT",
-    },
-    select: {
-      id: true,
-    },
-  });
-
-  if (existingClaim) {
-    return existingClaim;
-  }
+  const trainingYears = new Set(requests.map((request) => request.startsAt.getFullYear()));
+  const claimedAmount = requests.reduce(
+    (total, request) => total + Number(request.estimatedCost.toString()),
+    0,
+  );
+  const referenceDate = requests.reduce(
+    (latest, request) => (request.startsAt > latest ? request.startsAt : latest),
+    requests[0].startsAt,
+  );
 
   return db.reimbursementClaim.create({
     data: {
-      companyId: request.companyId,
-      trainingRequestId: request.id,
-      reference: buildClaimReference(request.startsAt),
-      claimYear: request.startsAt.getFullYear(),
-      itfReceiptNumber: request.company.itfEmployerNumber,
-      claimedAmount: request.estimatedCost,
+      companyId: requests[0].companyId,
+      reference: buildClaimReference(referenceDate),
+      claimYear: trainingYears.size === 1 ? referenceDate.getFullYear() : undefined,
+      itfReceiptNumber: requests[0].company.itfEmployerNumber,
+      claimedAmount,
       status: "DRAFT",
+      trainingRequests: {
+        create: trainingRequestIds.map((trainingRequestId) => ({
+          trainingRequestId,
+        })),
+      },
     },
     select: {
       id: true,
@@ -182,6 +205,170 @@ export async function createClaimFromTrainingRequest(
 
 function buildClaimReference(date: Date) {
   return `TR-${date.getFullYear()}-${Date.now()}`;
+}
+
+export async function attachTrainingsToClaim(input: UpdateClaimTrainingsInput) {
+  const trainingRequestIds = [...new Set(input.trainingRequestIds)];
+
+  if (trainingRequestIds.length === 0) {
+    throw new Error("Select at least one approved training to attach.");
+  }
+
+  const claim = await assertClaimTrainingAccess(input);
+  const db = getDb();
+  const requests = await db.trainingRequest.findMany({
+    where: {
+      id: {
+        in: trainingRequestIds,
+      },
+      companyId: claim.companyId,
+      status: "APPROVED",
+      decisionOutcome: "ACCEPTED",
+      recordTier: "HOT",
+      claimAttachments: {
+        none: {},
+      },
+      monitoringRecords: {
+        some: {
+          status: "APPROVED",
+          decisionOutcome: "ACCEPTED",
+          recordTier: "HOT",
+        },
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (requests.length !== trainingRequestIds.length) {
+    throw new Error("One or more selected trainings are no longer available for reimbursement.");
+  }
+
+  return db.reimbursementClaim.update({
+    where: {
+      id: claim.id,
+    },
+    data: {
+      trainingRequests: {
+        create: trainingRequestIds.map((trainingRequestId) => ({
+          trainingRequestId,
+        })),
+      },
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+export async function detachTrainingFromClaim(
+  input: {
+    claimId: string;
+    trainingRequestId: string;
+    requesterEmail: string;
+    requesterRole: Role;
+  },
+) {
+  const claim = await assertClaimTrainingAccess(input);
+  const db = getDb();
+  const attachment = await db.reimbursementClaimTraining.findUnique({
+    where: {
+      trainingRequestId: input.trainingRequestId,
+    },
+    select: {
+      reimbursementClaimId: true,
+    },
+  });
+
+  if (!attachment || attachment.reimbursementClaimId !== claim.id) {
+    throw new Error("The selected training is not attached to this claim.");
+  }
+
+  const attachmentCount = await db.reimbursementClaimTraining.count({
+    where: {
+      reimbursementClaimId: claim.id,
+    },
+  });
+
+  if (attachmentCount <= 1) {
+    throw new Error("A reimbursement claim must retain at least one approved training.");
+  }
+
+  return db.reimbursementClaimTraining.delete({
+    where: {
+      trainingRequestId: input.trainingRequestId,
+    },
+    select: {
+      id: true,
+    },
+  });
+}
+
+async function assertClaimTrainingAccess(input: {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+}) {
+  if (!can(input.requesterRole, "claims:submit")) {
+    throw new Error("You do not have permission to manage claim trainings.");
+  }
+
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      status: "DRAFT",
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Editable reimbursement claim was not found.");
+  }
+
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      memberships: {
+        where: { isActive: true },
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    requester.memberships.some(
+      (membership) => membership.organizationId === claim.company.organizationId,
+    );
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to manage trainings on this claim.");
+  }
+
+  return claim;
 }
 
 export async function updateClaimForm(input: UpdateClaimFormInput) {

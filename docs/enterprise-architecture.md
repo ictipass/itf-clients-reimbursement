@@ -160,7 +160,14 @@ Public certificate verification exposes only safe certificate authenticity infor
 
 Management statistics are exposed through a read-only management dashboard for authorized ITF roles. The dashboard aggregates live operational data for registered companies, complied companies, revenue generated, reimbursement paid, open work items, pending registrations, and Area Office workload. Aggregation logic is isolated so the system can later move expensive calculations to materialized views or scheduled summary tables.
 
-Management dashboard scope is derived from the logged-in user's role and memberships. HQ/workspace management users can see national totals and compare Area Offices, while Area Office management users are restricted to their assigned Area Office statistics. A custom management assignment model can be added later if management needs users whose reporting scope differs from their operational membership.
+Management dashboard scope is derived from the logged-in user's management designation and
+memberships. Headquarters management users can see national totals and compare Area Offices, while
+Area Office management users are restricted to their assigned Area Office statistics.
+
+Management eligibility is explicitly stored as `User.isManagement`. The flag grants access to
+management summaries but does not replace membership scope. Headquarters staff marked as
+management receive national scope; Area Office staff marked as management remain restricted to
+their assigned Area Office.
 
 Office administration is handled from a general Offices settings surface rather than an Area-Office-only screen. Workspace administrators can place officers either at Headquarters or at a specific Area Office. Headquarters assignments use ITF internal memberships with no `areaOfficeId`; Area Office assignments use the same membership model with `areaOfficeId` populated so existing workflow access checks continue to work.
 
@@ -170,6 +177,10 @@ User identity and organizational access have separate lifecycles. Moving a user 
 
 Roles are currently system-managed through the Prisma `Role` enum and the application permission map. The Roles settings surface exposes these roles by operational scope so administrators can understand current access boundaries. Fully configurable roles should be introduced later with an explicit role-definition model, permission catalog, and migration plan for workflow code that currently relies on fixed role constants.
 
+System Administrators can provision additional System Administrators by first creating the user
+identity and then assigning the `SYSTEM_ADMIN` Headquarters membership. Headquarters assignments
+also support Director General and Director, Revenue, Inspectorate & Compliance roles.
+
 Headquarters Field Services Department routing follows this hierarchy:
 
 ```text
@@ -178,7 +189,30 @@ Director FSD -> Head of Division -> HQ Reimbursement Officer -> Head of Division
 
 Training Plan and L&D Submission is modeled separately from annual compliance. It covers Form 3A, the annual training plan, and L&D personnel CV evidence. The training plan is due on or before 31 March and may contribute to scoring.
 
-The first Training Plan and L&D slice stores this process as a yearly `TrainingPlanSubmission` record. Employers can create a draft, capture as many L&D personnel records as their organization requires, upload the annual training plan as a CSV document, upload L&D personnel CV evidence, and submit the package. The downloadable CSV template requires these columns: name of staff, department, gap identified, training title, estimated cost, date, location, and trainer. Submission on or before 31 March earns the prompt submission score. The full Area Office, Head of Training, Reimbursement Officer, and Headquarters routing remains a later workflow slice.
+Training Plan and L&D submission is stored as a yearly `TrainingPlanSubmission` record. Employers
+can create a draft, capture as many L&D personnel records as their organization requires, upload
+the annual training plan as a CSV document, upload L&D personnel CV evidence, and submit the
+package. The downloadable CSV template requires these columns: name of staff, department, gap
+identified, training title, estimated cost, date, location, and trainer. Submission on or before
+31 March earns the prompt submission score. Area Office routing and direct correction returns are
+implemented.
+
+Training Approval Requests may originate from an approved Training Plan line item or from an
+impromptu gap not captured in the plan. Ad-hoc requests store the employer's justification.
+Delivery is explicitly local physical or local online. For online training, the employer remains
+the custodian of the joining URL, meeting identifier, passcode, time, and instructions.
+
+Participant training area is constrained to Management, Supervisory, Occupational, or Health &
+Safety.
+
+Companies can request a change of Area Office jurisdiction. The request records the source and
+destination offices, reason, requester, reviewer, decision, and timestamps. A pending request opens
+an Area Manager action item for the current Area Office. Approval updates the company's Area Office;
+rejection preserves the existing jurisdiction.
+
+Every user can enable a private iCalendar feed for training and monitoring events. The feed is
+token-addressed and scoped through active employer or ITF office memberships. Tokens must be
+treated as credentials and can be rotated by the user.
 
 Training approval request routing:
 
@@ -205,6 +239,10 @@ Company -> Area Manager -> Head of Training -> Reimbursement Officer -> Head of 
 ### Training Approval
 
 - Form 4A request
+- Approved-plan or ad-hoc origin
+- Ad-hoc gap justification
+- Local physical or local online delivery
+- Employer-maintained online joining details
 - Training provider
 - Venue
 - Training dates
@@ -213,8 +251,19 @@ Company -> Area Manager -> Head of Training -> Reimbursement Officer -> Head of 
 - ITF reviewer decision
 - Approved original and duplicate references
 
+### Jurisdiction Management
+
+- Employer-requested Area Office change
+- Current and destination Area Office
+- Employer reason
+- Area Manager grant/reject decision
+- Action-required work item and notification badge
+- Auditable requester, reviewer, and timestamps
+
 ### Reimbursement Claim
 
+- One claim packages one or more approved, monitored trainings for the same employer
+- Each training can be attached to only one reimbursement claim
 - Claim cover letter
 - Forms 1A, 1B, 2A, 2B, 3A, 4A, and 5A where applicable
 - Attendance sheets
@@ -249,6 +298,8 @@ Start conservative and expand only when actual ITF operating roles are confirmed
 - ITF_CLAIMS_REVIEWER: reviews reimbursement packages.
 - ITF_CLAIMS_APPROVER: approves or rejects reimbursement recommendations.
 - ITF_AUDITOR: read-only audit and compliance visibility.
+- DIRECTOR_GENERAL: national executive oversight.
+- DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE: national revenue, inspectorate, and compliance oversight.
 - EMPLOYER_ADMIN: manages a company's profile, users, and submissions.
 - EMPLOYER_SUBMITTER: prepares and submits evidence for a company.
 - EMPLOYER_VIEWER: read-only company-side visibility.

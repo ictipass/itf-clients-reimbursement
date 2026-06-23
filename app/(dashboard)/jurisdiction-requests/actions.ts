@@ -24,6 +24,7 @@ export async function createJurisdictionChangeRequestAction(formData: FormData) 
     requesterRole: session.user.role,
   });
   revalidatePath("/jurisdiction-requests");
+  revalidatePath("/dashboard");
   redirect("/jurisdiction-requests");
 }
 
@@ -41,5 +42,6 @@ export async function decideJurisdictionChangeRequestAction(requestId: string, f
   });
   revalidatePath("/jurisdiction-requests");
   revalidatePath("/registry");
+  revalidatePath("/dashboard");
   redirect("/jurisdiction-requests");
 }

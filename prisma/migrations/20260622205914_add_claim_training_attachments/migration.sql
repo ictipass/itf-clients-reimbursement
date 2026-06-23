@@ -1,0 +1,2 @@
+-- RenameIndex
+ALTER INDEX "ReimbursementClaimTraining_reimbursementClaimId_trainingRequest" RENAME TO "ReimbursementClaimTraining_reimbursementClaimId_trainingReq_key";

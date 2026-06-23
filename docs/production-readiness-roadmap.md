@@ -1,6 +1,6 @@
 # Production Readiness Roadmap
 
-Last reviewed: 7 June 2026
+Last reviewed: 22 June 2026
 
 ## Purpose
 
@@ -24,12 +24,15 @@ The application already has functional foundations for:
   signatures, QR codes, and public verification
 - Training Plan and L&D submission, CSV import, approval routing, and correction returns
 - Form 4A training approval requests, participant management, evidence, routing, and decisions
+- Planned/ad-hoc training requests, physical/online delivery details, and controlled training areas
 - Form 6A/6B training monitoring records, evidence, evaluations, routing, and work queues
+- Employer jurisdiction-change requests with Area Manager attention and decisions
 - Reimbursement claim creation, Form 1 data, Form 1B recommendation, Form 2A/2B calculation rows,
   and evidence
 - Role-aware dashboard, side navigation, workspace waffle, work queues, notification badges,
   management statistics, audit logs, secure uploads, storage adapters, rate limiting, and email
   notification foundations
+- Personal iCalendar subscriptions and explicit management-summary designation
 
 ## Estimate
 

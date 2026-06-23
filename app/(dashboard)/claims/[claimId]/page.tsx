@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 
 import {
   addClaimLineAction,
+  attachTrainingsToClaimAction,
   deleteClaimLineAction,
+  detachTrainingFromClaimAction,
   updateClaimLineAction,
   updateClaimRecommendationAction,
   updateClaimFormAction,
@@ -114,10 +116,22 @@ export default async function ClaimDetailPage({
           },
         },
       },
-      trainingRequest: {
+      trainingRequests: {
         select: {
-          id: true,
-          title: true,
+          attachedAt: true,
+          trainingRequest: {
+            select: {
+              id: true,
+              title: true,
+              approvalReference: true,
+              startsAt: true,
+              endsAt: true,
+              estimatedCost: true,
+            },
+          },
+        },
+        orderBy: {
+          attachedAt: "asc",
         },
       },
     },
@@ -126,6 +140,38 @@ export default async function ClaimDetailPage({
   if (!claim) {
     notFound();
   }
+
+  const canManageClaimTrainings = canSubmitClaim && claim.status === "DRAFT";
+  const availableTrainings = canManageClaimTrainings
+    ? await getDb().trainingRequest.findMany({
+        where: {
+          companyId: claim.company.id,
+          status: "APPROVED",
+          decisionOutcome: "ACCEPTED",
+          recordTier: "HOT",
+          claimAttachments: {
+            none: {},
+          },
+          monitoringRecords: {
+            some: {
+              status: "APPROVED",
+              decisionOutcome: "ACCEPTED",
+              recordTier: "HOT",
+            },
+          },
+        },
+        select: {
+          id: true,
+          title: true,
+          approvalReference: true,
+          startsAt: true,
+          estimatedCost: true,
+        },
+        orderBy: {
+          startsAt: "desc",
+        },
+      })
+    : [];
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
@@ -184,6 +230,89 @@ export default async function ClaimDetailPage({
             {formatMoney(claim.claimedAmount)}
           </p>
         </div>
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <h2 className="text-xl font-semibold tracking-tight">Attached approved trainings</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          These approved and monitored trainings form the evidence base for this reimbursement
+          claim.
+        </p>
+        <div className="mt-4 grid gap-3">
+          {claim.trainingRequests.map(({ trainingRequest }) => (
+            <div
+              key={trainingRequest.id}
+              className="flex flex-col gap-3 rounded-md border border-zinc-100 p-3 sm:flex-row sm:items-center sm:justify-between"
+            >
+              <div>
+                <Link
+                  href={`/training-requests/${trainingRequest.id}`}
+                  className="text-sm font-semibold text-[#800020]"
+                >
+                  {trainingRequest.title}
+                </Link>
+                <p className="mt-1 text-xs leading-5 text-zinc-500">
+                  {trainingRequest.approvalReference ?? "Approval reference pending"} ·{" "}
+                  {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(
+                    trainingRequest.startsAt,
+                  )}{" "}
+                  · {formatMoney(trainingRequest.estimatedCost)}
+                </p>
+              </div>
+              {canManageClaimTrainings && claim.trainingRequests.length > 1 ? (
+                <form
+                  action={detachTrainingFromClaimAction.bind(
+                    null,
+                    claim.id,
+                    trainingRequest.id,
+                  )}
+                >
+                  <button className="min-h-9 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700">
+                    Remove from claim
+                  </button>
+                </form>
+              ) : null}
+            </div>
+          ))}
+        </div>
+
+        {canManageClaimTrainings && availableTrainings.length > 0 ? (
+          <form
+            action={attachTrainingsToClaimAction.bind(null, claim.id)}
+            className="mt-5 border-t border-zinc-100 pt-5"
+          >
+            <h3 className="text-sm font-semibold text-zinc-950">
+              Add other available trainings
+            </h3>
+            <div className="mt-3 grid gap-2 md:grid-cols-2">
+              {availableTrainings.map((training) => (
+                <label
+                  key={training.id}
+                  className="flex cursor-pointer gap-3 rounded-md border border-zinc-100 p-3"
+                >
+                  <input
+                    type="checkbox"
+                    name="trainingRequestIds"
+                    value={training.id}
+                    className="mt-1 size-4 accent-[#800020]"
+                  />
+                  <span>
+                    <span className="block text-sm font-semibold text-zinc-950">
+                      {training.title}
+                    </span>
+                    <span className="mt-1 block text-xs leading-5 text-zinc-500">
+                      {training.approvalReference ?? "Approval reference pending"} ·{" "}
+                      {formatMoney(training.estimatedCost)}
+                    </span>
+                  </span>
+                </label>
+              ))}
+            </div>
+            <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+              Attach selected trainings
+            </button>
+          </form>
+        ) : null}
       </section>
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">

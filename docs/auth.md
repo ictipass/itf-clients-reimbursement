@@ -61,6 +61,16 @@ The system administrator is marked with `mustChangePassword = true`. On first
 sign-in, the app redirects them to Profile and Security to set a permanent
 password.
 
+The seed is only the bootstrap path. To create another System Administrator after the application
+is running:
+
+1. Create the user in **Settings > Users**.
+2. Open **Settings > Offices**.
+3. Expand **Headquarters**.
+4. Assign the user the `SYSTEM_ADMIN` role.
+
+Generic user creation does not grant administrator authority by itself.
+
 ## Normal Sign-In Flow
 
 Start the app:

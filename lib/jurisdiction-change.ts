@@ -32,7 +32,17 @@ export async function createJurisdictionChangeRequest(input: {
     getActor(input.requesterEmail),
     db.company.findFirst({
       where: { id: input.companyId, recordTier: "HOT", isActive: true },
-      select: { id: true, organizationId: true, areaOfficeId: true },
+      select: {
+        id: true,
+        legalName: true,
+        organizationId: true,
+        areaOfficeId: true,
+        organization: {
+          select: {
+            workspaceId: true,
+          },
+        },
+      },
     }),
   ]);
   if (!company) throw new Error("Company was not found.");
@@ -55,14 +65,36 @@ export async function createJurisdictionChangeRequest(input: {
   });
   if (existing) throw new Error("This company already has a pending jurisdiction request.");
 
-  return db.jurisdictionChangeRequest.create({
-    data: {
-      companyId: company.id,
-      fromAreaOfficeId: company.areaOfficeId,
-      toAreaOfficeId: destination.id,
-      requestedById: actor.id,
-      reason: input.reason.trim(),
-    },
+  return db.$transaction(async (tx) => {
+    const request = await tx.jurisdictionChangeRequest.create({
+      data: {
+        companyId: company.id,
+        fromAreaOfficeId: company.areaOfficeId,
+        toAreaOfficeId: destination.id,
+        requestedById: actor.id,
+        reason: input.reason.trim(),
+      },
+    });
+
+    await tx.workItem.create({
+      data: {
+        workspaceId: company.organization.workspaceId,
+        organizationId: company.organizationId,
+        areaOfficeId: company.areaOfficeId ?? destination.id,
+        companyId: company.id,
+        assignedRole: "AREA_MANAGER",
+        app: "REIMBURSEMENT",
+        kind: "JURISDICTION_CHANGE_REVIEW",
+        status: "OPEN",
+        priority: "NORMAL",
+        title: "Review jurisdiction change request",
+        summary: `${company.legalName} requested a change of Area Office jurisdiction.`,
+        targetHref: "/jurisdiction-requests",
+        sourceKey: `jurisdiction-change:${request.id}:area-manager`,
+      },
+    });
+
+    return request;
   });
 }
 
@@ -103,6 +135,16 @@ export async function decideJurisdictionChangeRequest(input: {
         reviewNote: input.reviewNote?.trim() || null,
         reviewedById: actor.id,
         reviewedAt: new Date(),
+      },
+    });
+    await tx.workItem.updateMany({
+      where: {
+        sourceKey: `jurisdiction-change:${request.id}:area-manager`,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: new Date(),
       },
     });
     if (input.decision === "APPROVED") {

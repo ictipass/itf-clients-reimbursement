@@ -3182,3 +3182,78 @@ Implemented design:
 - Added a zero-new-package test command using Node's test runner through `tsx`
 - Added initial RBAC, organization-context, and email-safety unit tests
 - Documented the boundary between unit tests and future dedicated-database integration tests
+
+### Post-Slice 165: Training Request Delivery and Ad-Hoc Approval
+
+Goal: support both planned and impromptu local training approval requests.
+
+Implemented design:
+
+- Added local physical and local online delivery modes
+- Allowed employers to create requests outside the approved annual plan with a required gap
+  justification
+- Let employers maintain online URL, meeting ID, password/passcode, and joining instructions
+- Restricted participant training area to Management, Supervisory, Occupational, and Health &
+  Safety
+- Improved the Training Request detail layout so evidence anchors the approval and claims column
+
+### Post-Slice 165: Multi-Training Reimbursement Claims
+
+Goal: raise claims from the Claims workspace and package multiple eligible trainings in one claim.
+
+Implemented design:
+
+- Replaced the direct Training Request claim-creation action with an availability badge
+- Added claim creation to `/claims` with company-grouped multi-selection
+- Added `ReimbursementClaimTraining` as the claim-to-training join model
+- Backfilled existing one-training claims into the join model
+- Allowed draft claims to attach or remove other approved and monitored trainings
+- Prevented a training from being attached to more than one claim
+
+### Post-Slice 165: Jurisdiction Change Workflow
+
+Goal: let employers request a change of Area Office and route the decision to the current Area
+Manager.
+
+Implemented design:
+
+- Added `JurisdictionChangeRequest` with source office, destination office, reason, requester,
+  reviewer, decision, and timestamps
+- Added employer request and Area Manager grant/reject UI
+- Added `JURISDICTION_CHANGE_REVIEW` work items and registry-module notification badges
+- Resolved attention items when a request is decided
+- Backfilled work items for already-pending requests
+
+### Post-Slice 165: Personal Settings and Calendar Subscription
+
+Goal: provide user-specific configuration without granting workspace administration.
+
+Implemented design:
+
+- Added `/settings` redirect to `/settings/preferences`
+- Allowed every authenticated user to access personal settings
+- Kept administrative settings separately permission-gated
+- Added rotatable private iCalendar feeds for scoped training and monitoring events
+
+### Post-Slice 165: Management and Headquarters Administration
+
+Goal: support expanded ITF leadership and reporting access.
+
+Implemented design:
+
+- Added Director General and Director, Revenue, Inspectorate & Compliance roles
+- Supported additional System Administrator assignment through Headquarters
+- Added an explicit management designation to staff directory users
+- Granted Headquarters management national summaries
+- Restricted Area Office management summaries to assigned offices
+- Made the wide Users table horizontally scrollable so all actions remain accessible
+
+### Post-Slice 165: Area Office Schedule Awareness
+
+Goal: show officers imminent training monitoring activity.
+
+Implemented design:
+
+- Added **Happening Today** and **Coming Up / Happening Next Week** dashboard sections
+- Included training monitoring entries in both sections
+- Added a calendar-oriented monitoring view for ITF officers

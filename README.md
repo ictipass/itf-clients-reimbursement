@@ -29,6 +29,8 @@ history.
 - Organization invitations and employer-user administration
 - Multi-organization access with active organization switching
 - ITF user directory, Headquarters, and Area Office officer management
+- Additional System Administrator and Headquarters leadership assignments
+- Management designation with national or Area Office reporting scope
 - Role-aware navigation, feature gates, and server-side authorization
 - Account and membership lifecycle history
 
@@ -36,6 +38,7 @@ history.
 
 - New and legacy employer registration paths
 - Area Office selection and jurisdiction-based access
+- Employer-requested Area Office jurisdiction changes with Area Manager decisions
 - Registration routing through Area Manager, HORIC, and Revenue Accountant
 - Training contribution assessment, verification, and release
 - Payment-receipt evidence and Headquarters notification
@@ -50,6 +53,8 @@ history.
 - Downloadable Training Plan CSV template, preview, validation, and import
 - Current-year compliance eligibility gate
 - Form 4A training approval requests
+- Planned and ad-hoc Form 4A requests
+- Local physical and local online delivery details maintained by employers
 - Training participant and evidence management
 - Form 6A/6B training monitoring, evaluations, and review workflow
 - Direct employer correction-return paths
@@ -74,6 +79,7 @@ to the approved claims and payment Standard Operating Procedure.
 - Upload validation, quarantine foundation, and malware-scanner abstraction
 - Audit logs, email delivery records, rate limiting, and security headers
 - Management statistics with national and Area Office scopes
+- Personal calendar subscriptions for training and monitoring schedules
 - HOT/WARM/COLD record-tier foundation
 
 ## Workflow Summary

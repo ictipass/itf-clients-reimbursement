@@ -1,6 +1,6 @@
 # Developer Maintenance and Extension Guide
 
-Last reviewed: 7 June 2026
+Last reviewed: 22 June 2026
 
 ## Purpose
 
@@ -152,17 +152,49 @@ registration and contribution recommendation.
 
 `TrainingPlanSubmission`, `TrainingPlanPersonnel`, `TrainingPlanLineItem`, `TrainingRequest`,
 `TrainingParticipant`, `TrainingMonitoringRecord`, and `TrainingMonitoringEvaluation` represent the
-training lifecycle.
+training lifecycle. A `TrainingRequest` may link to an approved plan line or be marked `isAdHoc`
+with a required justification. Delivery is classified as local physical or local online. Online
+access details remain editable only while the request is at the employer desk.
+
+Participant training areas are controlled by `getTrainingAreas()` in `lib/training-request.ts`.
+Keep UI options and server-side validation sourced from the same list.
+
+### Jurisdiction Changes
+
+`JurisdictionChangeRequest` records employer requests to move a company between Area Offices.
+Creation and review authority is implemented in `lib/jurisdiction-change.ts`.
+
+- Employers may create one pending request per company.
+- The current Area Manager receives a `JURISDICTION_CHANGE_REVIEW` work item.
+- Approval changes `Company.areaOfficeId`; rejection leaves it unchanged.
+- Decision resolves the work item.
+- Migration backfills attention items for pending requests created before work-item support.
+
+### Personal Preferences and Calendar Feeds
+
+Personal settings are available at `/settings/preferences` to every authenticated user.
+Administrative `/settings/*` routes remain separately gated.
+
+`/api/calendar/[token]` exposes a private iCalendar subscription scoped by active employer or ITF
+office memberships. Calendar tokens are credentials: never log them, include them in audit
+metadata, or expose one user's token to another user.
 
 ### Claims
 
-`ReimbursementClaim` and `ReimbursementClaimLine` currently represent the claims foundation. Expect
-this area to expand after the final claims/payment SOP.
+`ReimbursementClaim`, `ReimbursementClaimTraining`, and `ReimbursementClaimLine` currently
+represent the claims foundation. `ReimbursementClaimTraining` is the claim-to-training join:
+one claim can package multiple approved and monitored training requests, while the unique
+`trainingRequestId` prevents the same training from being used by another claim. Expect this area
+to expand after the final claims/payment SOP.
 
 ### Governance and Supporting Infrastructure
 
 `Document`, `Decision`, `Comment`, `WorkItem`, `AuditEvent`, `ManagedRegistrationNumber`,
 `CertificateTemplate`, `SignatureAsset`, and `EmailDeliveryAttempt`.
+
+`User.isManagement` controls management-summary eligibility. Scope remains membership-derived:
+Headquarters management receives national scope; Area Office management remains restricted to its
+assigned office.
 
 ## Implementing a New Workflow
 
@@ -236,6 +268,10 @@ Relevant modules:
 - `lib/rate-limit.ts`
 - `lib/audit.ts`
 
+Creating another System Administrator is a two-step process: create the identity in the user
+directory, then assign `SYSTEM_ADMIN` as a Headquarters membership. Do not grant administrator
+authority implicitly during generic user creation.
+
 ## Email and Workflow Notifications
 
 - Delivery adapter: `lib/email.ts`
@@ -253,6 +289,15 @@ CRON_SECRET="..."
 ```
 
 Never place private action tokens into email-delivery audit records or logs.
+
+Jurisdiction changes use normal `WorkItem` attention. When adding a new workflow that requires a
+badge, update all of:
+
+1. `WorkItemKind`
+2. creation and resolution logic
+3. module mapping in `lib/attention.ts`
+4. migration/backfill behavior for already-open records
+5. support documentation and tests
 
 ## Documents and Upload Security
 
@@ -304,7 +349,9 @@ As volume grows:
 
 ## Testing Strategy
 
-Current unit tests cover foundational RBAC, active organization selection, and email escaping.
+Current unit tests cover foundational RBAC, management/settings policy, controlled training-area
+options, active organization selection, workflow routing, evidence rules, authentication policy,
+and email escaping.
 
 Required layers:
 
@@ -371,5 +418,9 @@ For every completed slice:
 - Update architecture or extension rules in this guide.
 - Update `docs/production-readiness-roadmap.md`.
 - Add test instructions and known limitations.
+
+Documentation is part of the definition of done. A workflow or permission change is incomplete
+until its user steps, support diagnostics, authorization boundaries, data model, migration impact,
+and known limitations are reflected in the relevant Markdown files.
 
 Avoid rewriting whole documents. Edit only the affected module and its cross-references.

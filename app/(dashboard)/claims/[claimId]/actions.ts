@@ -7,7 +7,9 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import {
   addClaimLine,
+  attachTrainingsToClaim,
   deleteClaimLine,
+  detachTrainingFromClaim,
   getClaimEvidenceKinds,
   updateClaimLine,
   updateClaimRecommendation,
@@ -90,6 +92,51 @@ export async function updateClaimFormAction(claimId: string, formData: FormData)
 
   revalidatePath(`/claims`);
   revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}`);
+}
+
+export async function attachTrainingsToClaimAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await attachTrainingsToClaim({
+    claimId,
+    trainingRequestIds: formData
+      .getAll("trainingRequestIds")
+      .filter((value): value is string => typeof value === "string"),
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/training-requests");
+  redirect(`/claims/${claimId}`);
+}
+
+export async function detachTrainingFromClaimAction(
+  claimId: string,
+  trainingRequestId: string,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await detachTrainingFromClaim({
+    claimId,
+    trainingRequestId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath(`/training-requests/${trainingRequestId}`);
   redirect(`/claims/${claimId}`);
 }
 

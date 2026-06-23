@@ -230,6 +230,7 @@ enum WorkItemKind {
   TRAINING_REQUEST_REVIEW
   TRAINING_MONITORING_REVIEW
   TRAINING_FEEDBACK
+  JURISDICTION_CHANGE_REVIEW
 }
 
 enum WorkItemStatus {
@@ -911,15 +912,15 @@ model TrainingPlanLineItem {
 }
 
 model TrainingRequest {
-  id                       String                     @id @default(cuid())
+  id                       String                       @id @default(cuid())
   companyId                String
   trainingPlanLineItemId   String?
-  isAdHoc                  Boolean                    @default(false)
+  isAdHoc                  Boolean                      @default(false)
   adHocJustification       String?
   title                    String
   description              String?
   trainingType             String?
-  deliveryMode             TrainingDeliveryMode       @default(LOCAL_PHYSICAL)
+  deliveryMode             TrainingDeliveryMode         @default(LOCAL_PHYSICAL)
   provider                 String
   venue                    String?
   onlineUrl                String?
@@ -930,27 +931,27 @@ model TrainingRequest {
   startsAt                 DateTime
   endsAt                   DateTime
   participantCount         Int?
-  estimatedCost            Decimal                    @db.Decimal(14, 2)
+  estimatedCost            Decimal                      @db.Decimal(14, 2)
   expectedOutcome          String?
   approvalReference        String?
   approvedOriginalRef      String?
   approvedDuplicateRef     String?
-  status                   WorkflowStatus             @default(DRAFT)
-  currentDesk              TrainingRequestDesk        @default(COMPANY)
+  status                   WorkflowStatus               @default(DRAFT)
+  currentDesk              TrainingRequestDesk          @default(COMPANY)
   decisionOutcome          TrainingDecisionOutcome?
   decisionReason           String?
-  recordTier               RecordTier                 @default(HOT)
+  recordTier               RecordTier                   @default(HOT)
   submittedAt              DateTime?
   approvedAt               DateTime?
   feedbackReleasedAt       DateTime?
-  createdAt                DateTime                   @default(now())
-  updatedAt                DateTime                   @updatedAt
-  company                  Company                    @relation(fields: [companyId], references: [id])
-  trainingPlanLineItem     TrainingPlanLineItem?      @relation(fields: [trainingPlanLineItemId], references: [id])
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
+  company                  Company                      @relation(fields: [companyId], references: [id])
+  trainingPlanLineItem     TrainingPlanLineItem?        @relation(fields: [trainingPlanLineItemId], references: [id])
   documents                Document[]
   participants             TrainingParticipant[]
   monitoringRecords        TrainingMonitoringRecord[]
-  claims                   ReimbursementClaim[]
+  claimAttachments         ReimbursementClaimTraining[]
   decisions                Decision[]
   comments                 Comment[]
 
@@ -1056,41 +1057,52 @@ model TrainingMonitoringEvaluation {
 }
 
 model ReimbursementClaim {
-  id                       String                   @id @default(cuid())
+  id                       String                       @id @default(cuid())
   companyId                String
-  trainingRequestId        String?
-  reference                String                   @unique
+  reference                String                       @unique
   claimYear                Int?
-  trainingContributionDue  Decimal?                 @db.Decimal(14, 2)
-  trainingContributionPaid Decimal?                 @db.Decimal(14, 2)
-  maxReimbursableAmount    Decimal?                 @db.Decimal(14, 2)
+  trainingContributionDue  Decimal?                     @db.Decimal(14, 2)
+  trainingContributionPaid Decimal?                     @db.Decimal(14, 2)
+  maxReimbursableAmount    Decimal?                     @db.Decimal(14, 2)
   itfReceiptNumber         String?
   bankName                 String?
   accountNumber            String?
   sortCode                 String?
-  claimedAmount            Decimal                  @db.Decimal(14, 2)
-  eligibleAmount           Decimal?                 @db.Decimal(14, 2)
-  claimRecommendedAmount   Decimal?                 @db.Decimal(14, 2)
+  claimedAmount            Decimal                      @db.Decimal(14, 2)
+  eligibleAmount           Decimal?                     @db.Decimal(14, 2)
+  claimRecommendedAmount   Decimal?                     @db.Decimal(14, 2)
   claimRecommendedInWords  String?
   paymentDetails           String?
   employerOfficerName      String?
   employerOfficerRank      String?
   chiefExecutiveName       String?
   employerDeclaredAt       DateTime?
-  status                   WorkflowStatus           @default(DRAFT)
-  recordTier               RecordTier               @default(HOT)
+  status                   WorkflowStatus               @default(DRAFT)
+  recordTier               RecordTier                   @default(HOT)
   submittedAt              DateTime?
   settledAt                DateTime?
-  createdAt                DateTime                 @default(now())
-  updatedAt                DateTime                 @updatedAt
-  company                  Company                  @relation(fields: [companyId], references: [id])
-  trainingRequest          TrainingRequest?         @relation(fields: [trainingRequestId], references: [id])
+  createdAt                DateTime                     @default(now())
+  updatedAt                DateTime                     @updatedAt
+  company                  Company                      @relation(fields: [companyId], references: [id])
+  trainingRequests         ReimbursementClaimTraining[]
   documents                Document[]
   lines                    ReimbursementClaimLine[]
   decisions                Decision[]
   comments                 Comment[]
 
   @@index([companyId, status, recordTier])
+}
+
+model ReimbursementClaimTraining {
+  id                   String             @id @default(cuid())
+  reimbursementClaimId String
+  trainingRequestId    String             @unique
+  attachedAt           DateTime           @default(now())
+  reimbursementClaim   ReimbursementClaim @relation(fields: [reimbursementClaimId], references: [id], onDelete: Cascade)
+  trainingRequest      TrainingRequest    @relation(fields: [trainingRequestId], references: [id])
+
+  @@unique([reimbursementClaimId, trainingRequestId])
+  @@index([reimbursementClaimId])
 }
 
 model ReimbursementClaimLine {

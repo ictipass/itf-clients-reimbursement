@@ -1,6 +1,6 @@
 # User, Support, and Stakeholder Guide
 
-Last reviewed: 7 June 2026
+Last reviewed: 22 June 2026
 
 ## Document Purpose
 
@@ -26,6 +26,8 @@ The application separates:
 - **Role**: the actions the person is authorized to perform.
 - **Workflow desk**: the officer or role currently expected to act.
 - **Awareness item**: information visible to an office without granting approval authority.
+- **Management designation**: an ITF staff flag that grants access to management summaries within
+  the staff member's Headquarters or Area Office scope.
 
 ## Getting Access
 
@@ -74,6 +76,9 @@ The dashboard shows role-relevant summaries and work items.
 
 Only modules permitted by the signed-in user's role are displayed.
 
+**My Settings** is available to every signed-in user. Administrative settings such as Users,
+Offices, Roles, Certificates, and Signatures remain restricted to authorized administrators.
+
 ### Workspace Waffle
 
 The nine-dot launcher shows Workspace applications available to the user. Notification badges can
@@ -100,6 +105,8 @@ Changing the active organization changes the visible records, role, and availabl
 | Head of Division | Headquarters reimbursement oversight, numbers, and approvals |
 | HQ Revenue Accountant | Annual compliance review and certification |
 | HQ Reimbursement Officer | Headquarters reimbursement/claims review |
+| Director General | National executive oversight where assigned |
+| Director, Revenue, Inspectorate & Compliance | National revenue, inspectorate, and compliance oversight |
 | System/Workspace Administrator | Technical configuration and emergency administration |
 | Auditor | Read-only audit visibility |
 
@@ -171,15 +178,27 @@ date, location, and trainer.
 
 ## Workflow 5: Training Approval Request
 
-1. Employer opens an approved Training Plan line item.
-2. Employer creates a Form 4A Training Approval Request.
+An employer can start a request in either of two ways:
+
+- Open an approved Training Plan line item and select **Create Form 4A**.
+- Select **Request unplanned training** when an impromptu skills gap was not captured in the
+  approved annual plan.
+
+For an unplanned request, the employer must explain the gap or operational need.
+
+1. Employer creates the Form 4A Training Approval Request.
+2. Employer selects **Local physical** or **Local online**.
 3. Employer completes training details and participant records.
-4. Employer uploads supporting evidence.
-5. The system validates completeness.
-6. Employer submits the request.
-7. The request routes through Area Manager, Head of Training, Reimbursement Officer, Head of
+4. For online training, the employer supplies and maintains the URL, meeting ID, password or
+   passcode, time, and joining instructions. ITF can view these details but does not own them.
+5. Employer selects each participant's training area from Management, Supervisory, Occupational,
+   or Health & Safety.
+6. Employer uploads supporting evidence.
+7. The system validates completeness.
+8. Employer submits the request.
+9. The request routes through Area Manager, Head of Training, Reimbursement Officer, Head of
    Training, and Area Manager.
-8. Reviewers approve or return directly to the employer for correction.
+10. Reviewers approve or return directly to the employer for correction.
 
 Local physical training should ordinarily be requested at least two weeks before implementation;
 international training should ordinarily be requested at least three weeks before implementation.
@@ -193,15 +212,40 @@ Final enforcement remains subject to approved policy.
 4. Monitoring record is submitted and routed for review.
 5. Reviewer approves or requests correction.
 
-## Workflow 7: Reimbursement Claim
+Area Office dashboards show monitoring entries under:
+
+- **Happening Today**
+- **Coming Up / Happening Next Week**
+
+The Monitoring page also provides an Area Office calendar view.
+
+## Workflow 7: Change of Area Office Jurisdiction
+
+1. Employer opens **Jurisdiction Requests**.
+2. Employer selects the company and requested destination Area Office.
+3. Employer explains the reason for the change.
+4. The current Area Manager receives an action-required attention badge and queue item.
+5. The Area Manager grants or rejects the request and may record a review note.
+6. On approval, the company's Area Office is changed to the requested office.
+7. On rejection, the company remains under its current Area Office.
+
+Only one pending jurisdiction request is allowed for a company at a time.
+
+## Workflow 8: Reimbursement Claim
 
 The implemented claim foundation currently supports:
 
-1. Creating a claim from approved training requests with approved monitoring.
-2. Capturing employer Form 1 claim and declaration data.
-3. Uploading supporting evidence.
-4. Recording reviewer Form 1B recommended amounts and remarks.
-5. Recording Form 2A/2B calculation rows.
+1. Opening **Claims** and selecting one or more available approved trainings for the same company.
+2. Using approved trainings with approved monitoring as the claim's training evidence.
+3. Adding or removing available trainings while the claim remains a draft.
+4. Capturing employer Form 1 claim and declaration data.
+5. Uploading supporting evidence.
+6. Recording reviewer Form 1B recommended amounts and remarks.
+7. Recording Form 2A/2B calculation rows.
+
+An approved training detail page shows whether the training is available for reimbursement or is
+already attached to a claim. Claims are created from **Claims**, not from the individual training
+detail page.
 
 The final claims approval, payment, appeal, and settlement workflow remains subject to the approved
 claims and payment SOP.
@@ -235,6 +279,21 @@ Employer Administrators can:
 
 An organization must always retain at least one active Employer Administrator.
 
+## Personal Settings and Calendar Notifications
+
+Every signed-in user can open **My Settings** or `/settings`.
+
+To connect the platform calendar:
+
+1. Open **My Settings**.
+2. Enable the private calendar feed.
+3. Copy the subscription URL.
+4. In Google Calendar, select **Other calendars > From URL**.
+5. In Apple Calendar, Outlook, or another mobile calendar, add a subscribed calendar.
+
+The feed includes training and monitoring events within the user's organization or office scope.
+Treat the subscription URL like a password. Use **Reset private link** if it is exposed.
+
 ## ITF Administration
 
 Authorized administrators can manage:
@@ -249,6 +308,24 @@ Authorized administrators can manage:
 - Email delivery attempts
 - Audit logs
 - Management statistics
+
+### Creating Another System Administrator
+
+Creating a system administrator is intentionally a two-step operation:
+
+1. Create the person's user account under **Settings > Users**.
+2. Open **Settings > Offices**, expand **Headquarters**, and assign the `SYSTEM_ADMIN` role.
+
+This separates identity creation from authority assignment and preserves assignment history.
+
+### Management Staff Designation
+
+System administrators can mark an ITF staff user as management from **Settings > Users**.
+
+- Headquarters management staff receive national management-summary scope.
+- Area Office management staff receive summaries only for their assigned Area Office.
+- The user must have an ITF Headquarters or Area Office assignment before management access is
+  enabled.
 
 ## Support Playbook
 
@@ -275,6 +352,21 @@ Authorized administrators can manage:
 3. Confirm the Area Office or Headquarters scope matches the workflow.
 4. Distinguish an action item from an awareness item.
 5. Review the audit log and work-item record.
+
+For a jurisdiction request, confirm that:
+
+- The request status is `PENDING`.
+- The company had a current Area Office when the request was submitted.
+- The reviewing user has the active `AREA_MANAGER` role for that Area Office.
+- A `JURISDICTION_CHANGE_REVIEW` work item exists and is still open.
+
+### Settings Opens the Dashboard
+
+1. Confirm the user is signed in and is not blocked by a temporary-password change.
+2. Confirm the intended personal route is `/settings` or `/settings/preferences`.
+3. Personal settings should be available to every signed-in user.
+4. Administrative settings still redirect unauthorized users because they require workspace
+   administration, audit, or number-management permissions.
 
 ### Upload Fails
 
@@ -312,6 +404,9 @@ Authorized administrators can manage:
 System Administrators create ITF officers from **Settings > Users**, individually or by CSV
 import. Successful creation generates a temporary password, sends a welcome email, and requires
 the officer to change that password at first sign-in.
+
+The Users table scrolls horizontally on narrower screens so management, reset-access, edit, and
+account-status actions remain reachable.
 
 During development, temporary credentials are also written to:
 
