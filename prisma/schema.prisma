@@ -128,6 +128,12 @@ enum ReimbursementClaimLineStage {
   AUDIT
 }
 
+enum ReimbursementStaffTrainingArea {
+  MANAGEMENT
+  SUPERVISORY
+  OCCUPATIONAL
+}
+
 enum RegistrationApplicationKind {
   NEW_EMPLOYER
   LEGACY_EMPLOYER
@@ -1119,6 +1125,7 @@ model ReimbursementClaim {
   trainingRequests         ReimbursementClaimTraining[]
   documents                Document[]
   lines                    ReimbursementClaimLine[]
+  staffEntries             ReimbursementClaimStaffEntry[]
   decisions                Decision[]
   comments                 Comment[]
 
@@ -1161,6 +1168,26 @@ model ReimbursementClaimLine {
   @@index([reimbursementClaimId])
   @@index([reimbursementClaimId, stage])
   @@index([sourceLineId])
+}
+
+model ReimbursementClaimStaffEntry {
+  id                   String                         @id @default(cuid())
+  reimbursementClaimId String
+  employeeId           String
+  normalizedEmployeeId String
+  employeeName         String?
+  trainingArea         ReimbursementStaffTrainingArea
+  duplicateGroupKey    String?
+  duplicateDetectedAt  DateTime?
+  duplicateResolvedAt  DateTime?
+  recordTier           RecordTier                     @default(HOT)
+  createdAt            DateTime                       @default(now())
+  updatedAt            DateTime                       @updatedAt
+  reimbursementClaim   ReimbursementClaim             @relation(fields: [reimbursementClaimId], references: [id], onDelete: Cascade)
+
+  @@index([reimbursementClaimId, trainingArea, recordTier])
+  @@index([reimbursementClaimId, normalizedEmployeeId, recordTier])
+  @@index([duplicateGroupKey, recordTier])
 }
 
 model Document {
