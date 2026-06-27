@@ -104,6 +104,32 @@ export type UpdateClaimStaffEntriesInput = {
   entries: ReimbursementStaffEntryInput[];
 };
 
+export type ClaimRoutingInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  note?: string;
+};
+
+type ClaimDesk =
+  | "COMPANY"
+  | "AREA_MANAGER"
+  | "HEAD_OF_TRAINING"
+  | "REIMBURSEMENT_OFFICER"
+  | "DIRECTOR_FSD"
+  | "HEAD_OF_DIVISION"
+  | "HQ_REIMBURSEMENT_OFFICER";
+
+type ClaimIntakeTransition = {
+  from: ClaimDesk;
+  to: ClaimDesk;
+  assignedRole: Role;
+  action: "SUBMIT" | "FORWARD";
+  reason: string;
+  workItemTitle: string;
+  workItemSummary: string;
+};
+
 export function getClaimEvidenceKinds() {
   return claimEvidenceKinds;
 }
@@ -253,6 +279,268 @@ export async function createClaim(input: CreateClaimInput) {
 
 function buildClaimReference(date: Date) {
   return `TR-${date.getFullYear()}-${Date.now()}`;
+}
+
+export function getClaimIntakeTransitions() {
+  return [
+    {
+      from: "COMPANY",
+      to: "AREA_MANAGER",
+      assignedRole: "AREA_MANAGER",
+      action: "SUBMIT",
+      reason: "Employer submitted reimbursement claim to Area Manager.",
+      workItemTitle: "Review submitted reimbursement claim",
+      workItemSummary: "submitted a reimbursement claim for Area Manager intake.",
+    },
+    {
+      from: "AREA_MANAGER",
+      to: "HEAD_OF_TRAINING",
+      assignedRole: "HEAD_OF_TRAINING",
+      action: "FORWARD",
+      reason: "Area Manager forwarded reimbursement claim to HOT.",
+      workItemTitle: "Review reimbursement claim from Area Manager",
+      workItemSummary: "has a reimbursement claim awaiting HOT review.",
+    },
+    {
+      from: "HEAD_OF_TRAINING",
+      to: "REIMBURSEMENT_OFFICER",
+      assignedRole: "REIMBURSEMENT_OFFICER",
+      action: "FORWARD",
+      reason: "HOT forwarded reimbursement claim to A/O Reimbursement Officer.",
+      workItemTitle: "Process reimbursement claim",
+      workItemSummary: "has a reimbursement claim awaiting A/O Reimbursement Officer processing.",
+    },
+  ] as const satisfies readonly ClaimIntakeTransition[];
+}
+
+export async function submitClaimToAreaManager(input: ClaimRoutingInput) {
+  if (!can(input.requesterRole, "claims:submit") && !isAdminRole(input.requesterRole)) {
+    throw new Error("You do not have permission to submit reimbursement claims.");
+  }
+
+  return moveClaimThroughIntake(input, getClaimIntakeTransitions()[0]);
+}
+
+export async function forwardClaimToHeadOfTraining(input: ClaimRoutingInput) {
+  if (input.requesterRole !== "AREA_MANAGER" && !isAdminRole(input.requesterRole)) {
+    throw new Error("Only an Area Manager can forward this claim to HOT.");
+  }
+
+  return moveClaimThroughIntake(input, getClaimIntakeTransitions()[1]);
+}
+
+export async function forwardClaimToAreaReimbursementOfficer(input: ClaimRoutingInput) {
+  if (input.requesterRole !== "HEAD_OF_TRAINING" && !isAdminRole(input.requesterRole)) {
+    throw new Error("Only HOT can forward this claim to the A/O Reimbursement Officer.");
+  }
+
+  return moveClaimThroughIntake(input, getClaimIntakeTransitions()[2]);
+}
+
+async function moveClaimThroughIntake(
+  input: ClaimRoutingInput,
+  transition: ClaimIntakeTransition,
+) {
+  const db = getDb();
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        where: { isActive: true },
+        select: {
+          organizationId: true,
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      status: true,
+      currentDesk: true,
+      company: {
+        select: {
+          legalName: true,
+          organizationId: true,
+          areaOfficeId: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Reimbursement claim was not found.");
+  }
+
+  if (claim.currentDesk !== transition.from) {
+    throw new Error(
+      `This claim is currently at ${claim.currentDesk.replaceAll("_", " ")}, not ${transition.from.replaceAll("_", " ")}.`,
+    );
+  }
+
+  if (transition.from === "COMPANY" && claim.status !== "DRAFT") {
+    throw new Error("Only draft claims can be submitted to Area Manager.");
+  }
+
+  if (transition.from !== "COMPANY" && claim.status !== "SUBMITTED") {
+    throw new Error("Only submitted claims can be forwarded through Area Office intake.");
+  }
+
+  assertClaimRoutingScope({
+    actorMemberships: actor.memberships,
+    requesterRole: input.requesterRole,
+    transition,
+    organizationId: claim.company.organizationId,
+    areaOfficeId: claim.company.areaOfficeId,
+  });
+
+  const now = new Date();
+  const note = input.note?.trim();
+  const updated = await db.$transaction(async (tx) => {
+    const result = await tx.reimbursementClaim.update({
+      where: {
+        id: claim.id,
+      },
+      data: {
+        status: "SUBMITTED",
+        currentDesk: transition.to,
+        submittedAt: transition.action === "SUBMIT" ? now : undefined,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        reimbursementClaimId: claim.id,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: now,
+      },
+    });
+
+    await tx.workItem.upsert({
+      where: {
+        sourceKey: getClaimWorkItemSourceKey(claim.id, transition.to),
+      },
+      create: {
+        workspaceId: claim.company.organization.workspaceId,
+        organizationId: claim.company.organizationId,
+        areaOfficeId: claim.company.areaOfficeId,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        assignedRole: transition.assignedRole,
+        app: "REIMBURSEMENT",
+        kind: "REIMBURSEMENT_CLAIM_REVIEW",
+        status: "OPEN",
+        priority: "NORMAL",
+        title: transition.workItemTitle,
+        summary: `${claim.company.legalName} ${transition.workItemSummary}`,
+        targetHref: `/claims/${claim.id}`,
+        sourceKey: getClaimWorkItemSourceKey(claim.id, transition.to),
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        emailNotifiedAt: null,
+        assignedRole: transition.assignedRole,
+        priority: "NORMAL",
+        title: transition.workItemTitle,
+        summary: `${claim.company.legalName} ${transition.workItemSummary}`,
+        targetHref: `/claims/${claim.id}`,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        action: transition.action,
+        reason: [transition.reason, note].filter(Boolean).join(" "),
+      },
+    });
+
+    return result;
+  });
+
+  return updated;
+}
+
+function getClaimWorkItemSourceKey(claimId: string, desk: ClaimDesk) {
+  return `reimbursement-claim:${claimId}:${desk.toLowerCase()}`;
+}
+
+function assertClaimRoutingScope(input: {
+  actorMemberships: {
+    organizationId: string | null;
+    areaOfficeId: string | null;
+  }[];
+  requesterRole: Role;
+  transition: ClaimIntakeTransition;
+  organizationId: string;
+  areaOfficeId: string | null;
+}) {
+  if (isAdminRole(input.requesterRole)) {
+    return;
+  }
+
+  if (input.transition.from === "COMPANY") {
+    const canSubmitForOrganization =
+      isItfRole(input.requesterRole) ||
+      input.actorMemberships.some(
+        (membership) => membership.organizationId === input.organizationId,
+      );
+
+    if (!canSubmitForOrganization) {
+      throw new Error("You do not have access to submit this reimbursement claim.");
+    }
+
+    return;
+  }
+
+  const hasAreaOfficeAccess =
+    Boolean(input.areaOfficeId) &&
+    input.actorMemberships.some(
+      (membership) => membership.areaOfficeId === input.areaOfficeId,
+    );
+
+  if (!hasAreaOfficeAccess) {
+    throw new Error("You do not have Area Office access for this reimbursement claim.");
+  }
+}
+
+function isAdminRole(role: Role) {
+  return role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
 }
 
 export async function attachTrainingsToClaim(input: UpdateClaimTrainingsInput) {

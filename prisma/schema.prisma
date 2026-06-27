@@ -140,6 +140,16 @@ enum ReimbursementComputationTableStatus {
   CONFIRMED
 }
 
+enum ReimbursementClaimDesk {
+  COMPANY
+  AREA_MANAGER
+  HEAD_OF_TRAINING
+  REIMBURSEMENT_OFFICER
+  DIRECTOR_FSD
+  HEAD_OF_DIVISION
+  HQ_REIMBURSEMENT_OFFICER
+}
+
 enum RegistrationApplicationKind {
   NEW_EMPLOYER
   LEGACY_EMPLOYER
@@ -265,6 +275,7 @@ enum WorkItemKind {
   REGISTRATION_HQ_NOTIFICATION
   COMPLIANCE_AWARENESS
   COMPLIANCE_REVIEW
+  REIMBURSEMENT_CLAIM_REVIEW
   TRAINING_PLAN_REVIEW
   TRAINING_REQUEST_REVIEW
   TRAINING_MONITORING_REVIEW
@@ -1122,6 +1133,7 @@ model ReimbursementClaim {
   chiefExecutiveName       String?
   employerDeclaredAt       DateTime?
   status                   WorkflowStatus               @default(DRAFT)
+  currentDesk              ReimbursementClaimDesk        @default(COMPANY)
   recordTier               RecordTier                   @default(HOT)
   submittedAt              DateTime?
   settledAt                DateTime?
@@ -1133,10 +1145,12 @@ model ReimbursementClaim {
   lines                    ReimbursementClaimLine[]
   staffEntries             ReimbursementClaimStaffEntry[]
   computationTables        ReimbursementComputationTable[]
+  workItems                WorkItem[]
   decisions                Decision[]
   comments                 Comment[]
 
   @@index([companyId, status, recordTier])
+  @@index([currentDesk, status, recordTier])
 }
 
 model ReimbursementClaimTraining {
@@ -1370,6 +1384,7 @@ model WorkItem {
   complianceYearId           String?
   trainingPlanSubmissionId   String?
   trainingMonitoringRecordId String?
+  reimbursementClaimId       String?
   assignedUserId             String?
   assignedRole               Role?
   app                        WorkspaceApp              @default(REIMBURSEMENT)
@@ -1393,6 +1408,7 @@ model WorkItem {
   complianceYear             ComplianceYear?           @relation(fields: [complianceYearId], references: [id])
   trainingPlanSubmission     TrainingPlanSubmission?   @relation(fields: [trainingPlanSubmissionId], references: [id])
   trainingMonitoringRecord   TrainingMonitoringRecord? @relation(fields: [trainingMonitoringRecordId], references: [id])
+  reimbursementClaim         ReimbursementClaim?       @relation(fields: [reimbursementClaimId], references: [id])
   assignedUser               User?                     @relation("AssignedWorkItems", fields: [assignedUserId], references: [id])
 
   @@index([workspaceId, app, status, recordTier, createdAt])
@@ -1401,6 +1417,7 @@ model WorkItem {
   @@index([complianceYearId, status, recordTier])
   @@index([trainingPlanSubmissionId, status, recordTier])
   @@index([trainingMonitoringRecordId, status, recordTier])
+  @@index([reimbursementClaimId, status, recordTier])
   @@index([assignedUserId, status, recordTier])
   @@index([status, emailNotifiedAt, createdAt])
 }

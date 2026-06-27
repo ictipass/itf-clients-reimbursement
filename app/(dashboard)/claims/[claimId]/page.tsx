@@ -7,6 +7,9 @@ import {
   attachTrainingsToClaimAction,
   deleteClaimLineAction,
   detachTrainingFromClaimAction,
+  forwardClaimToAreaReimbursementOfficerAction,
+  forwardClaimToHeadOfTrainingAction,
+  submitClaimToAreaManagerAction,
   updateClaimStaffEntriesAction,
   updateClaimLineAction,
   updateEmployerClaimCalculationAction,
@@ -91,6 +94,8 @@ export default async function ClaimDetailPage({
       chiefExecutiveName: true,
       employerDeclaredAt: true,
       status: true,
+      currentDesk: true,
+      submittedAt: true,
       documents: {
         where: {
           isActive: true,
@@ -179,6 +184,20 @@ export default async function ClaimDetailPage({
   }
 
   const canManageClaimTrainings = canSubmitClaim && claim.status === "DRAFT";
+  const canSubmitToAreaManager =
+    canSubmitClaim && claim.status === "DRAFT" && claim.currentDesk === "COMPANY";
+  const canForwardToHot =
+    claim.status === "SUBMITTED" &&
+    claim.currentDesk === "AREA_MANAGER" &&
+    (activeRole === "AREA_MANAGER" ||
+      activeRole === "SYSTEM_ADMIN" ||
+      activeRole === "WORKSPACE_APP_ADMIN");
+  const canForwardToAreaReimbursementOfficer =
+    claim.status === "SUBMITTED" &&
+    claim.currentDesk === "HEAD_OF_TRAINING" &&
+    (activeRole === "HEAD_OF_TRAINING" ||
+      activeRole === "SYSTEM_ADMIN" ||
+      activeRole === "WORKSPACE_APP_ADMIN");
   const staffEntriesByArea = {
     MANAGEMENT: claim.staffEntries.filter((entry) => entry.trainingArea === "MANAGEMENT"),
     SUPERVISORY: claim.staffEntries.filter((entry) => entry.trainingArea === "SUPERVISORY"),
@@ -308,7 +327,80 @@ export default async function ClaimDetailPage({
             {formatMoney(claim.calculatedAwardAmount)}
           </p>
         </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            Current desk
+          </p>
+          <p className="mt-2 text-sm font-semibold text-zinc-950">
+            {claim.currentDesk.replaceAll("_", " ")}
+          </p>
+          {claim.submittedAt ? (
+            <p className="mt-1 text-xs text-zinc-500">
+              Submitted{" "}
+              {new Intl.DateTimeFormat("en-NG", { dateStyle: "medium" }).format(
+                claim.submittedAt,
+              )}
+            </p>
+          ) : null}
+        </div>
       </section>
+
+      {(canSubmitToAreaManager ||
+        canForwardToHot ||
+        canForwardToAreaReimbursementOfficer) ? (
+        <section className="mt-8 rounded-lg border border-[#800020]/20 bg-[#800020]/5 p-5">
+          <h2 className="text-xl font-semibold tracking-tight">Claim routing</h2>
+          <p className="mt-2 text-sm leading-6 text-zinc-700">
+            Move this claim only when your desk has completed its current action. The attention
+            badge follows this current desk, so the previous desk is cleared when you forward.
+          </p>
+          {canSubmitToAreaManager ? (
+            <form
+              action={submitClaimToAreaManagerAction.bind(null, claim.id)}
+              className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]"
+            >
+              <input
+                name="note"
+                placeholder="Optional submission note"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Submit to Area Manager
+              </button>
+            </form>
+          ) : null}
+          {canForwardToHot ? (
+            <form
+              action={forwardClaimToHeadOfTrainingAction.bind(null, claim.id)}
+              className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]"
+            >
+              <input
+                name="note"
+                placeholder="Optional Area Manager note"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Forward to HOT
+              </button>
+            </form>
+          ) : null}
+          {canForwardToAreaReimbursementOfficer ? (
+            <form
+              action={forwardClaimToAreaReimbursementOfficerAction.bind(null, claim.id)}
+              className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]"
+            >
+              <input
+                name="note"
+                placeholder="Optional HOT note"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Forward to A/O Reimbursement Officer
+              </button>
+            </form>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Attached approved trainings</h2>

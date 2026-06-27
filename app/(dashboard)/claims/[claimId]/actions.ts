@@ -10,7 +10,10 @@ import {
   attachTrainingsToClaim,
   deleteClaimLine,
   detachTrainingFromClaim,
+  forwardClaimToAreaReimbursementOfficer,
+  forwardClaimToHeadOfTraining,
   getClaimEvidenceKinds,
+  submitClaimToAreaManager,
   updateClaimLine,
   updateClaimRecommendation,
   updateClaimForm,
@@ -95,6 +98,72 @@ export async function updateClaimFormAction(claimId: string, formData: FormData)
 
   revalidatePath(`/claims`);
   revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}`);
+}
+
+export async function submitClaimToAreaManagerAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await submitClaimToAreaManager({
+    claimId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/dashboard");
+  redirect(`/claims/${claimId}`);
+}
+
+export async function forwardClaimToHeadOfTrainingAction(
+  claimId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await forwardClaimToHeadOfTraining({
+    claimId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/dashboard");
+  redirect(`/claims/${claimId}`);
+}
+
+export async function forwardClaimToAreaReimbursementOfficerAction(
+  claimId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await forwardClaimToAreaReimbursementOfficer({
+    claimId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/dashboard");
   redirect(`/claims/${claimId}`);
 }
 
