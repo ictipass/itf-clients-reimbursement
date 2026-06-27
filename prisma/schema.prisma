@@ -134,6 +134,12 @@ enum ReimbursementStaffTrainingArea {
   OCCUPATIONAL
 }
 
+enum ReimbursementComputationTableStatus {
+  DRAFT
+  PREPARED
+  CONFIRMED
+}
+
 enum RegistrationApplicationKind {
   NEW_EMPLOYER
   LEGACY_EMPLOYER
@@ -1126,6 +1132,7 @@ model ReimbursementClaim {
   documents                Document[]
   lines                    ReimbursementClaimLine[]
   staffEntries             ReimbursementClaimStaffEntry[]
+  computationTables        ReimbursementComputationTable[]
   decisions                Decision[]
   comments                 Comment[]
 
@@ -1188,6 +1195,59 @@ model ReimbursementClaimStaffEntry {
   @@index([reimbursementClaimId, trainingArea, recordTier])
   @@index([reimbursementClaimId, normalizedEmployeeId, recordTier])
   @@index([duplicateGroupKey, recordTier])
+}
+
+model ReimbursementComputationTable {
+  id                               String                              @id @default(cuid())
+  reimbursementClaimId             String
+  companyName                      String
+  itfEmployerNumber                String?
+  claimYear                        Int?
+  contributionPaid                 Decimal                             @db.Decimal(14, 2)
+  receiptNumber                    String?
+  fiftyPercentOfContribution       Decimal                             @db.Decimal(14, 2)
+  areaOfficeName                   String?
+  amountRecommended                Decimal                             @db.Decimal(14, 2)
+  amountRecommendedInWords         String?
+  recommendedContributionPercent   Decimal?                            @db.Decimal(5, 2)
+  preparedById                     String?
+  preparedByName                   String?
+  preparedAt                       DateTime?
+  confirmedById                    String?
+  confirmedByName                  String?
+  confirmedAt                      DateTime?
+  status                           ReimbursementComputationTableStatus @default(DRAFT)
+  recordTier                       RecordTier                          @default(HOT)
+  createdAt                        DateTime                            @default(now())
+  updatedAt                        DateTime                            @updatedAt
+  reimbursementClaim               ReimbursementClaim                  @relation(fields: [reimbursementClaimId], references: [id], onDelete: Cascade)
+  rows                             ReimbursementComputationTableRow[]
+
+  @@index([reimbursementClaimId, status, recordTier])
+  @@index([preparedById, recordTier])
+  @@index([confirmedById, recordTier])
+}
+
+model ReimbursementComputationTableRow {
+  id                                      String                        @id @default(cuid())
+  computationTableId                      String
+  sortOrder                               Int
+  emphasis                                Int?
+  areaOfTraining                          String
+  totalEmployees                          Int?
+  numberTrained                           Int?
+  percentTrained                          Decimal?                      @db.Decimal(5, 2)
+  maxPercentClaimable                     Decimal?                      @db.Decimal(5, 2)
+  percentTrainingContributionAwarded      Decimal?                      @db.Decimal(5, 2)
+  equivalentAmountOfContribution          Decimal?                      @db.Decimal(14, 2)
+  expenditureClaimed                      Decimal?                      @db.Decimal(14, 2)
+  amountAwardedLowerOfContributionOrClaim Decimal?                      @db.Decimal(14, 2)
+  remarks                                 String?
+  createdAt                               DateTime                      @default(now())
+  updatedAt                               DateTime                      @updatedAt
+  computationTable                        ReimbursementComputationTable @relation(fields: [computationTableId], references: [id], onDelete: Cascade)
+
+  @@index([computationTableId, sortOrder])
 }
 
 model Document {
