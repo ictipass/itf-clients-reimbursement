@@ -7,6 +7,7 @@ import {
   attachTrainingsToClaimAction,
   deleteClaimLineAction,
   detachTrainingFromClaimAction,
+  updateClaimStaffEntriesAction,
   updateClaimLineAction,
   updateEmployerClaimCalculationAction,
   updateClaimRecommendationAction,
@@ -42,6 +43,10 @@ function formatPercent(value: { toString(): string } | null) {
   return `${Number(value.toString()).toLocaleString("en-NG", {
     maximumFractionDigits: 2,
   })}%`;
+}
+
+function formatStaffArea(value: string) {
+  return value.replaceAll("_", " ");
 }
 
 export default async function ClaimDetailPage({
@@ -122,6 +127,20 @@ export default async function ClaimDetailPage({
           createdAt: "asc",
         },
       },
+      staffEntries: {
+        where: {
+          recordTier: "HOT",
+        },
+        select: {
+          id: true,
+          employeeId: true,
+          employeeName: true,
+          trainingArea: true,
+          duplicateGroupKey: true,
+          duplicateDetectedAt: true,
+        },
+        orderBy: [{ trainingArea: "asc" }, { employeeId: "asc" }],
+      },
       company: {
         select: {
           id: true,
@@ -160,6 +179,12 @@ export default async function ClaimDetailPage({
   }
 
   const canManageClaimTrainings = canSubmitClaim && claim.status === "DRAFT";
+  const staffEntriesByArea = {
+    MANAGEMENT: claim.staffEntries.filter((entry) => entry.trainingArea === "MANAGEMENT"),
+    SUPERVISORY: claim.staffEntries.filter((entry) => entry.trainingArea === "SUPERVISORY"),
+    OCCUPATIONAL: claim.staffEntries.filter((entry) => entry.trainingArea === "OCCUPATIONAL"),
+  };
+  const duplicateStaffEntries = claim.staffEntries.filter((entry) => entry.duplicateGroupKey);
   const availableTrainings = canManageClaimTrainings
     ? await getDb().trainingRequest.findMany({
         where: {
@@ -364,6 +389,137 @@ export default async function ClaimDetailPage({
             <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
               Attach selected trainings
             </button>
+          </form>
+        ) : null}
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <h2 className="text-xl font-semibold tracking-tight">Claim staff entries</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          Enter Staff/Employee IDs used for Management, Supervisory, and Occupational claim
+          counts. Use one staff member per line. Add an optional name after a comma, for example:
+          <span className="ml-1 font-mono text-xs">EMP-001, Ada Lovelace</span>.
+        </p>
+
+        {duplicateStaffEntries.length > 0 ? (
+          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+            <p className="font-semibold">Duplicate Staff/Employee IDs detected</p>
+            <p className="mt-1">
+              These entries are flagged for ITF review/removal because a staff member should appear
+              in only one of Management, Supervisory, or Occupational.
+            </p>
+            <div className="mt-3 grid gap-2">
+              {Object.entries(
+                duplicateStaffEntries.reduce<Record<string, typeof duplicateStaffEntries>>(
+                  (groups, entry) => {
+                    const key = entry.duplicateGroupKey ?? "UNKNOWN";
+                    groups[key] = [...(groups[key] ?? []), entry];
+                    return groups;
+                  },
+                  {},
+                ),
+              ).map(([groupKey, entries]) => (
+                <div key={groupKey} className="rounded-md bg-white px-3 py-2 ring-1 ring-amber-100">
+                  <p className="font-mono text-xs font-semibold">{groupKey}</p>
+                  <p className="mt-1 text-xs">
+                    {entries
+                      .map(
+                        (entry) =>
+                          `${entry.employeeId} · ${formatStaffArea(entry.trainingArea)}${
+                            entry.employeeName ? ` · ${entry.employeeName}` : ""
+                          }`,
+                      )
+                      .join(" | ")}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : claim.staffEntries.length > 0 ? (
+          <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
+            No duplicate Staff/Employee IDs detected.
+          </p>
+        ) : null}
+
+        <div className="mt-5 grid gap-4 md:grid-cols-3">
+          {Object.entries(staffEntriesByArea).map(([area, entries]) => (
+            <div key={area} className="rounded-lg border border-zinc-100 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <h3 className="font-semibold text-zinc-950">{formatStaffArea(area)}</h3>
+                <span className="rounded-full bg-zinc-100 px-2 py-1 text-xs font-semibold text-zinc-600">
+                  {entries.length}
+                </span>
+              </div>
+              {entries.length === 0 ? (
+                <p className="mt-3 text-sm text-zinc-500">No staff entries yet.</p>
+              ) : (
+                <div className="mt-3 max-h-48 overflow-y-auto rounded-md bg-zinc-50 p-2">
+                  {entries.map((entry) => (
+                    <p
+                      key={entry.id}
+                      className={`text-xs leading-5 ${
+                        entry.duplicateGroupKey ? "font-semibold text-amber-800" : "text-zinc-600"
+                      }`}
+                    >
+                      {entry.employeeId}
+                      {entry.employeeName ? ` · ${entry.employeeName}` : ""}
+                    </p>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {canSubmitClaim && claim.status === "DRAFT" ? (
+          <form
+            action={updateClaimStaffEntriesAction.bind(null, claim.id)}
+            className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-3"
+          >
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Management staff
+              <textarea
+                name="managementStaff"
+                rows={8}
+                defaultValue={staffEntriesByArea.MANAGEMENT
+                  .map((entry) =>
+                    entry.employeeName ? `${entry.employeeId}, ${entry.employeeName}` : entry.employeeId,
+                  )
+                  .join("\n")}
+                className="rounded-md border border-zinc-200 px-3 py-2 font-mono text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Supervisory staff
+              <textarea
+                name="supervisoryStaff"
+                rows={8}
+                defaultValue={staffEntriesByArea.SUPERVISORY
+                  .map((entry) =>
+                    entry.employeeName ? `${entry.employeeId}, ${entry.employeeName}` : entry.employeeId,
+                  )
+                  .join("\n")}
+                className="rounded-md border border-zinc-200 px-3 py-2 font-mono text-sm"
+              />
+            </label>
+            <label className="grid gap-2 text-sm font-medium text-zinc-700">
+              Occupational staff
+              <textarea
+                name="occupationalStaff"
+                rows={8}
+                defaultValue={staffEntriesByArea.OCCUPATIONAL
+                  .map((entry) =>
+                    entry.employeeName ? `${entry.employeeId}, ${entry.employeeName}` : entry.employeeId,
+                  )
+                  .join("\n")}
+                className="rounded-md border border-zinc-200 px-3 py-2 font-mono text-sm"
+              />
+            </label>
+            <div className="md:col-span-3">
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Save staff entries
+              </button>
+            </div>
           </form>
         ) : null}
       </section>

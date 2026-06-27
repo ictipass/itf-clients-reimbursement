@@ -18,6 +18,12 @@ export type ReimbursementStaffDuplicateGroup = {
   entries: Array<ReimbursementStaffEntryInput & { normalizedEmployeeId: string }>;
 };
 
+export type PreparedReimbursementStaffEntry = ReimbursementStaffEntryInput & {
+  normalizedEmployeeId: string;
+  duplicateGroupKey?: string;
+  duplicateDetectedAt?: Date;
+};
+
 export function normalizeClaimEmployeeId(employeeId: string) {
   const normalized = employeeId.trim().replace(/\s+/g, "").toUpperCase();
 
@@ -26,6 +32,25 @@ export function normalizeClaimEmployeeId(employeeId: string) {
   }
 
   return normalized;
+}
+
+export function parseClaimStaffEntryLines(
+  value: string,
+  trainingArea: ReimbursementStaffTrainingArea,
+) {
+  return value
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [employeeId, ...nameParts] = line.split(",");
+
+      return {
+        employeeId: employeeId.trim(),
+        employeeName: nameParts.join(",").trim() || undefined,
+        trainingArea,
+      } satisfies ReimbursementStaffEntryInput;
+    });
 }
 
 export function findDuplicateClaimStaffEntries(entries: ReimbursementStaffEntryInput[]) {
@@ -57,4 +82,22 @@ export function findDuplicateClaimStaffEntries(entries: ReimbursementStaffEntryI
           entries: groupEntries,
         }) satisfies ReimbursementStaffDuplicateGroup,
     );
+}
+
+export function prepareClaimStaffEntries(entries: ReimbursementStaffEntryInput[]) {
+  const duplicateGroups = findDuplicateClaimStaffEntries(entries);
+  const duplicateKeys = new Set(duplicateGroups.map((group) => group.normalizedEmployeeId));
+  const duplicateDetectedAt = duplicateKeys.size > 0 ? new Date() : undefined;
+
+  return entries.map((entry) => {
+    const normalizedEmployeeId = normalizeClaimEmployeeId(entry.employeeId);
+    const isDuplicate = duplicateKeys.has(normalizedEmployeeId);
+
+    return {
+      ...entry,
+      normalizedEmployeeId,
+      duplicateGroupKey: isDuplicate ? normalizedEmployeeId : undefined,
+      duplicateDetectedAt: isDuplicate ? duplicateDetectedAt : undefined,
+    } satisfies PreparedReimbursementStaffEntry;
+  });
 }

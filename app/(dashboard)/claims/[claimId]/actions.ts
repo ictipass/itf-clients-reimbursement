@@ -14,10 +14,12 @@ import {
   updateClaimLine,
   updateClaimRecommendation,
   updateClaimForm,
+  updateClaimStaffEntries,
   updateEmployerClaimCalculation,
   uploadClaimEvidence,
   type ClaimEvidenceKind,
 } from "@/lib/claims";
+import { parseClaimStaffEntryLines } from "@/lib/reimbursement-staff";
 
 function readOptionalString(formData: FormData, name: string) {
   const value = formData.get(name);
@@ -294,6 +296,37 @@ export async function updateEmployerClaimCalculationAction(
   }
 
   revalidatePath(`/claims`);
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}`);
+}
+
+export async function updateClaimStaffEntriesAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await updateClaimStaffEntries({
+    claimId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    entries: [
+      ...parseClaimStaffEntryLines(
+        readOptionalString(formData, "managementStaff") ?? "",
+        "MANAGEMENT",
+      ),
+      ...parseClaimStaffEntryLines(
+        readOptionalString(formData, "supervisoryStaff") ?? "",
+        "SUPERVISORY",
+      ),
+      ...parseClaimStaffEntryLines(
+        readOptionalString(formData, "occupationalStaff") ?? "",
+        "OCCUPATIONAL",
+      ),
+    ],
+  });
+
   revalidatePath(`/claims/${claimId}`);
   redirect(`/claims/${claimId}`);
 }

@@ -7,6 +7,10 @@ import {
   type ReimbursementCalculationInput,
   type ReimbursementAwardArea,
 } from "@/lib/reimbursement-calculation";
+import {
+  prepareClaimStaffEntries,
+  type ReimbursementStaffEntryInput,
+} from "@/lib/reimbursement-staff";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 
@@ -91,6 +95,13 @@ export type UpdateEmployerClaimCalculationInput = {
   requesterEmail: string;
   requesterRole: Role;
   calculation: ReimbursementCalculationInput;
+};
+
+export type UpdateClaimStaffEntriesInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  entries: ReimbursementStaffEntryInput[];
 };
 
 export function getClaimEvidenceKinds() {
@@ -767,6 +778,94 @@ export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimC
 
     return {
       id: claim.id,
+    };
+  });
+}
+
+export async function updateClaimStaffEntries(input: UpdateClaimStaffEntriesInput) {
+  if (!can(input.requesterRole, "claims:submit")) {
+    throw new Error("You do not have permission to update claim staff entries.");
+  }
+
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      status: "DRAFT",
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      company: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Editable reimbursement claim was not found.");
+  }
+
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      memberships: {
+        where: { isActive: true },
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    requester.memberships.some(
+      (membership) => membership.organizationId === claim.company.organizationId,
+    );
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to update claim staff entries.");
+  }
+
+  const preparedEntries = prepareClaimStaffEntries(input.entries);
+
+  return db.$transaction(async (tx) => {
+    await tx.reimbursementClaimStaffEntry.deleteMany({
+      where: {
+        reimbursementClaimId: claim.id,
+      },
+    });
+
+    if (preparedEntries.length > 0) {
+      await tx.reimbursementClaimStaffEntry.createMany({
+        data: preparedEntries.map((entry) => ({
+          reimbursementClaimId: claim.id,
+          employeeId: entry.employeeId.trim(),
+          normalizedEmployeeId: entry.normalizedEmployeeId,
+          employeeName: entry.employeeName?.trim() || null,
+          trainingArea: entry.trainingArea,
+          duplicateGroupKey: entry.duplicateGroupKey ?? null,
+          duplicateDetectedAt: entry.duplicateDetectedAt,
+        })),
+      });
+    }
+
+    return {
+      id: claim.id,
+      count: preparedEntries.length,
     };
   });
 }
