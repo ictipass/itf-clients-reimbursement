@@ -139,6 +139,14 @@ export function canManageAnnualCompliance(role: Role) {
   );
 }
 
+export function canManageClaimPolicy(role: Role) {
+  return (
+    role === "SYSTEM_ADMIN" ||
+    role === "DIRECTOR_FSD" ||
+    role === "HEAD_OF_DIVISION"
+  );
+}
+
 export function isItfRole(role: Role) {
   return (
     role.startsWith("ITF_") ||

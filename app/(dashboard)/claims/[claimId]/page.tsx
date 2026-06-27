@@ -13,6 +13,7 @@ import {
   uploadClaimEvidenceAction,
 } from "@/app/(dashboard)/claims/[claimId]/actions";
 import { authOptions } from "@/lib/auth";
+import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
 import { getClaimEvidenceKinds } from "@/lib/claims";
 import { getDb } from "@/lib/db";
 import { canUseSection } from "@/lib/feature-gates";
@@ -197,6 +198,10 @@ export default async function ClaimDetailPage({
         <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
           {claim.status.replaceAll("_", " ")}
         </span>
+      </div>
+
+      <div className="mt-6 rounded-lg border-2 border-red-300 bg-red-50 px-5 py-4 text-sm font-black uppercase leading-6 tracking-wide text-red-900 shadow-sm">
+        {CLAIM_SUBMISSION_DEADLINE_NOTICE}
       </div>
 
       <section className="mt-8 grid gap-4 md:grid-cols-4">

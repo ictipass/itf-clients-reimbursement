@@ -1,4 +1,4 @@
-import { can, type Permission, type Role } from "@/lib/rbac";
+import { can, canManageClaimPolicy, type Permission, type Role } from "@/lib/rbac";
 
 export type FeatureGate = {
   key: string;
@@ -76,6 +76,12 @@ export const featureGates: FeatureGate[] = [
     permissions: ["numbers:manage"],
   },
   {
+    key: "settings-claims",
+    label: "Claim settings",
+    routePrefix: "/settings/claims",
+    permissions: [],
+  },
+  {
     key: "settings-preferences",
     label: "Personal settings",
     routePrefix: "/settings/preferences",
@@ -90,6 +96,10 @@ export const featureGates: FeatureGate[] = [
 ];
 
 export function canUseFeature(role: Role, gate: FeatureGate) {
+  if (gate.key === "settings-claims") {
+    return canManageClaimPolicy(role);
+  }
+
   return gate.permissions.length === 0 || gate.permissions.some((permission) => can(role, permission));
 }
 

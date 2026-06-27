@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { createClaimAction } from "@/app/(dashboard)/claims/actions";
 import { authOptions } from "@/lib/auth";
+import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
 import { getDb } from "@/lib/db";
 import { can, isItfRole } from "@/lib/rbac";
 
@@ -161,6 +162,10 @@ export default async function ClaimsPage() {
         <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
           {claims.length} shown
         </span>
+      </div>
+
+      <div className="mt-6 rounded-lg border-2 border-red-300 bg-red-50 px-5 py-4 text-sm font-black uppercase leading-6 tracking-wide text-red-900 shadow-sm">
+        {CLAIM_SUBMISSION_DEADLINE_NOTICE}
       </div>
 
       {canCreateClaim ? (

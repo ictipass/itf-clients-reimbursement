@@ -1,4 +1,4 @@
-import { can, isItfRole, type Role } from "@/lib/rbac";
+import { can, canManageClaimPolicy, isItfRole, type Role } from "@/lib/rbac";
 
 export type NavItem = {
   href: string;
@@ -107,6 +107,12 @@ export const navGroups: NavGroup[] = [
       { href: "/settings/audit", label: "Audit log", module: "settings", isVisible: (role) => can(role, "audit:read") },
       { href: "/settings/users", label: "Users", module: "settings", isVisible: canUseSettings },
       { href: "/settings/email", label: "Email delivery", module: "settings", isVisible: canUseSettings },
+      {
+        href: "/settings/claims",
+        label: "Claim settings",
+        module: "settings",
+        isVisible: canManageClaimPolicy,
+      },
       {
         href: "/settings/employers",
         label: "Employer access",

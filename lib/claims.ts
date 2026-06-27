@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { isLateClaimSubmission } from "@/lib/claim-policy";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
@@ -128,6 +129,16 @@ export async function createClaim(input: CreateClaimInput) {
         select: {
           organizationId: true,
           itfEmployerNumber: true,
+          organization: {
+            select: {
+              workspaceId: true,
+              workspace: {
+                select: {
+                  allowLateClaimSubmissions: true,
+                },
+              },
+            },
+          },
         },
       },
     },
@@ -174,6 +185,20 @@ export async function createClaim(input: CreateClaimInput) {
   }
 
   const trainingYears = new Set(requests.map((request) => request.startsAt.getFullYear()));
+  if (trainingYears.size !== 1) {
+    throw new Error("A reimbursement claim must belong to one training year.");
+  }
+
+  const claimYear = requests[0].startsAt.getFullYear();
+  if (
+    isLateClaimSubmission(claimYear) &&
+    !requests[0].company.organization.workspace.allowLateClaimSubmissions
+  ) {
+    throw new Error(
+      `Claims for the ${claimYear} training year closed on 30 June ${claimYear + 1}.`,
+    );
+  }
+
   const claimedAmount = requests.reduce(
     (total, request) => total + Number(request.estimatedCost.toString()),
     0,
@@ -187,7 +212,7 @@ export async function createClaim(input: CreateClaimInput) {
     data: {
       companyId: requests[0].companyId,
       reference: buildClaimReference(referenceDate),
-      claimYear: trainingYears.size === 1 ? referenceDate.getFullYear() : undefined,
+      claimYear,
       itfReceiptNumber: requests[0].company.itfEmployerNumber,
       claimedAmount,
       status: "DRAFT",

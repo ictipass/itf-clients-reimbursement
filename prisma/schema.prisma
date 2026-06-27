@@ -299,21 +299,22 @@ enum AuditAction {
 }
 
 model Workspace {
-  id                   String                      @id @default(cuid())
-  name                 String
-  slug                 String                      @unique
-  externalId           String?                     @unique
-  isActive             Boolean                     @default(true)
-  createdAt            DateTime                    @default(now())
-  updatedAt            DateTime                    @updatedAt
-  organizations        Organization[]
-  areaOffices          AreaOffice[]
-  memberships          Membership[]
-  certificateTemplates CertificateTemplate[]
-  signatureAssets      SignatureAsset[]
-  managedNumbers       ManagedRegistrationNumber[]
-  workItems            WorkItem[]
-  auditEvents          AuditEvent[]
+  id                        String                      @id @default(cuid())
+  name                      String
+  slug                      String                      @unique
+  externalId                String?                     @unique
+  allowLateClaimSubmissions Boolean                     @default(false)
+  isActive                  Boolean                     @default(true)
+  createdAt                 DateTime                    @default(now())
+  updatedAt                 DateTime                    @updatedAt
+  organizations             Organization[]
+  areaOffices               AreaOffice[]
+  memberships               Membership[]
+  certificateTemplates      CertificateTemplate[]
+  signatureAssets           SignatureAsset[]
+  managedNumbers            ManagedRegistrationNumber[]
+  workItems                 WorkItem[]
+  auditEvents               AuditEvent[]
 }
 
 model AreaOffice {
