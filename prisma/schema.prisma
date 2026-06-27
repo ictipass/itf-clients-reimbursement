@@ -105,6 +105,29 @@ enum WorkflowStatus {
   ARCHIVED
 }
 
+enum ReimbursementEmployerScale {
+  MEDIUM_LARGE
+  SMALL
+}
+
+enum ReimbursementAwardArea {
+  MANAGEMENT
+  SUPERVISORY
+  OCCUPATIONAL
+  SMALL_SCALE_TRAINING
+  LEARNING_DEVELOPMENT_PERSONNEL
+  HEALTH_SAFETY_ENVIRONMENT
+  SIWES
+  TRAINING_PLAN
+}
+
+enum ReimbursementClaimLineStage {
+  EMPLOYER
+  AREA_OFFICE
+  HEADQUARTERS
+  AUDIT
+}
+
 enum RegistrationApplicationKind {
   NEW_EMPLOYER
   LEGACY_EMPLOYER
@@ -1066,6 +1089,7 @@ model ReimbursementClaim {
   companyId                String
   reference                String                       @unique
   claimYear                Int?
+  employerScale            ReimbursementEmployerScale?
   trainingContributionDue  Decimal?                     @db.Decimal(14, 2)
   trainingContributionPaid Decimal?                     @db.Decimal(14, 2)
   maxReimbursableAmount    Decimal?                     @db.Decimal(14, 2)
@@ -1077,6 +1101,9 @@ model ReimbursementClaim {
   eligibleAmount           Decimal?                     @db.Decimal(14, 2)
   claimRecommendedAmount   Decimal?                     @db.Decimal(14, 2)
   claimRecommendedInWords  String?
+  uncappedAwardPercent     Decimal?                     @db.Decimal(5, 2)
+  cappedAwardPercent       Decimal?                     @db.Decimal(5, 2)
+  calculatedAwardAmount    Decimal?                     @db.Decimal(14, 2)
   paymentDetails           String?
   employerOfficerName      String?
   employerOfficerRank      String?
@@ -1113,6 +1140,9 @@ model ReimbursementClaimTraining {
 model ReimbursementClaimLine {
   id                   String             @id @default(cuid())
   reimbursementClaimId String
+  stage                ReimbursementClaimLineStage @default(EMPLOYER)
+  awardArea            ReimbursementAwardArea?
+  sourceLineId         String?
   trainingArea         String
   totalWorkforce       Int?
   totalTrained         Int?
@@ -1129,6 +1159,8 @@ model ReimbursementClaimLine {
   reimbursementClaim   ReimbursementClaim @relation(fields: [reimbursementClaimId], references: [id])
 
   @@index([reimbursementClaimId])
+  @@index([reimbursementClaimId, stage])
+  @@index([sourceLineId])
 }
 
 model Document {
