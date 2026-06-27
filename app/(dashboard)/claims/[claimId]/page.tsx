@@ -8,6 +8,7 @@ import {
   deleteClaimLineAction,
   detachTrainingFromClaimAction,
   updateClaimLineAction,
+  updateEmployerClaimCalculationAction,
   updateClaimRecommendationAction,
   updateClaimFormAction,
   uploadClaimEvidenceAction,
@@ -33,6 +34,16 @@ function decimalInput(value: { toString(): string } | null) {
   return value?.toString() ?? "";
 }
 
+function formatPercent(value: { toString(): string } | null) {
+  if (!value) {
+    return "Not calculated";
+  }
+
+  return `${Number(value.toString()).toLocaleString("en-NG", {
+    maximumFractionDigits: 2,
+  })}%`;
+}
+
 export default async function ClaimDetailPage({
   params,
 }: Readonly<{
@@ -55,6 +66,7 @@ export default async function ClaimDetailPage({
       id: true,
       reference: true,
       claimYear: true,
+      employerScale: true,
       trainingContributionDue: true,
       trainingContributionPaid: true,
       itfReceiptNumber: true,
@@ -65,6 +77,9 @@ export default async function ClaimDetailPage({
       eligibleAmount: true,
       claimRecommendedAmount: true,
       claimRecommendedInWords: true,
+      uncappedAwardPercent: true,
+      cappedAwardPercent: true,
+      calculatedAwardAmount: true,
       paymentDetails: true,
       employerOfficerName: true,
       employerOfficerRank: true,
@@ -89,6 +104,8 @@ export default async function ClaimDetailPage({
       lines: {
         select: {
           id: true,
+          stage: true,
+          awardArea: true,
           trainingArea: true,
           totalWorkforce: true,
           totalTrained: true,
@@ -235,6 +252,37 @@ export default async function ClaimDetailPage({
             {formatMoney(claim.claimedAmount)}
           </p>
         </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            Employer scale
+          </p>
+          <p className="mt-2 text-sm font-semibold text-zinc-950">
+            {claim.employerScale?.replaceAll("_", " ") ?? "Not selected"}
+          </p>
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            Award %
+          </p>
+          <p className="mt-2 text-sm font-semibold text-zinc-950">
+            {formatPercent(claim.cappedAwardPercent)}
+          </p>
+          {claim.uncappedAwardPercent &&
+          claim.cappedAwardPercent &&
+          claim.uncappedAwardPercent.toString() !== claim.cappedAwardPercent.toString() ? (
+            <p className="mt-1 text-xs text-zinc-500">
+              Capped from {formatPercent(claim.uncappedAwardPercent)}
+            </p>
+          ) : null}
+        </div>
+        <div className="rounded-lg border border-zinc-200 bg-white p-4">
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+            Calculated award
+          </p>
+          <p className="mt-2 text-sm font-semibold text-zinc-950">
+            {formatMoney(claim.calculatedAwardAmount)}
+          </p>
+        </div>
       </section>
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
@@ -322,6 +370,10 @@ export default async function ClaimDetailPage({
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Form 2A/2B calculations</h2>
+        <p className="mt-2 text-sm leading-6 text-zinc-600">
+          Enter the employer&apos;s claim schedule. The system applies the official Form 2B award
+          scale and writes the calculated employer rows below.
+        </p>
         {claim.lines.length === 0 ? (
           <p className="mt-3 text-sm leading-6 text-zinc-600">
             No calculation row has been added to this claim yet.
@@ -334,6 +386,16 @@ export default async function ClaimDetailPage({
                   action={updateClaimLineAction.bind(null, claim.id, line.id)}
                   className="grid gap-3 md:grid-cols-4"
                 >
+                  <div className="md:col-span-4 flex flex-wrap gap-2 text-xs font-semibold text-zinc-500">
+                    <span className="rounded-full bg-zinc-100 px-2 py-1">
+                      {line.stage.replaceAll("_", " ")}
+                    </span>
+                    {line.awardArea ? (
+                      <span className="rounded-full bg-[#800020]/10 px-2 py-1 text-[#65001a]">
+                        {line.awardArea.replaceAll("_", " ")}
+                      </span>
+                    ) : null}
+                  </div>
                   <input
                     name="trainingArea"
                     defaultValue={line.trainingArea}
@@ -429,39 +491,116 @@ export default async function ClaimDetailPage({
         )}
 
         {canEditCalculations ? (
-          <form
-            action={addClaimLineAction.bind(null, claim.id)}
-            className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 md:grid-cols-4"
-          >
-            <input
-              name="trainingArea"
-              required
-              placeholder="Training area"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
-              name="totalWorkforce"
-              type="number"
-              placeholder="Workforce"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
-              name="totalTrained"
-              type="number"
-              placeholder="Trained"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
-              name="employerClaimAmount"
-              type="number"
-              step="0.01"
-              placeholder="Employer claim"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-              Add calculation row
-            </button>
-          </form>
+          <div className="mt-5 grid gap-5 border-t border-zinc-100 pt-5">
+            <form
+              action={updateEmployerClaimCalculationAction.bind(null, claim.id)}
+              className="grid gap-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4"
+            >
+              <input type="hidden" name="employerScale" value="MEDIUM_LARGE" />
+              <h3 className="font-semibold text-zinc-950">Medium/Large employer schedule</h3>
+              <div className="grid gap-3 md:grid-cols-4">
+                <input
+                  name="trainingContributionPaid"
+                  type="number"
+                  step="0.01"
+                  required
+                  defaultValue={decimalInput(claim.trainingContributionPaid)}
+                  placeholder="Contribution paid"
+                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                />
+                {[
+                  ["management", "Management"],
+                  ["supervisory", "Supervisory"],
+                  ["occupational", "Occupational"],
+                ].map(([key, label]) => (
+                  <div key={key} className="grid gap-2 rounded-md bg-white p-3 ring-1 ring-zinc-200">
+                    <p className="text-sm font-semibold text-zinc-900">{label}</p>
+                    <input
+                      name={`${key}TotalStaff`}
+                      type="number"
+                      min="0"
+                      required
+                      placeholder="Total staff"
+                      className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                    />
+                    <input
+                      name={`${key}TotalTrained`}
+                      type="number"
+                      min="0"
+                      required
+                      placeholder="Trained"
+                      className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                    />
+                    <select
+                      name={`${key}EmphasisRank`}
+                      required
+                      className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                    >
+                      <option value="">Emphasis rank</option>
+                      <option value="1">1st emphasis</option>
+                      <option value="2">2nd emphasis</option>
+                      <option value="3">3rd emphasis</option>
+                    </select>
+                  </div>
+                ))}
+                <div className="grid gap-2 rounded-md bg-white p-3 ring-1 ring-zinc-200">
+                  <p className="text-sm font-semibold text-zinc-900">L&D Personnel</p>
+                  <input name="ldTotalStaff" type="number" min="0" placeholder="Total L&D staff" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="ldTotalTrained" type="number" min="0" placeholder="L&D trained" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                </div>
+                <div className="grid gap-2 rounded-md bg-white p-3 ring-1 ring-zinc-200">
+                  <p className="text-sm font-semibold text-zinc-900">HSE</p>
+                  <input name="hseTotalWorkforce" type="number" min="0" placeholder="Total workforce" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="hseTotalTrained" type="number" min="0" placeholder="HSE trained" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                </div>
+                <input name="siwesStudentsAccepted" type="number" min="0" placeholder="SIWES students" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
+                <label className="flex min-h-10 items-center gap-2 rounded-md bg-white px-3 text-sm font-medium ring-1 ring-zinc-200">
+                  <input name="trainingPlanSubmittedPromptly" type="checkbox" className="size-4 accent-[#800020]" />
+                  Training plan submitted by 31 March
+                </label>
+              </div>
+              <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Calculate Medium/Large claim
+              </button>
+            </form>
+
+            <form
+              action={updateEmployerClaimCalculationAction.bind(null, claim.id)}
+              className="grid gap-4 rounded-lg border border-zinc-200 bg-zinc-50 p-4"
+            >
+              <input type="hidden" name="employerScale" value="SMALL" />
+              <h3 className="font-semibold text-zinc-950">Small Scale employer schedule</h3>
+              <div className="grid gap-3 md:grid-cols-4">
+                <input name="trainingContributionPaid" type="number" step="0.01" required defaultValue={decimalInput(claim.trainingContributionPaid)} placeholder="Contribution paid" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
+                <input name="smallTotalStaff" type="number" min="0" required placeholder="Total staff" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
+                <input name="smallTotalTrained" type="number" min="0" required placeholder="Total trained" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
+                <input name="siwesStudentsAccepted" type="number" min="0" placeholder="SIWES students" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
+                <label className="flex min-h-10 items-center gap-2 rounded-md bg-white px-3 text-sm font-medium ring-1 ring-zinc-200">
+                  <input name="trainingPlanSubmittedPromptly" type="checkbox" className="size-4 accent-[#800020]" />
+                  Training plan submitted by 31 March
+                </label>
+              </div>
+              <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Calculate Small Scale claim
+              </button>
+            </form>
+
+            <form
+              action={addClaimLineAction.bind(null, claim.id)}
+              className="grid gap-3 rounded-lg border border-dashed border-zinc-300 p-4 md:grid-cols-4"
+            >
+              <p className="text-sm font-semibold text-zinc-950 md:col-span-4">
+                Manual adjustment row
+              </p>
+              <input name="trainingArea" required placeholder="Training area" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+              <input name="totalWorkforce" type="number" placeholder="Workforce" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+              <input name="totalTrained" type="number" placeholder="Trained" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+              <input name="employerClaimAmount" type="number" step="0.01" placeholder="Employer claim" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+              <button className="min-h-10 rounded-md border border-zinc-200 px-4 text-sm font-semibold text-zinc-800">
+                Add manual row
+              </button>
+            </form>
+          </div>
         ) : null}
       </section>
 

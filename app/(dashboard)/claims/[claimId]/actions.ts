@@ -14,6 +14,7 @@ import {
   updateClaimLine,
   updateClaimRecommendation,
   updateClaimForm,
+  updateEmployerClaimCalculation,
   uploadClaimEvidence,
   type ClaimEvidenceKind,
 } from "@/lib/claims";
@@ -181,6 +182,116 @@ export async function updateClaimRecommendationAction(claimId: string, formData:
     claimRecommendedInWords: readOptionalString(formData, "claimRecommendedInWords"),
     reviewerRemarks: readOptionalString(formData, "reviewerRemarks"),
   });
+
+  revalidatePath(`/claims`);
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}`);
+}
+
+function readRequiredPositiveNumber(formData: FormData, name: string) {
+  const number = readRequiredNumber(formData, name);
+
+  if (number < 0) {
+    throw new Error(`${name} cannot be negative.`);
+  }
+
+  return number;
+}
+
+function readTrainingEmphasisRank(formData: FormData, name: string) {
+  const rank = readRequiredNumber(formData, name);
+
+  if (rank !== 1 && rank !== 2 && rank !== 3) {
+    throw new Error(`${name} must be 1, 2, or 3.`);
+  }
+
+  return rank;
+}
+
+export async function updateEmployerClaimCalculationAction(
+  claimId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  const employerScale = readOptionalString(formData, "employerScale");
+  const trainingContributionPaid = readRequiredPositiveNumber(
+    formData,
+    "trainingContributionPaid",
+  );
+  const siwesStudentsAccepted = readOptionalNumber(formData, "siwesStudentsAccepted");
+  const trainingPlanSubmittedPromptly = formData.get("trainingPlanSubmittedPromptly") === "on";
+
+  if (employerScale === "SMALL") {
+    await updateEmployerClaimCalculation({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      calculation: {
+        employerScale,
+        trainingContributionPaid,
+        smallScaleTraining: {
+          totalStaff: readRequiredPositiveNumber(formData, "smallTotalStaff"),
+          totalTrained: readRequiredPositiveNumber(formData, "smallTotalTrained"),
+        },
+        siwesStudentsAccepted,
+        trainingPlanSubmittedPromptly,
+      },
+    });
+  } else if (employerScale === "MEDIUM_LARGE") {
+    await updateEmployerClaimCalculation({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      calculation: {
+        employerScale,
+        trainingContributionPaid,
+        emphasisRanks: {
+          MANAGEMENT: readTrainingEmphasisRank(formData, "managementEmphasisRank"),
+          SUPERVISORY: readTrainingEmphasisRank(formData, "supervisoryEmphasisRank"),
+          OCCUPATIONAL: readTrainingEmphasisRank(formData, "occupationalEmphasisRank"),
+        },
+        trainingAreas: {
+          MANAGEMENT: {
+            totalStaff: readRequiredPositiveNumber(formData, "managementTotalStaff"),
+            totalTrained: readRequiredPositiveNumber(formData, "managementTotalTrained"),
+          },
+          SUPERVISORY: {
+            totalStaff: readRequiredPositiveNumber(formData, "supervisoryTotalStaff"),
+            totalTrained: readRequiredPositiveNumber(formData, "supervisoryTotalTrained"),
+          },
+          OCCUPATIONAL: {
+            totalStaff: readRequiredPositiveNumber(formData, "occupationalTotalStaff"),
+            totalTrained: readRequiredPositiveNumber(formData, "occupationalTotalTrained"),
+          },
+        },
+        learningDevelopmentPersonnel:
+          readOptionalNumber(formData, "ldTotalStaff") !== undefined ||
+          readOptionalNumber(formData, "ldTotalTrained") !== undefined
+            ? {
+                totalStaff: readRequiredPositiveNumber(formData, "ldTotalStaff"),
+                totalTrained: readRequiredPositiveNumber(formData, "ldTotalTrained"),
+              }
+            : undefined,
+        healthSafetyEnvironment:
+          readOptionalNumber(formData, "hseTotalWorkforce") !== undefined ||
+          readOptionalNumber(formData, "hseTotalTrained") !== undefined
+            ? {
+                totalWorkforce: readRequiredPositiveNumber(formData, "hseTotalWorkforce"),
+                totalTrained: readRequiredPositiveNumber(formData, "hseTotalTrained"),
+              }
+            : undefined,
+        siwesStudentsAccepted,
+        trainingPlanSubmittedPromptly,
+      },
+    });
+  } else {
+    throw new Error("Unsupported employer scale.");
+  }
 
   revalidatePath(`/claims`);
   revalidatePath(`/claims/${claimId}`);

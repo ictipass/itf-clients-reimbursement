@@ -2,6 +2,11 @@ import { getDb } from "@/lib/db";
 import { isLateClaimSubmission } from "@/lib/claim-policy";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
+import {
+  calculateReimbursementAward,
+  type ReimbursementCalculationInput,
+  type ReimbursementAwardArea,
+} from "@/lib/reimbursement-calculation";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 
@@ -79,6 +84,13 @@ export type ClaimLineInput = {
   percentAwarded?: number;
   amountAwarded?: number;
   remarks?: string;
+};
+
+export type UpdateEmployerClaimCalculationInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  calculation: ReimbursementCalculationInput;
 };
 
 export function getClaimEvidenceKinds() {
@@ -658,6 +670,107 @@ export async function updateClaimRecommendation(input: UpdateClaimRecommendation
   });
 }
 
+export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimCalculationInput) {
+  if (!can(input.requesterRole, "claims:submit")) {
+    throw new Error("You do not have permission to update reimbursement claim calculations.");
+  }
+
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      status: "DRAFT",
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      company: {
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Editable reimbursement claim was not found.");
+  }
+
+  const requester = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      memberships: {
+        where: { isActive: true },
+        select: {
+          organizationId: true,
+        },
+      },
+    },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasOrganizationAccess =
+    isItfRole(input.requesterRole) ||
+    requester.memberships.some(
+      (membership) => membership.organizationId === claim.company.organizationId,
+    );
+
+  if (!hasOrganizationAccess) {
+    throw new Error("You do not have access to update this claim calculation.");
+  }
+
+  const result = calculateReimbursementAward(input.calculation);
+  const lines = result.lines.map((line) =>
+    buildEmployerCalculationLine(
+      line,
+      input.calculation.trainingContributionPaid,
+      input.calculation,
+    ),
+  );
+
+  return db.$transaction(async (tx) => {
+    await tx.reimbursementClaimLine.deleteMany({
+      where: {
+        reimbursementClaimId: claim.id,
+        stage: "EMPLOYER",
+      },
+    });
+
+    await tx.reimbursementClaim.update({
+      where: {
+        id: claim.id,
+      },
+      data: {
+        employerScale: input.calculation.employerScale,
+        trainingContributionPaid: input.calculation.trainingContributionPaid,
+        claimedAmount: result.totalAmountAwarded,
+        uncappedAwardPercent: result.uncappedTotalAwardPercent,
+        cappedAwardPercent: result.cappedTotalAwardPercent,
+        calculatedAwardAmount: result.totalAmountAwarded,
+        lines: {
+          create: lines,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    return {
+      id: claim.id,
+    };
+  });
+}
+
 export async function addClaimLine(input: ClaimLineInput) {
   const claim = await assertClaimLineAccess(input);
 
@@ -795,4 +908,119 @@ function buildClaimLineData(input: ClaimLineInput, claimId: string) {
     amountAwarded: input.amountAwarded,
     remarks: input.remarks,
   };
+}
+
+function buildEmployerCalculationLine(
+  line: {
+    area: ReimbursementAwardArea;
+    percentTrained?: number;
+    awardPercent: number;
+    amountAwarded: number;
+  },
+  trainingContributionPaid: number,
+  calculation: ReimbursementCalculationInput,
+) {
+  const counts = getCalculationLineCounts(line.area, calculation);
+
+  return {
+    stage: "EMPLOYER" as const,
+    awardArea: line.area,
+    trainingArea: formatAwardArea(line.area),
+    totalWorkforce: counts.totalWorkforce,
+    totalTrained: counts.totalTrained,
+    percentTrained: line.percentTrained,
+    emphasisNumber: getCalculationLineEmphasisNumber(line.area, calculation),
+    contributionPaid: trainingContributionPaid,
+    employerClaimAmount: line.amountAwarded,
+    percentAwarded: line.awardPercent,
+    amountAwarded: line.amountAwarded,
+  };
+}
+
+function formatAwardArea(area: ReimbursementAwardArea) {
+  const labels: Record<ReimbursementAwardArea, string> = {
+    MANAGEMENT: "Management",
+    SUPERVISORY: "Supervisory",
+    OCCUPATIONAL: "Occupational",
+    SMALL_SCALE_TRAINING: "Small Scale Training",
+    LEARNING_DEVELOPMENT_PERSONNEL: "Learning & Development Personnel",
+    HEALTH_SAFETY_ENVIRONMENT: "Health, Safety & Environment",
+    SIWES: "SIWES",
+    TRAINING_PLAN: "Training Plan",
+  };
+
+  return labels[area];
+}
+
+function getCalculationLineCounts(
+  area: ReimbursementAwardArea,
+  calculation: ReimbursementCalculationInput,
+) {
+  if (calculation.employerScale === "SMALL") {
+    if (area === "SMALL_SCALE_TRAINING") {
+      return {
+        totalWorkforce: calculation.smallScaleTraining.totalStaff,
+        totalTrained: calculation.smallScaleTraining.totalTrained,
+      };
+    }
+
+    if (area === "SIWES") {
+      return {
+        totalWorkforce: undefined,
+        totalTrained: calculation.siwesStudentsAccepted,
+      };
+    }
+
+    return {
+      totalWorkforce: undefined,
+      totalTrained: undefined,
+    };
+  }
+
+  if (area === "MANAGEMENT" || area === "SUPERVISORY" || area === "OCCUPATIONAL") {
+    return {
+      totalWorkforce: calculation.trainingAreas[area].totalStaff,
+      totalTrained: calculation.trainingAreas[area].totalTrained,
+    };
+  }
+
+  if (area === "LEARNING_DEVELOPMENT_PERSONNEL" && calculation.learningDevelopmentPersonnel) {
+    return {
+      totalWorkforce: calculation.learningDevelopmentPersonnel.totalStaff,
+      totalTrained: calculation.learningDevelopmentPersonnel.totalTrained,
+    };
+  }
+
+  if (area === "HEALTH_SAFETY_ENVIRONMENT" && calculation.healthSafetyEnvironment) {
+    return {
+      totalWorkforce: calculation.healthSafetyEnvironment.totalWorkforce,
+      totalTrained: calculation.healthSafetyEnvironment.totalTrained,
+    };
+  }
+
+  if (area === "SIWES") {
+    return {
+      totalWorkforce: undefined,
+      totalTrained: calculation.siwesStudentsAccepted,
+    };
+  }
+
+  return {
+    totalWorkforce: undefined,
+    totalTrained: undefined,
+  };
+}
+
+function getCalculationLineEmphasisNumber(
+  area: ReimbursementAwardArea,
+  calculation: ReimbursementCalculationInput,
+) {
+  if (
+    calculation.employerScale === "MEDIUM_LARGE" &&
+    (area === "MANAGEMENT" || area === "SUPERVISORY" || area === "OCCUPATIONAL")
+  ) {
+    return calculation.emphasisRanks[area];
+  }
+
+  return undefined;
 }
