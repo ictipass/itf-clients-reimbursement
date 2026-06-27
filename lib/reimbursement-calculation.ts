@@ -6,6 +6,7 @@ export const reimbursementTrainingEmphasisAreas = [
 
 export const reimbursementAwardAreas = [
   ...reimbursementTrainingEmphasisAreas,
+  "SMALL_SCALE_TRAINING",
   "LEARNING_DEVELOPMENT_PERSONNEL",
   "HEALTH_SAFETY_ENVIRONMENT",
   "SIWES",
@@ -29,27 +30,47 @@ export type ReimbursementLineCalculation = {
 };
 
 export type ReimbursementCalculationInput = {
-  employerScale: ContributingEmployerScale;
   trainingContributionPaid: number;
-  emphasisRanks: Record<ReimbursementTrainingEmphasisArea, TrainingEmphasisRank>;
-  trainingAreas: Record<
-    ReimbursementTrainingEmphasisArea,
-    {
-      totalStaff: number;
-      totalTrained: number;
-    }
-  >;
-  learningDevelopmentPersonnel?: {
-    totalStaff: number;
-    totalTrained: number;
-  };
-  healthSafetyEnvironment?: {
-    totalWorkforce: number;
-    totalTrained: number;
-  };
   siwesStudentsAccepted?: number;
   trainingPlanSubmittedPromptly?: boolean;
-};
+} & (
+  | {
+      employerScale: "MEDIUM_LARGE";
+      emphasisRanks: Record<ReimbursementTrainingEmphasisArea, TrainingEmphasisRank>;
+      trainingAreas: Record<
+        ReimbursementTrainingEmphasisArea,
+        {
+          totalStaff: number;
+          totalTrained: number;
+        }
+      >;
+      learningDevelopmentPersonnel?: {
+        totalStaff: number;
+        totalTrained: number;
+      };
+      healthSafetyEnvironment?: {
+        totalWorkforce: number;
+        totalTrained: number;
+      };
+    }
+  | {
+      employerScale: "SMALL";
+      smallScaleTraining: {
+        totalStaff: number;
+        totalTrained: number;
+      };
+    }
+);
+
+export type MediumLargeReimbursementCalculationInput = Extract<
+  ReimbursementCalculationInput,
+  { employerScale: "MEDIUM_LARGE" }
+>;
+
+export type SmallReimbursementCalculationInput = Extract<
+  ReimbursementCalculationInput,
+  { employerScale: "SMALL" }
+>;
 
 export type ReimbursementCalculationResult = {
   lines: ReimbursementLineCalculation[];
@@ -99,19 +120,54 @@ export function calculateReimbursementAward(input: ReimbursementCalculationInput
     throw new Error("Training contribution paid must be a valid non-negative amount.");
   }
 
+  const lines: ReimbursementLineCalculation[] = [
+    ...(input.employerScale === "SMALL"
+      ? buildSmallEmployerTrainingLines(input)
+      : buildMediumLargeEmployerTrainingLines(input)),
+    buildLine(
+      "SIWES",
+      undefined,
+      getSiwesAwardPercent(input.siwesStudentsAccepted ?? 0, input.employerScale),
+      input.trainingContributionPaid,
+    ),
+    buildLine(
+      "TRAINING_PLAN",
+      undefined,
+      input.trainingPlanSubmittedPromptly ? 1 : 0,
+      input.trainingContributionPaid,
+    ),
+  ];
+
+  const uncappedTotalAwardPercent = roundToTwoDecimals(
+    lines.reduce((total, line) => total + line.awardPercent, 0),
+  );
+  const cappedTotalAwardPercent = Math.min(
+    uncappedTotalAwardPercent,
+    MAX_TOTAL_AWARD_PERCENT,
+  );
+
+  return {
+    lines,
+    uncappedTotalAwardPercent,
+    cappedTotalAwardPercent,
+    totalAmountAwarded: calculateAwardAmount(
+      input.trainingContributionPaid,
+      cappedTotalAwardPercent,
+    ),
+  } satisfies ReimbursementCalculationResult;
+}
+
+function buildMediumLargeEmployerTrainingLines(input: MediumLargeReimbursementCalculationInput) {
   assertEmphasisRanks(input.emphasisRanks);
 
-  const lines: ReimbursementLineCalculation[] = [
+  return [
     ...reimbursementTrainingEmphasisAreas.map((area) => {
       const counts = input.trainingAreas[area];
       const percentTrained = calculatePercentTrained(counts.totalTrained, counts.totalStaff);
-      const awardPercent =
-        input.employerScale === "SMALL"
-          ? getSmallEmployerAwardPercent(percentTrained)
-          : getMediumLargeTrainingEmphasisAwardPercent(
-              percentTrained,
-              input.emphasisRanks[area],
-            );
+      const awardPercent = getMediumLargeTrainingEmphasisAwardPercent(
+        percentTrained,
+        input.emphasisRanks[area],
+      );
 
       return buildLine(area, percentTrained, awardPercent, input.trainingContributionPaid);
     }),
@@ -151,37 +207,23 @@ export function calculateReimbursementAward(input: ReimbursementCalculationInput
         : 0,
       input.trainingContributionPaid,
     ),
+  ];
+}
+
+function buildSmallEmployerTrainingLines(input: SmallReimbursementCalculationInput) {
+  const percentTrained = calculatePercentTrained(
+    input.smallScaleTraining.totalTrained,
+    input.smallScaleTraining.totalStaff,
+  );
+
+  return [
     buildLine(
-      "SIWES",
-      undefined,
-      getSiwesAwardPercent(input.siwesStudentsAccepted ?? 0, input.employerScale),
-      input.trainingContributionPaid,
-    ),
-    buildLine(
-      "TRAINING_PLAN",
-      undefined,
-      input.trainingPlanSubmittedPromptly ? 1 : 0,
+      "SMALL_SCALE_TRAINING",
+      percentTrained,
+      getSmallEmployerAwardPercent(percentTrained),
       input.trainingContributionPaid,
     ),
   ];
-
-  const uncappedTotalAwardPercent = roundToTwoDecimals(
-    lines.reduce((total, line) => total + line.awardPercent, 0),
-  );
-  const cappedTotalAwardPercent = Math.min(
-    uncappedTotalAwardPercent,
-    MAX_TOTAL_AWARD_PERCENT,
-  );
-
-  return {
-    lines,
-    uncappedTotalAwardPercent,
-    cappedTotalAwardPercent,
-    totalAmountAwarded: calculateAwardAmount(
-      input.trainingContributionPaid,
-      cappedTotalAwardPercent,
-    ),
-  } satisfies ReimbursementCalculationResult;
 }
 
 function assertEmphasisRanks(

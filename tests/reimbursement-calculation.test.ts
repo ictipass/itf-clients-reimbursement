@@ -84,33 +84,23 @@ test("uses the small employer scale for training and SIWES awards", () => {
   const result = calculateReimbursementAward({
     employerScale: "SMALL",
     trainingContributionPaid: 1_000_000,
-    emphasisRanks: {
-      MANAGEMENT: 1,
-      SUPERVISORY: 2,
-      OCCUPATIONAL: 3,
+    smallScaleTraining: {
+      totalStaff: 100,
+      totalTrained: 45,
     },
-    trainingAreas: {
-      MANAGEMENT: { totalStaff: 100, totalTrained: 10 },
-      SUPERVISORY: { totalStaff: 100, totalTrained: 19 },
-      OCCUPATIONAL: { totalStaff: 100, totalTrained: 30 },
-    },
-    siwesStudentsAccepted: 11,
-    trainingPlanSubmittedPromptly: true,
+    siwesStudentsAccepted: 20,
+    trainingPlanSubmittedPromptly: false,
   });
 
   assert.deepEqual(
     result.lines.map((line) => [line.area, line.awardPercent]),
     [
-      ["MANAGEMENT", 20],
-      ["SUPERVISORY", 30],
-      ["OCCUPATIONAL", 48],
-      ["LEARNING_DEVELOPMENT_PERSONNEL", 0],
-      ["HEALTH_SAFETY_ENVIRONMENT", 0],
+      ["SMALL_SCALE_TRAINING", 48],
       ["SIWES", 2],
-      ["TRAINING_PLAN", 1],
+      ["TRAINING_PLAN", 0],
     ],
   );
-  assert.equal(result.uncappedTotalAwardPercent, 101);
+  assert.equal(result.uncappedTotalAwardPercent, 50);
   assert.equal(result.cappedTotalAwardPercent, 50);
   assert.equal(result.totalAmountAwarded, 500_000);
 });
