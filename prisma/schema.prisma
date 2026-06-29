@@ -149,6 +149,19 @@ enum RevenueWorkflowMode {
   IN_APP_REVENUE
 }
 
+enum ContributionVerificationStatus {
+  PENDING
+  VERIFIED
+  REJECTED
+  NEEDS_REVIEW
+}
+
+enum ContributionVerificationSource {
+  MANUAL
+  EXTERNAL_SYSTEM
+  IN_APP_REVENUE
+}
+
 enum ReimbursementClaimDesk {
   COMPANY
   AREA_MANAGER
@@ -465,6 +478,7 @@ model User {
   acceptedOrganizationInvitations                  OrganizationInvitation[]             @relation("OrganizationInvitationAcceptedBy")
   requestedJurisdictionChanges                     JurisdictionChangeRequest[]          @relation("JurisdictionRequestedBy")
   reviewedJurisdictionChanges                      JurisdictionChangeRequest[]          @relation("JurisdictionReviewedBy")
+  contributionVerifiedClaims                       ReimbursementClaim[]                 @relation("ContributionVerifiedClaims")
 }
 
 model EmailVerificationToken {
@@ -1119,51 +1133,65 @@ model TrainingMonitoringEvaluation {
 }
 
 model ReimbursementClaim {
-  id                       String                          @id @default(cuid())
-  companyId                String
-  reference                String                          @unique
-  claimYear                Int?
-  employerScale            ReimbursementEmployerScale?
-  trainingContributionDue  Decimal?                        @db.Decimal(14, 2)
-  trainingContributionPaid Decimal?                        @db.Decimal(14, 2)
-  maxReimbursableAmount    Decimal?                        @db.Decimal(14, 2)
-  itfReceiptNumber         String?
-  bankName                 String?
-  accountNumber            String?
-  sortCode                 String?
-  claimedAmount            Decimal                         @db.Decimal(14, 2)
-  eligibleAmount           Decimal?                        @db.Decimal(14, 2)
-  claimRecommendedAmount   Decimal?                        @db.Decimal(14, 2)
-  claimRecommendedInWords  String?
-  uncappedAwardPercent     Decimal?                        @db.Decimal(5, 2)
-  cappedAwardPercent       Decimal?                        @db.Decimal(5, 2)
-  calculatedAwardAmount    Decimal?                        @db.Decimal(14, 2)
-  paymentDetails           String?
-  employerOfficerName      String?
-  employerOfficerRank      String?
-  chiefExecutiveName       String?
-  employerDeclaredAt       DateTime?
-  status                   WorkflowStatus                  @default(DRAFT)
-  currentDesk              ReimbursementClaimDesk          @default(COMPANY)
-  policyEdition            ReimbursementPolicyEdition      @default(EIGHTH_REVISED)
-  recordTier               RecordTier                      @default(HOT)
-  submittedAt              DateTime?
-  settledAt                DateTime?
-  createdAt                DateTime                        @default(now())
-  updatedAt                DateTime                        @updatedAt
-  company                  Company                         @relation(fields: [companyId], references: [id])
-  trainingRequests         ReimbursementClaimTraining[]
-  documents                Document[]
-  lines                    ReimbursementClaimLine[]
-  staffEntries             ReimbursementClaimStaffEntry[]
-  computationTables        ReimbursementComputationTable[]
-  workItems                WorkItem[]
-  decisions                Decision[]
-  comments                 Comment[]
+  id                             String                          @id @default(cuid())
+  companyId                      String
+  reference                      String                          @unique
+  claimYear                      Int?
+  employerScale                  ReimbursementEmployerScale?
+  trainingContributionDue        Decimal?                        @db.Decimal(14, 2)
+  trainingContributionPaid       Decimal?                        @db.Decimal(14, 2)
+  maxReimbursableAmount          Decimal?                        @db.Decimal(14, 2)
+  itfReceiptNumber               String?
+  contributionVerificationStatus ContributionVerificationStatus  @default(PENDING)
+  contributionVerificationSource ContributionVerificationSource  @default(MANUAL)
+  contributionVerifiedById       String?
+  contributionVerifiedAt         DateTime?
+  contributionVerificationNote   String?
+  externalVerificationProvider   String?
+  externalVerificationReference  String?
+  externalVerificationCheckedAt  DateTime?
+  externalVerificationMessage    String?
+  externalVerificationPayload    Json?
+  bankName                       String?
+  accountNumber                  String?
+  sortCode                       String?
+  claimedAmount                  Decimal                         @db.Decimal(14, 2)
+  eligibleAmount                 Decimal?                        @db.Decimal(14, 2)
+  claimRecommendedAmount         Decimal?                        @db.Decimal(14, 2)
+  claimRecommendedInWords        String?
+  uncappedAwardPercent           Decimal?                        @db.Decimal(5, 2)
+  cappedAwardPercent             Decimal?                        @db.Decimal(5, 2)
+  calculatedAwardAmount          Decimal?                        @db.Decimal(14, 2)
+  paymentDetails                 String?
+  employerOfficerName            String?
+  employerOfficerRank            String?
+  chiefExecutiveName             String?
+  employerDeclaredAt             DateTime?
+  status                         WorkflowStatus                  @default(DRAFT)
+  currentDesk                    ReimbursementClaimDesk          @default(COMPANY)
+  policyEdition                  ReimbursementPolicyEdition      @default(EIGHTH_REVISED)
+  recordTier                     RecordTier                      @default(HOT)
+  submittedAt                    DateTime?
+  settledAt                      DateTime?
+  createdAt                      DateTime                        @default(now())
+  updatedAt                      DateTime                        @updatedAt
+  company                        Company                         @relation(fields: [companyId], references: [id])
+  contributionVerifiedBy         User?                           @relation("ContributionVerifiedClaims", fields: [contributionVerifiedById], references: [id])
+  trainingRequests               ReimbursementClaimTraining[]
+  documents                      Document[]
+  lines                          ReimbursementClaimLine[]
+  staffEntries                   ReimbursementClaimStaffEntry[]
+  computationTables              ReimbursementComputationTable[]
+  workItems                      WorkItem[]
+  decisions                      Decision[]
+  comments                       Comment[]
 
   @@index([companyId, status, recordTier])
   @@index([currentDesk, status, recordTier])
   @@index([policyEdition, status, recordTier])
+  @@index([contributionVerificationStatus, recordTier])
+  @@index([externalVerificationProvider, externalVerificationReference], map: "ReimbursementClaim_extVerificationRef_idx")
+  @@index([contributionVerifiedById, recordTier])
 }
 
 model ReimbursementClaimTraining {

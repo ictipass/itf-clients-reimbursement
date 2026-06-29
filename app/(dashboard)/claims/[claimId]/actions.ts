@@ -5,6 +5,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import type {
+  ContributionVerificationSource,
+  ContributionVerificationStatus,
+} from "@/lib/claim-verification";
 import {
   addClaimLine,
   attachTrainingsToClaim,
@@ -15,6 +19,7 @@ import {
   getClaimEvidenceKinds,
   submitClaimToAreaManager,
   updateClaimLine,
+  updateClaimContributionVerification,
   updateClaimRecommendation,
   updateClaimForm,
   updateClaimStaffEntries,
@@ -70,6 +75,16 @@ function readEvidenceKind(formData: FormData): ClaimEvidenceKind {
   }
 
   return value as ClaimEvidenceKind;
+}
+
+function readRequiredString(formData: FormData, name: string) {
+  const value = readOptionalString(formData, name);
+
+  if (!value) {
+    throw new Error(`${name} is required.`);
+  }
+
+  return value;
 }
 
 export async function updateClaimFormAction(claimId: string, formData: FormData) {
@@ -252,6 +267,48 @@ export async function updateClaimRecommendationAction(claimId: string, formData:
     claimRecommendedAmount: readOptionalNumber(formData, "claimRecommendedAmount"),
     claimRecommendedInWords: readOptionalString(formData, "claimRecommendedInWords"),
     reviewerRemarks: readOptionalString(formData, "reviewerRemarks"),
+  });
+
+  revalidatePath(`/claims`);
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}`);
+}
+
+export async function updateClaimContributionVerificationAction(
+  claimId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await updateClaimContributionVerification({
+    claimId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    status: readRequiredString(
+      formData,
+      "contributionVerificationStatus",
+    ) as ContributionVerificationStatus,
+    source: readRequiredString(
+      formData,
+      "contributionVerificationSource",
+    ) as ContributionVerificationSource,
+    note: readOptionalString(formData, "contributionVerificationNote"),
+    externalVerificationProvider: readOptionalString(
+      formData,
+      "externalVerificationProvider",
+    ),
+    externalVerificationReference: readOptionalString(
+      formData,
+      "externalVerificationReference",
+    ),
+    externalVerificationMessage: readOptionalString(
+      formData,
+      "externalVerificationMessage",
+    ),
   });
 
   revalidatePath(`/claims`);

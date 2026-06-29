@@ -13,11 +13,18 @@ import {
   updateClaimStaffEntriesAction,
   updateClaimLineAction,
   updateEmployerClaimCalculationAction,
+  updateClaimContributionVerificationAction,
   updateClaimRecommendationAction,
   updateClaimFormAction,
   uploadClaimEvidenceAction,
 } from "@/app/(dashboard)/claims/[claimId]/actions";
 import { authOptions } from "@/lib/auth";
+import {
+  contributionVerificationSources,
+  contributionVerificationStatuses,
+  formatContributionVerificationSource,
+  formatContributionVerificationStatus,
+} from "@/lib/claim-verification";
 import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
 import { getClaimEvidenceKinds } from "@/lib/claims";
 import { getDb } from "@/lib/db";
@@ -37,6 +44,17 @@ function formatMoney(value: { toString(): string } | null) {
 
 function decimalInput(value: { toString(): string } | null) {
   return value?.toString() ?? "";
+}
+
+function formatDate(value: Date | null) {
+  if (!value) {
+    return "Not recorded";
+  }
+
+  return new Intl.DateTimeFormat("en-NG", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(value);
 }
 
 function formatPercent(value: { toString(): string } | null) {
@@ -79,6 +97,14 @@ export default async function ClaimDetailPage({
       trainingContributionDue: true,
       trainingContributionPaid: true,
       itfReceiptNumber: true,
+      contributionVerificationStatus: true,
+      contributionVerificationSource: true,
+      contributionVerifiedAt: true,
+      contributionVerificationNote: true,
+      externalVerificationProvider: true,
+      externalVerificationReference: true,
+      externalVerificationCheckedAt: true,
+      externalVerificationMessage: true,
       bankName: true,
       accountNumber: true,
       sortCode: true,
@@ -158,6 +184,11 @@ export default async function ClaimDetailPage({
               name: true,
             },
           },
+        },
+      },
+      contributionVerifiedBy: {
+        select: {
+          name: true,
         },
       },
       trainingRequests: {
@@ -496,6 +527,108 @@ export default async function ClaimDetailPage({
             <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
               Attach selected trainings
             </button>
+          </form>
+        ) : null}
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">
+              Contribution eligibility verification
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Confirms that the employer&apos;s contribution/payment evidence is genuine enough to
+              support this reimbursement claim. This can later be backed by an external compliance
+              verification API.
+            </p>
+          </div>
+          <span className="inline-flex w-fit rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700">
+            {formatContributionVerificationStatus(claim.contributionVerificationStatus)}
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
+          <p>Source: {formatContributionVerificationSource(claim.contributionVerificationSource)}</p>
+          <p>Verified by: {claim.contributionVerifiedBy?.name ?? "Not recorded"}</p>
+          <p>Verified at: {formatDate(claim.contributionVerifiedAt)}</p>
+          <p>Receipt/reference: {claim.itfReceiptNumber ?? "Not provided"}</p>
+          <p>Contribution paid: {formatMoney(claim.trainingContributionPaid)}</p>
+          <p>
+            External provider: {claim.externalVerificationProvider ?? "Not connected"}
+          </p>
+          <p>
+            External reference: {claim.externalVerificationReference ?? "Not provided"}
+          </p>
+          <p>
+            External checked at: {formatDate(claim.externalVerificationCheckedAt)}
+          </p>
+          <p className="md:col-span-2">
+            Verification note: {claim.contributionVerificationNote ?? "No note recorded"}
+          </p>
+          {claim.externalVerificationMessage ? (
+            <p className="md:col-span-2">
+              External message: {claim.externalVerificationMessage}
+            </p>
+          ) : null}
+        </div>
+
+        {canRecommendClaim ? (
+          <form
+            action={updateClaimContributionVerificationAction.bind(null, claim.id)}
+            className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2"
+          >
+            <select
+              name="contributionVerificationStatus"
+              defaultValue={claim.contributionVerificationStatus}
+              className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            >
+              {contributionVerificationStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {formatContributionVerificationStatus(status)}
+                </option>
+              ))}
+            </select>
+            <select
+              name="contributionVerificationSource"
+              defaultValue={claim.contributionVerificationSource}
+              className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            >
+              {contributionVerificationSources.map((source) => (
+                <option key={source} value={source}>
+                  {formatContributionVerificationSource(source)}
+                </option>
+              ))}
+            </select>
+            <input
+              name="externalVerificationProvider"
+              defaultValue={claim.externalVerificationProvider ?? ""}
+              placeholder="External provider e.g. Compliance API"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="externalVerificationReference"
+              defaultValue={claim.externalVerificationReference ?? ""}
+              placeholder="External verification reference"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="externalVerificationMessage"
+              defaultValue={claim.externalVerificationMessage ?? ""}
+              placeholder="External verification message"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <textarea
+              name="contributionVerificationNote"
+              defaultValue={claim.contributionVerificationNote ?? ""}
+              placeholder="Verification note"
+              className="min-h-24 rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2"
+            />
+            <div className="md:col-span-2">
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Save eligibility verification
+              </button>
+            </div>
           </form>
         ) : null}
       </section>

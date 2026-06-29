@@ -1,4 +1,12 @@
 import { getDb } from "@/lib/db";
+import {
+  formatContributionVerificationSource,
+  formatContributionVerificationStatus,
+  isContributionVerificationSource,
+  isContributionVerificationStatus,
+  type ContributionVerificationSource,
+  type ContributionVerificationStatus,
+} from "@/lib/claim-verification";
 import { isLateClaimSubmission } from "@/lib/claim-policy";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
@@ -71,6 +79,18 @@ export type UpdateClaimRecommendationInput = {
   claimRecommendedAmount?: number;
   claimRecommendedInWords?: string;
   reviewerRemarks?: string;
+};
+
+export type UpdateClaimContributionVerificationInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  status: ContributionVerificationStatus;
+  source: ContributionVerificationSource;
+  note?: string;
+  externalVerificationProvider?: string;
+  externalVerificationReference?: string;
+  externalVerificationMessage?: string;
 };
 
 export type ClaimLineInput = {
@@ -968,6 +988,151 @@ export async function updateClaimRecommendation(input: UpdateClaimRecommendation
     select: {
       id: true,
     },
+  });
+}
+
+function getContributionVerificationDecisionAction(
+  status: ContributionVerificationStatus,
+) {
+  if (status === "VERIFIED") {
+    return "APPROVE";
+  }
+
+  if (status === "REJECTED") {
+    return "REJECT";
+  }
+
+  if (status === "NEEDS_REVIEW") {
+    return "REQUEST_CHANGES";
+  }
+
+  return "REOPEN";
+}
+
+export async function updateClaimContributionVerification(
+  input: UpdateClaimContributionVerificationInput,
+) {
+  if (
+    input.requesterRole !== "SYSTEM_ADMIN" &&
+    input.requesterRole !== "WORKSPACE_APP_ADMIN" &&
+    !can(input.requesterRole, "claims:review") &&
+    !can(input.requesterRole, "claims:approve")
+  ) {
+    throw new Error("You do not have permission to verify claim contribution eligibility.");
+  }
+
+  if (!isContributionVerificationStatus(input.status)) {
+    throw new Error("Unsupported contribution verification status.");
+  }
+
+  if (!isContributionVerificationSource(input.source)) {
+    throw new Error("Unsupported contribution verification source.");
+  }
+
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Reimbursement claim was not found.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        where: { isActive: true },
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasAreaOfficeAccess =
+    input.requesterRole === "SYSTEM_ADMIN" ||
+    input.requesterRole === "WORKSPACE_APP_ADMIN" ||
+    input.requesterRole === "ITF_CLAIMS_REVIEWER" ||
+    input.requesterRole === "ITF_CLAIMS_APPROVER" ||
+    input.requesterRole === "HEAD_OF_DIVISION" ||
+    input.requesterRole === "DIRECTOR_FSD" ||
+    input.requesterRole === "HQ_REIMBURSEMENT_OFFICER" ||
+    actor.memberships.some((membership) => membership.areaOfficeId === claim.company.areaOfficeId);
+
+  if (!hasAreaOfficeAccess) {
+    throw new Error("You do not have access to verify this Area Office claim.");
+  }
+
+  const checkedAt = new Date();
+  const statusLabel = formatContributionVerificationStatus(input.status);
+  const sourceLabel = formatContributionVerificationSource(input.source);
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.reimbursementClaim.update({
+      where: {
+        id: claim.id,
+      },
+      data: {
+        contributionVerificationStatus: input.status,
+        contributionVerificationSource: input.source,
+        contributionVerificationNote: input.note,
+        contributionVerifiedById: actor.id,
+        contributionVerifiedAt: checkedAt,
+        externalVerificationProvider: input.externalVerificationProvider,
+        externalVerificationReference: input.externalVerificationReference,
+        externalVerificationCheckedAt:
+          input.source === "EXTERNAL_SYSTEM" ? checkedAt : undefined,
+        externalVerificationMessage: input.externalVerificationMessage,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        action: getContributionVerificationDecisionAction(input.status),
+        reason: [
+          `Contribution eligibility marked ${statusLabel}.`,
+          `Source: ${sourceLabel}.`,
+          input.externalVerificationReference
+            ? `Reference: ${input.externalVerificationReference}.`
+            : undefined,
+          input.note,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      },
+    });
+
+    return updated;
   });
 }
 
