@@ -1,0 +1,11 @@
+-- RenameIndex
+ALTER INDEX "ReimbursementClaimStaffEntry_reimbursementClaimId_normalizedEmp" RENAME TO "ReimbursementClaimStaffEntry_reimbursementClaimId_normalize_idx";
+
+-- RenameIndex
+ALTER INDEX "ReimbursementClaimStaffEntry_reimbursementClaimId_trainingArea_" RENAME TO "ReimbursementClaimStaffEntry_reimbursementClaimId_trainingA_idx";
+
+-- RenameIndex
+ALTER INDEX "ReimbursementComputationTable_reimbursementClaimId_status_recor" RENAME TO "ReimbursementComputationTable_reimbursementClaimId_status_r_idx";
+
+-- RenameIndex
+ALTER INDEX "ReimbursementComputationTableRow_computationTableId_sortOrder_i" RENAME TO "ReimbursementComputationTableRow_computationTableId_sortOrd_idx";
