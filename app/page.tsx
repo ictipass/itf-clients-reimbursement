@@ -1,7 +1,12 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { getDb } from "@/lib/db";
 import { appName } from "@/lib/domain";
+import {
+  DEFAULT_REIMBURSEMENT_POLICY_EDITION,
+  formatReimbursementPolicyEdition,
+} from "@/lib/reimbursement-policy";
 
 const statutoryWorkflows = [
   {
@@ -26,7 +31,20 @@ const statutoryWorkflows = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const workspace = await getDb().workspace.findFirst({
+    where: {
+      isActive: true,
+    },
+    select: {
+      activeReimbursementEdition: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+  const activeEdition = workspace?.activeReimbursementEdition ?? DEFAULT_REIMBURSEMENT_POLICY_EDITION;
+
   return (
     <main className="min-h-screen bg-zinc-100 text-zinc-950">
       <section
@@ -69,6 +87,12 @@ export default function Home() {
               officers managing contribution, compliance, training, monitoring, and reimbursement
               workflows.
             </p>
+            <div className="mt-6 w-fit rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white shadow-sm backdrop-blur">
+              Current reimbursement policy:{" "}
+              <span className="text-rose-100">
+                {formatReimbursementPolicyEdition(activeEdition)}
+              </span>
+            </div>
           </div>
           <div className="grid content-start gap-3 rounded-lg border border-white/15 bg-black/25 p-5 backdrop-blur">
             <p className="text-sm font-semibold text-white">Portal access</p>

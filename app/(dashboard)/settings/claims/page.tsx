@@ -7,6 +7,7 @@ import {
   listClaimPolicyWorkspaces,
 } from "@/lib/claim-policy";
 import { canManageClaimPolicy } from "@/lib/rbac";
+import { formatReimbursementPolicyEdition } from "@/lib/reimbursement-policy";
 
 export default async function ClaimSettingsPage() {
   const session = await getServerSession(authOptions);
@@ -56,6 +57,13 @@ export default async function ClaimSettingsPage() {
                       Late claim submissions are currently{" "}
                       <span className="font-semibold">
                         {workspace.allowLateClaimSubmissions ? "allowed" : "blocked"}
+                      </span>
+                      .
+                    </p>
+                    <p className="mt-1 text-sm leading-6 text-zinc-600">
+                      Active reimbursement edition:{" "}
+                      <span className="font-semibold text-zinc-950">
+                        {formatReimbursementPolicyEdition(workspace.activeReimbursementEdition)}
                       </span>
                       .
                     </p>

@@ -22,6 +22,7 @@ import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
 import { getClaimEvidenceKinds } from "@/lib/claims";
 import { getDb } from "@/lib/db";
 import { canUseSection } from "@/lib/feature-gates";
+import { formatReimbursementPolicyEdition } from "@/lib/reimbursement-policy";
 
 function formatMoney(value: { toString(): string } | null) {
   if (!value) {
@@ -95,6 +96,7 @@ export default async function ClaimDetailPage({
       employerDeclaredAt: true,
       status: true,
       currentDesk: true,
+      policyEdition: true,
       submittedAt: true,
       documents: {
         where: {
@@ -263,6 +265,19 @@ export default async function ClaimDetailPage({
 
       <div className="mt-6 rounded-lg border-2 border-red-300 bg-red-50 px-5 py-4 text-sm font-black uppercase leading-6 tracking-wide text-red-900 shadow-sm">
         {CLAIM_SUBMISSION_DEADLINE_NOTICE}
+      </div>
+
+      <div className="mt-4 rounded-lg border border-[#800020]/20 bg-[#800020]/5 px-5 py-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#800020]">
+          Claim policy edition
+        </p>
+        <p className="mt-1 text-lg font-semibold text-zinc-950">
+          {formatReimbursementPolicyEdition(claim.policyEdition)}
+        </p>
+        <p className="mt-1 text-sm leading-6 text-zinc-600">
+          This claim is locked to this reimbursement edition for calculation, review, and audit
+          traceability.
+        </p>
       </div>
 
       <section className="mt-8 grid gap-4 md:grid-cols-4">

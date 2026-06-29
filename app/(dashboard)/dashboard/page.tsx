@@ -6,6 +6,11 @@ import { getAttentionSummary } from "@/lib/attention";
 import { listEmployerDashboardActions } from "@/lib/dashboard-work-queue";
 import { getDb } from "@/lib/db";
 import { dashboardMetrics, workflowStages } from "@/lib/domain";
+import {
+  DEFAULT_REIMBURSEMENT_POLICY_EDITION,
+  formatReimbursementPolicyEdition,
+  type ReimbursementPolicyEdition,
+} from "@/lib/reimbursement-policy";
 import { roles } from "@/lib/rbac";
 
 function formatRole(value: string | null) {
@@ -61,9 +66,43 @@ function isSystemAdminRole(role: string) {
   return role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
 }
 
+function ReimbursementEditionBanner({
+  edition,
+}: Readonly<{
+  edition: ReimbursementPolicyEdition;
+}>) {
+  return (
+    <section className="rounded-lg border border-[#800020]/20 bg-[#800020]/5 px-5 py-4">
+      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#800020]">
+        Current reimbursement policy
+      </p>
+      <p className="mt-1 text-lg font-semibold text-zinc-950">
+        {formatReimbursementPolicyEdition(edition)}
+      </p>
+      <p className="mt-1 text-sm leading-6 text-zinc-600">
+        New claims are calculated and processed under this active policy edition. Existing claims
+        remain locked to the edition saved on the claim.
+      </p>
+    </section>
+  );
+}
+
 export default async function DashboardPage() {
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const activeWorkspace = await getDb().workspace.findFirst({
+    where: {
+      isActive: true,
+    },
+    select: {
+      activeReimbursementEdition: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+  const activeReimbursementEdition =
+    activeWorkspace?.activeReimbursementEdition ?? DEFAULT_REIMBURSEMENT_POLICY_EDITION;
   const attentionSummary = await getAttentionSummary({
     requesterEmail: session?.user?.email,
     requesterRole: activeRole,
@@ -173,6 +212,8 @@ export default async function DashboardPage() {
             </p>
           </div>
         </section>
+
+        <ReimbursementEditionBanner edition={activeReimbursementEdition} />
 
         <section className="rounded-lg border border-zinc-200 bg-white p-6">
           <h2 className="text-2xl font-semibold tracking-tight">Company status</h2>
@@ -308,6 +349,8 @@ export default async function DashboardPage() {
             audit readiness for the reimbursement application.
           </p>
         </section>
+
+        <ReimbursementEditionBanner edition={activeReimbursementEdition} />
 
         <section className="grid gap-4 md:grid-cols-4">
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
@@ -484,6 +527,8 @@ export default async function DashboardPage() {
             monitoring, compliance awareness, and reimbursement work.
           </p>
         </section>
+
+        <ReimbursementEditionBanner edition={activeReimbursementEdition} />
 
         <section className="grid gap-4 md:grid-cols-4">
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
@@ -662,6 +707,8 @@ export default async function DashboardPage() {
           </p>
         </section>
 
+        <ReimbursementEditionBanner edition={activeReimbursementEdition} />
+
         <section className="grid gap-4 md:grid-cols-4">
           <div className="rounded-lg border border-zinc-200 bg-white p-5">
             <p className="text-3xl font-semibold text-[#800020]">{openHqWorkItems}</p>
@@ -750,6 +797,8 @@ export default async function DashboardPage() {
           ))}
         </div>
       </section>
+
+      <ReimbursementEditionBanner edition={activeReimbursementEdition} />
 
       <section className="rounded-lg border border-zinc-200 bg-white p-6">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
