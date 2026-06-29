@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { downloadContributionInvoice } from "@/lib/contribution-invoices";
+import { assertCompanyUsesInAppRevenueWorkflow } from "@/lib/revenue-workflow";
 
 export const dynamic = "force-dynamic";
 
@@ -25,6 +26,8 @@ export async function GET(
   const { companyId, invoiceId } = await context.params;
 
   try {
+    await assertCompanyUsesInAppRevenueWorkflow(companyId);
+
     const invoice = await downloadContributionInvoice({
       companyId,
       invoiceId,

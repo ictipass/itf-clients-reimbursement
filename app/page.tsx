@@ -7,6 +7,10 @@ import {
   DEFAULT_REIMBURSEMENT_POLICY_EDITION,
   formatReimbursementPolicyEdition,
 } from "@/lib/reimbursement-policy";
+import {
+  DEFAULT_REVENUE_WORKFLOW_MODE,
+  usesInAppRevenueWorkflow,
+} from "@/lib/revenue-workflow";
 
 const statutoryWorkflows = [
   {
@@ -38,12 +42,18 @@ export default async function Home() {
     },
     select: {
       activeReimbursementEdition: true,
+      revenueWorkflowMode: true,
     },
     orderBy: {
       name: "asc",
     },
   });
   const activeEdition = workspace?.activeReimbursementEdition ?? DEFAULT_REIMBURSEMENT_POLICY_EDITION;
+  const revenueWorkflowMode = workspace?.revenueWorkflowMode ?? DEFAULT_REVENUE_WORKFLOW_MODE;
+  const usesInAppRevenue = usesInAppRevenueWorkflow(revenueWorkflowMode);
+  const visibleWorkflows = usesInAppRevenue
+    ? statutoryWorkflows
+    : statutoryWorkflows.filter((workflow) => workflow.title !== "Contribution assessment and payment");
 
   return (
     <main className="min-h-screen bg-zinc-100 text-zinc-950">
@@ -76,16 +86,19 @@ export default async function Home() {
         <div className="mx-auto grid max-w-7xl gap-8 px-6 py-14 lg:grid-cols-[1fr_0.75fr] lg:px-8">
           <div>
             <p className="text-sm font-semibold uppercase text-rose-100">
-              Integrated employer contribution and reimbursement services
+              {usesInAppRevenue
+                ? "Integrated employer contribution and reimbursement services"
+                : "Employer training reimbursement services"}
             </p>
             <h2 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight">
-              From employer registration and contribution payment to training governance and
-              reimbursement claims.
+              {usesInAppRevenue
+                ? "From employer registration and contribution payment to training governance and reimbursement claims."
+                : "Training governance, evidence tracking, and reimbursement claims under the active ITF reimbursement policy."}
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-100">
-              Secure access for employers of labour and authorized Industrial Training Fund
-              officers managing contribution, compliance, training, monitoring, and reimbursement
-              workflows.
+              {usesInAppRevenue
+                ? "Secure access for employers of labour and authorized Industrial Training Fund officers managing contribution, compliance, training, monitoring, and reimbursement workflows."
+                : "Secure access for employers of labour and authorized Industrial Training Fund officers managing training, monitoring, contribution evidence, and reimbursement workflows."}
             </p>
             <div className="mt-6 w-fit rounded-lg border border-white/20 bg-white/10 px-4 py-3 text-sm font-semibold text-white shadow-sm backdrop-blur">
               Current reimbursement policy:{" "}
@@ -97,7 +110,8 @@ export default async function Home() {
           <div className="grid content-start gap-3 rounded-lg border border-white/15 bg-black/25 p-5 backdrop-blur">
             <p className="text-sm font-semibold text-white">Portal access</p>
             <Link href="/get-started" className="inline-flex min-h-11 items-center justify-between rounded-md bg-white px-4 text-sm font-semibold text-zinc-950">
-              Begin employer registration <span aria-hidden="true">-&gt;</span>
+              {usesInAppRevenue ? "Begin employer registration" : "Access reimbursement portal"}{" "}
+              <span aria-hidden="true">-&gt;</span>
             </Link>
             <Link href="/sign-in" className="inline-flex min-h-11 items-center justify-between rounded-md border border-white/25 bg-white/10 px-4 text-sm font-semibold text-white">
               Sign in to your workspace <span aria-hidden="true">-&gt;</span>
@@ -112,7 +126,7 @@ export default async function Home() {
         </p>
         <h2 className="mt-2 text-2xl font-semibold">Operational workflows</h2>
         <div className="mt-5 grid gap-3 md:grid-cols-2">
-          {statutoryWorkflows.map((item) => (
+          {visibleWorkflows.map((item) => (
             <article key={item.title} className="grid gap-2 rounded-lg border border-zinc-200 bg-white p-5">
               <h3 className="text-lg font-semibold">{item.title}</h3>
               <p className="text-sm leading-6 text-zinc-600">{item.scope}</p>

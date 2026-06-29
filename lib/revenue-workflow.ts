@@ -1,3 +1,5 @@
+import { getDb } from "@/lib/db";
+
 export const revenueWorkflowModes = ["EXTERNAL_VERIFICATION", "IN_APP_REVENUE"] as const;
 
 export type RevenueWorkflowMode = (typeof revenueWorkflowModes)[number];
@@ -33,4 +35,48 @@ export function assertSupportedRevenueWorkflowMode(
 
 export function usesInAppRevenueWorkflow(mode: RevenueWorkflowMode) {
   return mode === "IN_APP_REVENUE";
+}
+
+export async function getActiveRevenueWorkflowMode() {
+  const workspace = await getDb().workspace.findFirst({
+    where: {
+      isActive: true,
+    },
+    select: {
+      revenueWorkflowMode: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+
+  return workspace?.revenueWorkflowMode ?? DEFAULT_REVENUE_WORKFLOW_MODE;
+}
+
+export async function assertCompanyUsesInAppRevenueWorkflow(companyId: string) {
+  const company = await getDb().company.findFirst({
+    where: {
+      id: companyId,
+      recordTier: "HOT",
+    },
+    select: {
+      organization: {
+        select: {
+          workspace: {
+            select: {
+              revenueWorkflowMode: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  const mode = company?.organization.workspace.revenueWorkflowMode;
+
+  if (!mode || !usesInAppRevenueWorkflow(mode)) {
+    throw new Error(
+      "The in-app registration revenue workflow is disabled for this workspace.",
+    );
+  }
 }

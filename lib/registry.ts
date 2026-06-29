@@ -211,6 +211,11 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
           name: true,
           slug: true,
           organizationType: true,
+          workspace: {
+            select: {
+              revenueWorkflowMode: true,
+            },
+          },
         },
       },
       areaOffice: {
