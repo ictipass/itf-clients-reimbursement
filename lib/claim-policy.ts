@@ -1,5 +1,9 @@
 import { getDb } from "@/lib/db";
 import { canManageClaimPolicy, type Role } from "@/lib/rbac";
+import {
+  assertSupportedReimbursementPolicyEdition,
+  type ReimbursementPolicyEdition,
+} from "@/lib/reimbursement-policy";
 
 export const CLAIM_SUBMISSION_DEADLINE_NOTICE =
   "ALL TRAINING CLAIMS MUST BE SUBMITTED ON OR BEFORE 30TH JUNE AFTER EACH TRAINING YEAR (JANUARY - DECEMBER)";
@@ -8,6 +12,7 @@ export type ClaimPolicyWorkspace = {
   id: string;
   name: string;
   allowLateClaimSubmissions: boolean;
+  activeReimbursementEdition: ReimbursementPolicyEdition;
 };
 
 export function getClaimSubmissionDeadline(trainingYear: number) {
@@ -31,6 +36,7 @@ export async function listClaimPolicyWorkspaces(input: { requesterRole: Role }) 
       id: true,
       name: true,
       allowLateClaimSubmissions: true,
+      activeReimbursementEdition: true,
     },
     orderBy: {
       name: "asc",
@@ -42,6 +48,7 @@ export async function updateClaimSubmissionPolicy(input: {
   requesterRole: Role;
   workspaceId: string;
   allowLateClaimSubmissions: boolean;
+  activeReimbursementEdition?: string;
 }) {
   if (!canManageClaimPolicy(input.requesterRole)) {
     throw new Error("You do not have permission to manage claim submission settings.");
@@ -61,12 +68,20 @@ export async function updateClaimSubmissionPolicy(input: {
     throw new Error("Workspace was not found.");
   }
 
+  let activeReimbursementEdition: ReimbursementPolicyEdition | undefined;
+
+  if (input.activeReimbursementEdition) {
+    assertSupportedReimbursementPolicyEdition(input.activeReimbursementEdition);
+    activeReimbursementEdition = input.activeReimbursementEdition;
+  }
+
   return getDb().workspace.update({
     where: {
       id: workspace.id,
     },
     data: {
       allowLateClaimSubmissions: input.allowLateClaimSubmissions,
+      activeReimbursementEdition,
     },
     select: {
       id: true,

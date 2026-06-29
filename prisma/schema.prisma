@@ -140,6 +140,10 @@ enum ReimbursementComputationTableStatus {
   CONFIRMED
 }
 
+enum ReimbursementPolicyEdition {
+  EIGHTH_REVISED
+}
+
 enum ReimbursementClaimDesk {
   COMPANY
   AREA_MANAGER
@@ -345,22 +349,23 @@ enum AuditAction {
 }
 
 model Workspace {
-  id                        String                      @id @default(cuid())
-  name                      String
-  slug                      String                      @unique
-  externalId                String?                     @unique
-  allowLateClaimSubmissions Boolean                     @default(false)
-  isActive                  Boolean                     @default(true)
-  createdAt                 DateTime                    @default(now())
-  updatedAt                 DateTime                    @updatedAt
-  organizations             Organization[]
-  areaOffices               AreaOffice[]
-  memberships               Membership[]
-  certificateTemplates      CertificateTemplate[]
-  signatureAssets           SignatureAsset[]
-  managedNumbers            ManagedRegistrationNumber[]
-  workItems                 WorkItem[]
-  auditEvents               AuditEvent[]
+  id                         String                      @id @default(cuid())
+  name                       String
+  slug                       String                      @unique
+  externalId                 String?                     @unique
+  allowLateClaimSubmissions  Boolean                     @default(false)
+  activeReimbursementEdition ReimbursementPolicyEdition  @default(EIGHTH_REVISED)
+  isActive                   Boolean                     @default(true)
+  createdAt                  DateTime                    @default(now())
+  updatedAt                  DateTime                    @updatedAt
+  organizations              Organization[]
+  areaOffices                AreaOffice[]
+  memberships                Membership[]
+  certificateTemplates       CertificateTemplate[]
+  signatureAssets            SignatureAsset[]
+  managedNumbers             ManagedRegistrationNumber[]
+  workItems                  WorkItem[]
+  auditEvents                AuditEvent[]
 }
 
 model AreaOffice {
@@ -1108,38 +1113,39 @@ model TrainingMonitoringEvaluation {
 }
 
 model ReimbursementClaim {
-  id                       String                       @id @default(cuid())
+  id                       String                          @id @default(cuid())
   companyId                String
-  reference                String                       @unique
+  reference                String                          @unique
   claimYear                Int?
   employerScale            ReimbursementEmployerScale?
-  trainingContributionDue  Decimal?                     @db.Decimal(14, 2)
-  trainingContributionPaid Decimal?                     @db.Decimal(14, 2)
-  maxReimbursableAmount    Decimal?                     @db.Decimal(14, 2)
+  trainingContributionDue  Decimal?                        @db.Decimal(14, 2)
+  trainingContributionPaid Decimal?                        @db.Decimal(14, 2)
+  maxReimbursableAmount    Decimal?                        @db.Decimal(14, 2)
   itfReceiptNumber         String?
   bankName                 String?
   accountNumber            String?
   sortCode                 String?
-  claimedAmount            Decimal                      @db.Decimal(14, 2)
-  eligibleAmount           Decimal?                     @db.Decimal(14, 2)
-  claimRecommendedAmount   Decimal?                     @db.Decimal(14, 2)
+  claimedAmount            Decimal                         @db.Decimal(14, 2)
+  eligibleAmount           Decimal?                        @db.Decimal(14, 2)
+  claimRecommendedAmount   Decimal?                        @db.Decimal(14, 2)
   claimRecommendedInWords  String?
-  uncappedAwardPercent     Decimal?                     @db.Decimal(5, 2)
-  cappedAwardPercent       Decimal?                     @db.Decimal(5, 2)
-  calculatedAwardAmount    Decimal?                     @db.Decimal(14, 2)
+  uncappedAwardPercent     Decimal?                        @db.Decimal(5, 2)
+  cappedAwardPercent       Decimal?                        @db.Decimal(5, 2)
+  calculatedAwardAmount    Decimal?                        @db.Decimal(14, 2)
   paymentDetails           String?
   employerOfficerName      String?
   employerOfficerRank      String?
   chiefExecutiveName       String?
   employerDeclaredAt       DateTime?
-  status                   WorkflowStatus               @default(DRAFT)
-  currentDesk              ReimbursementClaimDesk        @default(COMPANY)
-  recordTier               RecordTier                   @default(HOT)
+  status                   WorkflowStatus                  @default(DRAFT)
+  currentDesk              ReimbursementClaimDesk          @default(COMPANY)
+  policyEdition            ReimbursementPolicyEdition      @default(EIGHTH_REVISED)
+  recordTier               RecordTier                      @default(HOT)
   submittedAt              DateTime?
   settledAt                DateTime?
-  createdAt                DateTime                     @default(now())
-  updatedAt                DateTime                     @updatedAt
-  company                  Company                      @relation(fields: [companyId], references: [id])
+  createdAt                DateTime                        @default(now())
+  updatedAt                DateTime                        @updatedAt
+  company                  Company                         @relation(fields: [companyId], references: [id])
   trainingRequests         ReimbursementClaimTraining[]
   documents                Document[]
   lines                    ReimbursementClaimLine[]
@@ -1151,6 +1157,7 @@ model ReimbursementClaim {
 
   @@index([companyId, status, recordTier])
   @@index([currentDesk, status, recordTier])
+  @@index([policyEdition, status, recordTier])
 }
 
 model ReimbursementClaimTraining {
@@ -1166,7 +1173,7 @@ model ReimbursementClaimTraining {
 }
 
 model ReimbursementClaimLine {
-  id                   String             @id @default(cuid())
+  id                   String                      @id @default(cuid())
   reimbursementClaimId String
   stage                ReimbursementClaimLineStage @default(EMPLOYER)
   awardArea            ReimbursementAwardArea?
@@ -1174,17 +1181,17 @@ model ReimbursementClaimLine {
   trainingArea         String
   totalWorkforce       Int?
   totalTrained         Int?
-  percentTrained       Decimal?           @db.Decimal(5, 2)
+  percentTrained       Decimal?                    @db.Decimal(5, 2)
   emphasisNumber       Int?
-  contributionPaid     Decimal?           @db.Decimal(14, 2)
-  employerClaimAmount  Decimal?           @db.Decimal(14, 2)
+  contributionPaid     Decimal?                    @db.Decimal(14, 2)
+  employerClaimAmount  Decimal?                    @db.Decimal(14, 2)
   referencePage        String?
-  percentAwarded       Decimal?           @db.Decimal(5, 2)
-  amountAwarded        Decimal?           @db.Decimal(14, 2)
+  percentAwarded       Decimal?                    @db.Decimal(5, 2)
+  amountAwarded        Decimal?                    @db.Decimal(14, 2)
   remarks              String?
-  createdAt            DateTime           @default(now())
-  updatedAt            DateTime           @updatedAt
-  reimbursementClaim   ReimbursementClaim @relation(fields: [reimbursementClaimId], references: [id])
+  createdAt            DateTime                    @default(now())
+  updatedAt            DateTime                    @updatedAt
+  reimbursementClaim   ReimbursementClaim          @relation(fields: [reimbursementClaimId], references: [id])
 
   @@index([reimbursementClaimId])
   @@index([reimbursementClaimId, stage])
@@ -1212,30 +1219,30 @@ model ReimbursementClaimStaffEntry {
 }
 
 model ReimbursementComputationTable {
-  id                               String                              @id @default(cuid())
-  reimbursementClaimId             String
-  companyName                      String
-  itfEmployerNumber                String?
-  claimYear                        Int?
-  contributionPaid                 Decimal                             @db.Decimal(14, 2)
-  receiptNumber                    String?
-  fiftyPercentOfContribution       Decimal                             @db.Decimal(14, 2)
-  areaOfficeName                   String?
-  amountRecommended                Decimal                             @db.Decimal(14, 2)
-  amountRecommendedInWords         String?
-  recommendedContributionPercent   Decimal?                            @db.Decimal(5, 2)
-  preparedById                     String?
-  preparedByName                   String?
-  preparedAt                       DateTime?
-  confirmedById                    String?
-  confirmedByName                  String?
-  confirmedAt                      DateTime?
-  status                           ReimbursementComputationTableStatus @default(DRAFT)
-  recordTier                       RecordTier                          @default(HOT)
-  createdAt                        DateTime                            @default(now())
-  updatedAt                        DateTime                            @updatedAt
-  reimbursementClaim               ReimbursementClaim                  @relation(fields: [reimbursementClaimId], references: [id], onDelete: Cascade)
-  rows                             ReimbursementComputationTableRow[]
+  id                             String                              @id @default(cuid())
+  reimbursementClaimId           String
+  companyName                    String
+  itfEmployerNumber              String?
+  claimYear                      Int?
+  contributionPaid               Decimal                             @db.Decimal(14, 2)
+  receiptNumber                  String?
+  fiftyPercentOfContribution     Decimal                             @db.Decimal(14, 2)
+  areaOfficeName                 String?
+  amountRecommended              Decimal                             @db.Decimal(14, 2)
+  amountRecommendedInWords       String?
+  recommendedContributionPercent Decimal?                            @db.Decimal(5, 2)
+  preparedById                   String?
+  preparedByName                 String?
+  preparedAt                     DateTime?
+  confirmedById                  String?
+  confirmedByName                String?
+  confirmedAt                    DateTime?
+  status                         ReimbursementComputationTableStatus @default(DRAFT)
+  recordTier                     RecordTier                          @default(HOT)
+  createdAt                      DateTime                            @default(now())
+  updatedAt                      DateTime                            @updatedAt
+  reimbursementClaim             ReimbursementClaim                  @relation(fields: [reimbursementClaimId], references: [id], onDelete: Cascade)
+  rows                           ReimbursementComputationTableRow[]
 
   @@index([reimbursementClaimId, status, recordTier])
   @@index([preparedById, recordTier])

@@ -184,6 +184,7 @@ export async function createClaim(input: CreateClaimInput) {
               workspace: {
                 select: {
                   allowLateClaimSubmissions: true,
+                  activeReimbursementEdition: true,
                 },
               },
             },
@@ -262,6 +263,7 @@ export async function createClaim(input: CreateClaimInput) {
       companyId: requests[0].companyId,
       reference: buildClaimReference(referenceDate),
       claimYear,
+      policyEdition: requests[0].company.organization.workspace.activeReimbursementEdition,
       itfReceiptNumber: requests[0].company.itfEmployerNumber,
       claimedAmount,
       status: "DRAFT",
@@ -987,6 +989,7 @@ export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimC
     },
     select: {
       id: true,
+      policyEdition: true,
       company: {
         select: {
           organizationId: true,
@@ -1027,7 +1030,10 @@ export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimC
     throw new Error("You do not have access to update this claim calculation.");
   }
 
-  const result = calculateReimbursementAward(input.calculation);
+  const result = calculateReimbursementAward({
+    ...input.calculation,
+    policyEdition: claim.policyEdition,
+  });
   const lines = result.lines.map((line) =>
     buildEmployerCalculationLine(
       line,
