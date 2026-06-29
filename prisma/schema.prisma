@@ -144,6 +144,11 @@ enum ReimbursementPolicyEdition {
   EIGHTH_REVISED
 }
 
+enum RevenueWorkflowMode {
+  EXTERNAL_VERIFICATION
+  IN_APP_REVENUE
+}
+
 enum ReimbursementClaimDesk {
   COMPANY
   AREA_MANAGER
@@ -355,6 +360,7 @@ model Workspace {
   externalId                 String?                     @unique
   allowLateClaimSubmissions  Boolean                     @default(false)
   activeReimbursementEdition ReimbursementPolicyEdition  @default(EIGHTH_REVISED)
+  revenueWorkflowMode        RevenueWorkflowMode         @default(EXTERNAL_VERIFICATION)
   isActive                   Boolean                     @default(true)
   createdAt                  DateTime                    @default(now())
   updatedAt                  DateTime                    @updatedAt
