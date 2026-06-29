@@ -1189,7 +1189,7 @@ model ReimbursementClaim {
   @@index([companyId, status, recordTier])
   @@index([currentDesk, status, recordTier])
   @@index([policyEdition, status, recordTier])
-  @@index([contributionVerificationStatus, recordTier])
+  @@index([contributionVerificationStatus, recordTier], map: "ReimbursementClaim_contributionVerificationStatus_recordTier_id")
   @@index([externalVerificationProvider, externalVerificationReference], map: "ReimbursementClaim_extVerificationRef_idx")
   @@index([contributionVerifiedById, recordTier])
 }
