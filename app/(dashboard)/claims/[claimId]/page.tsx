@@ -14,6 +14,7 @@ import {
   resumeClaimFromKivAction,
   submitClaimToAreaManagerAction,
   updateClaimStaffEntriesAction,
+  updateClaimAuditReviewAction,
   updateClaimLineAction,
   updateEmployerClaimCalculationAction,
   updateClaimContributionVerificationAction,
@@ -37,6 +38,10 @@ import {
 } from "@/lib/claims";
 import { getDb } from "@/lib/db";
 import { canUseSection } from "@/lib/feature-gates";
+import {
+  formatReimbursementAuditReviewStatus,
+  reimbursementAuditReviewStatuses,
+} from "@/lib/reimbursement-audit-review";
 import {
   formatReimbursementPaymentHandoffStatus,
   reimbursementPaymentHandoffStatuses,
@@ -147,6 +152,27 @@ export default async function ClaimDetailPage({
       currentDesk: true,
       policyEdition: true,
       submittedAt: true,
+      auditReview: {
+        select: {
+          status: true,
+          observations: true,
+          recommendation: true,
+          auditedAmount: true,
+          varianceAmount: true,
+          preparedAt: true,
+          verifiedAt: true,
+          preparedBy: {
+            select: {
+              name: true,
+            },
+          },
+          verifiedBy: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
       decisions: {
         select: {
           id: true,
@@ -285,6 +311,13 @@ export default async function ClaimDetailPage({
     activeRole === "REIMBURSEMENT_ACCOUNTANT" ||
     activeRole === "SYSTEM_ADMIN" ||
     activeRole === "WORKSPACE_APP_ADMIN";
+  const canUpdateAuditReview =
+    activeRole === "DIRECTOR_AUDIT" ||
+    activeRole === "HEAD_REIMBURSEMENT_AUDIT" ||
+    activeRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+    activeRole === "SYSTEM_ADMIN" ||
+    activeRole === "WORKSPACE_APP_ADMIN";
+  const canViewAuditReview = canUpdateAuditReview || Boolean(claim.auditReview);
   const latestRoutingReason = claim.decisions[0]?.reason ?? "";
   const availablePostIntakeTransitions = getClaimPostIntakeTransitions().filter((transition) => {
     if (claim.status !== "SUBMITTED" || claim.currentDesk !== transition.from) {
@@ -1313,6 +1346,92 @@ export default async function ClaimDetailPage({
           </form>
         ) : null}
       </section>
+
+      {canViewAuditReview ? (
+        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">Audit review</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
+                Foundation for the Reimbursement Schedule Auditor&apos;s audit work. Detailed
+                checklist fields can be added here once the official audit procedure is provided.
+              </p>
+            </div>
+            <span className="inline-flex w-fit rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700">
+              {claim.auditReview
+                ? formatReimbursementAuditReviewStatus(claim.auditReview.status)
+                : "Not started"}
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
+            <p>Audited amount: {formatMoney(claim.auditReview?.auditedAmount ?? null)}</p>
+            <p>Variance amount: {formatMoney(claim.auditReview?.varianceAmount ?? null)}</p>
+            <p>Prepared by: {claim.auditReview?.preparedBy?.name ?? "Not recorded"}</p>
+            <p>Prepared at: {formatDate(claim.auditReview?.preparedAt ?? null)}</p>
+            <p>Verified by: {claim.auditReview?.verifiedBy?.name ?? "Not recorded"}</p>
+            <p>Verified at: {formatDate(claim.auditReview?.verifiedAt ?? null)}</p>
+            <p className="md:col-span-2">
+              Recommendation: {claim.auditReview?.recommendation ?? "No recommendation recorded"}
+            </p>
+            <p className="md:col-span-2">
+              Observations: {claim.auditReview?.observations ?? "No observations recorded"}
+            </p>
+          </div>
+
+          {canUpdateAuditReview ? (
+            <form
+              action={updateClaimAuditReviewAction.bind(null, claim.id)}
+              className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2"
+            >
+              <select
+                name="auditReviewStatus"
+                defaultValue={claim.auditReview?.status ?? "DRAFT"}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              >
+                {reimbursementAuditReviewStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {formatReimbursementAuditReviewStatus(status)}
+                  </option>
+                ))}
+              </select>
+              <input
+                name="auditedAmount"
+                type="number"
+                step="0.01"
+                defaultValue={decimalInput(claim.auditReview?.auditedAmount ?? null)}
+                placeholder="Audited amount"
+                className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+              />
+              <input
+                name="varianceAmount"
+                type="number"
+                step="0.01"
+                defaultValue={decimalInput(claim.auditReview?.varianceAmount ?? null)}
+                placeholder="Variance amount"
+                className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+              />
+              <input
+                name="auditRecommendation"
+                defaultValue={claim.auditReview?.recommendation ?? ""}
+                placeholder="Audit recommendation"
+                className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+              />
+              <textarea
+                name="auditObservations"
+                defaultValue={claim.auditReview?.observations ?? ""}
+                placeholder="Audit observations"
+                className="min-h-24 rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2"
+              />
+              <div className="md:col-span-2">
+                <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                  Save audit review
+                </button>
+              </div>
+            </form>
+          ) : null}
+        </section>
+      ) : null}
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">

@@ -183,6 +183,14 @@ enum ReimbursementPaymentHandoffStatus {
   FAILED
 }
 
+enum ReimbursementAuditReviewStatus {
+  DRAFT
+  SUBMITTED
+  RETURNED
+  VERIFIED
+  CLEARED
+}
+
 enum ReimbursementClaimDesk {
   COMPANY
   AREA_MANAGER
@@ -510,6 +518,8 @@ model User {
   reviewedJurisdictionChanges                      JurisdictionChangeRequest[]          @relation("JurisdictionReviewedBy")
   contributionVerifiedClaims                       ReimbursementClaim[]                 @relation("ContributionVerifiedClaims")
   exportedReimbursementPaymentSchedules            ReimbursementClaim[]                 @relation("ReimbursementPaymentScheduleExportedBy")
+  preparedReimbursementAuditReviews                ReimbursementAuditReview[]           @relation("PreparedReimbursementAuditReviews")
+  verifiedReimbursementAuditReviews                ReimbursementAuditReview[]           @relation("VerifiedReimbursementAuditReviews")
 }
 
 model EmailVerificationToken {
@@ -1222,6 +1232,7 @@ model ReimbursementClaim {
   lines                          ReimbursementClaimLine[]
   staffEntries                   ReimbursementClaimStaffEntry[]
   computationTables              ReimbursementComputationTable[]
+  auditReview                    ReimbursementAuditReview?
   workItems                      WorkItem[]
   decisions                      Decision[]
   comments                       Comment[]
@@ -1235,6 +1246,30 @@ model ReimbursementClaim {
   @@index([paymentHandoffStatus, recordTier])
   @@index([paymentScheduleReference, recordTier])
   @@index([paymentScheduleExportedById, recordTier])
+}
+
+model ReimbursementAuditReview {
+  id                   String                         @id @default(cuid())
+  reimbursementClaimId String                         @unique
+  status               ReimbursementAuditReviewStatus @default(DRAFT)
+  observations         String?
+  recommendation       String?
+  auditedAmount        Decimal?                       @db.Decimal(14, 2)
+  varianceAmount       Decimal?                       @db.Decimal(14, 2)
+  preparedById         String?
+  preparedAt           DateTime?
+  verifiedById         String?
+  verifiedAt           DateTime?
+  recordTier           RecordTier                     @default(HOT)
+  createdAt            DateTime                       @default(now())
+  updatedAt            DateTime                       @updatedAt
+  reimbursementClaim   ReimbursementClaim             @relation(fields: [reimbursementClaimId], references: [id], onDelete: Cascade)
+  preparedBy           User?                          @relation("PreparedReimbursementAuditReviews", fields: [preparedById], references: [id])
+  verifiedBy           User?                          @relation("VerifiedReimbursementAuditReviews", fields: [verifiedById], references: [id])
+
+  @@index([status, recordTier])
+  @@index([preparedById, recordTier])
+  @@index([verifiedById, recordTier])
 }
 
 model ReimbursementClaimTraining {

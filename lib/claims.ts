@@ -11,6 +11,10 @@ import { isLateClaimSubmission } from "@/lib/claim-policy";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import {
+  isReimbursementAuditReviewStatus,
+  type ReimbursementAuditReviewStatus,
+} from "@/lib/reimbursement-audit-review";
+import {
   calculateReimbursementAward,
   type ReimbursementCalculationInput,
   type ReimbursementAwardArea,
@@ -149,6 +153,17 @@ export type UpdateClaimPaymentHandoffInput = {
   paymentSystemReference?: string;
   paymentSystemStatus?: string;
   note?: string;
+};
+
+export type UpdateClaimAuditReviewInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  status: ReimbursementAuditReviewStatus;
+  observations?: string;
+  recommendation?: string;
+  auditedAmount?: number;
+  varianceAmount?: number;
 };
 
 export type ClaimDesk =
@@ -806,6 +821,42 @@ function canManageClaimPaymentHandoff(role: Role) {
   );
 }
 
+function canManageClaimAuditReview(role: Role, status: ReimbursementAuditReviewStatus) {
+  if (isAdminRole(role)) {
+    return true;
+  }
+
+  if (role === "REIMBURSEMENT_SCHEDULE_AUDITOR") {
+    return status === "DRAFT" || status === "SUBMITTED";
+  }
+
+  if (role === "HEAD_REIMBURSEMENT_AUDIT") {
+    return status === "RETURNED" || status === "VERIFIED";
+  }
+
+  if (role === "DIRECTOR_AUDIT") {
+    return status === "RETURNED" || status === "CLEARED";
+  }
+
+  return false;
+}
+
+function getAuditReviewDecisionAction(status: ReimbursementAuditReviewStatus) {
+  if (status === "RETURNED") {
+    return "REQUEST_CHANGES";
+  }
+
+  if (status === "CLEARED") {
+    return "APPROVE";
+  }
+
+  if (status === "VERIFIED") {
+    return "CERTIFY";
+  }
+
+  return "RECOMMEND";
+}
+
 export async function markClaimKiv(input: ClaimRoutingInput) {
   if (!canManageClaimPause(input.requesterRole)) {
     throw new Error("Only Director General can mark a reimbursement claim KIV.");
@@ -1103,6 +1154,119 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
     });
 
     return updated;
+  });
+}
+
+export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput) {
+  if (!isReimbursementAuditReviewStatus(input.status)) {
+    throw new Error("Unsupported reimbursement audit review status.");
+  }
+
+  if (!canManageClaimAuditReview(input.requesterRole, input.status)) {
+    throw new Error("You do not have permission to update this audit review status.");
+  }
+
+  const db = getDb();
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Reimbursement claim was not found.");
+  }
+
+  const now = new Date();
+
+  return db.$transaction(async (tx) => {
+    const auditReview = await tx.reimbursementAuditReview.upsert({
+      where: {
+        reimbursementClaimId: claim.id,
+      },
+      create: {
+        reimbursementClaimId: claim.id,
+        status: input.status,
+        observations: input.observations,
+        recommendation: input.recommendation,
+        auditedAmount: input.auditedAmount,
+        varianceAmount: input.varianceAmount,
+        preparedById:
+          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+          input.status === "SUBMITTED"
+            ? actor.id
+            : undefined,
+        preparedAt:
+          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+          input.status === "SUBMITTED"
+            ? now
+            : undefined,
+        verifiedById:
+          input.status === "VERIFIED" || input.status === "CLEARED" ? actor.id : undefined,
+        verifiedAt:
+          input.status === "VERIFIED" || input.status === "CLEARED" ? now : undefined,
+      },
+      update: {
+        status: input.status,
+        observations: input.observations,
+        recommendation: input.recommendation,
+        auditedAmount: input.auditedAmount,
+        varianceAmount: input.varianceAmount,
+        preparedById:
+          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+          input.status === "SUBMITTED"
+            ? actor.id
+            : undefined,
+        preparedAt:
+          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+          input.status === "SUBMITTED"
+            ? now
+            : undefined,
+        verifiedById:
+          input.status === "VERIFIED" || input.status === "CLEARED" ? actor.id : undefined,
+        verifiedAt:
+          input.status === "VERIFIED" || input.status === "CLEARED" ? now : undefined,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        action: getAuditReviewDecisionAction(input.status),
+        reason: [
+          `Updated reimbursement audit review to ${input.status.replaceAll("_", " ")}.`,
+          input.recommendation ? `Recommendation: ${input.recommendation}.` : undefined,
+          input.observations,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      },
+    });
+
+    return auditReview;
   });
 }
 

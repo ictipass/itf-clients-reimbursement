@@ -21,6 +21,7 @@ import {
   markClaimKiv,
   resumeClaimFromKiv,
   submitClaimToAreaManager,
+  updateClaimAuditReview,
   updateClaimLine,
   updateClaimContributionVerification,
   updateClaimPaymentHandoff,
@@ -32,6 +33,7 @@ import {
   type ClaimDesk,
   type ClaimEvidenceKind,
 } from "@/lib/claims";
+import type { ReimbursementAuditReviewStatus } from "@/lib/reimbursement-audit-review";
 import type { ReimbursementPaymentHandoffStatus } from "@/lib/reimbursement-payment-schedule";
 import { parseClaimStaffEntryLines } from "@/lib/reimbursement-staff";
 
@@ -273,6 +275,33 @@ export async function updateClaimPaymentHandoffAction(
     paymentSystemReference: readOptionalString(formData, "paymentSystemReference"),
     paymentSystemStatus: readOptionalString(formData, "paymentSystemStatus"),
     note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/dashboard");
+  redirect(`/claims/${claimId}`);
+}
+
+export async function updateClaimAuditReviewAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await updateClaimAuditReview({
+    claimId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    status: readRequiredString(
+      formData,
+      "auditReviewStatus",
+    ) as ReimbursementAuditReviewStatus,
+    observations: readOptionalString(formData, "auditObservations"),
+    recommendation: readOptionalString(formData, "auditRecommendation"),
+    auditedAmount: readOptionalNumber(formData, "auditedAmount"),
+    varianceAmount: readOptionalNumber(formData, "varianceAmount"),
   });
 
   revalidatePath("/claims");
