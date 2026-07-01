@@ -69,6 +69,10 @@ function formatDate(value: Date | null) {
   }).format(value);
 }
 
+function formatDecisionAction(value: string) {
+  return value.replaceAll("_", " ");
+}
+
 function formatPercent(value: { toString(): string } | null) {
   if (!value) {
     return "Not calculated";
@@ -145,13 +149,21 @@ export default async function ClaimDetailPage({
       submittedAt: true,
       decisions: {
         select: {
+          id: true,
+          action: true,
           reason: true,
           createdAt: true,
+          actor: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
         },
         orderBy: {
           createdAt: "desc",
         },
-        take: 1,
+        take: 40,
       },
       documents: {
         where: {
@@ -1382,6 +1394,54 @@ export default async function ClaimDetailPage({
             </div>
           </form>
         ) : null}
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">Claim decision trail</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Chronological record of claim routing, recommendations, KIV pauses/resumptions,
+              payment updates, and settlement decisions for this employer.
+            </p>
+          </div>
+          <span className="inline-flex w-fit rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700">
+            {claim.decisions.length} recent decision{claim.decisions.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        {claim.decisions.length === 0 ? (
+          <p className="mt-4 text-sm leading-6 text-zinc-600">
+            No decision trail has been recorded for this claim yet.
+          </p>
+        ) : (
+          <ol className="mt-5 space-y-4">
+            {claim.decisions.map((decision) => (
+              <li
+                key={decision.id}
+                className="rounded-lg border border-zinc-100 bg-zinc-50 p-4 text-sm"
+              >
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="font-semibold uppercase tracking-[0.12em] text-[#800020]">
+                      {formatDecisionAction(decision.action)}
+                    </p>
+                    <p className="mt-1 font-semibold text-zinc-950">
+                      {decision.actor.name}
+                    </p>
+                    <p className="text-xs text-zinc-500">{decision.actor.email}</p>
+                  </div>
+                  <time className="text-xs font-semibold text-zinc-500">
+                    {formatDate(decision.createdAt)}
+                  </time>
+                </div>
+                <p className="mt-3 leading-6 text-zinc-700">
+                  {decision.reason ?? "No reason or note recorded."}
+                </p>
+              </li>
+            ))}
+          </ol>
+        )}
       </section>
 
       {canRecommendClaim ? (
