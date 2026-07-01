@@ -131,7 +131,12 @@ export type ClaimRoutingInput = {
   note?: string;
 };
 
-type ClaimDesk =
+export type ClaimWorkflowRoutingInput = ClaimRoutingInput & {
+  fromDesk: ClaimDesk;
+  toDesk: ClaimDesk;
+};
+
+export type ClaimDesk =
   | "COMPANY"
   | "AREA_MANAGER"
   | "HEAD_OF_TRAINING"
@@ -149,7 +154,7 @@ type ClaimDesk =
   | "HEAD_REIMBURSEMENT_FINANCE"
   | "REIMBURSEMENT_ACCOUNTANT";
 
-type ClaimIntakeTransition = {
+type ClaimRoutingTransition = {
   from: ClaimDesk;
   to: ClaimDesk;
   assignedRole: Role;
@@ -341,7 +346,151 @@ export function getClaimIntakeTransitions() {
       workItemTitle: "Process reimbursement claim",
       workItemSummary: "has a reimbursement claim awaiting A/O Reimbursement Officer processing.",
     },
-  ] as const satisfies readonly ClaimIntakeTransition[];
+  ] as const satisfies readonly ClaimRoutingTransition[];
+}
+
+export function getClaimPostIntakeTransitions() {
+  return [
+    {
+      from: "REIMBURSEMENT_OFFICER",
+      to: "HEAD_OF_TRAINING",
+      assignedRole: "HEAD_OF_TRAINING",
+      action: "FORWARD",
+      reason: "A/O Reimbursement Officer forwarded processed claim to HOT.",
+      workItemTitle: "Verify A/O reimbursement recommendation",
+      workItemSummary: "has a processed reimbursement claim awaiting HOT verification.",
+    },
+    {
+      from: "HEAD_OF_TRAINING",
+      to: "AREA_MANAGER",
+      assignedRole: "AREA_MANAGER",
+      action: "FORWARD",
+      reason: "HOT forwarded processed reimbursement claim to Area Manager.",
+      workItemTitle: "Release processed reimbursement claim",
+      workItemSummary: "has a processed reimbursement claim awaiting Area Manager release.",
+    },
+    {
+      from: "AREA_MANAGER",
+      to: "DIRECTOR_FSD",
+      assignedRole: "DIRECTOR_FSD",
+      action: "FORWARD",
+      reason: "Area Manager forwarded reimbursement claim to Director FSD.",
+      workItemTitle: "Review Area Office reimbursement claim",
+      workItemSummary: "has a reimbursement claim awaiting Director FSD review.",
+    },
+    {
+      from: "DIRECTOR_FSD",
+      to: "HEAD_OF_DIVISION",
+      assignedRole: "HEAD_OF_DIVISION",
+      action: "FORWARD",
+      reason: "Director FSD forwarded reimbursement claim to Head Reimbursement Division.",
+      workItemTitle: "Assign reimbursement claim for HQ processing",
+      workItemSummary: "has a reimbursement claim awaiting Head Reimbursement Division action.",
+    },
+    {
+      from: "HEAD_OF_DIVISION",
+      to: "HQ_REIMBURSEMENT_OFFICER",
+      assignedRole: "HQ_REIMBURSEMENT_OFFICER",
+      action: "FORWARD",
+      reason: "Head Reimbursement Division forwarded reimbursement claim to HQ RO.",
+      workItemTitle: "Process HQ reimbursement claim",
+      workItemSummary: "has a reimbursement claim awaiting HQ Reimbursement Officer processing.",
+    },
+    {
+      from: "HQ_REIMBURSEMENT_OFFICER",
+      to: "HEAD_OF_DIVISION",
+      assignedRole: "HEAD_OF_DIVISION",
+      action: "FORWARD",
+      reason: "HQ RO returned reimbursement claim to Head Reimbursement Division.",
+      workItemTitle: "Verify HQ reimbursement recommendation",
+      workItemSummary: "has an HQ reimbursement recommendation awaiting division verification.",
+    },
+    {
+      from: "HEAD_OF_DIVISION",
+      to: "DIRECTOR_FSD",
+      assignedRole: "DIRECTOR_FSD",
+      action: "FORWARD",
+      reason: "Head Reimbursement Division forwarded verified claim to Director FSD.",
+      workItemTitle: "Approve verified reimbursement claim",
+      workItemSummary: "has a verified reimbursement claim awaiting Director FSD approval.",
+    },
+    {
+      from: "DIRECTOR_FSD",
+      to: "DIRECTOR_AUDIT",
+      assignedRole: "DIRECTOR_AUDIT",
+      action: "FORWARD",
+      reason: "Director FSD forwarded approved reimbursement claim to Director Audit.",
+      workItemTitle: "Receive reimbursement claim for audit",
+      workItemSummary: "has an approved reimbursement claim awaiting Director Audit receipt.",
+    },
+    {
+      from: "DIRECTOR_AUDIT",
+      to: "HEAD_REIMBURSEMENT_AUDIT",
+      assignedRole: "HEAD_REIMBURSEMENT_AUDIT",
+      action: "FORWARD",
+      reason: "Director Audit forwarded reimbursement claim to Head Reimbursement Audit.",
+      workItemTitle: "Assign reimbursement audit",
+      workItemSummary: "has a reimbursement claim awaiting audit assignment.",
+    },
+    {
+      from: "HEAD_REIMBURSEMENT_AUDIT",
+      to: "REIMBURSEMENT_SCHEDULE_AUDITOR",
+      assignedRole: "REIMBURSEMENT_SCHEDULE_AUDITOR",
+      action: "FORWARD",
+      reason: "Head Reimbursement Audit forwarded claim to Reimbursement Schedule Auditor.",
+      workItemTitle: "Audit reimbursement schedule",
+      workItemSummary: "has a reimbursement schedule awaiting audit.",
+    },
+    {
+      from: "REIMBURSEMENT_SCHEDULE_AUDITOR",
+      to: "HEAD_REIMBURSEMENT_AUDIT",
+      assignedRole: "HEAD_REIMBURSEMENT_AUDIT",
+      action: "FORWARD",
+      reason: "Reimbursement Schedule Auditor returned audit result to Head Reimbursement Audit.",
+      workItemTitle: "Verify reimbursement audit result",
+      workItemSummary: "has a reimbursement audit result awaiting verification.",
+    },
+    {
+      from: "HEAD_REIMBURSEMENT_AUDIT",
+      to: "DIRECTOR_AUDIT",
+      assignedRole: "DIRECTOR_AUDIT",
+      action: "FORWARD",
+      reason: "Head Reimbursement Audit forwarded verified audit result to Director Audit.",
+      workItemTitle: "Approve reimbursement audit clearance",
+      workItemSummary: "has a verified reimbursement audit result awaiting Director Audit approval.",
+    },
+    {
+      from: "DIRECTOR_AUDIT",
+      to: "DIRECTOR_FINANCE",
+      assignedRole: "DIRECTOR_FINANCE",
+      action: "FORWARD",
+      reason: "Director Audit forwarded audit-cleared claim to Director Finance.",
+      workItemTitle: "Receive audit-cleared reimbursement claim",
+      workItemSummary: "has an audit-cleared reimbursement claim awaiting finance processing.",
+    },
+    {
+      from: "DIRECTOR_FINANCE",
+      to: "HEAD_REIMBURSEMENT_FINANCE",
+      assignedRole: "HEAD_REIMBURSEMENT_FINANCE",
+      action: "FORWARD",
+      reason: "Director Finance forwarded reimbursement claim to Head Reimbursement Finance.",
+      workItemTitle: "Assign reimbursement finance processing",
+      workItemSummary: "has a reimbursement claim awaiting finance assignment.",
+    },
+    {
+      from: "HEAD_REIMBURSEMENT_FINANCE",
+      to: "REIMBURSEMENT_ACCOUNTANT",
+      assignedRole: "REIMBURSEMENT_ACCOUNTANT",
+      action: "FORWARD",
+      reason: "Head Reimbursement Finance forwarded claim to Reimbursement Accountant.",
+      workItemTitle: "Prepare reimbursement payment handoff",
+      workItemSummary: "has a reimbursement claim awaiting accountant payment handoff.",
+    },
+  ] as const satisfies readonly ClaimRoutingTransition[];
+}
+
+export function getClaimWorkflowTransitions() {
+  return [...getClaimIntakeTransitions(), ...getClaimPostIntakeTransitions()] as const;
 }
 
 export async function submitClaimToAreaManager(input: ClaimRoutingInput) {
@@ -368,9 +517,27 @@ export async function forwardClaimToAreaReimbursementOfficer(input: ClaimRouting
   return moveClaimThroughIntake(input, getClaimIntakeTransitions()[2]);
 }
 
+export async function forwardClaimAlongWorkflow(input: ClaimWorkflowRoutingInput) {
+  const transition = getClaimWorkflowTransitions().find(
+    (candidate) => candidate.from === input.fromDesk && candidate.to === input.toDesk,
+  );
+
+  if (!transition) {
+    throw new Error("Unsupported reimbursement claim routing destination.");
+  }
+
+  if (!canRouteClaimFromDesk(input.requesterRole, transition.from)) {
+    throw new Error(
+      `Only ${transition.from.replaceAll("_", " ")} can forward this reimbursement claim.`,
+    );
+  }
+
+  return moveClaimThroughIntake(input, transition);
+}
+
 async function moveClaimThroughIntake(
   input: ClaimRoutingInput,
-  transition: ClaimIntakeTransition,
+  transition: ClaimRoutingTransition,
 ) {
   const db = getDb();
   const actor = await db.user.findUnique({
@@ -537,7 +704,7 @@ function assertClaimRoutingScope(input: {
     areaOfficeId: string | null;
   }[];
   requesterRole: Role;
-  transition: ClaimIntakeTransition;
+  transition: ClaimRoutingTransition;
   organizationId: string;
   areaOfficeId: string | null;
 }) {
@@ -565,13 +732,50 @@ function assertClaimRoutingScope(input: {
       (membership) => membership.areaOfficeId === input.areaOfficeId,
     );
 
-  if (!hasAreaOfficeAccess) {
+  const areaOfficeScopedDesks: ClaimDesk[] = [
+    "AREA_MANAGER",
+    "HEAD_OF_TRAINING",
+    "REIMBURSEMENT_OFFICER",
+  ];
+
+  if (areaOfficeScopedDesks.includes(input.transition.from) && !hasAreaOfficeAccess) {
     throw new Error("You do not have Area Office access for this reimbursement claim.");
   }
 }
 
 function isAdminRole(role: Role) {
   return role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
+}
+
+const claimDeskRoles: Record<ClaimDesk, Role | null> = {
+  COMPANY: null,
+  AREA_MANAGER: "AREA_MANAGER",
+  HEAD_OF_TRAINING: "HEAD_OF_TRAINING",
+  REIMBURSEMENT_OFFICER: "REIMBURSEMENT_OFFICER",
+  DIRECTOR_FSD: "DIRECTOR_FSD",
+  HEAD_OF_DIVISION: "HEAD_OF_DIVISION",
+  HQ_REIMBURSEMENT_OFFICER: "HQ_REIMBURSEMENT_OFFICER",
+  DIRECTOR_AUDIT: "DIRECTOR_AUDIT",
+  HEAD_REIMBURSEMENT_AUDIT: "HEAD_REIMBURSEMENT_AUDIT",
+  REIMBURSEMENT_SCHEDULE_AUDITOR: "REIMBURSEMENT_SCHEDULE_AUDITOR",
+  HEAD_BUDGET: "HEAD_BUDGET",
+  BUDGET_OFFICER: "BUDGET_OFFICER",
+  PRE_AUDIT_OFFICER: "PRE_AUDIT_OFFICER",
+  DIRECTOR_FINANCE: "DIRECTOR_FINANCE",
+  HEAD_REIMBURSEMENT_FINANCE: "HEAD_REIMBURSEMENT_FINANCE",
+  REIMBURSEMENT_ACCOUNTANT: "REIMBURSEMENT_ACCOUNTANT",
+};
+
+export function canRouteClaimFromDesk(role: Role, desk: ClaimDesk) {
+  if (isAdminRole(role)) {
+    return true;
+  }
+
+  if (desk === "COMPANY") {
+    return can(role, "claims:submit");
+  }
+
+  return claimDeskRoles[desk] === role;
 }
 
 export async function attachTrainingsToClaim(input: UpdateClaimTrainingsInput) {

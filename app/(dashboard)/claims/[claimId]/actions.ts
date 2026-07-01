@@ -14,6 +14,7 @@ import {
   attachTrainingsToClaim,
   deleteClaimLine,
   detachTrainingFromClaim,
+  forwardClaimAlongWorkflow,
   forwardClaimToAreaReimbursementOfficer,
   forwardClaimToHeadOfTraining,
   getClaimEvidenceKinds,
@@ -25,6 +26,7 @@ import {
   updateClaimStaffEntries,
   updateEmployerClaimCalculation,
   uploadClaimEvidence,
+  type ClaimDesk,
   type ClaimEvidenceKind,
 } from "@/lib/claims";
 import { parseClaimStaffEntryLines } from "@/lib/reimbursement-staff";
@@ -173,6 +175,33 @@ export async function forwardClaimToAreaReimbursementOfficerAction(
     claimId,
     requesterEmail: session.user.email,
     requesterRole: session.user.role,
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/dashboard");
+  redirect(`/claims/${claimId}`);
+}
+
+export async function forwardClaimAlongWorkflowAction(
+  claimId: string,
+  fromDesk: ClaimDesk,
+  toDesk: ClaimDesk,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await forwardClaimAlongWorkflow({
+    claimId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    fromDesk,
+    toDesk,
     note: readOptionalString(formData, "note"),
   });
 

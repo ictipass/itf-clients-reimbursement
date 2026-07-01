@@ -7,6 +7,7 @@ import {
   attachTrainingsToClaimAction,
   deleteClaimLineAction,
   detachTrainingFromClaimAction,
+  forwardClaimAlongWorkflowAction,
   forwardClaimToAreaReimbursementOfficerAction,
   forwardClaimToHeadOfTrainingAction,
   submitClaimToAreaManagerAction,
@@ -26,7 +27,11 @@ import {
   formatContributionVerificationStatus,
 } from "@/lib/claim-verification";
 import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
-import { getClaimEvidenceKinds } from "@/lib/claims";
+import {
+  canRouteClaimFromDesk,
+  getClaimEvidenceKinds,
+  getClaimPostIntakeTransitions,
+} from "@/lib/claims";
 import { getDb } from "@/lib/db";
 import { canUseSection } from "@/lib/feature-gates";
 import { formatReimbursementPaymentHandoffStatus } from "@/lib/reimbursement-payment-schedule";
@@ -132,6 +137,16 @@ export default async function ClaimDetailPage({
       currentDesk: true,
       policyEdition: true,
       submittedAt: true,
+      decisions: {
+        select: {
+          reason: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 1,
+      },
       documents: {
         where: {
           isActive: true,
@@ -239,6 +254,42 @@ export default async function ClaimDetailPage({
     (activeRole === "HEAD_OF_TRAINING" ||
       activeRole === "SYSTEM_ADMIN" ||
       activeRole === "WORKSPACE_APP_ADMIN");
+  const latestRoutingReason = claim.decisions[0]?.reason ?? "";
+  const availablePostIntakeTransitions = getClaimPostIntakeTransitions().filter((transition) => {
+    if (claim.status !== "SUBMITTED" || claim.currentDesk !== transition.from) {
+      return false;
+    }
+
+    if (!canRouteClaimFromDesk(activeRole, transition.from)) {
+      return false;
+    }
+
+    if (transition.from === "HEAD_OF_DIVISION") {
+      return latestRoutingReason.includes("HQ RO returned")
+        ? transition.to === "DIRECTOR_FSD"
+        : transition.to === "HQ_REIMBURSEMENT_OFFICER";
+    }
+
+    if (transition.from === "DIRECTOR_FSD") {
+      return latestRoutingReason.includes("Head Reimbursement Division forwarded verified")
+        ? transition.to === "DIRECTOR_AUDIT"
+        : transition.to === "HEAD_OF_DIVISION";
+    }
+
+    if (transition.from === "HEAD_REIMBURSEMENT_AUDIT") {
+      return latestRoutingReason.includes("Reimbursement Schedule Auditor returned")
+        ? transition.to === "DIRECTOR_AUDIT"
+        : transition.to === "REIMBURSEMENT_SCHEDULE_AUDITOR";
+    }
+
+    if (transition.from === "DIRECTOR_AUDIT") {
+      return latestRoutingReason.includes("Head Reimbursement Audit forwarded verified")
+        ? transition.to === "DIRECTOR_FINANCE"
+        : transition.to === "HEAD_REIMBURSEMENT_AUDIT";
+    }
+
+    return true;
+  });
   const staffEntriesByArea = {
     MANAGEMENT: claim.staffEntries.filter((entry) => entry.trainingArea === "MANAGEMENT"),
     SUPERVISORY: claim.staffEntries.filter((entry) => entry.trainingArea === "SUPERVISORY"),
@@ -401,7 +452,8 @@ export default async function ClaimDetailPage({
 
       {(canSubmitToAreaManager ||
         canForwardToHot ||
-        canForwardToAreaReimbursementOfficer) ? (
+        canForwardToAreaReimbursementOfficer ||
+        availablePostIntakeTransitions.length > 0) ? (
         <section className="mt-8 rounded-lg border border-[#800020]/20 bg-[#800020]/5 p-5">
           <h2 className="text-xl font-semibold tracking-tight">Claim routing</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-700">
@@ -453,6 +505,27 @@ export default async function ClaimDetailPage({
               </button>
             </form>
           ) : null}
+          {availablePostIntakeTransitions.map((transition) => (
+            <form
+              key={`${transition.from}:${transition.to}`}
+              action={forwardClaimAlongWorkflowAction.bind(
+                null,
+                claim.id,
+                transition.from,
+                transition.to,
+              )}
+              className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]"
+            >
+              <input
+                name="note"
+                placeholder={`Optional ${transition.from.replaceAll("_", " ")} note`}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Forward to {transition.to.replaceAll("_", " ")}
+              </button>
+            </form>
+          ))}
         </section>
       ) : null}
 
