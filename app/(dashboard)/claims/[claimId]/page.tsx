@@ -29,6 +29,7 @@ import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
 import { getClaimEvidenceKinds } from "@/lib/claims";
 import { getDb } from "@/lib/db";
 import { canUseSection } from "@/lib/feature-gates";
+import { formatReimbursementPaymentHandoffStatus } from "@/lib/reimbursement-payment-schedule";
 import { formatReimbursementPolicyEdition } from "@/lib/reimbursement-policy";
 
 function formatMoney(value: { toString(): string } | null) {
@@ -105,6 +106,13 @@ export default async function ClaimDetailPage({
       externalVerificationReference: true,
       externalVerificationCheckedAt: true,
       externalVerificationMessage: true,
+      paymentHandoffStatus: true,
+      paymentScheduleReference: true,
+      paymentScheduleExportedAt: true,
+      paymentSystemReference: true,
+      paymentSystemStatus: true,
+      paymentSystemSyncedAt: true,
+      paidAt: true,
       bankName: true,
       accountNumber: true,
       sortCode: true,
@@ -1158,6 +1166,47 @@ export default async function ClaimDetailPage({
             </button>
           </form>
         ) : null}
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">Payment handoff</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Interim bridge to ITF&apos;s existing payment process. Until ERP/API details are
+              available, the e-payment schedule can be downloaded and manually fed into the
+              payment system.
+            </p>
+          </div>
+          {canRecommendClaim ? (
+            <Link
+              href={`/claims/${claim.id}/payment-schedule`}
+              className="inline-flex min-h-10 w-fit items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
+            >
+              Download e-payment schedule CSV
+            </Link>
+          ) : null}
+        </div>
+
+        <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
+          <p>
+            Handoff status:{" "}
+            {formatReimbursementPaymentHandoffStatus(claim.paymentHandoffStatus)}
+          </p>
+          <p>
+            Schedule reference:{" "}
+            {claim.paymentScheduleReference ?? "Generated at download until formally exported"}
+          </p>
+          <p>Recommended amount: {formatMoney(claim.claimRecommendedAmount)}</p>
+          <p>Bank: {claim.bankName ?? "Not provided"}</p>
+          <p>Account number: {claim.accountNumber ?? "Not provided"}</p>
+          <p>Sort code: {claim.sortCode ?? "Not provided"}</p>
+          <p>Schedule exported at: {formatDate(claim.paymentScheduleExportedAt)}</p>
+          <p>Payment system reference: {claim.paymentSystemReference ?? "Not recorded"}</p>
+          <p>Payment system status: {claim.paymentSystemStatus ?? "Not synced"}</p>
+          <p>Payment system synced at: {formatDate(claim.paymentSystemSyncedAt)}</p>
+          <p>Paid at: {formatDate(claim.paidAt)}</p>
+        </div>
       </section>
 
       {canRecommendClaim ? (
