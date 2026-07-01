@@ -10,11 +10,14 @@ import {
   forwardClaimAlongWorkflowAction,
   forwardClaimToAreaReimbursementOfficerAction,
   forwardClaimToHeadOfTrainingAction,
+  markClaimKivAction,
+  resumeClaimFromKivAction,
   submitClaimToAreaManagerAction,
   updateClaimStaffEntriesAction,
   updateClaimLineAction,
   updateEmployerClaimCalculationAction,
   updateClaimContributionVerificationAction,
+  updateClaimPaymentHandoffAction,
   updateClaimRecommendationAction,
   updateClaimFormAction,
   uploadClaimEvidenceAction,
@@ -34,7 +37,10 @@ import {
 } from "@/lib/claims";
 import { getDb } from "@/lib/db";
 import { canUseSection } from "@/lib/feature-gates";
-import { formatReimbursementPaymentHandoffStatus } from "@/lib/reimbursement-payment-schedule";
+import {
+  formatReimbursementPaymentHandoffStatus,
+  reimbursementPaymentHandoffStatuses,
+} from "@/lib/reimbursement-payment-schedule";
 import { formatReimbursementPolicyEdition } from "@/lib/reimbursement-policy";
 
 function formatMoney(value: { toString(): string } | null) {
@@ -254,6 +260,19 @@ export default async function ClaimDetailPage({
     (activeRole === "HEAD_OF_TRAINING" ||
       activeRole === "SYSTEM_ADMIN" ||
       activeRole === "WORKSPACE_APP_ADMIN");
+  const canManageKiv =
+    activeRole === "DIRECTOR_GENERAL" ||
+    activeRole === "SYSTEM_ADMIN" ||
+    activeRole === "WORKSPACE_APP_ADMIN";
+  const canMarkKiv =
+    canManageKiv && ["SUBMITTED", "IN_REVIEW", "APPROVED"].includes(claim.status);
+  const canResumeKiv = canManageKiv && claim.status === "CHANGES_REQUESTED";
+  const canUpdatePaymentHandoff =
+    activeRole === "DIRECTOR_FINANCE" ||
+    activeRole === "HEAD_REIMBURSEMENT_FINANCE" ||
+    activeRole === "REIMBURSEMENT_ACCOUNTANT" ||
+    activeRole === "SYSTEM_ADMIN" ||
+    activeRole === "WORKSPACE_APP_ADMIN";
   const latestRoutingReason = claim.decisions[0]?.reason ?? "";
   const availablePostIntakeTransitions = getClaimPostIntakeTransitions().filter((transition) => {
     if (claim.status !== "SUBMITTED" || claim.currentDesk !== transition.from) {
@@ -370,6 +389,16 @@ export default async function ClaimDetailPage({
         </p>
       </div>
 
+      {claim.status === "CHANGES_REQUESTED" ? (
+        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
+          <p className="font-semibold">This reimbursement claim is currently KIV/paused.</p>
+          <p>
+            Attention badges are cleared while paused. Resume it only when the claim should return
+            to the current desk: {claim.currentDesk.replaceAll("_", " ")}.
+          </p>
+        </div>
+      ) : null}
+
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
@@ -453,7 +482,9 @@ export default async function ClaimDetailPage({
       {(canSubmitToAreaManager ||
         canForwardToHot ||
         canForwardToAreaReimbursementOfficer ||
-        availablePostIntakeTransitions.length > 0) ? (
+        availablePostIntakeTransitions.length > 0 ||
+        canMarkKiv ||
+        canResumeKiv) ? (
         <section className="mt-8 rounded-lg border border-[#800020]/20 bg-[#800020]/5 p-5">
           <h2 className="text-xl font-semibold tracking-tight">Claim routing</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-700">
@@ -526,6 +557,36 @@ export default async function ClaimDetailPage({
               </button>
             </form>
           ))}
+          {canMarkKiv ? (
+            <form
+              action={markClaimKivAction.bind(null, claim.id)}
+              className="mt-5 grid gap-3 border-t border-[#800020]/10 pt-5 md:grid-cols-[1fr_auto]"
+            >
+              <input
+                name="note"
+                placeholder="Optional DG KIV note"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+              <button className="min-h-10 rounded-md bg-amber-700 px-4 text-sm font-semibold text-white">
+                Mark KIV / pause claim
+              </button>
+            </form>
+          ) : null}
+          {canResumeKiv ? (
+            <form
+              action={resumeClaimFromKivAction.bind(null, claim.id)}
+              className="mt-5 grid gap-3 border-t border-[#800020]/10 pt-5 md:grid-cols-[1fr_auto]"
+            >
+              <input
+                name="note"
+                placeholder="Optional DG resume note"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Resume claim at current desk
+              </button>
+            </form>
+          ) : null}
         </section>
       ) : null}
 
@@ -1280,6 +1341,47 @@ export default async function ClaimDetailPage({
           <p>Payment system synced at: {formatDate(claim.paymentSystemSyncedAt)}</p>
           <p>Paid at: {formatDate(claim.paidAt)}</p>
         </div>
+
+        {canUpdatePaymentHandoff ? (
+          <form
+            action={updateClaimPaymentHandoffAction.bind(null, claim.id)}
+            className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2"
+          >
+            <select
+              name="paymentHandoffStatus"
+              defaultValue={claim.paymentHandoffStatus}
+              className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            >
+              {reimbursementPaymentHandoffStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {formatReimbursementPaymentHandoffStatus(status)}
+                </option>
+              ))}
+            </select>
+            <input
+              name="paymentSystemReference"
+              defaultValue={claim.paymentSystemReference ?? ""}
+              placeholder="Payment system / PV reference"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="paymentSystemStatus"
+              defaultValue={claim.paymentSystemStatus ?? ""}
+              placeholder="Payment system status"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="note"
+              placeholder="Optional payment handoff note"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <div className="md:col-span-2">
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Update payment handoff
+              </button>
+            </div>
+          </form>
+        ) : null}
       </section>
 
       {canRecommendClaim ? (

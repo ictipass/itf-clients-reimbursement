@@ -19,6 +19,11 @@ import {
   prepareClaimStaffEntries,
   type ReimbursementStaffEntryInput,
 } from "@/lib/reimbursement-staff";
+import {
+  buildReimbursementPaymentScheduleReference,
+  isReimbursementPaymentHandoffStatus,
+  type ReimbursementPaymentHandoffStatus,
+} from "@/lib/reimbursement-payment-schedule";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 
@@ -134,6 +139,16 @@ export type ClaimRoutingInput = {
 export type ClaimWorkflowRoutingInput = ClaimRoutingInput & {
   fromDesk: ClaimDesk;
   toDesk: ClaimDesk;
+};
+
+export type UpdateClaimPaymentHandoffInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  status: ReimbursementPaymentHandoffStatus;
+  paymentSystemReference?: string;
+  paymentSystemStatus?: string;
+  note?: string;
 };
 
 export type ClaimDesk =
@@ -776,6 +791,319 @@ export function canRouteClaimFromDesk(role: Role, desk: ClaimDesk) {
   }
 
   return claimDeskRoles[desk] === role;
+}
+
+function canManageClaimPause(role: Role) {
+  return isAdminRole(role) || role === "DIRECTOR_GENERAL";
+}
+
+function canManageClaimPaymentHandoff(role: Role) {
+  return (
+    isAdminRole(role) ||
+    role === "DIRECTOR_FINANCE" ||
+    role === "HEAD_REIMBURSEMENT_FINANCE" ||
+    role === "REIMBURSEMENT_ACCOUNTANT"
+  );
+}
+
+export async function markClaimKiv(input: ClaimRoutingInput) {
+  if (!canManageClaimPause(input.requesterRole)) {
+    throw new Error("Only Director General can mark a reimbursement claim KIV.");
+  }
+
+  const db = getDb();
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      status: {
+        in: ["SUBMITTED", "IN_REVIEW", "APPROVED"],
+      },
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+    },
+  });
+
+  if (!claim) {
+    throw new Error("An active reimbursement claim eligible for KIV was not found.");
+  }
+
+  const now = new Date();
+  const note = input.note?.trim();
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.reimbursementClaim.update({
+      where: { id: claim.id },
+      data: {
+        status: "CHANGES_REQUESTED",
+      },
+      select: { id: true },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        reimbursementClaimId: claim.id,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: now,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        action: "REQUEST_CHANGES",
+        reason: ["Director General marked reimbursement claim KIV/paused.", note]
+          .filter(Boolean)
+          .join(" "),
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function resumeClaimFromKiv(input: ClaimRoutingInput) {
+  if (!canManageClaimPause(input.requesterRole)) {
+    throw new Error("Only Director General can resume a KIV reimbursement claim.");
+  }
+
+  const db = getDb();
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      status: "CHANGES_REQUESTED",
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      currentDesk: true,
+      company: {
+        select: {
+          legalName: true,
+          organizationId: true,
+          areaOfficeId: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new Error("A KIV reimbursement claim was not found.");
+  }
+
+  const assignedRole = claimDeskRoles[claim.currentDesk];
+  if (!assignedRole) {
+    throw new Error("This KIV claim cannot be resumed to an employer desk.");
+  }
+
+  const note = input.note?.trim();
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.reimbursementClaim.update({
+      where: { id: claim.id },
+      data: {
+        status: "SUBMITTED",
+      },
+      select: { id: true },
+    });
+
+    await tx.workItem.upsert({
+      where: {
+        sourceKey: getClaimWorkItemSourceKey(claim.id, claim.currentDesk),
+      },
+      create: {
+        workspaceId: claim.company.organization.workspaceId,
+        organizationId: claim.company.organizationId,
+        areaOfficeId: claim.company.areaOfficeId,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        assignedRole,
+        app: "REIMBURSEMENT",
+        kind: "REIMBURSEMENT_CLAIM_REVIEW",
+        status: "OPEN",
+        priority: "NORMAL",
+        title: "Resume KIV reimbursement claim",
+        summary: `${claim.company.legalName} has a resumed reimbursement claim awaiting ${claim.currentDesk.replaceAll("_", " ")} attention.`,
+        targetHref: `/claims/${claim.id}`,
+        sourceKey: getClaimWorkItemSourceKey(claim.id, claim.currentDesk),
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        emailNotifiedAt: null,
+        assignedRole,
+        priority: "NORMAL",
+        title: "Resume KIV reimbursement claim",
+        summary: `${claim.company.legalName} has a resumed reimbursement claim awaiting ${claim.currentDesk.replaceAll("_", " ")} attention.`,
+        targetHref: `/claims/${claim.id}`,
+      },
+      select: { id: true },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        action: "REOPEN",
+        reason: ["Director General resumed KIV reimbursement claim.", note]
+          .filter(Boolean)
+          .join(" "),
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoffInput) {
+  if (!canManageClaimPaymentHandoff(input.requesterRole)) {
+    throw new Error("You do not have permission to update reimbursement payment status.");
+  }
+
+  if (!isReimbursementPaymentHandoffStatus(input.status)) {
+    throw new Error("Unsupported reimbursement payment handoff status.");
+  }
+
+  const db = getDb();
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      reference: true,
+      claimYear: true,
+      paymentScheduleReference: true,
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Reimbursement claim was not found.");
+  }
+
+  const now = new Date();
+  const note = input.note?.trim();
+  const scheduleReference =
+    claim.paymentScheduleReference ?? buildReimbursementPaymentScheduleReference(claim);
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.reimbursementClaim.update({
+      where: { id: claim.id },
+      data: {
+        paymentHandoffStatus: input.status,
+        paymentScheduleReference: scheduleReference,
+        paymentScheduleExportedAt:
+          input.status === "EXPORTED" || input.status === "SENT_TO_PAYMENT_SYSTEM"
+            ? now
+            : undefined,
+        paymentScheduleExportedById:
+          input.status === "EXPORTED" || input.status === "SENT_TO_PAYMENT_SYSTEM"
+            ? actor.id
+            : undefined,
+        paymentSystemReference: input.paymentSystemReference,
+        paymentSystemStatus: input.paymentSystemStatus,
+        paymentSystemSyncedAt:
+          input.status === "SENT_TO_PAYMENT_SYSTEM" ||
+          input.status === "PV_RAISED" ||
+          input.status === "PV_CHECKED" ||
+          input.status === "AUDIT_CLEARED" ||
+          input.status === "PAID" ||
+          input.status === "FAILED"
+            ? now
+            : undefined,
+        paidAt: input.status === "PAID" ? now : undefined,
+        status: input.status === "PAID" ? "SETTLED" : undefined,
+        settledAt: input.status === "PAID" ? now : undefined,
+      },
+      select: { id: true },
+    });
+
+    if (input.status === "PAID") {
+      await tx.workItem.updateMany({
+        where: {
+          reimbursementClaimId: claim.id,
+          status: "OPEN",
+        },
+        data: {
+          status: "RESOLVED",
+          resolvedAt: now,
+        },
+      });
+    }
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        action: input.status === "PAID" ? "SETTLE" : "RECOMMEND",
+        reason: [
+          `Updated reimbursement payment handoff status to ${input.status.replaceAll("_", " ")}.`,
+          input.paymentSystemReference ? `Reference: ${input.paymentSystemReference}.` : undefined,
+          note,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      },
+    });
+
+    return updated;
+  });
 }
 
 export async function attachTrainingsToClaim(input: UpdateClaimTrainingsInput) {

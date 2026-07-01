@@ -18,9 +18,12 @@ import {
   forwardClaimToAreaReimbursementOfficer,
   forwardClaimToHeadOfTraining,
   getClaimEvidenceKinds,
+  markClaimKiv,
+  resumeClaimFromKiv,
   submitClaimToAreaManager,
   updateClaimLine,
   updateClaimContributionVerification,
+  updateClaimPaymentHandoff,
   updateClaimRecommendation,
   updateClaimForm,
   updateClaimStaffEntries,
@@ -29,6 +32,7 @@ import {
   type ClaimDesk,
   type ClaimEvidenceKind,
 } from "@/lib/claims";
+import type { ReimbursementPaymentHandoffStatus } from "@/lib/reimbursement-payment-schedule";
 import { parseClaimStaffEntryLines } from "@/lib/reimbursement-staff";
 
 function readOptionalString(formData: FormData, name: string) {
@@ -202,6 +206,72 @@ export async function forwardClaimAlongWorkflowAction(
     requesterRole: session.user.role,
     fromDesk,
     toDesk,
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/dashboard");
+  redirect(`/claims/${claimId}`);
+}
+
+export async function markClaimKivAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await markClaimKiv({
+    claimId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/dashboard");
+  redirect(`/claims/${claimId}`);
+}
+
+export async function resumeClaimFromKivAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await resumeClaimFromKiv({
+    claimId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    note: readOptionalString(formData, "note"),
+  });
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/dashboard");
+  redirect(`/claims/${claimId}`);
+}
+
+export async function updateClaimPaymentHandoffAction(
+  claimId: string,
+  formData: FormData,
+) {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user?.email) {
+    throw new Error("Authentication is required.");
+  }
+
+  await updateClaimPaymentHandoff({
+    claimId,
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+    status: readRequiredString(formData, "paymentHandoffStatus") as ReimbursementPaymentHandoffStatus,
+    paymentSystemReference: readOptionalString(formData, "paymentSystemReference"),
+    paymentSystemStatus: readOptionalString(formData, "paymentSystemStatus"),
     note: readOptionalString(formData, "note"),
   });
 

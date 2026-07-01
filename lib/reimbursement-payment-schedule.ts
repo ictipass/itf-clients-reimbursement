@@ -13,6 +13,14 @@ export const reimbursementPaymentHandoffStatuses = [
 export type ReimbursementPaymentHandoffStatus =
   (typeof reimbursementPaymentHandoffStatuses)[number];
 
+export function isReimbursementPaymentHandoffStatus(
+  value: string | undefined,
+): value is ReimbursementPaymentHandoffStatus {
+  return reimbursementPaymentHandoffStatuses.includes(
+    value as ReimbursementPaymentHandoffStatus,
+  );
+}
+
 export type ReimbursementPaymentScheduleClaim = {
   reference: string;
   claimYear: number | null;

@@ -6,6 +6,7 @@ import {
   buildReimbursementPaymentScheduleFilename,
   buildReimbursementPaymentScheduleReference,
   formatReimbursementPaymentHandoffStatus,
+  isReimbursementPaymentHandoffStatus,
 } from "../lib/reimbursement-payment-schedule";
 
 test("builds reimbursement e-payment schedule CSV for ERP handoff", () => {
@@ -45,4 +46,9 @@ test("uses stable reimbursement payment schedule naming", () => {
     "reimbursement-payment-schedule-2026-CLM-001.csv",
   );
   assert.equal(formatReimbursementPaymentHandoffStatus("PV_RAISED"), "PV raised");
+});
+
+test("validates reimbursement payment handoff status values", () => {
+  assert.equal(isReimbursementPaymentHandoffStatus("AUDIT_CLEARED"), true);
+  assert.equal(isReimbursementPaymentHandoffStatus("KIV"), false);
 });
