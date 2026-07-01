@@ -57,6 +57,15 @@ function isHeadquartersReviewerRole(role: string) {
     role === "HQ_REIMBURSEMENT_OFFICER" ||
     role === "HQ_REVENUE_ACCOUNTANT" ||
     role === "DIRECTOR_GENERAL" ||
+    role === "DIRECTOR_AUDIT" ||
+    role === "HEAD_REIMBURSEMENT_AUDIT" ||
+    role === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+    role === "HEAD_BUDGET" ||
+    role === "BUDGET_OFFICER" ||
+    role === "PRE_AUDIT_OFFICER" ||
+    role === "DIRECTOR_FINANCE" ||
+    role === "HEAD_REIMBURSEMENT_FINANCE" ||
+    role === "REIMBURSEMENT_ACCOUNTANT" ||
     role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" ||
     role === "HEAD_INSPECTORATE_COMPLIANCE"
   );
