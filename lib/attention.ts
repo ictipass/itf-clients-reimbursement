@@ -45,10 +45,7 @@ export async function getAttentionSummary(input: AttentionSummaryInput) {
 
   const scopedWhere = canSeeAll
     ? baseWhere
-    : {
-        ...baseWhere,
-        OR: buildAssigneeScope(input.requesterRole, requester),
-      };
+    : buildScopedWorkItemWhere(baseWhere, input.requesterRole, requester);
 
   const [workItemTotal, awarenessWorkItemTotal, actionWorkItems, awarenessWorkItems] =
     await db.$transaction([
@@ -193,10 +190,7 @@ export async function getModuleAttentionCounts(input: AttentionSummaryInput) {
     input.requesterRole === "SYSTEM_ADMIN" || input.requesterRole === "WORKSPACE_APP_ADMIN";
   const scopedWhere = canSeeAll
     ? baseWhere
-    : {
-        ...baseWhere,
-        OR: buildAssigneeScope(input.requesterRole, requester),
-      };
+    : buildScopedWorkItemWhere(baseWhere, input.requesterRole, requester);
   const workItems = await db.workItem.findMany({
     where: scopedWhere,
     select: {
@@ -389,6 +383,53 @@ function getDerivedRegistrationTitle(role: Role) {
   return "Review employer registration";
 }
 
+function buildScopedWorkItemWhere(
+  baseWhere: {
+    app: "REIMBURSEMENT";
+    status: "OPEN";
+    recordTier: "HOT";
+  },
+  requesterRole: Role,
+  requester: {
+    id: string;
+    memberships: {
+      organizationId: string | null;
+      areaOfficeId: string | null;
+      role: Role;
+    }[];
+  } | null,
+) {
+  const claimDesk = getClaimDeskForRole(requesterRole);
+
+  return {
+    ...baseWhere,
+    AND: [
+      {
+        OR: buildAssigneeScope(requesterRole, requester),
+      },
+      {
+        OR: [
+          {
+            reimbursementClaimId: null,
+          },
+          ...(claimDesk
+            ? [
+                {
+                  reimbursementClaim: {
+                    currentDesk: claimDesk,
+                    status: {
+                      not: "CHANGES_REQUESTED" as const,
+                    },
+                  },
+                },
+              ]
+            : []),
+        ],
+      },
+    ],
+  };
+}
+
 function buildAssigneeScope(
   requesterRole: Role,
   requester: {
@@ -454,14 +495,87 @@ function uniqueDefined(values: Array<string | null>) {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
 }
 
-function isHeadquartersRole(role: Role) {
+export function isHeadquartersRole(role: Role) {
   return (
     role === "DIRECTOR_FSD" ||
     role === "HEAD_OF_DIVISION" ||
     role === "HQ_REIMBURSEMENT_OFFICER" ||
     role === "HQ_REVENUE_ACCOUNTANT" ||
     role === "DIRECTOR_GENERAL" ||
+    role === "DIRECTOR_AUDIT" ||
+    role === "HEAD_REIMBURSEMENT_AUDIT" ||
+    role === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+    role === "HEAD_BUDGET" ||
+    role === "BUDGET_OFFICER" ||
+    role === "PRE_AUDIT_OFFICER" ||
+    role === "DIRECTOR_FINANCE" ||
+    role === "HEAD_REIMBURSEMENT_FINANCE" ||
+    role === "REIMBURSEMENT_ACCOUNTANT" ||
     role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" ||
     role === "HEAD_INSPECTORATE_COMPLIANCE"
   );
+}
+
+export function getClaimDeskForRole(role: Role) {
+  if (role === "AREA_MANAGER") {
+    return "AREA_MANAGER";
+  }
+
+  if (role === "HEAD_OF_TRAINING") {
+    return "HEAD_OF_TRAINING";
+  }
+
+  if (role === "REIMBURSEMENT_OFFICER") {
+    return "REIMBURSEMENT_OFFICER";
+  }
+
+  if (role === "DIRECTOR_FSD") {
+    return "DIRECTOR_FSD";
+  }
+
+  if (role === "HEAD_OF_DIVISION") {
+    return "HEAD_OF_DIVISION";
+  }
+
+  if (role === "HQ_REIMBURSEMENT_OFFICER") {
+    return "HQ_REIMBURSEMENT_OFFICER";
+  }
+
+  if (role === "DIRECTOR_AUDIT") {
+    return "DIRECTOR_AUDIT";
+  }
+
+  if (role === "HEAD_REIMBURSEMENT_AUDIT") {
+    return "HEAD_REIMBURSEMENT_AUDIT";
+  }
+
+  if (role === "REIMBURSEMENT_SCHEDULE_AUDITOR") {
+    return "REIMBURSEMENT_SCHEDULE_AUDITOR";
+  }
+
+  if (role === "HEAD_BUDGET") {
+    return "HEAD_BUDGET";
+  }
+
+  if (role === "BUDGET_OFFICER") {
+    return "BUDGET_OFFICER";
+  }
+
+  if (role === "PRE_AUDIT_OFFICER") {
+    return "PRE_AUDIT_OFFICER";
+  }
+
+  if (role === "DIRECTOR_FINANCE") {
+    return "DIRECTOR_FINANCE";
+  }
+
+  if (role === "HEAD_REIMBURSEMENT_FINANCE") {
+    return "HEAD_REIMBURSEMENT_FINANCE";
+  }
+
+  if (role === "REIMBURSEMENT_ACCOUNTANT") {
+    return "REIMBURSEMENT_ACCOUNTANT";
+  }
+
+  return null;
 }
