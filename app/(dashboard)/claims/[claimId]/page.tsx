@@ -346,7 +346,21 @@ export default async function ClaimDetailPage({
         : transition.to === "REIMBURSEMENT_SCHEDULE_AUDITOR";
     }
 
+    if (transition.from === "HEAD_BUDGET") {
+      return latestRoutingReason.includes("Budget Officer returned")
+        ? transition.to === "DIRECTOR_AUDIT"
+        : transition.to === "BUDGET_OFFICER";
+    }
+
     if (transition.from === "DIRECTOR_AUDIT") {
+      if (latestRoutingReason.includes("Head Budget forwarded budget-cleared")) {
+        return transition.to === "PRE_AUDIT_OFFICER";
+      }
+
+      if (latestRoutingReason.includes("Pre-Audit Officer returned")) {
+        return false;
+      }
+
       return latestRoutingReason.includes("Head Reimbursement Audit forwarded verified")
         ? transition.to === "DIRECTOR_FINANCE"
         : transition.to === "HEAD_REIMBURSEMENT_AUDIT";

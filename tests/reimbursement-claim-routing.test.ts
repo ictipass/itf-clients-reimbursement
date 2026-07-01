@@ -61,6 +61,12 @@ test("routes processed reimbursement claims through HQ, audit, and finance desks
         "REIMBURSEMENT_ACCOUNTANT",
         "REIMBURSEMENT_ACCOUNTANT",
       ],
+      ["REIMBURSEMENT_ACCOUNTANT", "HEAD_BUDGET", "HEAD_BUDGET"],
+      ["HEAD_BUDGET", "BUDGET_OFFICER", "BUDGET_OFFICER"],
+      ["BUDGET_OFFICER", "HEAD_BUDGET", "HEAD_BUDGET"],
+      ["HEAD_BUDGET", "DIRECTOR_AUDIT", "DIRECTOR_AUDIT"],
+      ["DIRECTOR_AUDIT", "PRE_AUDIT_OFFICER", "PRE_AUDIT_OFFICER"],
+      ["PRE_AUDIT_OFFICER", "DIRECTOR_AUDIT", "DIRECTOR_AUDIT"],
     ],
   );
 });
@@ -68,6 +74,9 @@ test("routes processed reimbursement claims through HQ, audit, and finance desks
 test("only the current desk role can route a reimbursement claim", () => {
   assert.equal(canRouteClaimFromDesk("DIRECTOR_AUDIT", "DIRECTOR_AUDIT"), true);
   assert.equal(canRouteClaimFromDesk("DIRECTOR_FINANCE", "DIRECTOR_AUDIT"), false);
+  assert.equal(canRouteClaimFromDesk("HEAD_BUDGET", "HEAD_BUDGET"), true);
+  assert.equal(canRouteClaimFromDesk("BUDGET_OFFICER", "HEAD_BUDGET"), false);
+  assert.equal(canRouteClaimFromDesk("PRE_AUDIT_OFFICER", "PRE_AUDIT_OFFICER"), true);
   assert.equal(canRouteClaimFromDesk("SYSTEM_ADMIN", "DIRECTOR_AUDIT"), true);
   assert.equal(canRouteClaimFromDesk("EMPLOYER_SUBMITTER", "COMPANY"), true);
 });
