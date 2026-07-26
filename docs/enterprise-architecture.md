@@ -32,6 +32,9 @@ This application remains responsible for:
 - Domain-level audit events
 - Workflow state transitions and reimbursement decisions
 
+When policies or workflow scope change, update `docs/user-support-guide.md` and the landing
+page copy together so the live support documentation reflects the current product mode.
+
 n8n should integrate around the application. It should not own core business rules.
 
 Use n8n later for:

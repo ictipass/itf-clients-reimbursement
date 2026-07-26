@@ -2,16 +2,21 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { appName } from "@/lib/domain";
+import { contributionFeatureEnabled } from "@/lib/app-config";
 
 const statutoryWorkflows = [
   {
     title: "Employer registration",
     scope: "Submit employer registration details and supporting evidence through the selected ITF Area Office.",
   },
-  {
-    title: "Contribution assessment and payment",
-    scope: "Receive contribution recommendations, download invoices, make payments, and retain verified payment evidence.",
-  },
+  ...(contributionFeatureEnabled
+    ? [
+        {
+          title: "Contribution assessment and payment",
+          scope: "Receive contribution recommendations, download invoices, make payments, and retain verified payment evidence.",
+        },
+      ]
+    : []),
   {
     title: "Annual compliance",
     scope: "File annual contribution records, payment evidence, and receive downloadable compliance certificates.",
@@ -58,16 +63,19 @@ export default function Home() {
         <div className="mx-auto grid max-w-7xl gap-8 px-6 py-14 lg:grid-cols-[1fr_0.75fr] lg:px-8">
           <div>
             <p className="text-sm font-semibold uppercase text-rose-100">
-              Integrated employer contribution and reimbursement services
+              {contributionFeatureEnabled
+                ? "Integrated employer contribution and reimbursement services"
+                : "Employer reimbursement and compliance services"}
             </p>
             <h2 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight">
-              From employer registration and contribution payment to training governance and
-              reimbursement claims.
+              {contributionFeatureEnabled
+                ? "From employer registration and contribution payment to training governance and reimbursement claims."
+                : "From employer registration through training governance to reimbursement claims."}
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-100">
-              Secure access for employers of labour and authorized Industrial Training Fund
-              officers managing contribution, compliance, training, monitoring, and reimbursement
-              workflows.
+              {contributionFeatureEnabled
+                ? "Secure access for employers of labour and authorized Industrial Training Fund officers managing contribution, compliance, training, monitoring, and reimbursement workflows."
+                : "Secure access for employers of labour and authorized Industrial Training Fund officers managing compliance, training, monitoring, and reimbursement workflows."}
             </p>
           </div>
           <div className="grid content-start gap-3 rounded-lg border border-white/15 bg-black/25 p-5 backdrop-blur">

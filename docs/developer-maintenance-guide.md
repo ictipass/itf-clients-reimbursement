@@ -423,4 +423,7 @@ Documentation is part of the definition of done. A workflow or permission change
 until its user steps, support diagnostics, authorization boundaries, data model, migration impact,
 and known limitations are reflected in the relevant Markdown files.
 
+The live support reference is `docs/user-support-guide.md`; keep every release-note, workflow update,
+and UI change reflected there so super-admins and support staff can provide accurate guidance.
+
 Avoid rewriting whole documents. Edit only the affected module and its cross-references.

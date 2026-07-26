@@ -14,6 +14,13 @@ This guide helps:
 This is a living document. Each workflow is a self-contained module that can be updated without
 rewriting the entire guide.
 
+## Super-Admin Support Reference
+
+This guide is the authoritative support reference for super-admins and system supporters.
+Keep `docs/user-support-guide.md` current whenever workflow behavior, UI labels, or role access
+change. Support staff should always consult this document first when diagnosing issues or
+answering user questions.
+
 ## Product Overview
 
 The ITF Integrated Contribution and Reimbursement Platform manages the employer lifecycle from registration through annual
