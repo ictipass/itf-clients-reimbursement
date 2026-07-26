@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { signIn } from "next-auth/react";
-import { useState } from "react";
+import { FormEvent, useState } from "react";
 
 type SignInFormProps = {
   callbackUrl: string;
@@ -20,13 +20,18 @@ export function SignInForm({ callbackUrl, initialError, oauthProviders }: SignIn
   );
   const [isPending, setIsPending] = useState(false);
 
-  async function handleSubmit(formData: FormData) {
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     setIsPending(true);
     setError(null);
 
+    const formData = new FormData(event.currentTarget);
+    const email = formData.get("email");
+    const password = formData.get("password");
+
     const result = await signIn("credentials", {
-      email: formData.get("email"),
-      password: formData.get("password"),
+      email: typeof email === "string" ? email : "",
+      password: typeof password === "string" ? password : "",
       callbackUrl: safeCallbackUrl(callbackUrl),
       redirect: false,
     });
@@ -65,7 +70,7 @@ export function SignInForm({ callbackUrl, initialError, oauthProviders }: SignIn
           <p className="text-center text-xs text-zinc-500">or sign in with portal credentials</p>
         </div>
       ) : null}
-      <form action={handleSubmit} className="grid gap-4">
+      <form onSubmit={handleSubmit} className="grid gap-4">
       <label className="grid gap-2 text-sm font-medium">
         Email
         <input

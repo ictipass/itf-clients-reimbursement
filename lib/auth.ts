@@ -9,6 +9,13 @@ import { authenticateLocalAccount, provisionVerifiedGoogleEmployer } from "@/lib
 import { checkRateLimit, RateLimitError } from "@/lib/rate-limit";
 import type { Role } from "@/lib/rbac";
 
+const nextAuthSecret = process.env.NEXTAUTH_SECRET;
+if (!nextAuthSecret) {
+  throw new Error(
+    "NEXTAUTH_SECRET must be set in .env for NextAuth credentials and session handling to work. Generate one with `openssl rand -base64 32`.",
+  );
+}
+
 async function getAuthorizedDirectoryUser(email: string) {
   const user = await getDb().user.findUnique({
     where: { email: email.toLowerCase() },
