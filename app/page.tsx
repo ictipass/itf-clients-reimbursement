@@ -1,22 +1,22 @@
 import Image from "next/image";
 import Link from "next/link";
 
+import { getDb } from "@/lib/db";
 import { appName } from "@/lib/domain";
-import { contributionFeatureEnabled } from "@/lib/app-config";
+import {
+  DEFAULT_REVENUE_WORKFLOW_MODE,
+  usesInAppRevenueWorkflow,
+} from "@/lib/revenue-workflow";
 
 const statutoryWorkflows = [
   {
     title: "Employer registration",
     scope: "Submit employer registration details and supporting evidence through the selected ITF Area Office.",
   },
-  ...(contributionFeatureEnabled
-    ? [
-        {
-          title: "Contribution assessment and payment",
-          scope: "Receive contribution recommendations, download invoices, make payments, and retain verified payment evidence.",
-        },
-      ]
-    : []),
+  {
+    title: "Contribution assessment and payment",
+    scope: "Receive contribution recommendations, download invoices, make payments, and retain verified payment evidence.",
+  },
   {
     title: "Annual compliance",
     scope: "File annual contribution records, payment evidence, and receive downloadable compliance certificates.",
@@ -31,7 +31,26 @@ const statutoryWorkflows = [
   },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const workspace = await getDb().workspace.findFirst({
+    where: {
+      isActive: true,
+    },
+    select: {
+      revenueWorkflowMode: true,
+    },
+    orderBy: {
+      name: "asc",
+    },
+  });
+  const revenueWorkflowMode = workspace?.revenueWorkflowMode ?? DEFAULT_REVENUE_WORKFLOW_MODE;
+  const usesInAppRevenue = usesInAppRevenueWorkflow(revenueWorkflowMode);
+  const visibleWorkflows = usesInAppRevenue
+    ? statutoryWorkflows
+    : statutoryWorkflows.filter(
+        (workflow) => workflow.title !== "Contribution assessment and payment",
+      );
+
   return (
     <main className="min-h-screen bg-zinc-100 text-zinc-950">
       <section
@@ -63,17 +82,17 @@ export default function Home() {
         <div className="mx-auto grid max-w-7xl gap-8 px-6 py-14 lg:grid-cols-[1fr_0.75fr] lg:px-8">
           <div>
             <p className="text-sm font-semibold uppercase text-rose-100">
-              {contributionFeatureEnabled
+              {usesInAppRevenue
                 ? "Integrated employer contribution and reimbursement services"
                 : "Employer reimbursement and compliance services"}
             </p>
             <h2 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight">
-              {contributionFeatureEnabled
+              {usesInAppRevenue
                 ? "From employer registration and contribution payment to training governance and reimbursement claims."
                 : "From employer registration through training governance to reimbursement claims."}
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-100">
-              {contributionFeatureEnabled
+              {usesInAppRevenue
                 ? "Secure access for employers of labour and authorized Industrial Training Fund officers managing contribution, compliance, training, monitoring, and reimbursement workflows."
                 : "Secure access for employers of labour and authorized Industrial Training Fund officers managing compliance, training, monitoring, and reimbursement workflows."}
             </p>
@@ -96,7 +115,7 @@ export default function Home() {
         </p>
         <h2 className="mt-2 text-2xl font-semibold">Operational workflows</h2>
         <div className="mt-5 grid gap-3 md:grid-cols-2">
-          {statutoryWorkflows.map((item) => (
+          {visibleWorkflows.map((item) => (
             <article key={item.title} className="grid gap-2 rounded-lg border border-zinc-200 bg-white p-5">
               <h3 className="text-lg font-semibold">{item.title}</h3>
               <p className="text-sm leading-6 text-zinc-600">{item.scope}</p>

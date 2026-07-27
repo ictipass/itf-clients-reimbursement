@@ -76,6 +76,18 @@ export const featureGates: FeatureGate[] = [
     permissions: ["numbers:manage"],
   },
   {
+    key: "settings-system",
+    label: "System settings",
+    routePrefix: "/settings/system",
+    permissions: ["workspace:manage"],
+  },
+  {
+    key: "settings-operating-model",
+    label: "Contribution operating model",
+    routePrefix: "/settings/operating-model",
+    permissions: [],
+  },
+  {
     key: "settings-claims",
     label: "Claim settings",
     routePrefix: "/settings/claims",
@@ -96,7 +108,7 @@ export const featureGates: FeatureGate[] = [
 ];
 
 export function canUseFeature(role: Role, gate: FeatureGate) {
-  if (gate.key === "settings-claims") {
+  if (gate.key === "settings-claims" || gate.key === "settings-operating-model") {
     return canManageClaimPolicy(role);
   }
 

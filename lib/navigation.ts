@@ -1,4 +1,4 @@
-import { can, canManageClaimPolicy, isItfRole, type Role } from "@/lib/rbac";
+import { can, isItfRole, type Role } from "@/lib/rbac";
 
 export type NavItem = {
   href: string;
@@ -32,8 +32,6 @@ const canUseClaims = (role: Role) =>
 const canUseManagement = (role: Role) =>
   isItfRole(role) && (can(role, "workspace:manage") || can(role, "audit:read"));
 
-const canUseSettings = (role: Role) => can(role, "workspace:manage");
-const canUseNumbers = (role: Role) => can(role, "numbers:manage");
 const canManageEmployerUsers = (role: Role) => role === "EMPLOYER_ADMIN";
 
 export const navGroups: NavGroup[] = [
@@ -41,7 +39,7 @@ export const navGroups: NavGroup[] = [
     label: "Desk",
     items: [
       { href: "/dashboard", label: "Overview", module: "dashboard", isVisible: () => true },
-      { href: "/settings/preferences", label: "My Settings", module: "settings", isVisible: () => true },
+      { href: "/settings", label: "Settings", module: "settings", isVisible: () => true },
     ],
   },
   {
@@ -103,41 +101,6 @@ export const navGroups: NavGroup[] = [
         label: "Management",
         module: "management",
         isVisible: canUseManagement,
-      },
-      { href: "/settings/audit", label: "Audit log", module: "settings", isVisible: (role) => can(role, "audit:read") },
-      { href: "/settings/users", label: "Users", module: "settings", isVisible: canUseSettings },
-      { href: "/settings/email", label: "Email delivery", module: "settings", isVisible: canUseSettings },
-      {
-        href: "/settings/claims",
-        label: "Claim settings",
-        module: "settings",
-        isVisible: canManageClaimPolicy,
-      },
-      {
-        href: "/settings/employers",
-        label: "Employer access",
-        module: "settings",
-        isVisible: canUseSettings,
-      },
-      {
-        href: "/settings/offices",
-        label: "Offices",
-        module: "settings",
-        isVisible: canUseSettings,
-      },
-      { href: "/settings/roles", label: "Roles", module: "settings", isVisible: canUseSettings },
-      { href: "/settings/numbers", label: "Numbers", module: "settings", isVisible: canUseNumbers },
-      {
-        href: "/settings/certificates",
-        label: "Certificates",
-        module: "settings",
-        isVisible: canUseSettings,
-      },
-      {
-        href: "/settings/signatures",
-        label: "Signatures",
-        module: "settings",
-        isVisible: canUseSettings,
       },
     ],
   },

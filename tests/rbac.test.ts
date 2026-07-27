@@ -1,9 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { can, canManageAnnualCompliance, isItfRole, roles } from "../lib/rbac";
+import {
+  can,
+  canManageAnnualCompliance,
+  canManageClaimPolicy,
+  isItfRole,
+  roles,
+} from "../lib/rbac";
 import { canViewManagementDashboard } from "../lib/management-dashboard";
 import { canAccessPath } from "../lib/feature-gates";
+import { getVisibleNavGroups } from "../lib/navigation";
 import { getTrainingAreas } from "../lib/training-request";
 
 test("employer administrators cannot manage the ITF workspace", () => {
@@ -28,7 +35,28 @@ test("new headquarters directors have national oversight permissions", () => {
 test("personal settings are available without workspace administration", () => {
   assert.equal(canAccessPath("EMPLOYER_VIEWER", "/settings"), true);
   assert.equal(canAccessPath("EMPLOYER_VIEWER", "/settings/preferences"), true);
+  assert.equal(canAccessPath("EMPLOYER_VIEWER", "/settings/system"), false);
   assert.equal(canAccessPath("EMPLOYER_VIEWER", "/settings/users"), false);
+});
+
+test("workspace administrators can manage the contribution operating model", () => {
+  assert.equal(canManageClaimPolicy("SYSTEM_ADMIN"), true);
+  assert.equal(canManageClaimPolicy("WORKSPACE_APP_ADMIN"), true);
+  assert.equal(canAccessPath("WORKSPACE_APP_ADMIN", "/settings/system"), true);
+  assert.equal(canAccessPath("WORKSPACE_APP_ADMIN", "/settings/claims"), true);
+  assert.equal(canAccessPath("WORKSPACE_APP_ADMIN", "/settings/operating-model"), true);
+  assert.equal(canManageClaimPolicy("EMPLOYER_ADMIN"), false);
+});
+
+test("the primary navigation exposes one consolidated settings entry", () => {
+  const settingsItems = getVisibleNavGroups("SYSTEM_ADMIN")
+    .flatMap((group) => group.items)
+    .filter((item) => item.href.startsWith("/settings"));
+
+  assert.deepEqual(
+    settingsItems.map(({ href, label }) => ({ href, label })),
+    [{ href: "/settings", label: "Settings" }],
+  );
 });
 
 test("participant training areas use the approved classifications", () => {

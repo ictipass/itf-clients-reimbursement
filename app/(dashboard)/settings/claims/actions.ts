@@ -28,7 +28,6 @@ export async function updateClaimSubmissionPolicyAction(formData: FormData) {
     requesterRole: session.user.role,
     workspaceId: readRequiredString(formData, "workspaceId"),
     allowLateClaimSubmissions: formData.get("allowLateClaimSubmissions") === "on",
-    revenueWorkflowMode: readRequiredString(formData, "revenueWorkflowMode"),
   });
 
   revalidatePath("/settings/claims");

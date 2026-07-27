@@ -102,3 +102,41 @@ export async function updateClaimSubmissionPolicy(input: {
     },
   });
 }
+
+export async function updateContributionOperatingModel(input: {
+  requesterRole: Role;
+  workspaceId: string;
+  revenueWorkflowMode: string;
+}) {
+  if (!canManageClaimPolicy(input.requesterRole)) {
+    throw new Error("You do not have permission to manage the contribution operating model.");
+  }
+
+  assertSupportedRevenueWorkflowMode(input.revenueWorkflowMode);
+
+  const workspace = await getDb().workspace.findFirst({
+    where: {
+      id: input.workspaceId,
+      isActive: true,
+    },
+    select: {
+      id: true,
+    },
+  });
+
+  if (!workspace) {
+    throw new Error("Workspace was not found.");
+  }
+
+  return getDb().workspace.update({
+    where: {
+      id: workspace.id,
+    },
+    data: {
+      revenueWorkflowMode: input.revenueWorkflowMode,
+    },
+    select: {
+      id: true,
+    },
+  });
+}

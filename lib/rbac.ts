@@ -160,6 +160,7 @@ export function canManageAnnualCompliance(role: Role) {
 export function canManageClaimPolicy(role: Role) {
   return (
     role === "SYSTEM_ADMIN" ||
+    role === "WORKSPACE_APP_ADMIN" ||
     role === "DIRECTOR_FSD" ||
     role === "HEAD_OF_DIVISION"
   );
