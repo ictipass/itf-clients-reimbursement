@@ -1,7 +1,19 @@
 import { getDb } from "@/lib/db";
+import {
+  formatContributionVerificationSource,
+  formatContributionVerificationStatus,
+  isContributionVerificationSource,
+  isContributionVerificationStatus,
+  type ContributionVerificationSource,
+  type ContributionVerificationStatus,
+} from "@/lib/claim-verification";
 import { isLateClaimSubmission } from "@/lib/claim-policy";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
+import {
+  isReimbursementAuditReviewStatus,
+  type ReimbursementAuditReviewStatus,
+} from "@/lib/reimbursement-audit-review";
 import {
   calculateReimbursementAward,
   type ReimbursementCalculationInput,
@@ -11,6 +23,11 @@ import {
   prepareClaimStaffEntries,
   type ReimbursementStaffEntryInput,
 } from "@/lib/reimbursement-staff";
+import {
+  buildReimbursementPaymentScheduleReference,
+  isReimbursementPaymentHandoffStatus,
+  type ReimbursementPaymentHandoffStatus,
+} from "@/lib/reimbursement-payment-schedule";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 
@@ -73,6 +90,18 @@ export type UpdateClaimRecommendationInput = {
   reviewerRemarks?: string;
 };
 
+export type UpdateClaimContributionVerificationInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  status: ContributionVerificationStatus;
+  source: ContributionVerificationSource;
+  note?: string;
+  externalVerificationProvider?: string;
+  externalVerificationReference?: string;
+  externalVerificationMessage?: string;
+};
+
 export type ClaimLineInput = {
   claimId: string;
   lineId?: string;
@@ -111,16 +140,51 @@ export type ClaimRoutingInput = {
   note?: string;
 };
 
-type ClaimDesk =
+export type ClaimWorkflowRoutingInput = ClaimRoutingInput & {
+  fromDesk: ClaimDesk;
+  toDesk: ClaimDesk;
+};
+
+export type UpdateClaimPaymentHandoffInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  status: ReimbursementPaymentHandoffStatus;
+  paymentSystemReference?: string;
+  paymentSystemStatus?: string;
+  note?: string;
+};
+
+export type UpdateClaimAuditReviewInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  status: ReimbursementAuditReviewStatus;
+  observations?: string;
+  recommendation?: string;
+  auditedAmount?: number;
+  varianceAmount?: number;
+};
+
+export type ClaimDesk =
   | "COMPANY"
   | "AREA_MANAGER"
   | "HEAD_OF_TRAINING"
   | "REIMBURSEMENT_OFFICER"
   | "DIRECTOR_FSD"
   | "HEAD_OF_DIVISION"
-  | "HQ_REIMBURSEMENT_OFFICER";
+  | "HQ_REIMBURSEMENT_OFFICER"
+  | "DIRECTOR_AUDIT"
+  | "HEAD_REIMBURSEMENT_AUDIT"
+  | "REIMBURSEMENT_SCHEDULE_AUDITOR"
+  | "HEAD_BUDGET"
+  | "BUDGET_OFFICER"
+  | "PRE_AUDIT_OFFICER"
+  | "DIRECTOR_FINANCE"
+  | "HEAD_REIMBURSEMENT_FINANCE"
+  | "REIMBURSEMENT_ACCOUNTANT";
 
-type ClaimIntakeTransition = {
+type ClaimRoutingTransition = {
   from: ClaimDesk;
   to: ClaimDesk;
   assignedRole: Role;
@@ -184,6 +248,7 @@ export async function createClaim(input: CreateClaimInput) {
               workspace: {
                 select: {
                   allowLateClaimSubmissions: true,
+                  activeReimbursementEdition: true,
                 },
               },
             },
@@ -262,6 +327,7 @@ export async function createClaim(input: CreateClaimInput) {
       companyId: requests[0].companyId,
       reference: buildClaimReference(referenceDate),
       claimYear,
+      policyEdition: requests[0].company.organization.workspace.activeReimbursementEdition,
       itfReceiptNumber: requests[0].company.itfEmployerNumber,
       claimedAmount,
       status: "DRAFT",
@@ -310,7 +376,206 @@ export function getClaimIntakeTransitions() {
       workItemTitle: "Process reimbursement claim",
       workItemSummary: "has a reimbursement claim awaiting A/O Reimbursement Officer processing.",
     },
-  ] as const satisfies readonly ClaimIntakeTransition[];
+  ] as const satisfies readonly ClaimRoutingTransition[];
+}
+
+export function getClaimPostIntakeTransitions() {
+  return [
+    {
+      from: "REIMBURSEMENT_OFFICER",
+      to: "HEAD_OF_TRAINING",
+      assignedRole: "HEAD_OF_TRAINING",
+      action: "FORWARD",
+      reason: "A/O Reimbursement Officer forwarded processed claim to HOT.",
+      workItemTitle: "Verify A/O reimbursement recommendation",
+      workItemSummary: "has a processed reimbursement claim awaiting HOT verification.",
+    },
+    {
+      from: "HEAD_OF_TRAINING",
+      to: "AREA_MANAGER",
+      assignedRole: "AREA_MANAGER",
+      action: "FORWARD",
+      reason: "HOT forwarded processed reimbursement claim to Area Manager.",
+      workItemTitle: "Release processed reimbursement claim",
+      workItemSummary: "has a processed reimbursement claim awaiting Area Manager release.",
+    },
+    {
+      from: "AREA_MANAGER",
+      to: "DIRECTOR_FSD",
+      assignedRole: "DIRECTOR_FSD",
+      action: "FORWARD",
+      reason: "Area Manager forwarded reimbursement claim to Director FSD.",
+      workItemTitle: "Review Area Office reimbursement claim",
+      workItemSummary: "has a reimbursement claim awaiting Director FSD review.",
+    },
+    {
+      from: "DIRECTOR_FSD",
+      to: "HEAD_OF_DIVISION",
+      assignedRole: "HEAD_OF_DIVISION",
+      action: "FORWARD",
+      reason: "Director FSD forwarded reimbursement claim to Head Reimbursement Division.",
+      workItemTitle: "Assign reimbursement claim for HQ processing",
+      workItemSummary: "has a reimbursement claim awaiting Head Reimbursement Division action.",
+    },
+    {
+      from: "HEAD_OF_DIVISION",
+      to: "HQ_REIMBURSEMENT_OFFICER",
+      assignedRole: "HQ_REIMBURSEMENT_OFFICER",
+      action: "FORWARD",
+      reason: "Head Reimbursement Division forwarded reimbursement claim to HQ RO.",
+      workItemTitle: "Process HQ reimbursement claim",
+      workItemSummary: "has a reimbursement claim awaiting HQ Reimbursement Officer processing.",
+    },
+    {
+      from: "HQ_REIMBURSEMENT_OFFICER",
+      to: "HEAD_OF_DIVISION",
+      assignedRole: "HEAD_OF_DIVISION",
+      action: "FORWARD",
+      reason: "HQ RO returned reimbursement claim to Head Reimbursement Division.",
+      workItemTitle: "Verify HQ reimbursement recommendation",
+      workItemSummary: "has an HQ reimbursement recommendation awaiting division verification.",
+    },
+    {
+      from: "HEAD_OF_DIVISION",
+      to: "DIRECTOR_FSD",
+      assignedRole: "DIRECTOR_FSD",
+      action: "FORWARD",
+      reason: "Head Reimbursement Division forwarded verified claim to Director FSD.",
+      workItemTitle: "Approve verified reimbursement claim",
+      workItemSummary: "has a verified reimbursement claim awaiting Director FSD approval.",
+    },
+    {
+      from: "DIRECTOR_FSD",
+      to: "DIRECTOR_AUDIT",
+      assignedRole: "DIRECTOR_AUDIT",
+      action: "FORWARD",
+      reason: "Director FSD forwarded approved reimbursement claim to Director Audit.",
+      workItemTitle: "Receive reimbursement claim for audit",
+      workItemSummary: "has an approved reimbursement claim awaiting Director Audit receipt.",
+    },
+    {
+      from: "DIRECTOR_AUDIT",
+      to: "HEAD_REIMBURSEMENT_AUDIT",
+      assignedRole: "HEAD_REIMBURSEMENT_AUDIT",
+      action: "FORWARD",
+      reason: "Director Audit forwarded reimbursement claim to Head Reimbursement Audit.",
+      workItemTitle: "Assign reimbursement audit",
+      workItemSummary: "has a reimbursement claim awaiting audit assignment.",
+    },
+    {
+      from: "HEAD_REIMBURSEMENT_AUDIT",
+      to: "REIMBURSEMENT_SCHEDULE_AUDITOR",
+      assignedRole: "REIMBURSEMENT_SCHEDULE_AUDITOR",
+      action: "FORWARD",
+      reason: "Head Reimbursement Audit forwarded claim to Reimbursement Schedule Auditor.",
+      workItemTitle: "Audit reimbursement schedule",
+      workItemSummary: "has a reimbursement schedule awaiting audit.",
+    },
+    {
+      from: "REIMBURSEMENT_SCHEDULE_AUDITOR",
+      to: "HEAD_REIMBURSEMENT_AUDIT",
+      assignedRole: "HEAD_REIMBURSEMENT_AUDIT",
+      action: "FORWARD",
+      reason: "Reimbursement Schedule Auditor returned audit result to Head Reimbursement Audit.",
+      workItemTitle: "Verify reimbursement audit result",
+      workItemSummary: "has a reimbursement audit result awaiting verification.",
+    },
+    {
+      from: "HEAD_REIMBURSEMENT_AUDIT",
+      to: "DIRECTOR_AUDIT",
+      assignedRole: "DIRECTOR_AUDIT",
+      action: "FORWARD",
+      reason: "Head Reimbursement Audit forwarded verified audit result to Director Audit.",
+      workItemTitle: "Approve reimbursement audit clearance",
+      workItemSummary: "has a verified reimbursement audit result awaiting Director Audit approval.",
+    },
+    {
+      from: "DIRECTOR_AUDIT",
+      to: "DIRECTOR_FINANCE",
+      assignedRole: "DIRECTOR_FINANCE",
+      action: "FORWARD",
+      reason: "Director Audit forwarded audit-cleared claim to Director Finance.",
+      workItemTitle: "Receive audit-cleared reimbursement claim",
+      workItemSummary: "has an audit-cleared reimbursement claim awaiting finance processing.",
+    },
+    {
+      from: "DIRECTOR_FINANCE",
+      to: "HEAD_REIMBURSEMENT_FINANCE",
+      assignedRole: "HEAD_REIMBURSEMENT_FINANCE",
+      action: "FORWARD",
+      reason: "Director Finance forwarded reimbursement claim to Head Reimbursement Finance.",
+      workItemTitle: "Assign reimbursement finance processing",
+      workItemSummary: "has a reimbursement claim awaiting finance assignment.",
+    },
+    {
+      from: "HEAD_REIMBURSEMENT_FINANCE",
+      to: "REIMBURSEMENT_ACCOUNTANT",
+      assignedRole: "REIMBURSEMENT_ACCOUNTANT",
+      action: "FORWARD",
+      reason: "Head Reimbursement Finance forwarded claim to Reimbursement Accountant.",
+      workItemTitle: "Prepare reimbursement payment handoff",
+      workItemSummary: "has a reimbursement claim awaiting accountant payment handoff.",
+    },
+    {
+      from: "REIMBURSEMENT_ACCOUNTANT",
+      to: "HEAD_BUDGET",
+      assignedRole: "HEAD_BUDGET",
+      action: "FORWARD",
+      reason: "Reimbursement Accountant forwarded payment file to Head Budget.",
+      workItemTitle: "Review reimbursement payment for budget clearance",
+      workItemSummary: "has a reimbursement payment file awaiting Head Budget review.",
+    },
+    {
+      from: "HEAD_BUDGET",
+      to: "BUDGET_OFFICER",
+      assignedRole: "BUDGET_OFFICER",
+      action: "FORWARD",
+      reason: "Head Budget forwarded reimbursement payment file to Budget Officer.",
+      workItemTitle: "Process reimbursement budget clearance",
+      workItemSummary: "has a reimbursement payment file awaiting Budget Officer clearance.",
+    },
+    {
+      from: "BUDGET_OFFICER",
+      to: "HEAD_BUDGET",
+      assignedRole: "HEAD_BUDGET",
+      action: "FORWARD",
+      reason: "Budget Officer returned reimbursement budget clearance to Head Budget.",
+      workItemTitle: "Verify reimbursement budget clearance",
+      workItemSummary: "has a budget clearance result awaiting Head Budget verification.",
+    },
+    {
+      from: "HEAD_BUDGET",
+      to: "DIRECTOR_AUDIT",
+      assignedRole: "DIRECTOR_AUDIT",
+      action: "FORWARD",
+      reason: "Head Budget forwarded budget-cleared reimbursement payment file to Director Audit.",
+      workItemTitle: "Receive budget-cleared reimbursement payment for audit",
+      workItemSummary:
+        "has a budget-cleared reimbursement payment file awaiting Director Audit receipt.",
+    },
+    {
+      from: "DIRECTOR_AUDIT",
+      to: "PRE_AUDIT_OFFICER",
+      assignedRole: "PRE_AUDIT_OFFICER",
+      action: "FORWARD",
+      reason: "Director Audit forwarded budget-cleared reimbursement payment file to Pre-Audit Officer.",
+      workItemTitle: "Pre-audit reimbursement payment file",
+      workItemSummary: "has a reimbursement payment file awaiting pre-audit review.",
+    },
+    {
+      from: "PRE_AUDIT_OFFICER",
+      to: "DIRECTOR_AUDIT",
+      assignedRole: "DIRECTOR_AUDIT",
+      action: "FORWARD",
+      reason: "Pre-Audit Officer returned reimbursement payment audit result to Director Audit.",
+      workItemTitle: "Approve reimbursement payment audit clearance",
+      workItemSummary: "has a pre-audit result awaiting Director Audit clearance.",
+    },
+  ] as const satisfies readonly ClaimRoutingTransition[];
+}
+
+export function getClaimWorkflowTransitions() {
+  return [...getClaimIntakeTransitions(), ...getClaimPostIntakeTransitions()] as const;
 }
 
 export async function submitClaimToAreaManager(input: ClaimRoutingInput) {
@@ -337,9 +602,27 @@ export async function forwardClaimToAreaReimbursementOfficer(input: ClaimRouting
   return moveClaimThroughIntake(input, getClaimIntakeTransitions()[2]);
 }
 
+export async function forwardClaimAlongWorkflow(input: ClaimWorkflowRoutingInput) {
+  const transition = getClaimWorkflowTransitions().find(
+    (candidate) => candidate.from === input.fromDesk && candidate.to === input.toDesk,
+  );
+
+  if (!transition) {
+    throw new Error("Unsupported reimbursement claim routing destination.");
+  }
+
+  if (!canRouteClaimFromDesk(input.requesterRole, transition.from)) {
+    throw new Error(
+      `Only ${transition.from.replaceAll("_", " ")} can forward this reimbursement claim.`,
+    );
+  }
+
+  return moveClaimThroughIntake(input, transition);
+}
+
 async function moveClaimThroughIntake(
   input: ClaimRoutingInput,
-  transition: ClaimIntakeTransition,
+  transition: ClaimRoutingTransition,
 ) {
   const db = getDb();
   const actor = await db.user.findUnique({
@@ -506,7 +789,7 @@ function assertClaimRoutingScope(input: {
     areaOfficeId: string | null;
   }[];
   requesterRole: Role;
-  transition: ClaimIntakeTransition;
+  transition: ClaimRoutingTransition;
   organizationId: string;
   areaOfficeId: string | null;
 }) {
@@ -534,13 +817,512 @@ function assertClaimRoutingScope(input: {
       (membership) => membership.areaOfficeId === input.areaOfficeId,
     );
 
-  if (!hasAreaOfficeAccess) {
+  const areaOfficeScopedDesks: ClaimDesk[] = [
+    "AREA_MANAGER",
+    "HEAD_OF_TRAINING",
+    "REIMBURSEMENT_OFFICER",
+  ];
+
+  if (areaOfficeScopedDesks.includes(input.transition.from) && !hasAreaOfficeAccess) {
     throw new Error("You do not have Area Office access for this reimbursement claim.");
   }
 }
 
 function isAdminRole(role: Role) {
   return role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
+}
+
+const claimDeskRoles: Record<ClaimDesk, Role | null> = {
+  COMPANY: null,
+  AREA_MANAGER: "AREA_MANAGER",
+  HEAD_OF_TRAINING: "HEAD_OF_TRAINING",
+  REIMBURSEMENT_OFFICER: "REIMBURSEMENT_OFFICER",
+  DIRECTOR_FSD: "DIRECTOR_FSD",
+  HEAD_OF_DIVISION: "HEAD_OF_DIVISION",
+  HQ_REIMBURSEMENT_OFFICER: "HQ_REIMBURSEMENT_OFFICER",
+  DIRECTOR_AUDIT: "DIRECTOR_AUDIT",
+  HEAD_REIMBURSEMENT_AUDIT: "HEAD_REIMBURSEMENT_AUDIT",
+  REIMBURSEMENT_SCHEDULE_AUDITOR: "REIMBURSEMENT_SCHEDULE_AUDITOR",
+  HEAD_BUDGET: "HEAD_BUDGET",
+  BUDGET_OFFICER: "BUDGET_OFFICER",
+  PRE_AUDIT_OFFICER: "PRE_AUDIT_OFFICER",
+  DIRECTOR_FINANCE: "DIRECTOR_FINANCE",
+  HEAD_REIMBURSEMENT_FINANCE: "HEAD_REIMBURSEMENT_FINANCE",
+  REIMBURSEMENT_ACCOUNTANT: "REIMBURSEMENT_ACCOUNTANT",
+};
+
+export function canRouteClaimFromDesk(role: Role, desk: ClaimDesk) {
+  if (isAdminRole(role)) {
+    return true;
+  }
+
+  if (desk === "COMPANY") {
+    return can(role, "claims:submit");
+  }
+
+  return claimDeskRoles[desk] === role;
+}
+
+function canManageClaimPause(role: Role) {
+  return isAdminRole(role) || role === "DIRECTOR_GENERAL";
+}
+
+function canManageClaimPaymentHandoff(role: Role) {
+  return (
+    isAdminRole(role) ||
+    role === "DIRECTOR_FINANCE" ||
+    role === "HEAD_REIMBURSEMENT_FINANCE" ||
+    role === "REIMBURSEMENT_ACCOUNTANT"
+  );
+}
+
+function canManageClaimAuditReview(role: Role, status: ReimbursementAuditReviewStatus) {
+  if (isAdminRole(role)) {
+    return true;
+  }
+
+  if (role === "REIMBURSEMENT_SCHEDULE_AUDITOR") {
+    return status === "DRAFT" || status === "SUBMITTED";
+  }
+
+  if (role === "HEAD_REIMBURSEMENT_AUDIT") {
+    return status === "RETURNED" || status === "VERIFIED";
+  }
+
+  if (role === "DIRECTOR_AUDIT") {
+    return status === "RETURNED" || status === "CLEARED";
+  }
+
+  return false;
+}
+
+function getAuditReviewDecisionAction(status: ReimbursementAuditReviewStatus) {
+  if (status === "RETURNED") {
+    return "REQUEST_CHANGES";
+  }
+
+  if (status === "CLEARED") {
+    return "APPROVE";
+  }
+
+  if (status === "VERIFIED") {
+    return "CERTIFY";
+  }
+
+  return "RECOMMEND";
+}
+
+export async function markClaimKiv(input: ClaimRoutingInput) {
+  if (!canManageClaimPause(input.requesterRole)) {
+    throw new Error("Only Director General can mark a reimbursement claim KIV.");
+  }
+
+  const db = getDb();
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      status: {
+        in: ["SUBMITTED", "IN_REVIEW", "APPROVED"],
+      },
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+    },
+  });
+
+  if (!claim) {
+    throw new Error("An active reimbursement claim eligible for KIV was not found.");
+  }
+
+  const now = new Date();
+  const note = input.note?.trim();
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.reimbursementClaim.update({
+      where: { id: claim.id },
+      data: {
+        status: "CHANGES_REQUESTED",
+      },
+      select: { id: true },
+    });
+
+    await tx.workItem.updateMany({
+      where: {
+        reimbursementClaimId: claim.id,
+        status: "OPEN",
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: now,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        action: "REQUEST_CHANGES",
+        reason: ["Director General marked reimbursement claim KIV/paused.", note]
+          .filter(Boolean)
+          .join(" "),
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function resumeClaimFromKiv(input: ClaimRoutingInput) {
+  if (!canManageClaimPause(input.requesterRole)) {
+    throw new Error("Only Director General can resume a KIV reimbursement claim.");
+  }
+
+  const db = getDb();
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      status: "CHANGES_REQUESTED",
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      currentDesk: true,
+      company: {
+        select: {
+          legalName: true,
+          organizationId: true,
+          areaOfficeId: true,
+          organization: {
+            select: {
+              workspaceId: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new Error("A KIV reimbursement claim was not found.");
+  }
+
+  const assignedRole = claimDeskRoles[claim.currentDesk];
+  if (!assignedRole) {
+    throw new Error("This KIV claim cannot be resumed to an employer desk.");
+  }
+
+  const note = input.note?.trim();
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.reimbursementClaim.update({
+      where: { id: claim.id },
+      data: {
+        status: "SUBMITTED",
+      },
+      select: { id: true },
+    });
+
+    await tx.workItem.upsert({
+      where: {
+        sourceKey: getClaimWorkItemSourceKey(claim.id, claim.currentDesk),
+      },
+      create: {
+        workspaceId: claim.company.organization.workspaceId,
+        organizationId: claim.company.organizationId,
+        areaOfficeId: claim.company.areaOfficeId,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        assignedRole,
+        app: "REIMBURSEMENT",
+        kind: "REIMBURSEMENT_CLAIM_REVIEW",
+        status: "OPEN",
+        priority: "NORMAL",
+        title: "Resume KIV reimbursement claim",
+        summary: `${claim.company.legalName} has a resumed reimbursement claim awaiting ${claim.currentDesk.replaceAll("_", " ")} attention.`,
+        targetHref: `/claims/${claim.id}`,
+        sourceKey: getClaimWorkItemSourceKey(claim.id, claim.currentDesk),
+      },
+      update: {
+        status: "OPEN",
+        resolvedAt: null,
+        emailNotifiedAt: null,
+        assignedRole,
+        priority: "NORMAL",
+        title: "Resume KIV reimbursement claim",
+        summary: `${claim.company.legalName} has a resumed reimbursement claim awaiting ${claim.currentDesk.replaceAll("_", " ")} attention.`,
+        targetHref: `/claims/${claim.id}`,
+      },
+      select: { id: true },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        action: "REOPEN",
+        reason: ["Director General resumed KIV reimbursement claim.", note]
+          .filter(Boolean)
+          .join(" "),
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoffInput) {
+  if (!canManageClaimPaymentHandoff(input.requesterRole)) {
+    throw new Error("You do not have permission to update reimbursement payment status.");
+  }
+
+  if (!isReimbursementPaymentHandoffStatus(input.status)) {
+    throw new Error("Unsupported reimbursement payment handoff status.");
+  }
+
+  const db = getDb();
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      reference: true,
+      claimYear: true,
+      paymentScheduleReference: true,
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Reimbursement claim was not found.");
+  }
+
+  const now = new Date();
+  const note = input.note?.trim();
+  const scheduleReference =
+    claim.paymentScheduleReference ?? buildReimbursementPaymentScheduleReference(claim);
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.reimbursementClaim.update({
+      where: { id: claim.id },
+      data: {
+        paymentHandoffStatus: input.status,
+        paymentScheduleReference: scheduleReference,
+        paymentScheduleExportedAt:
+          input.status === "EXPORTED" || input.status === "SENT_TO_PAYMENT_SYSTEM"
+            ? now
+            : undefined,
+        paymentScheduleExportedById:
+          input.status === "EXPORTED" || input.status === "SENT_TO_PAYMENT_SYSTEM"
+            ? actor.id
+            : undefined,
+        paymentSystemReference: input.paymentSystemReference,
+        paymentSystemStatus: input.paymentSystemStatus,
+        paymentSystemSyncedAt:
+          input.status === "SENT_TO_PAYMENT_SYSTEM" ||
+          input.status === "PV_RAISED" ||
+          input.status === "PV_CHECKED" ||
+          input.status === "AUDIT_CLEARED" ||
+          input.status === "PAID" ||
+          input.status === "FAILED"
+            ? now
+            : undefined,
+        paidAt: input.status === "PAID" ? now : undefined,
+        status: input.status === "PAID" ? "SETTLED" : undefined,
+        settledAt: input.status === "PAID" ? now : undefined,
+      },
+      select: { id: true },
+    });
+
+    if (input.status === "PAID") {
+      await tx.workItem.updateMany({
+        where: {
+          reimbursementClaimId: claim.id,
+          status: "OPEN",
+        },
+        data: {
+          status: "RESOLVED",
+          resolvedAt: now,
+        },
+      });
+    }
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        action: input.status === "PAID" ? "SETTLE" : "RECOMMEND",
+        reason: [
+          `Updated reimbursement payment handoff status to ${input.status.replaceAll("_", " ")}.`,
+          input.paymentSystemReference ? `Reference: ${input.paymentSystemReference}.` : undefined,
+          note,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      },
+    });
+
+    return updated;
+  });
+}
+
+export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput) {
+  if (!isReimbursementAuditReviewStatus(input.status)) {
+    throw new Error("Unsupported reimbursement audit review status.");
+  }
+
+  if (!canManageClaimAuditReview(input.requesterRole, input.status)) {
+    throw new Error("You do not have permission to update this audit review status.");
+  }
+
+  const db = getDb();
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Reimbursement claim was not found.");
+  }
+
+  const now = new Date();
+
+  return db.$transaction(async (tx) => {
+    const auditReview = await tx.reimbursementAuditReview.upsert({
+      where: {
+        reimbursementClaimId: claim.id,
+      },
+      create: {
+        reimbursementClaimId: claim.id,
+        status: input.status,
+        observations: input.observations,
+        recommendation: input.recommendation,
+        auditedAmount: input.auditedAmount,
+        varianceAmount: input.varianceAmount,
+        preparedById:
+          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+          input.status === "SUBMITTED"
+            ? actor.id
+            : undefined,
+        preparedAt:
+          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+          input.status === "SUBMITTED"
+            ? now
+            : undefined,
+        verifiedById:
+          input.status === "VERIFIED" || input.status === "CLEARED" ? actor.id : undefined,
+        verifiedAt:
+          input.status === "VERIFIED" || input.status === "CLEARED" ? now : undefined,
+      },
+      update: {
+        status: input.status,
+        observations: input.observations,
+        recommendation: input.recommendation,
+        auditedAmount: input.auditedAmount,
+        varianceAmount: input.varianceAmount,
+        preparedById:
+          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+          input.status === "SUBMITTED"
+            ? actor.id
+            : undefined,
+        preparedAt:
+          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+          input.status === "SUBMITTED"
+            ? now
+            : undefined,
+        verifiedById:
+          input.status === "VERIFIED" || input.status === "CLEARED" ? actor.id : undefined,
+        verifiedAt:
+          input.status === "VERIFIED" || input.status === "CLEARED" ? now : undefined,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        action: getAuditReviewDecisionAction(input.status),
+        reason: [
+          `Updated reimbursement audit review to ${input.status.replaceAll("_", " ")}.`,
+          input.recommendation ? `Recommendation: ${input.recommendation}.` : undefined,
+          input.observations,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      },
+    });
+
+    return auditReview;
+  });
 }
 
 export async function attachTrainingsToClaim(input: UpdateClaimTrainingsInput) {
@@ -969,6 +1751,151 @@ export async function updateClaimRecommendation(input: UpdateClaimRecommendation
   });
 }
 
+function getContributionVerificationDecisionAction(
+  status: ContributionVerificationStatus,
+) {
+  if (status === "VERIFIED") {
+    return "APPROVE";
+  }
+
+  if (status === "REJECTED") {
+    return "REJECT";
+  }
+
+  if (status === "NEEDS_REVIEW") {
+    return "REQUEST_CHANGES";
+  }
+
+  return "REOPEN";
+}
+
+export async function updateClaimContributionVerification(
+  input: UpdateClaimContributionVerificationInput,
+) {
+  if (
+    input.requesterRole !== "SYSTEM_ADMIN" &&
+    input.requesterRole !== "WORKSPACE_APP_ADMIN" &&
+    !can(input.requesterRole, "claims:review") &&
+    !can(input.requesterRole, "claims:approve")
+  ) {
+    throw new Error("You do not have permission to verify claim contribution eligibility.");
+  }
+
+  if (!isContributionVerificationStatus(input.status)) {
+    throw new Error("Unsupported contribution verification status.");
+  }
+
+  if (!isContributionVerificationSource(input.source)) {
+    throw new Error("Unsupported contribution verification source.");
+  }
+
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: {
+      id: input.claimId,
+      recordTier: "HOT",
+      company: {
+        recordTier: "HOT",
+        isActive: true,
+      },
+    },
+    select: {
+      id: true,
+      companyId: true,
+      company: {
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!claim) {
+    throw new Error("Reimbursement claim was not found.");
+  }
+
+  const actor = await db.user.findUnique({
+    where: {
+      email: input.requesterEmail,
+    },
+    select: {
+      id: true,
+      memberships: {
+        where: { isActive: true },
+        select: {
+          areaOfficeId: true,
+        },
+      },
+    },
+  });
+
+  if (!actor) {
+    throw new Error("User account was not found.");
+  }
+
+  const hasAreaOfficeAccess =
+    input.requesterRole === "SYSTEM_ADMIN" ||
+    input.requesterRole === "WORKSPACE_APP_ADMIN" ||
+    input.requesterRole === "ITF_CLAIMS_REVIEWER" ||
+    input.requesterRole === "ITF_CLAIMS_APPROVER" ||
+    input.requesterRole === "HEAD_OF_DIVISION" ||
+    input.requesterRole === "DIRECTOR_FSD" ||
+    input.requesterRole === "HQ_REIMBURSEMENT_OFFICER" ||
+    actor.memberships.some((membership) => membership.areaOfficeId === claim.company.areaOfficeId);
+
+  if (!hasAreaOfficeAccess) {
+    throw new Error("You do not have access to verify this Area Office claim.");
+  }
+
+  const checkedAt = new Date();
+  const statusLabel = formatContributionVerificationStatus(input.status);
+  const sourceLabel = formatContributionVerificationSource(input.source);
+
+  return db.$transaction(async (tx) => {
+    const updated = await tx.reimbursementClaim.update({
+      where: {
+        id: claim.id,
+      },
+      data: {
+        contributionVerificationStatus: input.status,
+        contributionVerificationSource: input.source,
+        contributionVerificationNote: input.note,
+        contributionVerifiedById: actor.id,
+        contributionVerifiedAt: checkedAt,
+        externalVerificationProvider: input.externalVerificationProvider,
+        externalVerificationReference: input.externalVerificationReference,
+        externalVerificationCheckedAt:
+          input.source === "EXTERNAL_SYSTEM" ? checkedAt : undefined,
+        externalVerificationMessage: input.externalVerificationMessage,
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        action: getContributionVerificationDecisionAction(input.status),
+        reason: [
+          `Contribution eligibility marked ${statusLabel}.`,
+          `Source: ${sourceLabel}.`,
+          input.externalVerificationReference
+            ? `Reference: ${input.externalVerificationReference}.`
+            : undefined,
+          input.note,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      },
+    });
+
+    return updated;
+  });
+}
+
 export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimCalculationInput) {
   if (!can(input.requesterRole, "claims:submit")) {
     throw new Error("You do not have permission to update reimbursement claim calculations.");
@@ -987,6 +1914,7 @@ export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimC
     },
     select: {
       id: true,
+      policyEdition: true,
       company: {
         select: {
           organizationId: true,
@@ -1027,7 +1955,10 @@ export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimC
     throw new Error("You do not have access to update this claim calculation.");
   }
 
-  const result = calculateReimbursementAward(input.calculation);
+  const result = calculateReimbursementAward({
+    ...input.calculation,
+    policyEdition: claim.policyEdition,
+  });
   const lines = result.lines.map((line) =>
     buildEmployerCalculationLine(
       line,

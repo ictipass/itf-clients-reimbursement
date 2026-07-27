@@ -1,3 +1,8 @@
+import {
+  DEFAULT_REIMBURSEMENT_POLICY_EDITION,
+  type ReimbursementPolicyEdition,
+} from "@/lib/reimbursement-policy";
+
 export const reimbursementTrainingEmphasisAreas = [
   "MANAGEMENT",
   "SUPERVISORY",
@@ -30,6 +35,7 @@ export type ReimbursementLineCalculation = {
 };
 
 export type ReimbursementCalculationInput = {
+  policyEdition?: ReimbursementPolicyEdition;
   trainingContributionPaid: number;
   siwesStudentsAccepted?: number;
   trainingPlanSubmittedPromptly?: boolean;
@@ -116,6 +122,12 @@ export function calculatePercentTrained(totalTrained: number, totalStaff: number
 }
 
 export function calculateReimbursementAward(input: ReimbursementCalculationInput) {
+  const policyEdition = input.policyEdition ?? DEFAULT_REIMBURSEMENT_POLICY_EDITION;
+
+  if (policyEdition !== "EIGHTH_REVISED") {
+    throw new Error(`Unsupported reimbursement policy edition: ${policyEdition}.`);
+  }
+
   if (!Number.isFinite(input.trainingContributionPaid) || input.trainingContributionPaid < 0) {
     throw new Error("Training contribution paid must be a valid non-negative amount.");
   }

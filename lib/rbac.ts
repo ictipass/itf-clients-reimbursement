@@ -17,6 +17,15 @@ export const roles = [
   "HQ_REIMBURSEMENT_OFFICER",
   "HQ_REVENUE_ACCOUNTANT",
   "DIRECTOR_GENERAL",
+  "DIRECTOR_AUDIT",
+  "HEAD_REIMBURSEMENT_AUDIT",
+  "REIMBURSEMENT_SCHEDULE_AUDITOR",
+  "HEAD_BUDGET",
+  "BUDGET_OFFICER",
+  "PRE_AUDIT_OFFICER",
+  "DIRECTOR_FINANCE",
+  "HEAD_REIMBURSEMENT_FINANCE",
+  "REIMBURSEMENT_ACCOUNTANT",
   "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
   "HEAD_INSPECTORATE_COMPLIANCE",
   "EMPLOYER_ADMIN",
@@ -89,6 +98,15 @@ const permissionsByRole: Record<Role, Permission[]> = {
     "audit:read",
   ],
   DIRECTOR_GENERAL: ["registry:review", "compliance:review", "training:approve", "claims:approve", "company:read", "audit:read"],
+  DIRECTOR_AUDIT: ["claims:approve", "company:read", "audit:read"],
+  HEAD_REIMBURSEMENT_AUDIT: ["claims:review", "claims:approve", "company:read", "audit:read"],
+  REIMBURSEMENT_SCHEDULE_AUDITOR: ["claims:review", "company:read", "audit:read"],
+  HEAD_BUDGET: ["claims:review", "claims:approve", "company:read", "audit:read"],
+  BUDGET_OFFICER: ["claims:review", "company:read", "audit:read"],
+  PRE_AUDIT_OFFICER: ["claims:review", "company:read", "audit:read"],
+  DIRECTOR_FINANCE: ["claims:approve", "company:read", "audit:read"],
+  HEAD_REIMBURSEMENT_FINANCE: ["claims:review", "claims:approve", "company:read", "audit:read"],
+  REIMBURSEMENT_ACCOUNTANT: ["claims:review", "company:read", "audit:read"],
   DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE: [
     "registry:review",
     "compliance:review",
@@ -161,6 +179,15 @@ export function isItfRole(role: Role) {
     role === "HEAD_OF_DIVISION" ||
     role === "HQ_REIMBURSEMENT_OFFICER" ||
     role === "HQ_REVENUE_ACCOUNTANT"
+    || role === "DIRECTOR_AUDIT"
+    || role === "HEAD_REIMBURSEMENT_AUDIT"
+    || role === "REIMBURSEMENT_SCHEDULE_AUDITOR"
+    || role === "HEAD_BUDGET"
+    || role === "BUDGET_OFFICER"
+    || role === "PRE_AUDIT_OFFICER"
+    || role === "DIRECTOR_FINANCE"
+    || role === "HEAD_REIMBURSEMENT_FINANCE"
+    || role === "REIMBURSEMENT_ACCOUNTANT"
     || role === "DIRECTOR_GENERAL"
     || role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE"
     || role === "HEAD_INSPECTORATE_COMPLIANCE"

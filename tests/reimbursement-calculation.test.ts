@@ -82,6 +82,7 @@ test("calculates the second medium and large employer example from the claims br
 
 test("uses the small employer scale for training and SIWES awards", () => {
   const result = calculateReimbursementAward({
+    policyEdition: "EIGHTH_REVISED",
     employerScale: "SMALL",
     trainingContributionPaid: 1_000_000,
     smallScaleTraining: {

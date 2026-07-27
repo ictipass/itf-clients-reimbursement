@@ -37,6 +37,10 @@ import { listAvailableManagedNumbers } from "@/lib/managed-numbers";
 import { isRemitaConfigured } from "@/lib/remita";
 import { canManageAnnualCompliance, type Role } from "@/lib/rbac";
 import { getEmployerCompany } from "@/lib/registry";
+import {
+  formatRevenueWorkflowMode,
+  usesInAppRevenueWorkflow,
+} from "@/lib/revenue-workflow";
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -567,7 +571,9 @@ export default async function CompanyDetailPage({
   const roleFocus = getRegistryRoleFocus(activeRole);
   const adminOverride = isAdminRole(activeRole);
   const canDeleteEvidence = isEmployerRole(activeRole);
-  const remitaConfigured = isRemitaConfigured();
+  const revenueWorkflowMode = company.organization.workspace.revenueWorkflowMode;
+  const usesInAppRevenue = usesInAppRevenueWorkflow(revenueWorkflowMode);
+  const remitaConfigured = usesInAppRevenue && isRemitaConfigured();
   const registrationEvidenceEditable = isEvidenceWorkflowEditable([
     company.registrationApplication?.status,
   ]);
@@ -704,6 +710,7 @@ export default async function CompanyDetailPage({
       )
     : [];
   const canSubmitRegistration =
+    usesInAppRevenue &&
     !company.itfEmployerNumber &&
     (!registrationApplication ||
       (registrationApplication.currentDesk === "COMPANY" &&
@@ -711,30 +718,35 @@ export default async function CompanyDetailPage({
     Boolean(company.areaOffice) &&
     (isEmployerRole(activeRole) || adminOverride);
   const canRouteRegistration =
+    usesInAppRevenue &&
     !company.itfEmployerNumber &&
     Boolean(registrationApplication) &&
     availableRegistrationTransitions.length > 0 &&
     canActAsDesk(activeRole, registrationApplication?.currentDesk) &&
     registrationApplication?.currentDesk !== "REVENUE_ACCOUNTANT";
   const canConfirmContribution =
+    usesInAppRevenue &&
     registrationApplication?.currentDesk === "HORIC" &&
     registrationApplication.status === "SUBMITTED" &&
     Boolean(registrationApplication.contributionAssessment) &&
     !registrationApplication.contributionAssessment?.horicReviewedAt &&
     canActAsDesk(activeRole, "HORIC");
   const canReleaseContribution =
+    usesInAppRevenue &&
     registrationApplication?.currentDesk === "AREA_MANAGER" &&
     registrationApplication.status === "SUBMITTED" &&
     Boolean(registrationApplication.contributionAssessment?.horicReviewedAt) &&
     !registrationApplication.contributionAssessment?.amReleasedAt &&
     canActAsDesk(activeRole, "AREA_MANAGER");
   const canReviewReceipt =
+    usesInAppRevenue &&
     registrationApplication?.currentDesk === "AREA_MANAGER" &&
     registrationApplication.status === "SUBMITTED" &&
     Boolean(registrationApplication.contributionAssessment?.amReleasedAt) &&
     registrationApplication.documents.length > 0 &&
     canActAsDesk(activeRole, "AREA_MANAGER");
   const canNotifyHeadquarters =
+    usesInAppRevenue &&
     registrationApplication?.currentDesk === "AREA_MANAGER" &&
     registrationApplication.status === "IN_REVIEW" &&
     Boolean(registrationApplication.contributionAssessment?.amReleasedAt) &&
@@ -742,6 +754,7 @@ export default async function CompanyDetailPage({
       registrationApplication.contributionAssessment?.invoice?.status === "PAID") &&
     canActAsDesk(activeRole, "AREA_MANAGER");
   const canAssessContribution =
+    usesInAppRevenue &&
     registrationApplication?.currentDesk === "REVENUE_ACCOUNTANT" &&
     registrationApplication.status === "SUBMITTED" &&
     registrationApplication.registrationKind !== "LEGACY_EMPLOYER" &&
@@ -754,22 +767,26 @@ export default async function CompanyDetailPage({
     Boolean(registrationApplication.claimedItfEmployerNumber) &&
     canReviewLegacyRegistrationClaimRole(activeRole);
   const canUploadReceipt =
+    usesInAppRevenue &&
     registrationApplication?.currentDesk === "COMPANY" &&
     registrationApplication.status === "SUBMITTED" &&
     Boolean(registrationApplication.contributionAssessment?.amReleasedAt) &&
     registrationApplication.contributionAssessment?.invoice?.status !== "PAID" &&
     (isEmployerRole(activeRole) || adminOverride);
   const canForwardToDivision =
+    usesInAppRevenue &&
     !company.itfEmployerNumber &&
     registrationApplication?.currentDesk === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" &&
     registrationApplication.status === "IN_REVIEW" &&
     canActAsDesk(activeRole, "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE");
   const canForwardToRevenueAccountant =
+    usesInAppRevenue &&
     !company.itfEmployerNumber &&
     registrationApplication?.currentDesk === "HEAD_INSPECTORATE_COMPLIANCE" &&
     registrationApplication.status === "IN_REVIEW" &&
     canActAsDesk(activeRole, "HEAD_INSPECTORATE_COMPLIANCE");
   const canCompleteAtHeadquarters =
+    usesInAppRevenue &&
     !company.itfEmployerNumber &&
     registrationApplication?.currentDesk === "HQ_REVENUE_ACCOUNTANT" &&
     registrationApplication.status === "IN_REVIEW" &&
@@ -929,6 +946,17 @@ export default async function CompanyDetailPage({
             {activeRole.replaceAll("_", " ")}
           </span>
         </div>
+        {!usesInAppRevenue ? (
+          <div className="mt-4 rounded-md border border-[#800020]/20 bg-[#800020]/5 px-3 py-2 text-sm leading-6 text-zinc-700">
+            Revenue workflow mode is{" "}
+            <span className="font-semibold text-zinc-950">
+              {formatRevenueWorkflowMode(revenueWorkflowMode)}
+            </span>
+            . Registration contribution invoices, Remita payments, and revenue-accountant payment
+            review actions are hidden; reimbursement eligibility should be verified from claim-side
+            contribution/payment evidence.
+          </div>
+        ) : null}
       </section>
 
       <section className="mt-8 grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -1201,7 +1229,8 @@ export default async function CompanyDetailPage({
                         : ""}
                     </p>
                   ) : null}
-                  {company.registrationApplication.contributionAssessment.invoice ? (
+                  {usesInAppRevenue &&
+                  company.registrationApplication.contributionAssessment.invoice ? (
                     <div className="md:col-span-3 rounded-md border border-[#800020]/15 bg-white p-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
@@ -1334,7 +1363,8 @@ export default async function CompanyDetailPage({
                 </div>
               </div>
             ) : null}
-            {company.registrationApplication.contributionAssessment?.amReleasedAt ? (
+            {usesInAppRevenue &&
+            company.registrationApplication.contributionAssessment?.amReleasedAt ? (
               <div className="md:col-span-3">
                 <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
                   Payment receipt
@@ -1372,7 +1402,8 @@ export default async function CompanyDetailPage({
                 )}
               </div>
             ) : null}
-            {company.registrationApplication.currentDesk ===
+            {usesInAppRevenue &&
+            company.registrationApplication.currentDesk ===
               "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" &&
             company.registrationApplication.status === "IN_REVIEW" ? (
               <div className="md:col-span-3">
@@ -1382,7 +1413,8 @@ export default async function CompanyDetailPage({
                 </p>
               </div>
             ) : null}
-            {company.registrationApplication.currentDesk === "HEAD_INSPECTORATE_COMPLIANCE" &&
+            {usesInAppRevenue &&
+            company.registrationApplication.currentDesk === "HEAD_INSPECTORATE_COMPLIANCE" &&
             company.registrationApplication.status === "IN_REVIEW" ? (
               <div className="md:col-span-3">
                 <p className="rounded-md bg-[#800020]/10 px-3 py-2 text-sm font-semibold text-[#65001a]">
@@ -1390,7 +1422,8 @@ export default async function CompanyDetailPage({
                 </p>
               </div>
             ) : null}
-            {company.registrationApplication.currentDesk === "HQ_REVENUE_ACCOUNTANT" &&
+            {usesInAppRevenue &&
+            company.registrationApplication.currentDesk === "HQ_REVENUE_ACCOUNTANT" &&
             company.registrationApplication.status === "IN_REVIEW" ? (
               <div className="md:col-span-3">
                 <p className="rounded-md bg-[#800020]/10 px-3 py-2 text-sm font-semibold text-[#65001a]">

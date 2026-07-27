@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
 import { generateContributionInvoicePdf } from "@/lib/contribution-invoices";
 import { initiateRemitaPayment, reconcileRemitaPayment } from "@/lib/remita";
+import { assertCompanyUsesInAppRevenueWorkflow } from "@/lib/revenue-workflow";
 import {
   assessRegistrationContribution,
   completeRegistrationAtHeadquarters,
@@ -245,6 +246,8 @@ export async function generateContributionInvoicePdfAction(
     throw new Error("Authentication is required.");
   }
 
+  await assertCompanyUsesInAppRevenueWorkflow(companyId);
+
   await generateContributionInvoicePdf({
     invoiceId,
     requesterEmail: session.user.email,
@@ -261,6 +264,8 @@ export async function initiateRemitaPaymentAction(companyId: string, invoiceId: 
   if (!session?.user?.email) {
     throw new Error("Authentication is required.");
   }
+
+  await assertCompanyUsesInAppRevenueWorkflow(companyId);
 
   const payment = await initiateRemitaPayment({
     companyId,
@@ -281,6 +286,8 @@ export async function reconcileRemitaPaymentAction(
   if (!session?.user?.email) {
     throw new Error("Authentication is required.");
   }
+
+  await assertCompanyUsesInAppRevenueWorkflow(companyId);
 
   await reconcileRemitaPayment({ providerReference });
 

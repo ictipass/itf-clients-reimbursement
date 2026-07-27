@@ -7,21 +7,46 @@ import {
   attachTrainingsToClaimAction,
   deleteClaimLineAction,
   detachTrainingFromClaimAction,
+  forwardClaimAlongWorkflowAction,
   forwardClaimToAreaReimbursementOfficerAction,
   forwardClaimToHeadOfTrainingAction,
+  markClaimKivAction,
+  resumeClaimFromKivAction,
   submitClaimToAreaManagerAction,
   updateClaimStaffEntriesAction,
+  updateClaimAuditReviewAction,
   updateClaimLineAction,
   updateEmployerClaimCalculationAction,
+  updateClaimContributionVerificationAction,
+  updateClaimPaymentHandoffAction,
   updateClaimRecommendationAction,
   updateClaimFormAction,
   uploadClaimEvidenceAction,
 } from "@/app/(dashboard)/claims/[claimId]/actions";
 import { authOptions } from "@/lib/auth";
+import {
+  contributionVerificationSources,
+  contributionVerificationStatuses,
+  formatContributionVerificationSource,
+  formatContributionVerificationStatus,
+} from "@/lib/claim-verification";
 import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
-import { getClaimEvidenceKinds } from "@/lib/claims";
+import {
+  canRouteClaimFromDesk,
+  getClaimEvidenceKinds,
+  getClaimPostIntakeTransitions,
+} from "@/lib/claims";
 import { getDb } from "@/lib/db";
 import { canUseSection } from "@/lib/feature-gates";
+import {
+  formatReimbursementAuditReviewStatus,
+  reimbursementAuditReviewStatuses,
+} from "@/lib/reimbursement-audit-review";
+import {
+  formatReimbursementPaymentHandoffStatus,
+  reimbursementPaymentHandoffStatuses,
+} from "@/lib/reimbursement-payment-schedule";
+import { formatReimbursementPolicyEdition } from "@/lib/reimbursement-policy";
 
 function formatMoney(value: { toString(): string } | null) {
   if (!value) {
@@ -36,6 +61,21 @@ function formatMoney(value: { toString(): string } | null) {
 
 function decimalInput(value: { toString(): string } | null) {
   return value?.toString() ?? "";
+}
+
+function formatDate(value: Date | null) {
+  if (!value) {
+    return "Not recorded";
+  }
+
+  return new Intl.DateTimeFormat("en-NG", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(value);
+}
+
+function formatDecisionAction(value: string) {
+  return value.replaceAll("_", " ");
 }
 
 function formatPercent(value: { toString(): string } | null) {
@@ -78,6 +118,21 @@ export default async function ClaimDetailPage({
       trainingContributionDue: true,
       trainingContributionPaid: true,
       itfReceiptNumber: true,
+      contributionVerificationStatus: true,
+      contributionVerificationSource: true,
+      contributionVerifiedAt: true,
+      contributionVerificationNote: true,
+      externalVerificationProvider: true,
+      externalVerificationReference: true,
+      externalVerificationCheckedAt: true,
+      externalVerificationMessage: true,
+      paymentHandoffStatus: true,
+      paymentScheduleReference: true,
+      paymentScheduleExportedAt: true,
+      paymentSystemReference: true,
+      paymentSystemStatus: true,
+      paymentSystemSyncedAt: true,
+      paidAt: true,
       bankName: true,
       accountNumber: true,
       sortCode: true,
@@ -95,7 +150,47 @@ export default async function ClaimDetailPage({
       employerDeclaredAt: true,
       status: true,
       currentDesk: true,
+      policyEdition: true,
       submittedAt: true,
+      auditReview: {
+        select: {
+          status: true,
+          observations: true,
+          recommendation: true,
+          auditedAmount: true,
+          varianceAmount: true,
+          preparedAt: true,
+          verifiedAt: true,
+          preparedBy: {
+            select: {
+              name: true,
+            },
+          },
+          verifiedBy: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+      decisions: {
+        select: {
+          id: true,
+          action: true,
+          reason: true,
+          createdAt: true,
+          actor: {
+            select: {
+              name: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          createdAt: "desc",
+        },
+        take: 40,
+      },
       documents: {
         where: {
           isActive: true,
@@ -158,6 +253,11 @@ export default async function ClaimDetailPage({
           },
         },
       },
+      contributionVerifiedBy: {
+        select: {
+          name: true,
+        },
+      },
       trainingRequests: {
         select: {
           attachedAt: true,
@@ -198,6 +298,76 @@ export default async function ClaimDetailPage({
     (activeRole === "HEAD_OF_TRAINING" ||
       activeRole === "SYSTEM_ADMIN" ||
       activeRole === "WORKSPACE_APP_ADMIN");
+  const canManageKiv =
+    activeRole === "DIRECTOR_GENERAL" ||
+    activeRole === "SYSTEM_ADMIN" ||
+    activeRole === "WORKSPACE_APP_ADMIN";
+  const canMarkKiv =
+    canManageKiv && ["SUBMITTED", "IN_REVIEW", "APPROVED"].includes(claim.status);
+  const canResumeKiv = canManageKiv && claim.status === "CHANGES_REQUESTED";
+  const canUpdatePaymentHandoff =
+    activeRole === "DIRECTOR_FINANCE" ||
+    activeRole === "HEAD_REIMBURSEMENT_FINANCE" ||
+    activeRole === "REIMBURSEMENT_ACCOUNTANT" ||
+    activeRole === "SYSTEM_ADMIN" ||
+    activeRole === "WORKSPACE_APP_ADMIN";
+  const canUpdateAuditReview =
+    activeRole === "DIRECTOR_AUDIT" ||
+    activeRole === "HEAD_REIMBURSEMENT_AUDIT" ||
+    activeRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
+    activeRole === "SYSTEM_ADMIN" ||
+    activeRole === "WORKSPACE_APP_ADMIN";
+  const canViewAuditReview = canUpdateAuditReview || Boolean(claim.auditReview);
+  const latestRoutingReason = claim.decisions[0]?.reason ?? "";
+  const availablePostIntakeTransitions = getClaimPostIntakeTransitions().filter((transition) => {
+    if (claim.status !== "SUBMITTED" || claim.currentDesk !== transition.from) {
+      return false;
+    }
+
+    if (!canRouteClaimFromDesk(activeRole, transition.from)) {
+      return false;
+    }
+
+    if (transition.from === "HEAD_OF_DIVISION") {
+      return latestRoutingReason.includes("HQ RO returned")
+        ? transition.to === "DIRECTOR_FSD"
+        : transition.to === "HQ_REIMBURSEMENT_OFFICER";
+    }
+
+    if (transition.from === "DIRECTOR_FSD") {
+      return latestRoutingReason.includes("Head Reimbursement Division forwarded verified")
+        ? transition.to === "DIRECTOR_AUDIT"
+        : transition.to === "HEAD_OF_DIVISION";
+    }
+
+    if (transition.from === "HEAD_REIMBURSEMENT_AUDIT") {
+      return latestRoutingReason.includes("Reimbursement Schedule Auditor returned")
+        ? transition.to === "DIRECTOR_AUDIT"
+        : transition.to === "REIMBURSEMENT_SCHEDULE_AUDITOR";
+    }
+
+    if (transition.from === "HEAD_BUDGET") {
+      return latestRoutingReason.includes("Budget Officer returned")
+        ? transition.to === "DIRECTOR_AUDIT"
+        : transition.to === "BUDGET_OFFICER";
+    }
+
+    if (transition.from === "DIRECTOR_AUDIT") {
+      if (latestRoutingReason.includes("Head Budget forwarded budget-cleared")) {
+        return transition.to === "PRE_AUDIT_OFFICER";
+      }
+
+      if (latestRoutingReason.includes("Pre-Audit Officer returned")) {
+        return false;
+      }
+
+      return latestRoutingReason.includes("Head Reimbursement Audit forwarded verified")
+        ? transition.to === "DIRECTOR_FINANCE"
+        : transition.to === "HEAD_REIMBURSEMENT_AUDIT";
+    }
+
+    return true;
+  });
   const staffEntriesByArea = {
     MANAGEMENT: claim.staffEntries.filter((entry) => entry.trainingArea === "MANAGEMENT"),
     SUPERVISORY: claim.staffEntries.filter((entry) => entry.trainingArea === "SUPERVISORY"),
@@ -264,6 +434,29 @@ export default async function ClaimDetailPage({
       <div className="mt-6 rounded-lg border-2 border-red-300 bg-red-50 px-5 py-4 text-sm font-black uppercase leading-6 tracking-wide text-red-900 shadow-sm">
         {CLAIM_SUBMISSION_DEADLINE_NOTICE}
       </div>
+
+      <div className="mt-4 rounded-lg border border-[#800020]/20 bg-[#800020]/5 px-5 py-4">
+        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#800020]">
+          Claim policy edition
+        </p>
+        <p className="mt-1 text-lg font-semibold text-zinc-950">
+          {formatReimbursementPolicyEdition(claim.policyEdition)}
+        </p>
+        <p className="mt-1 text-sm leading-6 text-zinc-600">
+          This claim is locked to this reimbursement edition for calculation, review, and audit
+          traceability.
+        </p>
+      </div>
+
+      {claim.status === "CHANGES_REQUESTED" ? (
+        <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
+          <p className="font-semibold">This reimbursement claim is currently KIV/paused.</p>
+          <p>
+            Attention badges are cleared while paused. Resume it only when the claim should return
+            to the current desk: {claim.currentDesk.replaceAll("_", " ")}.
+          </p>
+        </div>
+      ) : null}
 
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -347,7 +540,10 @@ export default async function ClaimDetailPage({
 
       {(canSubmitToAreaManager ||
         canForwardToHot ||
-        canForwardToAreaReimbursementOfficer) ? (
+        canForwardToAreaReimbursementOfficer ||
+        availablePostIntakeTransitions.length > 0 ||
+        canMarkKiv ||
+        canResumeKiv) ? (
         <section className="mt-8 rounded-lg border border-[#800020]/20 bg-[#800020]/5 p-5">
           <h2 className="text-xl font-semibold tracking-tight">Claim routing</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-700">
@@ -396,6 +592,57 @@ export default async function ClaimDetailPage({
               />
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Forward to A/O Reimbursement Officer
+              </button>
+            </form>
+          ) : null}
+          {availablePostIntakeTransitions.map((transition) => (
+            <form
+              key={`${transition.from}:${transition.to}`}
+              action={forwardClaimAlongWorkflowAction.bind(
+                null,
+                claim.id,
+                transition.from,
+                transition.to,
+              )}
+              className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]"
+            >
+              <input
+                name="note"
+                placeholder={`Optional ${transition.from.replaceAll("_", " ")} note`}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Forward to {transition.to.replaceAll("_", " ")}
+              </button>
+            </form>
+          ))}
+          {canMarkKiv ? (
+            <form
+              action={markClaimKivAction.bind(null, claim.id)}
+              className="mt-5 grid gap-3 border-t border-[#800020]/10 pt-5 md:grid-cols-[1fr_auto]"
+            >
+              <input
+                name="note"
+                placeholder="Optional DG KIV note"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+              <button className="min-h-10 rounded-md bg-amber-700 px-4 text-sm font-semibold text-white">
+                Mark KIV / pause claim
+              </button>
+            </form>
+          ) : null}
+          {canResumeKiv ? (
+            <form
+              action={resumeClaimFromKivAction.bind(null, claim.id)}
+              className="mt-5 grid gap-3 border-t border-[#800020]/10 pt-5 md:grid-cols-[1fr_auto]"
+            >
+              <input
+                name="note"
+                placeholder="Optional DG resume note"
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              />
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Resume claim at current desk
               </button>
             </form>
           ) : null}
@@ -481,6 +728,108 @@ export default async function ClaimDetailPage({
             <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
               Attach selected trainings
             </button>
+          </form>
+        ) : null}
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">
+              Contribution eligibility verification
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Confirms that the employer&apos;s contribution/payment evidence is genuine enough to
+              support this reimbursement claim. This can later be backed by an external compliance
+              verification API.
+            </p>
+          </div>
+          <span className="inline-flex w-fit rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700">
+            {formatContributionVerificationStatus(claim.contributionVerificationStatus)}
+          </span>
+        </div>
+
+        <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
+          <p>Source: {formatContributionVerificationSource(claim.contributionVerificationSource)}</p>
+          <p>Verified by: {claim.contributionVerifiedBy?.name ?? "Not recorded"}</p>
+          <p>Verified at: {formatDate(claim.contributionVerifiedAt)}</p>
+          <p>Receipt/reference: {claim.itfReceiptNumber ?? "Not provided"}</p>
+          <p>Contribution paid: {formatMoney(claim.trainingContributionPaid)}</p>
+          <p>
+            External provider: {claim.externalVerificationProvider ?? "Not connected"}
+          </p>
+          <p>
+            External reference: {claim.externalVerificationReference ?? "Not provided"}
+          </p>
+          <p>
+            External checked at: {formatDate(claim.externalVerificationCheckedAt)}
+          </p>
+          <p className="md:col-span-2">
+            Verification note: {claim.contributionVerificationNote ?? "No note recorded"}
+          </p>
+          {claim.externalVerificationMessage ? (
+            <p className="md:col-span-2">
+              External message: {claim.externalVerificationMessage}
+            </p>
+          ) : null}
+        </div>
+
+        {canRecommendClaim ? (
+          <form
+            action={updateClaimContributionVerificationAction.bind(null, claim.id)}
+            className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2"
+          >
+            <select
+              name="contributionVerificationStatus"
+              defaultValue={claim.contributionVerificationStatus}
+              className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            >
+              {contributionVerificationStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {formatContributionVerificationStatus(status)}
+                </option>
+              ))}
+            </select>
+            <select
+              name="contributionVerificationSource"
+              defaultValue={claim.contributionVerificationSource}
+              className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            >
+              {contributionVerificationSources.map((source) => (
+                <option key={source} value={source}>
+                  {formatContributionVerificationSource(source)}
+                </option>
+              ))}
+            </select>
+            <input
+              name="externalVerificationProvider"
+              defaultValue={claim.externalVerificationProvider ?? ""}
+              placeholder="External provider e.g. Compliance API"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="externalVerificationReference"
+              defaultValue={claim.externalVerificationReference ?? ""}
+              placeholder="External verification reference"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="externalVerificationMessage"
+              defaultValue={claim.externalVerificationMessage ?? ""}
+              placeholder="External verification message"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <textarea
+              name="contributionVerificationNote"
+              defaultValue={claim.contributionVerificationNote ?? ""}
+              placeholder="Verification note"
+              className="min-h-24 rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2"
+            />
+            <div className="md:col-span-2">
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Save eligibility verification
+              </button>
+            </div>
           </form>
         ) : null}
       </section>
@@ -1010,6 +1359,222 @@ export default async function ClaimDetailPage({
             </button>
           </form>
         ) : null}
+      </section>
+
+      {canViewAuditReview ? (
+        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-semibold tracking-tight">Audit review</h2>
+              <p className="mt-2 text-sm leading-6 text-zinc-600">
+                Foundation for the Reimbursement Schedule Auditor&apos;s audit work. Detailed
+                checklist fields can be added here once the official audit procedure is provided.
+              </p>
+            </div>
+            <span className="inline-flex w-fit rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700">
+              {claim.auditReview
+                ? formatReimbursementAuditReviewStatus(claim.auditReview.status)
+                : "Not started"}
+            </span>
+          </div>
+
+          <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
+            <p>Audited amount: {formatMoney(claim.auditReview?.auditedAmount ?? null)}</p>
+            <p>Variance amount: {formatMoney(claim.auditReview?.varianceAmount ?? null)}</p>
+            <p>Prepared by: {claim.auditReview?.preparedBy?.name ?? "Not recorded"}</p>
+            <p>Prepared at: {formatDate(claim.auditReview?.preparedAt ?? null)}</p>
+            <p>Verified by: {claim.auditReview?.verifiedBy?.name ?? "Not recorded"}</p>
+            <p>Verified at: {formatDate(claim.auditReview?.verifiedAt ?? null)}</p>
+            <p className="md:col-span-2">
+              Recommendation: {claim.auditReview?.recommendation ?? "No recommendation recorded"}
+            </p>
+            <p className="md:col-span-2">
+              Observations: {claim.auditReview?.observations ?? "No observations recorded"}
+            </p>
+          </div>
+
+          {canUpdateAuditReview ? (
+            <form
+              action={updateClaimAuditReviewAction.bind(null, claim.id)}
+              className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2"
+            >
+              <select
+                name="auditReviewStatus"
+                defaultValue={claim.auditReview?.status ?? "DRAFT"}
+                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+              >
+                {reimbursementAuditReviewStatuses.map((status) => (
+                  <option key={status} value={status}>
+                    {formatReimbursementAuditReviewStatus(status)}
+                  </option>
+                ))}
+              </select>
+              <input
+                name="auditedAmount"
+                type="number"
+                step="0.01"
+                defaultValue={decimalInput(claim.auditReview?.auditedAmount ?? null)}
+                placeholder="Audited amount"
+                className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+              />
+              <input
+                name="varianceAmount"
+                type="number"
+                step="0.01"
+                defaultValue={decimalInput(claim.auditReview?.varianceAmount ?? null)}
+                placeholder="Variance amount"
+                className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+              />
+              <input
+                name="auditRecommendation"
+                defaultValue={claim.auditReview?.recommendation ?? ""}
+                placeholder="Audit recommendation"
+                className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+              />
+              <textarea
+                name="auditObservations"
+                defaultValue={claim.auditReview?.observations ?? ""}
+                placeholder="Audit observations"
+                className="min-h-24 rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2"
+              />
+              <div className="md:col-span-2">
+                <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                  Save audit review
+                </button>
+              </div>
+            </form>
+          ) : null}
+        </section>
+      ) : null}
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">Payment handoff</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Interim bridge to ITF&apos;s existing payment process. Until ERP/API details are
+              available, the e-payment schedule can be downloaded and manually fed into the
+              payment system.
+            </p>
+          </div>
+          {canRecommendClaim ? (
+            <Link
+              href={`/claims/${claim.id}/payment-schedule`}
+              className="inline-flex min-h-10 w-fit items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
+            >
+              Download e-payment schedule CSV
+            </Link>
+          ) : null}
+        </div>
+
+        <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
+          <p>
+            Handoff status:{" "}
+            {formatReimbursementPaymentHandoffStatus(claim.paymentHandoffStatus)}
+          </p>
+          <p>
+            Schedule reference:{" "}
+            {claim.paymentScheduleReference ?? "Generated at download until formally exported"}
+          </p>
+          <p>Recommended amount: {formatMoney(claim.claimRecommendedAmount)}</p>
+          <p>Bank: {claim.bankName ?? "Not provided"}</p>
+          <p>Account number: {claim.accountNumber ?? "Not provided"}</p>
+          <p>Sort code: {claim.sortCode ?? "Not provided"}</p>
+          <p>Schedule exported at: {formatDate(claim.paymentScheduleExportedAt)}</p>
+          <p>Payment system reference: {claim.paymentSystemReference ?? "Not recorded"}</p>
+          <p>Payment system status: {claim.paymentSystemStatus ?? "Not synced"}</p>
+          <p>Payment system synced at: {formatDate(claim.paymentSystemSyncedAt)}</p>
+          <p>Paid at: {formatDate(claim.paidAt)}</p>
+        </div>
+
+        {canUpdatePaymentHandoff ? (
+          <form
+            action={updateClaimPaymentHandoffAction.bind(null, claim.id)}
+            className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2"
+          >
+            <select
+              name="paymentHandoffStatus"
+              defaultValue={claim.paymentHandoffStatus}
+              className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            >
+              {reimbursementPaymentHandoffStatuses.map((status) => (
+                <option key={status} value={status}>
+                  {formatReimbursementPaymentHandoffStatus(status)}
+                </option>
+              ))}
+            </select>
+            <input
+              name="paymentSystemReference"
+              defaultValue={claim.paymentSystemReference ?? ""}
+              placeholder="Payment system / PV reference"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="paymentSystemStatus"
+              defaultValue={claim.paymentSystemStatus ?? ""}
+              placeholder="Payment system status"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <input
+              name="note"
+              placeholder="Optional payment handoff note"
+              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+            />
+            <div className="md:col-span-2">
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
+                Update payment handoff
+              </button>
+            </div>
+          </form>
+        ) : null}
+      </section>
+
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">Claim decision trail</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Chronological record of claim routing, recommendations, KIV pauses/resumptions,
+              payment updates, and settlement decisions for this employer.
+            </p>
+          </div>
+          <span className="inline-flex w-fit rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700">
+            {claim.decisions.length} recent decision{claim.decisions.length === 1 ? "" : "s"}
+          </span>
+        </div>
+
+        {claim.decisions.length === 0 ? (
+          <p className="mt-4 text-sm leading-6 text-zinc-600">
+            No decision trail has been recorded for this claim yet.
+          </p>
+        ) : (
+          <ol className="mt-5 space-y-4">
+            {claim.decisions.map((decision) => (
+              <li
+                key={decision.id}
+                className="rounded-lg border border-zinc-100 bg-zinc-50 p-4 text-sm"
+              >
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="font-semibold uppercase tracking-[0.12em] text-[#800020]">
+                      {formatDecisionAction(decision.action)}
+                    </p>
+                    <p className="mt-1 font-semibold text-zinc-950">
+                      {decision.actor.name}
+                    </p>
+                    <p className="text-xs text-zinc-500">{decision.actor.email}</p>
+                  </div>
+                  <time className="text-xs font-semibold text-zinc-500">
+                    {formatDate(decision.createdAt)}
+                  </time>
+                </div>
+                <p className="mt-3 leading-6 text-zinc-700">
+                  {decision.reason ?? "No reason or note recorded."}
+                </p>
+              </li>
+            ))}
+          </ol>
+        )}
       </section>
 
       {canRecommendClaim ? (

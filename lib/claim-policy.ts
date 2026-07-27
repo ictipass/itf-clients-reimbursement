@@ -1,5 +1,13 @@
 import { getDb } from "@/lib/db";
 import { canManageClaimPolicy, type Role } from "@/lib/rbac";
+import {
+  assertSupportedReimbursementPolicyEdition,
+  type ReimbursementPolicyEdition,
+} from "@/lib/reimbursement-policy";
+import {
+  assertSupportedRevenueWorkflowMode,
+  type RevenueWorkflowMode,
+} from "@/lib/revenue-workflow";
 
 export const CLAIM_SUBMISSION_DEADLINE_NOTICE =
   "ALL TRAINING CLAIMS MUST BE SUBMITTED ON OR BEFORE 30TH JUNE AFTER EACH TRAINING YEAR (JANUARY - DECEMBER)";
@@ -8,6 +16,8 @@ export type ClaimPolicyWorkspace = {
   id: string;
   name: string;
   allowLateClaimSubmissions: boolean;
+  activeReimbursementEdition: ReimbursementPolicyEdition;
+  revenueWorkflowMode: RevenueWorkflowMode;
 };
 
 export function getClaimSubmissionDeadline(trainingYear: number) {
@@ -31,6 +41,8 @@ export async function listClaimPolicyWorkspaces(input: { requesterRole: Role }) 
       id: true,
       name: true,
       allowLateClaimSubmissions: true,
+      activeReimbursementEdition: true,
+      revenueWorkflowMode: true,
     },
     orderBy: {
       name: "asc",
@@ -42,6 +54,8 @@ export async function updateClaimSubmissionPolicy(input: {
   requesterRole: Role;
   workspaceId: string;
   allowLateClaimSubmissions: boolean;
+  activeReimbursementEdition?: string;
+  revenueWorkflowMode?: string;
 }) {
   if (!canManageClaimPolicy(input.requesterRole)) {
     throw new Error("You do not have permission to manage claim submission settings.");
@@ -61,12 +75,27 @@ export async function updateClaimSubmissionPolicy(input: {
     throw new Error("Workspace was not found.");
   }
 
+  let activeReimbursementEdition: ReimbursementPolicyEdition | undefined;
+  let revenueWorkflowMode: RevenueWorkflowMode | undefined;
+
+  if (input.activeReimbursementEdition) {
+    assertSupportedReimbursementPolicyEdition(input.activeReimbursementEdition);
+    activeReimbursementEdition = input.activeReimbursementEdition;
+  }
+
+  if (input.revenueWorkflowMode) {
+    assertSupportedRevenueWorkflowMode(input.revenueWorkflowMode);
+    revenueWorkflowMode = input.revenueWorkflowMode;
+  }
+
   return getDb().workspace.update({
     where: {
       id: workspace.id,
     },
     data: {
       allowLateClaimSubmissions: input.allowLateClaimSubmissions,
+      activeReimbursementEdition,
+      revenueWorkflowMode,
     },
     select: {
       id: true,
