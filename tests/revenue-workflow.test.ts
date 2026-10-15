@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { getAppNameForMode } from "../lib/domain";
 import {
   DEFAULT_REVENUE_WORKFLOW_MODE,
   formatRevenueWorkflowMode,
@@ -28,4 +29,12 @@ test("reimbursement navigation omits the in-app compliance desk", () => {
 
   assert.equal(reimbursementLinks.includes("/compliance"), false);
   assert.equal(integratedLinks.includes("/compliance"), true);
+});
+
+test("application name follows the selected operating mode", () => {
+  assert.equal(getAppNameForMode("EXTERNAL_VERIFICATION"), "ITF Reimbursement Platform");
+  assert.equal(
+    getAppNameForMode("IN_APP_REVENUE"),
+    "ITF Integrated Contribution and Reimbursement Platform",
+  );
 });

@@ -6,7 +6,7 @@ import { OrganizationSwitcher } from "@/app/(dashboard)/OrganizationSwitcher";
 import { SignOutDialog } from "@/app/(dashboard)/SignOutDialog";
 import { authOptions } from "@/lib/auth";
 import { getAttentionSummary, getModuleAttentionCounts } from "@/lib/attention";
-import { appName } from "@/lib/domain";
+import { getAppNameForMode } from "@/lib/domain";
 import { getDb } from "@/lib/db";
 import { getVisibleNavGroups } from "@/lib/navigation";
 import { getActiveEmployerOrganization } from "@/lib/organization-context";
@@ -102,7 +102,7 @@ export default async function DashboardLayout({
         <div className="flex h-full flex-col gap-6 px-5 py-5">
           <div className="flex flex-col gap-4">
             <Link href="/dashboard" className="text-base font-semibold tracking-tight">
-              {appName}
+              {getAppNameForMode(revenueWorkflowMode)}
               {attentionSummary.total > 0 ? (
                 <span
                   className="ml-2 rounded-full bg-[#800020] px-2 py-0.5 text-xs font-semibold text-white"

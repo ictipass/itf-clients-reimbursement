@@ -2,7 +2,7 @@ import Image from "next/image";
 import Link from "next/link";
 
 import { getDb } from "@/lib/db";
-import { appName } from "@/lib/domain";
+import { getAppNameForMode } from "@/lib/domain";
 import {
   DEFAULT_REVENUE_WORKFLOW_MODE,
   usesInAppRevenueWorkflow,
@@ -68,7 +68,7 @@ export default async function Home() {
               <Image src="/favicon.ico" alt="Industrial Training Fund logo" width={56} height={56} className="h-14 w-14 rounded-full bg-white p-1" />
               <div>
                 <p className="text-sm font-semibold uppercase text-rose-100">Industrial Training Fund</p>
-                <h1 className="mt-1 text-2xl font-semibold tracking-tight">{appName}</h1>
+                <h1 className="mt-1 text-2xl font-semibold tracking-tight">{getAppNameForMode(revenueWorkflowMode)}</h1>
               </div>
             </div>
             <nav className="flex flex-wrap gap-2">

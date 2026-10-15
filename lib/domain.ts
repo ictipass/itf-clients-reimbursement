@@ -1,6 +1,11 @@
 import type { Permission, Role } from "@/lib/rbac";
+import type { RevenueWorkflowMode } from "@/lib/revenue-workflow";
 
 export const appName = "ITF Integrated Contribution and Reimbursement Platform";
+
+export function getAppNameForMode(mode: RevenueWorkflowMode) {
+  return mode === "IN_APP_REVENUE" ? appName : "ITF Reimbursement Platform";
+}
 
 export const workflowStages = [
   {

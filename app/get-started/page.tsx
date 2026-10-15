@@ -3,7 +3,7 @@ import Link from "next/link";
 
 import { registerEmployerAccountAction } from "@/app/get-started/actions";
 import { getConfiguredOAuthProviders } from "@/lib/auth";
-import { appName } from "@/lib/domain";
+import { getAppNameForMode } from "@/lib/domain";
 import { getOrganizationInvitation } from "@/lib/employer-members";
 import { getActiveRevenueWorkflowMode, usesInAppRevenueWorkflow } from "@/lib/revenue-workflow";
 
@@ -16,7 +16,8 @@ export default async function GetStartedPage({
     : null;
   const googleEnabled = getConfiguredOAuthProviders().some((provider) => provider.id === "google");
   const registrationCallback = encodeURIComponent("/dashboard");
-  const integrated = usesInAppRevenueWorkflow(await getActiveRevenueWorkflowMode());
+  const mode = await getActiveRevenueWorkflowMode();
+  const integrated = usesInAppRevenueWorkflow(mode);
 
   return (
     <main className="min-h-screen bg-zinc-100 px-6 py-10 text-zinc-950">
@@ -26,7 +27,7 @@ export default async function GetStartedPage({
             <Image src="/favicon.ico" alt="Industrial Training Fund logo" width={44} height={44} className="h-11 w-11 rounded-full bg-white p-1" />
             <div>
               <p className="text-xs font-semibold uppercase text-[#800020]">Industrial Training Fund</p>
-              <p className="text-sm font-semibold">{appName}</p>
+              <p className="text-sm font-semibold">{getAppNameForMode(mode)}</p>
             </div>
           </div>
           <Link href="/" className="text-sm font-semibold text-[#800020]">Back to home</Link>
