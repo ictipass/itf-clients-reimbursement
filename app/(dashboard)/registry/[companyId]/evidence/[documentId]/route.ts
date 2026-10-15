@@ -50,7 +50,7 @@ export async function GET(
 
     const disposition = resolveDisposition(request, evidence.mimeType);
 
-    return new Response(new Uint8Array(evidence.buffer), {
+    return new Response(evidence.stream, {
       headers: {
         "Cache-Control": "private, no-store",
         "Content-Disposition": contentDisposition(evidence.fileName, disposition),

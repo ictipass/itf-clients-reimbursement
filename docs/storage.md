@@ -26,6 +26,45 @@ Each `Document` row also stores its own `storageProvider`, so older files remain
 
 For local development, uploaded files are stored under `LOCAL_STORAGE_ROOT`, which defaults to `storage/uploads`. This folder is intentionally ignored by git and must not be placed under `public`.
 
+Hosted adapters are implemented for **private Vercel Blob** and **private S3**. They use the same
+authenticated document routes and store the provider on each document, so changing the default
+provider affects only new uploads. Do not configure `STORAGE_PROVIDER=local` on Vercel: its
+filesystem is not persistent document storage.
+
+For Blob, create a **private** store, connect it separately to Preview and Production, and set
+`BLOB_READ_WRITE_TOKEN` in each environment. Use `STORAGE_PROVIDER=vercel_blob`. Blob URLs in
+the database are metadata only; never display them to users in place of authenticated routes.
+
+For S3, create a private bucket with public access blocked and default encryption enabled. Set
+`STORAGE_PROVIDER=s3`, `S3_BUCKET`, `S3_REGION`, and standard AWS SDK credentials/role settings.
+Grant only the required object read/write permissions. Use separate buckets or credentials for
+Preview and Production. Bucket changes require migration because each document retains its bucket.
+
+### Existing local documents
+
+Run this on the machine containing `LOCAL_STORAGE_ROOT` and against the intended database:
+
+```cmd
+set STORAGE_PROVIDER=vercel_blob
+npm run storage:migrate
+npm run storage:migrate -- --apply
+```
+
+The first command is a dry run. The apply command verifies each source checksum, uploads a copy,
+reads it back, verifies its checksum again, and only then updates that document's provider/key.
+It never deletes local originals; failed documents stay `LOCAL` and can be retried. Back up the
+database and local upload directory first. Do not deploy a database containing `LOCAL` records
+to Vercel until those records are migrated or the old files remain available to that deployment.
+
+### Remaining Vercel upload limit
+
+The existing server-action and route upload forms accept up to 10 MB, but Vercel Functions limit
+request bodies to 4.5 MB. Hosted adapters do not bypass that limit. Direct-to-storage uploads
+with scoped, authenticated upload authorization and server-side validation are the next slice;
+until then, **do not claim the full 10 MB upload workflow is ready for Vercel**. The company
+evidence download route now streams hosted files; other generated-document download routes
+still buffer files and must be audited for large output before production.
+
 ## Provider Metadata
 
 The `Document` model stores:
@@ -101,7 +140,7 @@ This reduces the risk of uploaded documents being executed by a browser or treat
 
 ## Packages
 
-These packages are already present in the project dependencies.
+These packages are already present in the project dependencies and are used by the hosted adapters.
 
 For Vercel Blob:
 

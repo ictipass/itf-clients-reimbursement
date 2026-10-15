@@ -1,7 +1,7 @@
-import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import { createObjectKey } from "@/lib/storage/object-key";
 import { checksum } from "@/lib/storage/security";
 import type {
   DownloadObjectInput,
@@ -41,15 +41,7 @@ function getLocalObjectPath(objectKey: string) {
 }
 
 export async function uploadLocalObject(input: UploadObjectInput): Promise<Omit<StoredObject, "scanStatus" | "scannedAt" | "scanReason">> {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const objectKey = path.posix.join(
-    input.namespace ?? "company-evidence",
-    input.companyId,
-    String(now.getFullYear()),
-    month,
-    `${randomUUID()}${input.extension}`,
-  );
+  const objectKey = createObjectKey(input);
 
   const absolutePath = getLocalObjectPath(objectKey);
 

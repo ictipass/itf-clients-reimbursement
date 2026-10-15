@@ -4,7 +4,7 @@ import { isEvidenceWorkflowEditable } from "@/lib/evidence-deletion";
 import { normalizeEvidenceDocumentName } from "@/lib/evidence-metadata";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
-import { downloadObject, uploadObject } from "@/lib/storage";
+import { openObject, uploadObject } from "@/lib/storage";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 
 const companyEvidenceKinds = [
@@ -184,14 +184,14 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
     throw new Error("You do not have access to this organization's evidence.");
   }
 
-  const downloaded = await downloadObject({
+  const downloaded = await openObject({
     storageProvider: document.storageProvider,
     bucket: document.bucket,
     objectKey: document.objectKey,
   });
 
   return {
-    buffer: downloaded.buffer,
+    stream: downloaded.stream,
     fileName: document.fileName,
     fileSize: downloaded.fileSize,
     mimeType: document.mimeType,

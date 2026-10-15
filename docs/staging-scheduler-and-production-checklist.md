@@ -59,6 +59,9 @@ The current local HTTP development API remains restricted to `NODE_ENV=developme
       `NEXT_PUBLIC_APP_URL`; configure Google OAuth callback/origin if Google sign-in is used.
 - [ ] Provision private persistent object storage (`STORAGE_PROVIDER=vercel_blob` or `s3`),
       its credentials and lifecycle/backups. Do not use local disk for production evidence.
+- [ ] Migrate and verify all legacy `LOCAL` document records before relying on them in Vercel.
+      Complete direct-to-storage upload and large-download work for the current 10 MB file
+      contract; hosted adapters alone do not bypass Vercel's 4.5 MB function payload limit.
 - [ ] Configure Upstash Redis credentials for shared rate limiting and verify behaviour across
       multiple Vercel instances.
 

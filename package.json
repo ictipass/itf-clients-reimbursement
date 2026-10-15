@@ -7,6 +7,7 @@
     "dev:webpack": "next dev --webpack",
     "postinstall": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
+    "storage:migrate": "tsx scripts/migrate-local-documents.ts",
     "build": "prisma generate && next build",
     "verify": "prisma validate && tsc --noEmit && eslint && next build --webpack",
     "start": "next start",

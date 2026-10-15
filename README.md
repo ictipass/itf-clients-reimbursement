@@ -282,6 +282,9 @@ See [Transactional Email Delivery](docs/email-delivery.md).
 
 ## Storage and Upload Security
 
+The hosted private Blob/S3 adapters, local-document migration procedure, and remaining Vercel
+upload-size gate are described in [Document Storage](docs/storage.md).
+
 Select the upload provider through:
 
 ```env
