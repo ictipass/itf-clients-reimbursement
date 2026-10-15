@@ -214,6 +214,9 @@ been the more stable local development path.
 
 ## Environment Configuration
 
+For Vercel Preview staging, daily cron scheduling, manual admin runs, and the production
+go-live gates, see [Staging Scheduler and Production Checklist](docs/staging-scheduler-and-production-checklist.md).
+
 The complete documented environment contract is available in [.env.example](.env.example).
 
 Important groups include:

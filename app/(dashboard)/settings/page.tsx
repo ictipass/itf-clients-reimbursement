@@ -28,6 +28,12 @@ export default async function SettingsPage() {
       visible: canManageClaimPolicy(role),
     },
     {
+      href: "/settings/scheduled-jobs",
+      title: "Scheduled jobs",
+      description: "Run eligibility retries or workflow-email delivery and review the daily schedule.",
+      visible: role === "SYSTEM_ADMIN",
+    },
+    {
       href: "/settings/users",
       title: "Users",
       description: "Manage workspace users and administrative access.",
