@@ -47,8 +47,8 @@ export default async function Home() {
   const usesInAppRevenue = usesInAppRevenueWorkflow(revenueWorkflowMode);
   const visibleWorkflows = usesInAppRevenue
     ? statutoryWorkflows
-    : statutoryWorkflows.filter(
-        (workflow) => workflow.title !== "Contribution assessment and payment",
+    : statutoryWorkflows.filter((workflow) =>
+        workflow.title === "Training administration" || workflow.title === "Reimbursement claims",
       );
 
   return (
@@ -72,7 +72,7 @@ export default async function Home() {
               </div>
             </div>
             <nav className="flex flex-wrap gap-2">
-              <Link href="/verify" className="inline-flex min-h-10 items-center rounded-md border border-white/20 bg-white/10 px-3 text-sm font-semibold text-white">Verify certificate</Link>
+              {usesInAppRevenue ? <Link href="/verify" className="inline-flex min-h-10 items-center rounded-md border border-white/20 bg-white/10 px-3 text-sm font-semibold text-white">Verify certificate</Link> : null}
               <Link href="/sign-in" className="inline-flex min-h-10 items-center rounded-md border border-white/20 bg-white/10 px-3 text-sm font-semibold text-white">Sign in</Link>
               <Link href="/get-started" className="inline-flex min-h-10 items-center rounded-md bg-white px-4 text-sm font-semibold text-zinc-950">Get started</Link>
             </nav>
@@ -84,23 +84,23 @@ export default async function Home() {
             <p className="text-sm font-semibold uppercase text-rose-100">
               {usesInAppRevenue
                 ? "Integrated employer contribution and reimbursement services"
-                : "Employer reimbursement and compliance services"}
+                : "Employer training and reimbursement services"}
             </p>
             <h2 className="mt-3 max-w-3xl text-4xl font-semibold leading-tight">
               {usesInAppRevenue
                 ? "From employer registration and contribution payment to training governance and reimbursement claims."
-                : "From employer registration through training governance to reimbursement claims."}
+                : "Manage training and reimbursement claims for employers already registered with ITF."}
             </h2>
             <p className="mt-4 max-w-2xl text-sm leading-6 text-zinc-100">
               {usesInAppRevenue
                 ? "Secure access for employers of labour and authorized Industrial Training Fund officers managing contribution, compliance, training, monitoring, and reimbursement workflows."
-                : "Secure access for employers of labour and authorized Industrial Training Fund officers managing compliance, training, monitoring, and reimbursement workflows."}
+                : "Secure access for employers and ITF officers managing training, monitoring, and reimbursement. Annual compliance is verified through the existing platform."}
             </p>
           </div>
           <div className="grid content-start gap-3 rounded-lg border border-white/15 bg-black/25 p-5 backdrop-blur">
             <p className="text-sm font-semibold text-white">Portal access</p>
             <Link href="/get-started" className="inline-flex min-h-11 items-center justify-between rounded-md bg-white px-4 text-sm font-semibold text-zinc-950">
-              Begin employer registration <span aria-hidden="true">-&gt;</span>
+              {usesInAppRevenue ? "Begin employer registration" : "Create a reimbursement account"} <span aria-hidden="true">-&gt;</span>
             </Link>
             <Link href="/sign-in" className="inline-flex min-h-11 items-center justify-between rounded-md border border-white/25 bg-white/10 px-4 text-sm font-semibold text-white">
               Sign in to your workspace <span aria-hidden="true">-&gt;</span>
@@ -111,7 +111,7 @@ export default async function Home() {
 
       <section className="mx-auto max-w-7xl px-6 py-10 lg:px-8">
         <p className="text-sm font-semibold uppercase text-[#800020]">
-          Integrated employer services
+          {usesInAppRevenue ? "Integrated employer services" : "Reimbursement services"}
         </p>
         <h2 className="mt-2 text-2xl font-semibold">Operational workflows</h2>
         <div className="mt-5 grid gap-3 md:grid-cols-2">

@@ -28,9 +28,9 @@ export default async function ContributionOperatingModelPage() {
           Contribution operating model
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-          Choose whether contribution processing stays on the external platform or runs
-          end-to-end in this application. The inactive capabilities remain intact for future
-          policy changes.
+          Choose Integrated for the full compliance and reimbursement journey, or Reimbursement
+          when annual compliance is managed by the existing platform. Historical records remain
+          available to authorized administrators when the mode changes.
         </p>
 
         {!canManageModel ? (

@@ -47,6 +47,7 @@ export async function createCompanyAction(formData: FormData) {
     requesterRole: session.user.role,
     areaOfficeId: readRequiredString(formData, "areaOfficeId"),
     legalName: readRequiredString(formData, "legalName"),
+    itfEmployerNumber: readOptionalString(formData, "itfEmployerNumber"),
     rcNumber: readOptionalString(formData, "rcNumber"),
     taxId: readOptionalString(formData, "taxId"),
     businessAddress: readOptionalString(formData, "businessAddress"),

@@ -10,6 +10,7 @@ export type CreateCompanyInput = {
   requesterRole: Role;
   areaOfficeId: string;
   legalName: string;
+  itfEmployerNumber?: string;
   rcNumber?: string;
   taxId?: string;
   businessAddress?: string;
@@ -514,6 +515,19 @@ export async function createCompany(input: CreateCompanyInput) {
       throw new Error("Your employer account is not ready for company registration.");
     }
 
+    const workspace = await tx.workspace.findUnique({
+      where: { id: user.memberships[0].workspaceId },
+      select: { revenueWorkflowMode: true },
+    });
+    const reimbursementOnly = workspace?.revenueWorkflowMode === "EXTERNAL_VERIFICATION";
+    const itfEmployerNumber = input.itfEmployerNumber?.trim();
+    if (reimbursementOnly && !itfEmployerNumber) {
+      throw new Error("An existing ITF registration number is required in Reimbursement mode.");
+    }
+    if (!reimbursementOnly && itfEmployerNumber) {
+      throw new Error("ITF registration numbers are issued by the registration workflow in Integrated mode.");
+    }
+
     const activeOrganization = await getActiveEmployerOrganization(input.requesterEmail);
     if (activeOrganization.requiresSelection) {
       throw new Error("Select an active organization before creating another company.");
@@ -546,6 +560,7 @@ export async function createCompany(input: CreateCompanyInput) {
         organizationId,
         areaOfficeId: input.areaOfficeId,
         legalName: input.legalName,
+        itfEmployerNumber: reimbursementOnly ? itfEmployerNumber : undefined,
         rcNumber: input.rcNumber,
         taxId: input.taxId,
         businessAddress: input.businessAddress,
@@ -554,7 +569,7 @@ export async function createCompany(input: CreateCompanyInput) {
         telephone: input.telephone,
         natureOfBusiness: input.natureOfBusiness,
         establishedAt: input.establishedAt,
-        status: "DRAFT",
+        status: reimbursementOnly ? "ACTIVE" : "DRAFT",
       },
       select: {
         id: true,

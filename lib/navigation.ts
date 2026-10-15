@@ -1,4 +1,5 @@
 import { can, isItfRole, type Role } from "@/lib/rbac";
+import type { RevenueWorkflowMode } from "@/lib/revenue-workflow";
 
 export type NavItem = {
   href: string;
@@ -106,12 +107,12 @@ export const navGroups: NavGroup[] = [
   },
 ];
 
-export function getVisibleNavGroups(role: Role) {
+export function getVisibleNavGroups(role: Role, mode?: RevenueWorkflowMode) {
   return navGroups
     .map((group) => ({
       label: group.label,
       items: group.items
-        .filter((item) => item.isVisible(role))
+        .filter((item) => item.isVisible(role) && (mode !== "EXTERNAL_VERIFICATION" || item.href !== "/compliance"))
         .map(({ href, label, module }) => ({ href, label, module })),
     }))
     .filter((group) => group.items.length > 0);

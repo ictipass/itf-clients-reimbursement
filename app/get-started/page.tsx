@@ -5,6 +5,7 @@ import { registerEmployerAccountAction } from "@/app/get-started/actions";
 import { getConfiguredOAuthProviders } from "@/lib/auth";
 import { appName } from "@/lib/domain";
 import { getOrganizationInvitation } from "@/lib/employer-members";
+import { getActiveRevenueWorkflowMode, usesInAppRevenueWorkflow } from "@/lib/revenue-workflow";
 
 export default async function GetStartedPage({
   searchParams,
@@ -15,6 +16,7 @@ export default async function GetStartedPage({
     : null;
   const googleEnabled = getConfiguredOAuthProviders().some((provider) => provider.id === "google");
   const registrationCallback = encodeURIComponent("/dashboard");
+  const integrated = usesInAppRevenueWorkflow(await getActiveRevenueWorkflowMode());
 
   return (
     <main className="min-h-screen bg-zinc-100 px-6 py-10 text-zinc-950">
@@ -31,17 +33,21 @@ export default async function GetStartedPage({
         </header>
         <section className="mt-8 border-b border-zinc-200 pb-6">
           <p className="text-sm font-semibold uppercase text-[#800020]">Employer onboarding</p>
-          <h1 className="mt-3 text-3xl font-semibold tracking-tight">Get started with employer registration</h1>
+          <h1 className="mt-3 text-3xl font-semibold tracking-tight">{integrated ? "Get started with employer registration" : "Get started with reimbursement"}</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-            New employers and employers already registered with ITF begin here. After sign-in, select the appropriate registration type and complete the employer profile.
+            {integrated
+              ? "New employers and employers already registered with ITF begin here. After sign-in, select the appropriate registration type and complete the employer profile."
+              : "Create a portal account, then add your company using its existing ITF registration number. Annual compliance is handled by the existing platform."}
           </p>
         </section>
         <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
           <h2 className="text-xl font-semibold">
-            Register on the Integrated Contribution and Reimbursement Platform
+            {integrated ? "Register on the Integrated Contribution and Reimbursement Platform" : "Create a reimbursement portal account"}
           </h2>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
-            Create an employer portal account, then verify your email before beginning company registration.
+            {integrated
+              ? "Create an employer portal account, then verify your email before beginning company registration."
+              : "Create a portal account and verify your email. You will supply the company's existing ITF registration number after sign-in."}
           </p>
           {params.error ? <p className="mt-5 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800">{params.error}</p> : null}
           {params.registered ? (
@@ -77,12 +83,12 @@ export default async function GetStartedPage({
             <Link href="/sign-in" className="font-semibold text-[#800020]">Continue to sign in</Link>.
           </p>
         </section>
-        <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
+        {integrated ? <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
           <h2 className="text-lg font-semibold">Already registered with ITF?</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-600">
             Continue through the same onboarding path and select <strong>Already registered with ITF</strong>. Your existing ITF registration number will be required for validation.
           </p>
-        </section>
+        </section> : null}
       </div>
     </main>
   );

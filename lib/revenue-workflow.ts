@@ -10,18 +10,18 @@ export const DEFAULT_REVENUE_WORKFLOW_MODE =
 export function formatRevenueWorkflowMode(mode: RevenueWorkflowMode) {
   switch (mode) {
     case "EXTERNAL_VERIFICATION":
-      return "External verification / reimbursement-only";
+      return "Reimbursement";
     case "IN_APP_REVENUE":
-      return "In-app revenue workflow";
+      return "Integrated";
   }
 }
 
 export function describeRevenueWorkflowMode(mode: RevenueWorkflowMode) {
   switch (mode) {
     case "EXTERNAL_VERIFICATION":
-      return "Registration revenue payment processing is treated as external; claims rely on uploaded contribution/payment evidence and manual verification.";
+      return "Employers provide their existing ITF registration number. Annual compliance is verified with the existing compliance platform before training and reimbursement approval.";
     case "IN_APP_REVENUE":
-      return "The platform manages contribution invoices, Remita/payment records, and internal revenue review queues.";
+      return "This application manages employer registration, annual contribution and compliance, training, and reimbursement.";
   }
 }
 

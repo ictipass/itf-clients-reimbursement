@@ -11,6 +11,7 @@ import { getDb } from "@/lib/db";
 import { getVisibleNavGroups } from "@/lib/navigation";
 import { getActiveEmployerOrganization } from "@/lib/organization-context";
 import { getVisibleWorkspaceApps } from "@/lib/workspace-apps";
+import { getActiveRevenueWorkflowMode } from "@/lib/revenue-workflow";
 
 export default async function DashboardLayout({
   children,
@@ -81,7 +82,8 @@ export default async function DashboardLayout({
           take: 5,
         })
       : [];
-  const visibleNavGroups = getVisibleNavGroups(activeRole);
+  const revenueWorkflowMode = await getActiveRevenueWorkflowMode();
+  const visibleNavGroups = getVisibleNavGroups(activeRole, revenueWorkflowMode);
   const visibleWorkspaceApps = getVisibleWorkspaceApps(activeRole);
   const attentionSummary = await getAttentionSummary({
     requesterEmail: session?.user?.email,
