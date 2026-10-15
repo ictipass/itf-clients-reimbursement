@@ -1,5 +1,5 @@
 import type { NextConfig } from "next";
-import path from "node:path";
+// import path from "node:path";
 
 const isDevelopment = process.env.NODE_ENV === "development";
 const contentSecurityPolicy = [
@@ -16,25 +16,25 @@ const contentSecurityPolicy = [
 ].join("; ");
 
 const nextConfig: NextConfig = {
-  // allowedDevOrigins: ["192.168.137.215"],
-  // allowedDevOrigins: ["192.168.0.2"],
-  allowedDevOrigins: ["192.168.0.3"],
-  // allowedDevOrigins: ["192.168.0.4"],
+  allowedDevOrigins: ["192.168.137.120"],
   experimental: {
     serverActions: {
       bodySizeLimit: "12mb",
     },
   },
-  turbopack: {
-    root: path.resolve(__dirname),
-  },
+  // turbopack: {
+  //   root: path.resolve(__dirname),
+  // },
   async headers() {
     const headers = [
       { key: "Content-Security-Policy", value: contentSecurityPolicy },
       { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
       { key: "X-Content-Type-Options", value: "nosniff" },
       { key: "X-Frame-Options", value: "DENY" },
-      { key: "Permissions-Policy", value: "camera=(), microphone=(), geolocation=()" },
+      {
+        key: "Permissions-Policy",
+        value: "camera=(), microphone=(), geolocation=()",
+      },
     ];
 
     if (!isDevelopment) {
