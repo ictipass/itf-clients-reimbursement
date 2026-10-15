@@ -379,6 +379,7 @@ remaining-slice register and rollout estimate.
 
 - [Testing](docs/testing.md)
 - [Transactional Email Delivery](docs/email-delivery.md)
+- [Development Annual Eligibility API](docs/development-eligibility.md)
 - [Document Storage](docs/storage.md)
 - [Upload Security](docs/upload-security.md)
 - [Rate Limiting](docs/rate-limiting.md)

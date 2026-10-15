@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { verifyAnnualEligibility } from "@/lib/annual-eligibility";
 import {
   formatContributionVerificationSource,
   formatContributionVerificationStatus,
@@ -304,6 +305,10 @@ export async function createClaim(input: CreateClaimInput) {
   }
 
   const claimYear = requests[0].startsAt.getFullYear();
+  const filingYear = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", year: "numeric" }).format(new Date()));
+  if (filingYear < claimYear + 1) {
+    throw new Error(`Training held in ${claimYear} can first be claimed in ${claimYear + 1}.`);
+  }
   if (
     isLateClaimSubmission(claimYear) &&
     !requests[0].company.organization.workspace.allowLateClaimSubmissions
@@ -312,6 +317,9 @@ export async function createClaim(input: CreateClaimInput) {
       `Claims for the ${claimYear} training year closed on 30 June ${claimYear + 1}.`,
     );
   }
+
+  const eligibility = await verifyAnnualEligibility(requests[0].companyId, claimYear);
+  if (eligibility.status === "INELIGIBLE") throw new Error(eligibility.message);
 
   const claimedAmount = requests.reduce(
     (total, request) => total + Number(request.estimatedCost.toString()),
@@ -659,6 +667,7 @@ async function moveClaimThroughIntake(
       companyId: true,
       status: true,
       currentDesk: true,
+      claimYear: true,
       company: {
         select: {
           legalName: true,
@@ -699,6 +708,11 @@ async function moveClaimThroughIntake(
     organizationId: claim.company.organizationId,
     areaOfficeId: claim.company.areaOfficeId,
   });
+
+  if (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT") {
+    const eligibility = await verifyAnnualEligibility(claim.companyId, claim.claimYear ?? 0);
+    if (eligibility.status !== "ELIGIBLE") throw new Error(`Claim approval is blocked: ${eligibility.message}`);
+  }
 
   const now = new Date();
   const note = input.note?.trim();
@@ -1140,6 +1154,11 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
 
   if (!claim) {
     throw new Error("Reimbursement claim was not found.");
+  }
+
+  if (input.status === "PAID") {
+    const eligibility = await verifyAnnualEligibility(claim.companyId, claim.claimYear ?? 0);
+    if (eligibility.status !== "ELIGIBLE") throw new Error(`Payment is blocked: ${eligibility.message}`);
   }
 
   const now = new Date();

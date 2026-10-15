@@ -1,5 +1,19 @@
 # ITF Integrated Contribution and Reimbursement Platform Implementation Slices
 
+## October 2026: Reimbursement annual eligibility foundation
+
+- Added an authenticated development compliance API with administrator-managed test company/year
+  results and a configurable local endpoint.
+- Added persisted annual eligibility checks requiring settled payment, a positive contribution,
+  and an issued certificate for the training year.
+- Training Plan initiation and claim creation now check eligibility; unavailable API results stay
+  pending, while Training Plan approval, claim approval, and payment require an eligible result.
+- Added an administrator availability check, manual company check, pending-check retry control,
+  and a secret-protected cron endpoint. See [Development Annual Eligibility API](development-eligibility.md).
+
+This is a development adapter. Production integration with the existing compliance platform is
+still required.
+
 This project is being built one reviewable slice at a time. After each slice, implementation pauses for review before the next slice begins.
 
 Each slice should answer:

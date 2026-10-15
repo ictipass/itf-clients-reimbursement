@@ -6,6 +6,7 @@ import { createTrainingPlanSubmissionAction } from "@/app/(dashboard)/registry/[
 import { PersonnelFields } from "@/app/(dashboard)/registry/[companyId]/training-plans/new/personnel-fields";
 import { authOptions } from "@/lib/auth";
 import { getEmployerCompany } from "@/lib/registry";
+import { usesInAppRevenueWorkflow } from "@/lib/revenue-workflow";
 
 export default async function NewTrainingPlanSubmissionPage({
   params,
@@ -43,6 +44,7 @@ export default async function NewTrainingPlanSubmissionPage({
       complianceYear.status === "APPROVED" &&
       complianceYear.certificate,
   );
+  const integrated = usesInAppRevenueWorkflow(company.organization.workspace.revenueWorkflowMode);
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8 lg:px-8">
@@ -59,7 +61,7 @@ export default async function NewTrainingPlanSubmissionPage({
         </p>
       </div>
 
-      {!hasCurrentYearCertifiedCompliance ? (
+      {integrated && !hasCurrentYearCertifiedCompliance ? (
         <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
           <p className="font-semibold">Current-year compliance is required</p>
           <p className="mt-2 max-w-3xl leading-6">
@@ -76,6 +78,7 @@ export default async function NewTrainingPlanSubmissionPage({
         </div>
       ) : (
         <>
+      {!integrated ? <p className="mb-5 rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-900">The ITF number will be checked against the compliance API for the selected training year. If it is unavailable, this submission can be prepared while verification remains pending; approval will wait.</p> : null}
       {createError ? (
         <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

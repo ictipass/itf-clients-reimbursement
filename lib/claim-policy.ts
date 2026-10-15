@@ -18,6 +18,7 @@ export type ClaimPolicyWorkspace = {
   allowLateClaimSubmissions: boolean;
   activeReimbursementEdition: ReimbursementPolicyEdition;
   revenueWorkflowMode: RevenueWorkflowMode;
+  eligibilityEndpointUrl: string | null;
 };
 
 export function getClaimSubmissionDeadline(trainingYear: number) {
@@ -43,6 +44,7 @@ export async function listClaimPolicyWorkspaces(input: { requesterRole: Role }) 
       allowLateClaimSubmissions: true,
       activeReimbursementEdition: true,
       revenueWorkflowMode: true,
+      eligibilityEndpointUrl: true,
     },
     orderBy: {
       name: "asc",

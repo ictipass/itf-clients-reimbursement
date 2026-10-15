@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { verifyAnnualEligibility } from "@/lib/annual-eligibility";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
@@ -230,12 +231,6 @@ export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubm
     throw new Error("A registered active company is required before training plan submission.");
   }
 
-  if (company.complianceYears.length === 0) {
-    throw new Error(
-      `Approved ${input.year} compliance with an issued certificate is required before Training Plan and L&D submission.`,
-    );
-  }
-
   const requester = await db.user.findUnique({
     where: {
       email: input.requesterEmail,
@@ -281,6 +276,9 @@ export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubm
       `A Training Plan and L&D submission already exists for ${input.year}. Open the existing submission instead of creating another one for the same year.`,
     );
   }
+
+  const eligibility = await verifyAnnualEligibility(company.id, input.year);
+  if (eligibility.status === "INELIGIBLE") throw new Error(eligibility.message);
 
   return db.trainingPlanSubmission.create({
     data: {
@@ -453,6 +451,7 @@ export async function uploadTrainingPlanEvidence(input: UploadTrainingPlanEviden
       company: {
         select: {
           organizationId: true,
+          organization: { select: { workspace: { select: { revenueWorkflowMode: true } } } },
           complianceYears: {
             where: {
               status: "APPROVED",
@@ -478,7 +477,7 @@ export async function uploadTrainingPlanEvidence(input: UploadTrainingPlanEviden
     (complianceYear) => complianceYear.year === submission.year,
   );
 
-  if (!hasCertifiedComplianceYear) {
+  if (!hasCertifiedComplianceYear && submission.company.organization.workspace.revenueWorkflowMode === "IN_APP_REVENUE") {
     throw new Error(
       `Approved ${submission.year} compliance with an issued certificate is required before uploading Training Plan evidence.`,
     );
@@ -621,16 +620,6 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
     throw new Error("Draft training plan submission was not found.");
   }
 
-  const hasCertifiedComplianceYear = submission.company.complianceYears.some(
-    (complianceYear) => complianceYear.year === submission.year,
-  );
-
-  if (!hasCertifiedComplianceYear) {
-    throw new Error(
-      `Approved ${submission.year} compliance with an issued certificate is required before Training Plan and L&D submission.`,
-    );
-  }
-
   const submittedKinds = new Set(submission.documents.map((document) => document.kind));
   const missingKinds = trainingPlanEvidenceKinds.filter((kind) => !submittedKinds.has(kind));
 
@@ -664,6 +653,9 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
   if (!hasOrganizationAccess) {
     throw new Error("You do not have access to this training plan submission.");
   }
+
+  const eligibility = await verifyAnnualEligibility(submission.companyId, submission.year);
+  if (eligibility.status === "INELIGIBLE") throw new Error(eligibility.message);
 
   const submittedAt = new Date();
   const promptSubmissionScore = submittedAt <= submission.dueDate ? "1.00" : "0.00";
@@ -817,6 +809,13 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
     })
   ) {
     throw new Error("You do not have access to this Area Office training plan submission.");
+  }
+
+  if (transition.nextStatus === "APPROVED") {
+    const eligibility = await verifyAnnualEligibility(submission.companyId, submission.year);
+    if (eligibility.status !== "ELIGIBLE") {
+      throw new Error(`Training Plan approval is blocked: ${eligibility.message}`);
+    }
   }
 
   return db.$transaction(async (tx) => {

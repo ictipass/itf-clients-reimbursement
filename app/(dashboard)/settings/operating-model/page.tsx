@@ -1,21 +1,30 @@
 import { getServerSession } from "next-auth";
 
-import { updateContributionOperatingModelAction } from "@/app/(dashboard)/settings/operating-model/actions";
+import { checkDevelopmentEligibilityAction, retryPendingDevelopmentEligibilityAction, saveDevelopmentEligibilityEndpointAction, saveDevelopmentEligibilityRecordAction, updateContributionOperatingModelAction, verifyDevelopmentCompanyAction } from "@/app/(dashboard)/settings/operating-model/actions";
 import { authOptions } from "@/lib/auth";
 import { listClaimPolicyWorkspaces } from "@/lib/claim-policy";
 import { canManageClaimPolicy } from "@/lib/rbac";
+import { getDb } from "@/lib/db";
 import {
   describeRevenueWorkflowMode,
   formatRevenueWorkflowMode,
   revenueWorkflowModes,
 } from "@/lib/revenue-workflow";
 
-export default async function ContributionOperatingModelPage() {
+export default async function ContributionOperatingModelPage({ searchParams }: { searchParams: Promise<{ eligibilityMessage?: string }> }) {
+  const { eligibilityMessage } = await searchParams;
   const session = await getServerSession(authOptions);
   const role = session?.user?.role ?? "EMPLOYER_VIEWER";
   const canManageModel = canManageClaimPolicy(role);
   const workspaces = canManageModel
     ? await listClaimPolicyWorkspaces({ requesterRole: role })
+    : [];
+  const developmentRecords = canManageModel && process.env.NODE_ENV === "development"
+    ? await getDb().developmentEligibilityRecord.findMany({
+        where: { workspaceId: { in: workspaces.map((workspace) => workspace.id) } },
+        orderBy: { updatedAt: "desc" },
+        take: 20,
+      })
     : [];
 
   return (
@@ -32,6 +41,7 @@ export default async function ContributionOperatingModelPage() {
           when annual compliance is managed by the existing platform. Historical records remain
           available to authorized administrators when the mode changes.
         </p>
+        {eligibilityMessage ? <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{eligibilityMessage}</p> : null}
 
         {!canManageModel ? (
           <p className="mt-5 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
@@ -44,6 +54,7 @@ export default async function ContributionOperatingModelPage() {
         ) : (
           <div className="mt-6 grid gap-4">
             {workspaces.map((workspace) => (
+              <div key={workspace.id} className="grid gap-4">
               <form
                 key={workspace.id}
                 action={updateContributionOperatingModelAction}
@@ -86,6 +97,49 @@ export default async function ContributionOperatingModelPage() {
                   Save operating model
                 </button>
               </form>
+              {process.env.NODE_ENV === "development" ? (
+                <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-4">
+                  <h3 className="font-semibold">Development eligibility API</h3>
+                  <p className="text-sm text-zinc-600">Enter this application&apos;s local API URL and test data. Eligibility requires settled payment, a positive amount, and an issued certificate for the training year.</p>
+                  <form action={saveDevelopmentEligibilityEndpointAction} className="grid gap-3">
+                    <input type="hidden" name="workspaceId" value={workspace.id} />
+                    <label className="grid gap-1 text-sm">Endpoint URL<input name="endpointUrl" type="url" required defaultValue={workspace.eligibilityEndpointUrl ?? "http://127.0.0.1:3000/api/development/eligibility"} className="rounded-md border px-3 py-2" /></label>
+                    <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Save endpoint</button>
+                  </form>
+                  <form action={checkDevelopmentEligibilityAction}>
+                    <input type="hidden" name="workspaceId" value={workspace.id} />
+                    <button className="rounded-md border px-4 py-2 text-sm font-semibold">Check API availability</button>
+                  </form>
+                  <form action={retryPendingDevelopmentEligibilityAction}>
+                    <input type="hidden" name="workspaceId" value={workspace.id} />
+                    <button className="rounded-md border px-4 py-2 text-sm font-semibold">Check pending companies now</button>
+                  </form>
+                  <form action={saveDevelopmentEligibilityRecordAction} className="grid gap-3 border-t pt-4">
+                    <input type="hidden" name="workspaceId" value={workspace.id} />
+                    <h4 className="font-semibold">Create or update a test company result</h4>
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="grid gap-1 text-sm">ITF registration number<input name="itfEmployerNumber" required maxLength={80} className="rounded-md border px-3 py-2" /></label>
+                      <label className="grid gap-1 text-sm">Training and compliance year<input name="year" type="number" min="2000" max={new Date().getFullYear() + 1} required className="rounded-md border px-3 py-2" /></label>
+                      <label className="grid gap-1 text-sm">Contribution paid<input name="contributionPaid" type="number" min="0" step="0.01" required className="rounded-md border px-3 py-2" /></label>
+                      <label className="grid gap-1 text-sm">Certificate number<input name="certificateNumber" className="rounded-md border px-3 py-2" /></label>
+                    </div>
+                    <label className="flex gap-2 text-sm"><input name="paymentSettled" type="checkbox" /> Payment settled</label>
+                    <label className="flex gap-2 text-sm"><input name="certificateIssued" type="checkbox" /> Certificate issued</label>
+                    <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Save test result</button>
+                  </form>
+                  <form action={verifyDevelopmentCompanyAction} className="grid gap-3 border-t pt-4 sm:grid-cols-2">
+                    <input type="hidden" name="workspaceId" value={workspace.id} />
+                    <h4 className="font-semibold sm:col-span-2">Verify an onboarded company now</h4>
+                    <input name="itfEmployerNumber" required placeholder="ITF registration number" className="rounded-md border px-3 py-2" />
+                    <input name="year" type="number" min="2000" max={new Date().getFullYear() + 1} required placeholder="Training year" className="rounded-md border px-3 py-2" />
+                    <button className="w-fit rounded-md border px-4 py-2 text-sm font-semibold">Run verification</button>
+                  </form>
+                  {developmentRecords.filter((record) => record.workspaceId === workspace.id).map((record) => (
+                    <p key={record.id} className="text-xs text-zinc-600">{record.itfEmployerNumber} · {record.year} · paid {record.contributionPaid.toString()} · payment {record.paymentSettled ? "settled" : "unsettled"} · certificate {record.certificateIssued ? "issued" : "not issued"}</p>
+                  ))}
+                </section>
+              ) : null}
+              </div>
             ))}
           </div>
         )}

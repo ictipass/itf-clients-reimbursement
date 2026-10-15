@@ -248,6 +248,11 @@ export default async function TrainingPlanDetailPage({
     notFound();
   }
 
+  const eligibility = await getDb().annualEligibilityCheck.findUnique({
+    where: { companyId_year: { companyId: submission.company.id, year: submission.year } },
+    select: { status: true, message: true, checkedAt: true },
+  });
+
   const submittedDocumentKinds = new Set(submission.documents.map((document) => document.kind));
   const missingRequiredEvidence = [
     submittedDocumentKinds.has("TRAINING_PLAN_DOCUMENT") ? undefined : "training plan document",
@@ -297,6 +302,12 @@ export default async function TrainingPlanDetailPage({
         </div>
         <TrainingPlanStatusBadge status={submission.status} />
       </div>
+      {eligibility ? (
+        <p className={`mt-4 rounded-lg px-4 py-3 text-sm ${eligibility.status === "ELIGIBLE" ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-950"}`}>
+          Annual eligibility for {submission.year}: <strong>{eligibility.status.replaceAll("_", " ")}</strong>. {eligibility.message}
+          {eligibility.status === "PENDING" ? " Approval is blocked until verification succeeds." : null}
+        </p>
+      ) : null}
 
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">

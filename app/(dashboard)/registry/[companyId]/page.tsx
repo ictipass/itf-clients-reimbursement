@@ -805,7 +805,7 @@ export default async function CompanyDetailPage({
     (!registrationApplication ||
       registrationApplication.registrationKind === "LEGACY_EMPLOYER");
   const canCreateComplianceYear = Boolean(company.itfEmployerNumber) && isEmployerRole(activeRole);
-  const canCreateTrainingPlan = hasCurrentYearCertifiedCompliance && isEmployerRole(activeRole);
+  const canCreateTrainingPlan = (!usesInAppRevenue || hasCurrentYearCertifiedCompliance) && isEmployerRole(activeRole);
   const hasVisibleRegistrationActions =
     canSubmitRegistration ||
     canRouteRegistration ||
@@ -2524,14 +2524,14 @@ export default async function CompanyDetailPage({
             >
               Create submission
             </Link>
-          ) : !hasCurrentYearCertifiedCompliance ? (
+          ) : usesInAppRevenue && !hasCurrentYearCertifiedCompliance ? (
             <span className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm font-semibold text-zinc-500">
               Compliance required
             </span>
           ) : null}
         </summary>
 
-        {!hasCurrentYearCertifiedCompliance ? (
+        {usesInAppRevenue && !hasCurrentYearCertifiedCompliance ? (
           <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
             Training Plan and L&amp;D submission is available after the company&apos;s {currentYear}{" "}
             compliance is approved and its compliance certificate has been issued.

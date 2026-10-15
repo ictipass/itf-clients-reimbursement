@@ -158,6 +158,12 @@ enum RevenueWorkflowMode {
   IN_APP_REVENUE
 }
 
+enum AnnualEligibilityStatus {
+  PENDING
+  ELIGIBLE
+  INELIGIBLE
+}
+
 enum ContributionVerificationStatus {
   PENDING
   VERIFIED
@@ -405,24 +411,26 @@ enum AuditAction {
 }
 
 model Workspace {
-  id                         String                      @id @default(cuid())
-  name                       String
-  slug                       String                      @unique
-  externalId                 String?                     @unique
-  allowLateClaimSubmissions  Boolean                     @default(false)
-  activeReimbursementEdition ReimbursementPolicyEdition  @default(EIGHTH_REVISED)
-  revenueWorkflowMode        RevenueWorkflowMode         @default(EXTERNAL_VERIFICATION)
-  isActive                   Boolean                     @default(true)
-  createdAt                  DateTime                    @default(now())
-  updatedAt                  DateTime                    @updatedAt
-  organizations              Organization[]
-  areaOffices                AreaOffice[]
-  memberships                Membership[]
-  certificateTemplates       CertificateTemplate[]
-  signatureAssets            SignatureAsset[]
-  managedNumbers             ManagedRegistrationNumber[]
-  workItems                  WorkItem[]
-  auditEvents                AuditEvent[]
+  id                            String                         @id @default(cuid())
+  name                          String
+  slug                          String                         @unique
+  externalId                    String?                        @unique
+  allowLateClaimSubmissions     Boolean                        @default(false)
+  activeReimbursementEdition    ReimbursementPolicyEdition     @default(EIGHTH_REVISED)
+  revenueWorkflowMode           RevenueWorkflowMode            @default(EXTERNAL_VERIFICATION)
+  eligibilityEndpointUrl        String?
+  isActive                      Boolean                        @default(true)
+  createdAt                     DateTime                       @default(now())
+  updatedAt                     DateTime                       @updatedAt
+  organizations                 Organization[]
+  areaOffices                   AreaOffice[]
+  memberships                   Membership[]
+  certificateTemplates          CertificateTemplate[]
+  signatureAssets               SignatureAsset[]
+  managedNumbers                ManagedRegistrationNumber[]
+  workItems                     WorkItem[]
+  auditEvents                   AuditEvent[]
+  developmentEligibilityRecords DevelopmentEligibilityRecord[]
 }
 
 model AreaOffice {
@@ -634,6 +642,7 @@ model Company {
   documents                           Document[]
   complianceYears                     ComplianceYear[]
   complianceCertificates              ComplianceCertificate[]
+  annualEligibilityChecks             AnnualEligibilityCheck[]
   trainingPlanSubmissions             TrainingPlanSubmission[]
   trainingRequests                    TrainingRequest[]
   reimbursementClaims                 ReimbursementClaim[]
@@ -992,6 +1001,40 @@ model TrainingPlanSubmission {
   @@unique([companyId, year])
   @@index([companyId, status, recordTier])
   @@index([currentDesk, status, recordTier])
+}
+
+model DevelopmentEligibilityRecord {
+  id                String    @id @default(cuid())
+  workspaceId       String
+  itfEmployerNumber String
+  year              Int
+  paymentSettled    Boolean   @default(false)
+  contributionPaid  Decimal   @default(0) @db.Decimal(14, 2)
+  certificateIssued Boolean   @default(false)
+  certificateNumber String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  workspace         Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([workspaceId, itfEmployerNumber, year])
+}
+
+model AnnualEligibilityCheck {
+  id                String                  @id @default(cuid())
+  companyId         String
+  year              Int
+  status            AnnualEligibilityStatus @default(PENDING)
+  contributionPaid  Decimal?                @db.Decimal(14, 2)
+  certificateNumber String?
+  checkedAt         DateTime?
+  source            String?
+  message           String?
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
+  company           Company                 @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, year])
+  @@index([status, updatedAt])
 }
 
 model TrainingPlanPersonnel {
