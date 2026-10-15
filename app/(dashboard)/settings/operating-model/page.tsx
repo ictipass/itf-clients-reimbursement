@@ -11,8 +11,8 @@ import {
   revenueWorkflowModes,
 } from "@/lib/revenue-workflow";
 
-export default async function ContributionOperatingModelPage({ searchParams }: { searchParams: Promise<{ eligibilityMessage?: string }> }) {
-  const { eligibilityMessage } = await searchParams;
+export default async function ContributionOperatingModelPage({ searchParams }: { searchParams: Promise<{ eligibilityMessage?: string; eligibilityError?: string }> }) {
+  const { eligibilityMessage, eligibilityError } = await searchParams;
   const session = await getServerSession(authOptions);
   const role = session?.user?.role ?? "EMPLOYER_VIEWER";
   const canManageModel = canManageClaimPolicy(role);
@@ -42,6 +42,7 @@ export default async function ContributionOperatingModelPage({ searchParams }: {
           available to authorized administrators when the mode changes.
         </p>
         {eligibilityMessage ? <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{eligibilityMessage}</p> : null}
+        {eligibilityError ? <p role="alert" className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800">{eligibilityError}</p> : null}
 
         {!canManageModel ? (
           <p className="mt-5 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
@@ -129,7 +130,10 @@ export default async function ContributionOperatingModelPage({ searchParams }: {
                   </form>
                   <form action={verifyDevelopmentCompanyAction} className="grid gap-3 border-t pt-4 sm:grid-cols-2">
                     <input type="hidden" name="workspaceId" value={workspace.id} />
-                    <h4 className="font-semibold sm:col-span-2">Verify an onboarded company now</h4>
+                    <div className="sm:col-span-2">
+                      <h4 className="font-semibold">Verify an onboarded company now</h4>
+                      <p className="mt-1 text-sm text-zinc-600">The company must already exist in this workspace with the same ITF registration number. A test API record alone does not create a company.</p>
+                    </div>
                     <input name="itfEmployerNumber" required placeholder="ITF registration number" className="rounded-md border px-3 py-2" />
                     <input name="year" type="number" min="2000" max={new Date().getFullYear() + 1} required placeholder="Training year" className="rounded-md border px-3 py-2" />
                     <button className="w-fit rounded-md border px-4 py-2 text-sm font-semibold">Run verification</button>

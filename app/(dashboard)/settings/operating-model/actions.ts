@@ -113,7 +113,9 @@ export async function verifyDevelopmentCompanyAction(formData: FormData) {
     where: { itfEmployerNumber, organization: { workspaceId: workspace.id }, isActive: true },
     select: { id: true },
   });
-  if (!company) throw new Error("An active company with this ITF number was not found.");
+  if (!company) {
+    redirect("/settings/operating-model?eligibilityError=No%20active%20onboarded%20company%20has%20this%20ITF%20registration%20number.%20Create%20the%20company%20first%2C%20or%20check%20the%20number.");
+  }
   const result = await verifyAnnualEligibility(company.id, year);
   revalidatePath("/settings/operating-model");
   redirect(`/settings/operating-model?eligibilityMessage=${encodeURIComponent(result.status)}`);

@@ -1906,7 +1906,9 @@ export default async function CompanyDetailPage({
           </summary>
           <div className="mt-4 flex flex-col gap-3 border-t border-zinc-100 pt-4 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm leading-6 text-zinc-600">
-              Supporting files uploaded for this company profile.
+              {usesInAppRevenue
+                ? "Supporting files uploaded for this company profile."
+                : "Supporting files for this company and its reimbursement submissions."}
             </p>
             <Link
               href={`/registry/${company.id}/evidence/new`}
@@ -2026,6 +2028,7 @@ export default async function CompanyDetailPage({
           )}
         </details>
 
+        {usesInAppRevenue ? <>
         <details className="group order-3 rounded-lg border border-zinc-200 bg-white p-5">
           <summary className="cursor-pointer list-none">
             <h2 className="text-xl font-semibold tracking-tight">Certificates</h2>
@@ -2462,6 +2465,7 @@ export default async function CompanyDetailPage({
             </div>
           )}
         </details>
+        </> : null}
       </section>
 
       {canSubmitRegistration ? (
