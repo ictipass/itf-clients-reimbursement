@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 import { updateContributionOperatingModel } from "@/lib/claim-policy";
 import { checkDevelopmentEligibilityApi, retryPendingAnnualEligibility, validateDevelopmentEligibilityUrl, verifyAnnualEligibility } from "@/lib/annual-eligibility";
 import { getDb } from "@/lib/db";
+import { isTestEligibilityConfigurationAllowed } from "@/lib/eligibility-provider";
 import { canManageClaimPolicy } from "@/lib/rbac";
 
 function readRequiredString(formData: FormData, name: string) {
@@ -51,7 +52,7 @@ async function authorizedWorkspace(formData: FormData) {
   const workspaceId = readRequiredString(formData, "workspaceId");
   const workspace = await getDb().workspace.findFirst({ where: { id: workspaceId, isActive: true } });
   if (!workspace) throw new Error("Workspace was not found.");
-  if (process.env.NODE_ENV !== "development") throw new Error("Development eligibility settings are available only in development.");
+  if (!isTestEligibilityConfigurationAllowed()) throw new Error("Test eligibility settings are unavailable in this deployment.");
   return workspace;
 }
 
@@ -65,6 +66,7 @@ function readYear(formData: FormData) {
 
 export async function saveDevelopmentEligibilityEndpointAction(formData: FormData) {
   const workspace = await authorizedWorkspace(formData);
+  if (process.env.NODE_ENV !== "development") throw new Error("The local test endpoint can only be configured in local development.");
   const endpoint = validateDevelopmentEligibilityUrl(readRequiredString(formData, "endpointUrl"));
   await getDb().workspace.update({ where: { id: workspace.id }, data: { eligibilityEndpointUrl: endpoint } });
   revalidatePath("/settings/operating-model");
@@ -94,6 +96,7 @@ export async function saveDevelopmentEligibilityRecordAction(formData: FormData)
 
 export async function checkDevelopmentEligibilityAction(formData: FormData) {
   const workspace = await authorizedWorkspace(formData);
+  if (process.env.NODE_ENV !== "development") throw new Error("The local test endpoint can only be checked in local development.");
   if (!workspace.eligibilityEndpointUrl) throw new Error("Save an eligibility endpoint first.");
   let available = false;
   try {

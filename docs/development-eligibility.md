@@ -4,6 +4,9 @@ This adapter lets the Reimbursement mode exercise annual compliance checks while
 compliance platform's production API contract is being agreed. It is available only when
 `NODE_ENV=development`. It does not issue compliance certificates or accept contribution payments.
 
+Vercel Preview staging uses direct test records instead of this loopback HTTP endpoint. See
+[Staging Scheduler and Production Checklist](staging-scheduler-and-production-checklist.md).
+
 ## Local setup
 
 1. Apply the migration and regenerate the client if this database has not been updated:

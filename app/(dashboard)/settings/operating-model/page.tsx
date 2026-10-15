@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { listClaimPolicyWorkspaces } from "@/lib/claim-policy";
 import { canManageClaimPolicy } from "@/lib/rbac";
 import { getDb } from "@/lib/db";
+import { isTestEligibilityConfigurationAllowed, usesPreviewEligibilityRecords } from "@/lib/eligibility-provider";
 import {
   describeRevenueWorkflowMode,
   formatRevenueWorkflowMode,
@@ -19,7 +20,9 @@ export default async function ContributionOperatingModelPage({ searchParams }: {
   const workspaces = canManageModel
     ? await listClaimPolicyWorkspaces({ requesterRole: role })
     : [];
-  const developmentRecords = canManageModel && process.env.NODE_ENV === "development"
+  const testRecordsEnabled = isTestEligibilityConfigurationAllowed();
+  const previewTestRecords = usesPreviewEligibilityRecords();
+  const developmentRecords = canManageModel && testRecordsEnabled
     ? await getDb().developmentEligibilityRecord.findMany({
         where: { workspaceId: { in: workspaces.map((workspace) => workspace.id) } },
         orderBy: { updatedAt: "desc" },
@@ -41,6 +44,9 @@ export default async function ContributionOperatingModelPage({ searchParams }: {
           when annual compliance is managed by the existing platform. Historical records remain
           available to authorized administrators when the mode changes.
         </p>
+        {canManageModel ? <p className="mt-3 text-sm text-zinc-600">
+          Eligibility provider: {previewTestRecords ? "Preview test records" : process.env.ELIGIBILITY_PROVIDER === "REAL_API" ? "Real API (integration not yet available; checks stay pending)" : process.env.ELIGIBILITY_PROVIDER === "TEST_RECORDS" ? "Test records disabled outside Preview; checks stay pending" : process.env.NODE_ENV === "development" ? "Local development API" : "Not configured; checks stay pending"}.
+        </p> : null}
         {eligibilityMessage ? <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">{eligibilityMessage}</p> : null}
         {eligibilityError ? <p role="alert" className="mt-4 rounded-md bg-rose-50 px-3 py-2 text-sm text-rose-800">{eligibilityError}</p> : null}
 
@@ -98,10 +104,11 @@ export default async function ContributionOperatingModelPage({ searchParams }: {
                   Save operating model
                 </button>
               </form>
-              {process.env.NODE_ENV === "development" ? (
+              {testRecordsEnabled ? (
                 <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-4">
-                  <h3 className="font-semibold">Development eligibility API</h3>
-                  <p className="text-sm text-zinc-600">Enter this application&apos;s local API URL and test data. Eligibility requires settled payment, a positive amount, and an issued certificate for the training year.</p>
+                  <h3 className="font-semibold">{previewTestRecords ? "Preview test eligibility records" : "Development eligibility API"}</h3>
+                  <p className="text-sm text-zinc-600">{previewTestRecords ? "Preview verification reads these test records directly. They are not a substitute for the real compliance API." : "Enter this application's local API URL and test data."} Eligibility requires settled payment, a positive amount, and an issued certificate for the training year.</p>
+                  {!previewTestRecords ? <>
                   <form action={saveDevelopmentEligibilityEndpointAction} className="grid gap-3">
                     <input type="hidden" name="workspaceId" value={workspace.id} />
                     <label className="grid gap-1 text-sm">Endpoint URL<input name="endpointUrl" type="url" required defaultValue={workspace.eligibilityEndpointUrl ?? "http://127.0.0.1:3000/api/development/eligibility"} className="rounded-md border px-3 py-2" /></label>
@@ -111,6 +118,7 @@ export default async function ContributionOperatingModelPage({ searchParams }: {
                     <input type="hidden" name="workspaceId" value={workspace.id} />
                     <button className="rounded-md border px-4 py-2 text-sm font-semibold">Check API availability</button>
                   </form>
+                  </> : null}
                   <form action={retryPendingDevelopmentEligibilityAction}>
                     <input type="hidden" name="workspaceId" value={workspace.id} />
                     <button className="rounded-md border px-4 py-2 text-sm font-semibold">Check pending companies now</button>

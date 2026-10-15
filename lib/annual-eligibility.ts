@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { getDb } from "@/lib/db";
+import { usesPreviewEligibilityRecords } from "@/lib/eligibility-provider";
 
 const responseSchema = z.object({
   itfEmployerNumber: z.string().min(1),
@@ -103,6 +104,22 @@ export async function verifyAnnualEligibility(companyId: string, year: number): 
     result = compliance?.amountPaid && Number(compliance.amountPaid) > 0 && compliance.certificate?.certificateNumber
       ? { status: "ELIGIBLE", message: `Local payment and certificate verified for ${year}.`, contributionPaid: Number(compliance.amountPaid), certificateNumber: compliance.certificate.certificateNumber }
       : { status: "INELIGIBLE", message: `Approved ${year} compliance, payment, and certificate are required.` };
+  } else if (usesPreviewEligibilityRecords()) {
+    const record = await db.developmentEligibilityRecord.findUnique({
+      where: { workspaceId_itfEmployerNumber_year: { workspaceId: workspace.id, itfEmployerNumber: company.itfEmployerNumber, year } },
+    });
+    result = assessAnnualEligibility({
+      itfEmployerNumber: company.itfEmployerNumber,
+      year,
+      paymentSettled: record?.paymentSettled ?? false,
+      contributionPaid: Number(record?.contributionPaid ?? 0),
+      certificateIssued: record?.certificateIssued ?? false,
+      certificateNumber: record?.certificateNumber ?? null,
+    });
+  } else if (process.env.ELIGIBILITY_PROVIDER === "TEST_RECORDS") {
+    result = { status: "PENDING", message: "Test eligibility records are disabled outside Vercel Preview. Verification cannot be approved." };
+  } else if (process.env.ELIGIBILITY_PROVIDER === "REAL_API") {
+    result = { status: "PENDING", message: "Real compliance API integration has not been configured. Verification cannot be approved." };
   } else if (!workspace.eligibilityEndpointUrl) {
     result = { status: "PENDING", message: "Eligibility API endpoint has not been configured." };
   } else {
