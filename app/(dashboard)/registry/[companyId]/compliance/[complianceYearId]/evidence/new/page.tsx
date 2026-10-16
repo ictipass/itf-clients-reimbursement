@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HostedFileInput } from "@/components/hosted-file-input";
 import { notFound } from "next/navigation";
 
 import {
@@ -96,9 +97,8 @@ export default async function NewComplianceEvidencePage({
 
         <label className="grid gap-2 text-sm font-medium">
           Evidence file
-          <input
+          <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
             name="file"
-            type="file"
             required
             accept="application/pdf,image/jpeg,image/png"
             className="min-h-11 rounded-md border border-zinc-300 px-3 py-2 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-semibold"

@@ -56,14 +56,27 @@ It never deletes local originals; failed documents stay `LOCAL` and can be retri
 database and local upload directory first. Do not deploy a database containing `LOCAL` records
 to Vercel until those records are migrated or the old files remain available to that deployment.
 
-### Remaining Vercel upload limit
+### Hosted uploads and downloads
 
-The existing server-action and route upload forms accept up to 10 MB, but Vercel Functions limit
-request bodies to 4.5 MB. Hosted adapters do not bypass that limit. Direct-to-storage uploads
-with scoped, authenticated upload authorization and server-side validation are the next slice;
-until then, **do not claim the full 10 MB upload workflow is ready for Vercel**. The company
-evidence download route now streams hosted files; other generated-document download routes
-still buffer files and must be audited for large output before production.
+With `STORAGE_PROVIDER=vercel_blob` or `s3`, the existing evidence, receipt, certificate-design,
+signature, and CSV forms send files from the browser straight to a private temporary object.
+An authenticated, rate-limited endpoint issues a five-minute storage permission for a random key
+and a 15-minute signed reference tied to the current user. The form submits only that reference.
+The server reads the object, checks its exact size and owner, removes the temporary object, and
+runs the existing file validation, malware scan, authorization, and final storage workflow.
+Local storage keeps its original file-input behavior. Files remain limited to 10 MB.
+
+For S3, configure bucket CORS to allow `PUT` and the `Content-Type` header from the exact
+Preview and Production origins. Grant the app role `s3:PutObject`, `s3:GetObject`, and
+`s3:DeleteObject` on `temporary-uploads/*` as well as its existing final-document permissions.
+Set a one-day lifecycle expiration on `temporary-uploads/*` so abandoned uploads are removed.
+For Vercel Blob, the private store token needs write, read and delete access; periodically purge
+abandoned `temporary-uploads/` objects. The signed reference expires, but expiry does not itself
+delete an abandoned object. Monitor temporary-object volume before production.
+
+Stored evidence, invoices, certificates, certificate designs, and signature downloads stream
+through authenticated routes. Generated certificate previews and reimbursement payment-schedule
+CSV responses also stream. The small static training-plan CSV template stays inline.
 
 ## Provider Metadata
 

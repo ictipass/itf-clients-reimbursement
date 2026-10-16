@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { readUploadedFile } from "@/lib/storage/staged-upload";
 import type {
   ContributionVerificationSource,
   ContributionVerificationStatus,
@@ -362,11 +363,7 @@ export async function uploadClaimEvidenceAction(claimId: string, formData: FormD
     throw new Error("Authentication is required.");
   }
 
-  const file = formData.get("evidence");
-
-  if (!(file instanceof File)) {
-    throw new Error("Evidence file is required.");
-  }
+  const file = await readUploadedFile(formData, "evidence", session.user.id);
 
   await uploadClaimEvidence({
     claimId,

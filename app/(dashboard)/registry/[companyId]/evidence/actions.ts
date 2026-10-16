@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { readUploadedFile } from "@/lib/storage/staged-upload";
 import { deleteCompanyEvidence, getCompanyEvidenceKinds, uploadCompanyEvidence } from "@/lib/evidence";
 import type { CompanyEvidenceKind } from "@/lib/evidence";
 
@@ -29,16 +30,6 @@ function readEvidenceKind(formData: FormData): CompanyEvidenceKind {
   return value as CompanyEvidenceKind;
 }
 
-function readRequiredFile(formData: FormData) {
-  const value = formData.get("file");
-
-  if (!(value instanceof File)) {
-    throw new Error("Evidence file is required.");
-  }
-
-  return value;
-}
-
 export async function uploadCompanyEvidenceAction(formData: FormData) {
   const session = await getServerSession(authOptions);
 
@@ -53,7 +44,7 @@ export async function uploadCompanyEvidenceAction(formData: FormData) {
     uploadedByEmail: session.user.email,
     kind: readEvidenceKind(formData),
     documentName: formData.get("documentName")?.toString(),
-    file: readRequiredFile(formData),
+    file: await readUploadedFile(formData, "file", session.user.id),
   });
 
   revalidatePath(`/registry/${companyId}`);

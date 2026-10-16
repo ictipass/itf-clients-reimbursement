@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HostedFileInput } from "@/components/hosted-file-input";
 import { getServerSession } from "next-auth";
 
 import { uploadCompanyEvidenceAction } from "@/app/(dashboard)/registry/[companyId]/evidence/actions";
@@ -58,9 +59,8 @@ export default async function NewEvidencePage({
 
         <label className="grid gap-2 text-sm font-medium">
           Evidence file
-          <input
+          <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
             name="file"
-            type="file"
             required
             accept="application/pdf,image/jpeg,image/png"
             className="rounded-md border border-zinc-300 bg-white px-3 py-2"

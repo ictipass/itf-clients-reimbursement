@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HostedFileInput } from "@/components/hosted-file-input";
 import { notFound } from "next/navigation";
 
 import { uploadTrainingRequestEvidenceAction } from "@/app/(dashboard)/training-requests/[requestId]/actions";
@@ -63,9 +64,8 @@ export default async function NewTrainingRequestEvidencePage({
         </label>
         <label className="grid gap-2 text-sm font-medium text-zinc-700">
           Evidence file
-          <input
+          <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
             name="evidence"
-            type="file"
             required
             accept="application/pdf,image/jpeg,image/png,text/csv"
             className="min-h-11 rounded-md border border-zinc-300 bg-white px-3 py-2"

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { readUploadedFile } from "@/lib/storage/staged-upload";
 import { generateContributionInvoicePdf } from "@/lib/contribution-invoices";
 import { initiateRemitaPayment, reconcileRemitaPayment } from "@/lib/remita";
 import { assertCompanyUsesInAppRevenueWorkflow } from "@/lib/revenue-workflow";
@@ -310,7 +311,7 @@ export async function uploadRegistrationContributionReceiptAction(
     companyId,
     uploadedByEmail: session.user.email,
     requesterRole: session.user.role,
-    file: readRequiredFile(formData, "receipt"),
+    file: await readUploadedFile(formData, "receipt", session.user.id),
   });
 
   revalidatePath(`/registry/${companyId}`);
@@ -472,16 +473,6 @@ function readRequiredString(formData: FormData, name: string) {
 
   if (!value) {
     throw new Error(`${name} is required.`);
-  }
-
-  return value;
-}
-
-function readRequiredFile(formData: FormData, name: string) {
-  const value = formData.get(name);
-
-  if (!(value instanceof File) || value.size === 0) {
-    throw new Error(`${name} file is required.`);
   }
 
   return value;

@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import Link from "next/link";
+import { HostedFileInput } from "@/components/hosted-file-input";
 
 import { createDirectoryUserAction, resetDirectoryUserLocalAccessAction, updateDirectoryUserManagementStatusAction, updateDirectoryUserStatusAction } from "@/app/(dashboard)/settings/users/actions";
 import { UserEditDialog } from "@/app/(dashboard)/settings/users/user-edit-dialog";
@@ -178,9 +179,8 @@ export default async function UserDirectoryPage({
             </div>
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               User CSV
-              <input
+              <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
                 name="file"
-                type="file"
                 required
                 accept=".csv,text/csv"
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold"

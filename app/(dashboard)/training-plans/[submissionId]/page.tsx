@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { HostedFileInput } from "@/components/hosted-file-input";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
@@ -376,9 +377,8 @@ export default async function TrainingPlanDetailPage({
               >
                 <label className="grid gap-2 text-sm font-medium text-zinc-700">
                   Import structured training plan CSV
-                  <input
+                  <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
                     name="trainingPlanCsv"
-                    type="file"
                     accept=".csv,text/csv"
                     required
                     className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2"

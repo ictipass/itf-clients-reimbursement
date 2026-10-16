@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { readUploadedFile } from "@/lib/storage/staged-upload";
 import {
   attachExistingPaymentEvidence,
   getComplianceEvidenceKinds,
@@ -33,16 +34,6 @@ function readEvidenceKind(formData: FormData): ComplianceEvidenceKind {
   return value as ComplianceEvidenceKind;
 }
 
-function readRequiredFile(formData: FormData) {
-  const value = formData.get("file");
-
-  if (!(value instanceof File)) {
-    throw new Error("Evidence file is required.");
-  }
-
-  return value;
-}
-
 export async function uploadComplianceEvidenceAction(
   companyId: string,
   complianceYearId: string,
@@ -61,7 +52,7 @@ export async function uploadComplianceEvidenceAction(
     requesterRole: session.user.role,
     kind: readEvidenceKind(formData),
     documentName: formData.get("documentName")?.toString(),
-    file: readRequiredFile(formData),
+    file: await readUploadedFile(formData, "file", session.user.id),
   });
 
   revalidatePath(`/registry/${companyId}`);

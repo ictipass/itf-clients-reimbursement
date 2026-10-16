@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import Link from "next/link";
+import { HostedFileInput } from "@/components/hosted-file-input";
 
 import { uploadSignatureAssetAction } from "@/app/(dashboard)/settings/signatures/actions";
 import { authOptions } from "@/lib/auth";
@@ -132,9 +133,8 @@ export default async function SignatureAssetsPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               Signature image
-              <input
+              <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
                 name="signature"
-                type="file"
                 accept="image/png,image/jpeg"
                 required
                 className="block w-full text-xs text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-white file:px-3 file:py-2 file:text-xs file:font-semibold file:text-zinc-700"

@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { readUploadedFile } from "@/lib/storage/staged-upload";
 import {
   getTrainingPlanEvidenceKinds,
   uploadTrainingPlanEvidence,
@@ -32,16 +33,6 @@ function readEvidenceKind(formData: FormData): TrainingPlanEvidenceKind {
   return value as TrainingPlanEvidenceKind;
 }
 
-function readRequiredFile(formData: FormData) {
-  const value = formData.get("file");
-
-  if (!(value instanceof File)) {
-    throw new Error("Evidence file is required.");
-  }
-
-  return value;
-}
-
 export async function uploadTrainingPlanEvidenceAction(
   companyId: string,
   submissionId: string,
@@ -59,7 +50,7 @@ export async function uploadTrainingPlanEvidenceAction(
     uploadedByEmail: session.user.email,
     requesterRole: session.user.role,
     kind: readEvidenceKind(formData),
-    file: readRequiredFile(formData),
+    file: await readUploadedFile(formData, "file", session.user.id),
   });
 
   revalidatePath(`/registry/${companyId}`);

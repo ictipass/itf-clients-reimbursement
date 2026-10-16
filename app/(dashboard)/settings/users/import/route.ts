@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { readUploadedFile } from "@/lib/storage/staged-upload";
 import { getDb } from "@/lib/db";
 import { getAppBaseUrl, sendOfficerWelcomeEmail } from "@/lib/email";
 import { writeDevelopmentOfficerCredentials } from "@/lib/officer-provisioning";
@@ -17,16 +18,6 @@ function redirectToUsers(message: string) {
   });
 }
 
-function readRequiredFile(formData: FormData) {
-  const value = formData.get("file");
-
-  if (!(value instanceof File)) {
-    throw new Error("User CSV file is required.");
-  }
-
-  return value;
-}
-
 export async function POST(request: Request) {
   const session = await getServerSession(authOptions);
 
@@ -38,7 +29,7 @@ export async function POST(request: Request) {
     const formData = await request.formData();
     const result = await importDirectoryUsers({
       requesterRole: session.user.role,
-      file: readRequiredFile(formData),
+      file: await readUploadedFile(formData, "file", session.user.id),
     });
     for (const user of result.provisioned) {
       await writeDevelopmentOfficerCredentials({

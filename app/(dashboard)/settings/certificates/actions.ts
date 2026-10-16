@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { readUploadedFile } from "@/lib/storage/staged-upload";
 import {
   activateCertificateTemplate,
   createCertificateTemplate,
@@ -21,16 +22,6 @@ function readRequiredString(formData: FormData, name: string) {
   }
 
   return value.trim();
-}
-
-function readRequiredFile(formData: FormData, name: string) {
-  const value = formData.get(name);
-
-  if (!(value instanceof File) || value.size === 0) {
-    throw new Error(`${name} is required.`);
-  }
-
-  return value;
 }
 
 function readOptionalString(formData: FormData, name: string) {
@@ -80,6 +71,7 @@ async function requireSession() {
   }
 
   return {
+    id: session.user.id,
     email: session.user.email,
     role: session.user.role,
   };
@@ -133,7 +125,7 @@ export async function uploadCertificateTemplateDesignAction(formData: FormData) 
     templateId: readRequiredString(formData, "templateId"),
     uploadedByEmail: session.email,
     requesterRole: session.role,
-    file: readRequiredFile(formData, "design"),
+    file: await readUploadedFile(formData, "design", session.id),
   });
 
   revalidatePath("/settings/certificates");

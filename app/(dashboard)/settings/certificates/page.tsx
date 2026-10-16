@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import Link from "next/link";
+import { HostedFileInput } from "@/components/hosted-file-input";
 
 import {
   activateCertificateTemplateAction,
@@ -392,9 +393,8 @@ export default async function CertificateTemplatesPage() {
                           className="grid max-w-xs gap-2"
                         >
                           <input type="hidden" name="templateId" value={template.id} />
-                          <input
+                          <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
                             name="design"
-                            type="file"
                             accept="application/pdf,image/png,image/jpeg"
                             required
                             className="block w-full text-xs text-zinc-600 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-xs file:font-semibold file:text-zinc-700"

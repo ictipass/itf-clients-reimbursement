@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { readUploadedFile } from "@/lib/storage/staged-upload";
 import {
   getSignatureAssetKinds,
   uploadSignatureAsset,
@@ -19,16 +20,6 @@ function readRequiredString(formData: FormData, name: string) {
   }
 
   return value.trim();
-}
-
-function readRequiredFile(formData: FormData, name: string) {
-  const value = formData.get(name);
-
-  if (!(value instanceof File) || value.size === 0) {
-    throw new Error(`${name} is required.`);
-  }
-
-  return value;
 }
 
 function readOptionalDate(formData: FormData, name: string) {
@@ -72,7 +63,7 @@ export async function uploadSignatureAssetAction(formData: FormData) {
     kind: readSignatureAssetKind(formData),
     label: readRequiredString(formData, "label"),
     effectiveFrom: readOptionalDate(formData, "effectiveFrom"),
-    file: readRequiredFile(formData, "signature"),
+    file: await readUploadedFile(formData, "signature", session.user.id),
   });
 
   revalidatePath("/settings/signatures");

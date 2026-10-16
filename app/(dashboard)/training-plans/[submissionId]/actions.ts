@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { readUploadedFile } from "@/lib/storage/staged-upload";
 import { createTrainingRequestFromLineItem } from "@/lib/training-request";
 import { importTrainingPlanCsv } from "@/lib/training-plan";
 
@@ -19,11 +20,7 @@ export async function importTrainingPlanCsvAction(
     throw new Error("Authentication is required.");
   }
 
-  const file = formData.get("trainingPlanCsv");
-
-  if (!(file instanceof File)) {
-    throw new Error("Training Plan CSV is required.");
-  }
+  const file = await readUploadedFile(formData, "trainingPlanCsv", session.user.id);
 
   try {
     await importTrainingPlanCsv({
