@@ -3,8 +3,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { importAreaOfficesWorkbook } from "@/lib/office-import";
 
-function redirectWithMessage(message: string) {
-  return new Response(null, { status: 303, headers: { Location: `/settings/offices?message=${encodeURIComponent(message.slice(0, 180))}` } });
+function redirectWithMessage(message: string, error = false) {
+  return new Response(null, { status: 303, headers: { Location: `/settings/offices?${error ? "error" : "message"}=${encodeURIComponent(message.slice(0, 180))}` } });
 }
 
 export async function POST(request: Request) {
@@ -17,6 +17,6 @@ export async function POST(request: Request) {
     const count = await importAreaOfficesWorkbook({ file, requesterRole: session.user.role });
     return redirectWithMessage(`${count} Area Office${count === 1 ? "" : "s"} imported.`);
   } catch (error) {
-    return redirectWithMessage(error instanceof Error ? error.message : "Area Office import failed.");
+    return redirectWithMessage(error instanceof Error ? error.message : "Area Office import failed.", true);
   }
 }

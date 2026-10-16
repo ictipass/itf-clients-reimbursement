@@ -140,6 +140,7 @@ export default async function OfficeSettingsPage({
 }: Readonly<{
   searchParams: Promise<{
     message?: string | string[];
+    error?: string | string[];
     q?: string | string[];
     page?: string | string[];
   }>;
@@ -149,6 +150,7 @@ export default async function OfficeSettingsPage({
   const canManageWorkspace = can(role, "workspace:manage");
   const query = await searchParams;
   const message = getMessage(query.message);
+  const error = getMessage(query.error);
   const search = getMessage(query.q) ?? "";
   const requestedPage = Number(getMessage(query.page) ?? "1");
 
@@ -195,6 +197,7 @@ export default async function OfficeSettingsPage({
             {message}
           </p>
         ) : null}
+        {error ? <p role="alert" className="mt-5 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-800">{error}</p> : null}
 
         <form
           action={createAreaOfficeAction}
