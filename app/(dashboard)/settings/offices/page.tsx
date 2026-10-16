@@ -237,6 +237,19 @@ export default async function OfficeSettingsPage({
           </div>
         </form>
 
+        <section className="mt-4 rounded-lg border border-zinc-200 bg-white p-4">
+          <h2 className="text-lg font-semibold tracking-tight">Bulk-create Area Offices</h2>
+          <p className="mt-1 text-sm text-zinc-600">Download the Excel template, add up to 250 offices, then upload the .xlsx file. Existing offices are never overwritten; a rejected row leaves the whole import unchanged.</p>
+          <a href="/settings/offices/template" className="mt-3 inline-flex min-h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-semibold">Download Excel template</a>
+          <form action="/settings/offices/import" method="post" encType="multipart/form-data" className="mt-3 flex flex-wrap items-end gap-3">
+            <label className="grid gap-1 text-sm font-medium">Office workbook
+              <input name="file" type="file" required accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="min-h-10 rounded-md border border-zinc-300 px-3 py-2" />
+            </label>
+            <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Import offices</button>
+          </form>
+          <p className="mt-2 text-xs text-zinc-500">Maximum workbook size: 1 MB.</p>
+        </section>
+
         {headquarters ? (
           <details className="mt-6 rounded-lg border border-zinc-200 bg-zinc-50">
             <summary className="cursor-pointer list-none p-4">
