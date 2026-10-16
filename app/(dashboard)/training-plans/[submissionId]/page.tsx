@@ -1,5 +1,4 @@
 import Link from "next/link";
-import { HostedFileInput } from "@/components/hosted-file-input";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
@@ -9,7 +8,6 @@ import {
 } from "@/app/(dashboard)/registry/[companyId]/training-plans/actions";
 import {
   createTrainingRequestFromLineItemAction,
-  importTrainingPlanCsvAction,
 } from "@/app/(dashboard)/training-plans/[submissionId]/actions";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
@@ -366,29 +364,7 @@ export default async function TrainingPlanDetailPage({
                 <p className="mt-1 leading-6">{importError}</p>
               </div>
             ) : null}
-            {canImportLineItems ? (
-              <form
-                action={importTrainingPlanCsvAction.bind(
-                  null,
-                  submission.company.id,
-                  submission.id,
-                )}
-                className="mt-4 grid gap-3 rounded-md border border-zinc-100 bg-zinc-50 p-3"
-              >
-                <label className="grid gap-2 text-sm font-medium text-zinc-700">
-                  Import structured training plan CSV
-                  <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
-                    name="trainingPlanCsv"
-                    accept=".csv,text/csv"
-                    required
-                    className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2"
-                  />
-                </label>
-                <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                  Import CSV rows
-                </button>
-              </form>
-            ) : null}
+            {canImportLineItems ? <p className="mt-3 text-sm text-zinc-600">Uploading the annual training plan CSV also imports its rows below.</p> : null}
             {missingRequiredEvidence.length > 0 ? (
               <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 Required before submission: {missingRequiredEvidence.join(", ")}.
@@ -397,14 +373,14 @@ export default async function TrainingPlanDetailPage({
             <div className="mt-4 flex flex-wrap gap-2">
               <Link
                 href={`/registry/${submission.company.id}/training-plans/${submission.id}/evidence/new`}
-                aria-disabled={missingRequiredEvidence.length === 0}
+                aria-disabled={!canImportLineItems}
                 className={`inline-flex min-h-9 items-center rounded-md border px-3 text-xs font-semibold ${
-                  missingRequiredEvidence.length === 0
+                  !canImportLineItems
                     ? "pointer-events-none border-zinc-200 bg-zinc-100 text-zinc-400"
                     : "border-zinc-200 text-zinc-800"
                 }`}
               >
-                {missingRequiredEvidence.length === 0 ? "Required evidence complete" : "Upload evidence"}
+                {canImportLineItems ? "Upload or replace evidence" : "Evidence locked"}
               </Link>
             </div>
             {submission.documents.length === 0 ? (

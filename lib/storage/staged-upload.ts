@@ -9,7 +9,7 @@ import { maxUploadBytes, sanitizeFileName } from "@/lib/storage/security";
 
 const prefix = "temporary-uploads/";
 const ttlMs = 15 * 60 * 1000;
-const mimeTypes = new Set(["application/pdf", "image/jpeg", "image/png", "text/csv", "application/vnd.ms-excel"]);
+const mimeTypes = new Set(["application/pdf", "image/jpeg", "image/png", "text/csv", "application/csv", "text/plain", "application/vnd.ms-excel"]);
 
 type Ticket = { key: string; name: string; type: string; size: number; userId: string; provider: "s3" | "vercel_blob"; expires: number };
 

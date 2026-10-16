@@ -4,7 +4,7 @@ import { authOptions } from "@/lib/auth";
 import { readUploadedFile } from "@/lib/storage/staged-upload";
 import {
   getTrainingPlanEvidenceKinds,
-  uploadTrainingPlanEvidence,
+  uploadTrainingPlanEvidenceBatch,
   type TrainingPlanEvidenceKind,
 } from "@/lib/training-plan";
 import { getRateLimitFeedback } from "@/lib/rate-limit";
@@ -82,13 +82,23 @@ export async function POST(
 
     selectedKind = typeof kindValue === "string" ? kindValue : undefined;
 
-    await uploadTrainingPlanEvidence({
+    const files = [];
+    for (const [name, kind] of [["trainingPlanCsv", "TRAINING_PLAN_DOCUMENT"], ["personnelCv", "LD_PERSONNEL_CV"]] as const) {
+      const value = formData.get(name);
+      const reference = formData.get(`${name}UploadRef`);
+      if ((value instanceof File && value.size > 0) || (typeof reference === "string" && reference.length > 0)) {
+        files.push({ kind, file: await readUploadedFile(formData, name, session.user.id) });
+      }
+    }
+    if (files.length === 0 && (formData.has("file") || formData.has("fileUploadRef"))) {
+      files.push({ kind: readEvidenceKind(formData), file: await readUploadedFile(formData, "file", session.user.id) });
+    }
+    await uploadTrainingPlanEvidenceBatch({
       companyId,
       submissionId,
       uploadedByEmail: session.user.email,
       requesterRole: session.user.role,
-      kind: readEvidenceKind(formData),
-      file: await readUploadedFile(formData, "file", session.user.id),
+      files,
     });
 
     return redirectToTrainingPlan(submissionId);

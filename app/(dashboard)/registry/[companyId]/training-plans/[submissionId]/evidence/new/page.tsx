@@ -3,15 +3,8 @@ import { HostedFileInput } from "@/components/hosted-file-input";
 import { notFound } from "next/navigation";
 
 import {
-  getTrainingPlanEvidenceKinds,
   getTrainingPlanSubmissionForUpload,
-  type TrainingPlanEvidenceKind,
 } from "@/lib/training-plan";
-
-const evidenceLabels: Record<TrainingPlanEvidenceKind, string> = {
-  TRAINING_PLAN_DOCUMENT: "Annual training plan document",
-  LD_PERSONNEL_CV: "L&D personnel CV",
-};
 
 export default async function NewTrainingPlanEvidencePage({
   params,
@@ -28,9 +21,7 @@ export default async function NewTrainingPlanEvidencePage({
     notFound();
   }
 
-  const evidenceKinds = getTrainingPlanEvidenceKinds();
   const uploadError = Array.isArray(query.error) ? query.error[0] : query.error;
-  const selectedKind = Array.isArray(query.kind) ? query.kind[0] : query.kind;
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8 lg:px-8">
@@ -83,31 +74,22 @@ export default async function NewTrainingPlanEvidencePage({
         className="mt-6 grid gap-5 rounded-lg border border-zinc-200 bg-white p-6"
       >
         <label className="grid gap-2 text-sm font-medium">
-          Evidence type
-          <select
-            name="kind"
-            required
-            defaultValue={evidenceKinds.includes(selectedKind as TrainingPlanEvidenceKind) ? selectedKind : ""}
-            className="min-h-11 rounded-md border border-zinc-300 bg-white px-3"
-          >
-            <option value="">Select evidence type</option>
-            {evidenceKinds.map((kind) => (
-              <option key={kind} value={kind}>
-                {evidenceLabels[kind]}
-              </option>
-            ))}
-          </select>
-        </label>
-
-        <label className="grid gap-2 text-sm font-medium">
-          Evidence file
+          Annual training plan CSV (also imports its rows)
           <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
-            name="file"
-            required
-            accept=".csv,text/csv,application/pdf,image/jpeg,image/png"
+            name="trainingPlanCsv"
+            accept=".csv,text/csv,application/vnd.ms-excel"
             className="min-h-11 rounded-md border border-zinc-300 px-3 py-2 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-semibold"
           />
         </label>
+        <label className="grid gap-2 text-sm font-medium">
+          L&amp;D personnel CV
+          <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
+            name="personnelCv"
+            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
+            className="min-h-11 rounded-md border border-zinc-300 px-3 py-2 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-semibold"
+          />
+        </label>
+        <p className="text-xs text-zinc-600">Select either or both files, then upload once. Each file must be 10 MB or smaller.</p>
 
         <div className="flex flex-wrap justify-end gap-3 border-t border-zinc-100 pt-5">
           <Link
@@ -117,7 +99,7 @@ export default async function NewTrainingPlanEvidencePage({
             Cancel
           </Link>
           <button className="min-h-11 rounded-md bg-[#800020] px-5 text-sm font-semibold text-white">
-            Upload evidence
+            Upload selected files
           </button>
         </div>
       </form>

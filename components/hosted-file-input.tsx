@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { put } from "@vercel/blob/client";
 
 type Props = { name: string; accept: string; className?: string; required?: boolean; hosted: boolean };
@@ -9,9 +9,12 @@ export function HostedFileInput({ name, accept, className, required, hosted }: P
   const [reference, setReference] = useState("");
   const [status, setStatus] = useState("");
   const [busy, setBusy] = useState(false);
+  const [selectedName, setSelectedName] = useState("");
+  const localInput = useRef<HTMLInputElement>(null);
 
   async function onChange(file: File | undefined) {
     setReference("");
+    setSelectedName(file?.name ?? "");
     if (!file) return;
     if (file.size < 1 || file.size > 10 * 1024 * 1024) { setStatus("Choose a file up to 10 MB."); return; }
     setBusy(true);
@@ -36,12 +39,17 @@ export function HostedFileInput({ name, accept, className, required, hosted }: P
     } finally { setBusy(false); }
   }
 
-  if (!hosted) return <input name={name} type="file" accept={accept} required={required} className={className} />;
+  if (!hosted) return <>
+    <input ref={localInput} name={name} type="file" accept={accept} required={required && !selectedName} className={className}
+      onChange={(event) => setSelectedName(event.target.files?.[0]?.name ?? "")} />
+    {selectedName && <span className="flex items-center gap-3 text-sm"><span className="truncate">{selectedName}</span>
+      <button type="button" className="font-semibold text-red-700 underline" onClick={() => { if (localInput.current) localInput.current.value = ""; setSelectedName(""); }}>Remove</button></span>}
+  </>;
   return <>
     <input type="file" accept={accept} required={required && !reference} disabled={Boolean(reference)} className={className}
       onChange={(event) => { const file = event.target.files?.[0]; event.target.value = ""; if (!busy) void onChange(file); }} />
     {reference && <input type="hidden" name={`${name}UploadRef`} value={reference} />}
-    {reference && <button type="button" className="text-left text-sm underline" onClick={() => { setReference(""); setStatus(""); }}>Choose another file</button>}
+    {reference && <button type="button" className="text-left text-sm underline" onClick={() => { setReference(""); setSelectedName(""); setStatus(""); }}>Remove {selectedName}</button>}
     {status && <span role="status" className="text-sm text-zinc-600">{status}</span>}
   </>;
 }

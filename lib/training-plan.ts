@@ -442,8 +442,24 @@ export async function getTrainingPlanSubmissionForUpload(companyId: string, subm
 }
 
 export async function uploadTrainingPlanEvidence(input: UploadTrainingPlanEvidenceInput) {
+  return uploadTrainingPlanEvidenceBatch({
+    companyId: input.companyId,
+    submissionId: input.submissionId,
+    uploadedByEmail: input.uploadedByEmail,
+    requesterRole: input.requesterRole,
+    files: [{ kind: input.kind, file: input.file }],
+  });
+}
+
+export async function uploadTrainingPlanEvidenceBatch(input: Omit<UploadTrainingPlanEvidenceInput, "kind" | "file"> & {
+  files: Array<Pick<UploadTrainingPlanEvidenceInput, "kind" | "file">>;
+}) {
   if (!can(input.requesterRole, "training:submit")) {
     throw new Error("You do not have permission to upload training plan evidence.");
+  }
+  if (input.files.length < 1 || input.files.length > 2 || new Set(input.files.map((item) => item.kind)).size !== input.files.length ||
+      input.files.some((item) => !trainingPlanEvidenceKinds.includes(item.kind))) {
+    throw new Error("Select one file for each training plan evidence type.");
   }
 
   await assertUploadRateLimit(input.uploadedByEmail);
@@ -454,6 +470,7 @@ export async function uploadTrainingPlanEvidence(input: UploadTrainingPlanEviden
       id: input.submissionId,
       companyId: input.companyId,
       recordTier: "HOT",
+      status: { in: ["DRAFT", "CHANGES_REQUESTED"] },
       company: {
         id: input.companyId,
         recordTier: "HOT",
@@ -526,46 +543,74 @@ export async function uploadTrainingPlanEvidence(input: UploadTrainingPlanEviden
     throw new Error("You do not have access to this training plan submission.");
   }
 
-  const buffer = Buffer.from(await input.file.arrayBuffer());
-  const safeFileName = sanitizeFileName(input.file.name);
-  const validated =
-    input.kind === "TRAINING_PLAN_DOCUMENT"
-      ? validateTrainingPlanCsvUpload(buffer, safeFileName, input.file.type)
-      : validateUpload(buffer, safeFileName, input.file.type);
-  const stored = await uploadObject({
-    buffer,
-    companyId: submission.companyId,
-    extension: validated.extension,
-    mimeType: validated.mimeType,
-    namespace: "training-plan-submissions",
-  });
-
-  return db.document.create({
-    data: {
-      organizationId: submission.company.organizationId,
+  const prepared = await Promise.all(input.files.map(async ({ kind, file }) => {
+    const buffer = Buffer.from(await file.arrayBuffer());
+    const fileName = sanitizeFileName(file.name);
+    const validated = kind === "TRAINING_PLAN_DOCUMENT"
+      ? validateTrainingPlanCsvUpload(buffer, fileName, file.type)
+      : validateUpload(buffer, fileName, file.type);
+    const rows = kind === "TRAINING_PLAN_DOCUMENT" ? parseTrainingPlanCsv(buffer.toString("utf8")) : null;
+    return { kind, buffer, fileName, validated, rows };
+  }));
+  if (prepared.some((item) => item.rows) && await db.trainingRequest.count({
+    where: { trainingPlanLineItem: { trainingPlanSubmissionId: submission.id } },
+  }) > 0) {
+    throw new Error("Training plan rows are linked to training requests and cannot be replaced.");
+  }
+  const storedFiles: Array<(typeof prepared)[number] & { stored: Awaited<ReturnType<typeof uploadObject>> }> = [];
+  for (const item of prepared) {
+    const stored = await uploadObject({
+      buffer: item.buffer,
       companyId: submission.companyId,
-      trainingPlanSubmissionId: submission.id,
-      uploadedById: user.id,
-      kind: input.kind,
-      fileName: safeFileName,
-      storageProvider: stored.storageProvider,
-      scanStatus: stored.scanStatus,
-      scannedAt: stored.scannedAt,
-      scanReason: stored.scanReason,
-      bucket: stored.bucket,
-      objectKey: stored.objectKey,
-      url: stored.url,
-      etag: stored.etag,
-      versionId: stored.versionId,
-      checksum: stored.checksum,
-      mimeType: stored.mimeType,
-      fileSize: stored.fileSize,
-      access: "PRIVATE",
-      classification: "OFFICIAL",
-    },
-    select: {
-      id: true,
-    },
+      extension: item.validated.extension,
+      mimeType: item.validated.mimeType,
+      namespace: "training-plan-submissions",
+    });
+    storedFiles.push({ ...item, stored });
+  }
+
+  return db.$transaction(async (tx) => {
+    const csv = storedFiles.find((item) => item.kind === "TRAINING_PLAN_DOCUMENT");
+    if (csv?.rows) {
+      await tx.trainingPlanLineItem.deleteMany({ where: { trainingPlanSubmissionId: submission.id } });
+      await tx.trainingPlanLineItem.createMany({
+        data: csv.rows.map((row) => ({ trainingPlanSubmissionId: submission.id, ...row })),
+      });
+    }
+    const documents = [];
+    for (const item of storedFiles) {
+      await tx.document.updateMany({
+        where: { trainingPlanSubmissionId: submission.id, kind: item.kind, isActive: true },
+        data: { isActive: false },
+      });
+      const stored = item.stored;
+      documents.push(await tx.document.create({
+        data: {
+          organizationId: submission.company.organizationId,
+          companyId: submission.companyId,
+          trainingPlanSubmissionId: submission.id,
+          uploadedById: user.id,
+          kind: item.kind,
+          fileName: item.fileName,
+          storageProvider: stored.storageProvider,
+          scanStatus: stored.scanStatus,
+          scannedAt: stored.scannedAt,
+          scanReason: stored.scanReason,
+          bucket: stored.bucket,
+          objectKey: stored.objectKey,
+          url: stored.url,
+          etag: stored.etag,
+          versionId: stored.versionId,
+          checksum: stored.checksum,
+          mimeType: stored.mimeType,
+          fileSize: stored.fileSize,
+          access: "PRIVATE",
+          classification: "OFFICIAL",
+        },
+        select: { id: true },
+      }));
+    }
+    return documents;
   });
 }
 
