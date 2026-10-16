@@ -34,7 +34,7 @@ export async function GET(
       return new Response("Certificate template preview was not found.", { status: 404 });
     }
 
-    return new Response(new Uint8Array(preview.buffer), {
+    return new Response(new Blob([new Uint8Array(preview.buffer)]).stream(), {
       headers: {
         "Cache-Control": "private, no-store",
         "Content-Disposition": contentDisposition(preview.fileName),

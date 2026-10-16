@@ -39,7 +39,7 @@ export async function GET(
       return new Response("Contribution invoice was not found.", { status: 404 });
     }
 
-    return new Response(new Uint8Array(invoice.buffer), {
+    return new Response(invoice.stream, {
       headers: {
         "Cache-Control": "private, no-store",
         "Content-Disposition": contentDisposition(invoice.fileName),

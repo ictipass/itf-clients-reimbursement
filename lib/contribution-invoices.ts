@@ -7,7 +7,7 @@ import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { getDb } from "@/lib/db";
 import { appName } from "@/lib/domain";
 import { can, isItfRole, type Role } from "@/lib/rbac";
-import { downloadObject, uploadObject } from "@/lib/storage";
+import { openObject, uploadObject } from "@/lib/storage";
 import { sanitizeFileName } from "@/lib/storage/security";
 
 type InvoiceRequester = {
@@ -478,14 +478,14 @@ export async function downloadContributionInvoice(input: DownloadContributionInv
     throw new Error("You do not have access to this contribution invoice.");
   }
 
-  const downloaded = await downloadObject({
+  const downloaded = await openObject({
     storageProvider: document.storageProvider,
     bucket: document.bucket,
     objectKey: document.objectKey,
   });
 
   return {
-    buffer: downloaded.buffer,
+    stream: downloaded.stream,
     fileName: document.fileName,
     fileSize: downloaded.fileSize,
     mimeType: document.mimeType,

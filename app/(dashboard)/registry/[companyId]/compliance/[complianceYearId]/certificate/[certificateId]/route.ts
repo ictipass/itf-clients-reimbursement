@@ -39,7 +39,7 @@ export async function GET(
       return new Response("Compliance certificate was not found.", { status: 404 });
     }
 
-    return new Response(new Uint8Array(certificate.buffer), {
+    return new Response(certificate.stream, {
       headers: {
         "Cache-Control": "private, no-store",
         "Content-Disposition": contentDisposition(certificate.fileName),

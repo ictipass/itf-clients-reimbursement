@@ -68,7 +68,7 @@ export async function GET(
   const csv = buildReimbursementPaymentScheduleCsv(claim);
   const filename = buildReimbursementPaymentScheduleFilename(claim);
 
-  return new Response(csv, {
+  return new Response(new Blob([csv]).stream(), {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",
       "Content-Disposition": `attachment; filename="${filename}"`,

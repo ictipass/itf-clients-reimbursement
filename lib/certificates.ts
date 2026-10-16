@@ -1,7 +1,7 @@
 import { getDb } from "@/lib/db";
 import { getVerificationUrl, renderQrPng } from "@/lib/qr";
 import { can, canManageAnnualCompliance, isItfRole, type Role } from "@/lib/rbac";
-import { downloadObject, uploadObject } from "@/lib/storage";
+import { downloadObject, openObject, uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 
@@ -583,14 +583,14 @@ export async function downloadCertificateTemplateDesign(
     return null;
   }
 
-  const downloaded = await downloadObject({
+  const downloaded = await openObject({
     storageProvider: document.storageProvider,
     bucket: document.bucket,
     objectKey: document.objectKey,
   });
 
   return {
-    buffer: downloaded.buffer,
+    stream: downloaded.stream,
     fileName: document.fileName,
     fileSize: downloaded.fileSize,
     mimeType: document.mimeType,
@@ -1114,14 +1114,14 @@ export async function downloadRegistrationCertificate(
     throw new Error("You do not have access to this registration certificate.");
   }
 
-  const downloaded = await downloadObject({
+  const downloaded = await openObject({
     storageProvider: document.storageProvider,
     bucket: document.bucket,
     objectKey: document.objectKey,
   });
 
   return {
-    buffer: downloaded.buffer,
+    stream: downloaded.stream,
     fileName: document.fileName,
     fileSize: downloaded.fileSize,
     mimeType: document.mimeType,
@@ -1210,14 +1210,14 @@ export async function downloadComplianceCertificate(input: DownloadComplianceCer
     throw new Error("You do not have access to this compliance certificate.");
   }
 
-  const downloaded = await downloadObject({
+  const downloaded = await openObject({
     storageProvider: document.storageProvider,
     bucket: document.bucket,
     objectKey: document.objectKey,
   });
 
   return {
-    buffer: downloaded.buffer,
+    stream: downloaded.stream,
     fileName: document.fileName,
     fileSize: downloaded.fileSize,
     mimeType: document.mimeType,

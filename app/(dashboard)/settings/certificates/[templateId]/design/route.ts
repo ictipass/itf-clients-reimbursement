@@ -34,7 +34,7 @@ export async function GET(
       return new Response("Certificate template design was not found.", { status: 404 });
     }
 
-    return new Response(new Uint8Array(design.buffer), {
+    return new Response(design.stream, {
       headers: {
         "Cache-Control": "private, no-store",
         "Content-Disposition": contentDisposition(design.fileName),

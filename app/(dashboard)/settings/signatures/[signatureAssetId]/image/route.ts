@@ -34,7 +34,7 @@ export async function GET(
       return new Response("Signature asset was not found.", { status: 404 });
     }
 
-    return new Response(new Uint8Array(signatureAsset.buffer), {
+    return new Response(signatureAsset.stream, {
       headers: {
         "Cache-Control": "private, no-store",
         "Content-Disposition": contentDisposition(signatureAsset.fileName),
