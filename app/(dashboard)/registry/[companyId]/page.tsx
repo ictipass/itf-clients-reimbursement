@@ -1892,7 +1892,7 @@ export default async function CompanyDetailPage({
       </details>
 
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
-        <details className="group order-2 rounded-lg border border-zinc-200 bg-white p-5">
+        <details className={`group order-2 min-w-0 rounded-lg border border-zinc-200 bg-white p-5 ${usesInAppRevenue ? "" : "lg:col-span-2"}`}>
           <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
               <h2 className="text-xl font-semibold tracking-tight">Evidence summary</h2>
@@ -1917,7 +1917,7 @@ export default async function CompanyDetailPage({
               Upload evidence
             </Link>
           </div>
-          <form className="mt-4 grid gap-3 rounded-md bg-zinc-50 p-3 sm:grid-cols-[1fr_220px_auto]">
+          <form className="mt-4 grid min-w-0 gap-3 rounded-md bg-zinc-50 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,220px)_auto]">
             <HiddenQueryInputs
               values={companyPageQuery}
               omit={["evidencePage", "evidenceQ", "evidenceKind"]}
@@ -1947,8 +1947,8 @@ export default async function CompanyDetailPage({
                 )}
               </select>
             </label>
-            <div className="flex items-end">
-              <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+            <div className="flex min-w-0 items-end">
+              <button className="min-h-9 w-full rounded-md bg-[#800020] px-3 text-xs font-semibold text-white md:w-auto">
                 Filter
               </button>
             </div>

@@ -95,6 +95,21 @@ export function getTrainingPlanCsvTemplate() {
   ].join("\n");
 }
 
+export function parseTrainingPlanDate(value: string): Date | null {
+  if (!value) return null;
+  const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  const excel = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(value);
+  if (!iso && !excel) throw new Error("Use YYYY-MM-DD or DD/MM/YYYY for training dates.");
+  const year = Number(iso?.[1] ?? excel?.[3]);
+  const month = Number(iso?.[2] ?? excel?.[2]);
+  const day = Number(iso?.[3] ?? excel?.[1]);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  if (date.getUTCFullYear() !== year || date.getUTCMonth() !== month - 1 || date.getUTCDate() !== day) {
+    throw new Error("Training date is not a valid calendar date.");
+  }
+  return date;
+}
+
 export function getTrainingPlanDeskTransitions() {
   return trainingPlanDeskTransitions;
 }
@@ -168,14 +183,15 @@ function parseTrainingPlanCsv(text: string) {
 
     const row = Object.fromEntries(headers.map((header, headerIndex) => [header, values[headerIndex]]));
     const estimatedCost = Number(row["estimated cost"]);
-    const plannedDate = row.date ? new Date(row.date) : null;
+    let plannedDate: Date | null;
+    try {
+      plannedDate = parseTrainingPlanDate(row.date);
+    } catch {
+      throw new Error(`CSV row ${index + 2} has an invalid date. Use YYYY-MM-DD or DD/MM/YYYY.`);
+    }
 
     if (!Number.isFinite(estimatedCost) || estimatedCost < 0) {
       throw new Error(`CSV row ${index + 2} has an invalid estimated cost.`);
-    }
-
-    if (plannedDate && Number.isNaN(plannedDate.getTime())) {
-      throw new Error(`CSV row ${index + 2} has an invalid date. Use YYYY-MM-DD, for example 2026-08-15.`);
     }
 
     return {

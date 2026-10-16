@@ -34,8 +34,8 @@ export default async function NewTrainingPlanEvidencePage({
 
   return (
     <div className="mx-auto max-w-3xl px-6 py-8 lg:px-8">
-      <Link href={`/registry/${companyId}`} className="text-sm font-semibold text-[#800020]">
-        Back to company
+      <Link href={`/training-plans/${submissionId}`} className="text-sm font-semibold text-[#800020]">
+        Back to training plan
       </Link>
 
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">
@@ -52,6 +52,7 @@ export default async function NewTrainingPlanEvidencePage({
       >
         Download CSV template
       </Link>
+      <p className="mt-2 text-xs leading-5 text-zinc-600">The template uses YYYY-MM-DD dates. If Excel saves them as DD/MM/YYYY, the importer accepts that format too.</p>
 
       {uploadError ? (
         <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-950">
@@ -110,7 +111,7 @@ export default async function NewTrainingPlanEvidencePage({
 
         <div className="flex flex-wrap justify-end gap-3 border-t border-zinc-100 pt-5">
           <Link
-            href={`/registry/${companyId}`}
+            href={`/training-plans/${submissionId}`}
             className="inline-flex min-h-11 items-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold"
           >
             Cancel

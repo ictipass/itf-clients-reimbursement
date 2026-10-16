@@ -54,5 +54,6 @@ export async function uploadTrainingPlanEvidenceAction(
   });
 
   revalidatePath(`/registry/${companyId}`);
-  redirect(`/registry/${companyId}`);
+  revalidatePath(`/training-plans/${submissionId}`);
+  redirect(`/training-plans/${submissionId}`);
 }

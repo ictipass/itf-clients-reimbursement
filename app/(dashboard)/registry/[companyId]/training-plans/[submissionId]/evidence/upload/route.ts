@@ -32,11 +32,11 @@ function readEvidenceKind(formData: FormData): TrainingPlanEvidenceKind {
   return value as TrainingPlanEvidenceKind;
 }
 
-function redirectToCompany(companyId: string) {
+function redirectToTrainingPlan(submissionId: string) {
   return new Response(null, {
     status: 303,
     headers: {
-      Location: `/registry/${companyId}`,
+      Location: `/training-plans/${submissionId}`,
     },
   });
 }
@@ -91,7 +91,7 @@ export async function POST(
       file: await readUploadedFile(formData, "file", session.user.id),
     });
 
-    return redirectToCompany(companyId);
+    return redirectToTrainingPlan(submissionId);
   } catch (error) {
     const rateLimit = getRateLimitFeedback(error);
     const message = rateLimit

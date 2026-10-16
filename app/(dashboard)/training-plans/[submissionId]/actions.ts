@@ -40,19 +40,20 @@ export async function importTrainingPlanCsvAction(
   redirect(`/training-plans/${submissionId}`);
 }
 
-export async function createTrainingRequestFromLineItemAction(lineItemId: string) {
+export async function createTrainingRequestFromLineItemAction(submissionId: string, lineItemId: string) {
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.email) {
     throw new Error("Authentication is required.");
   }
 
-  const request = await createTrainingRequestFromLineItem({
+  await createTrainingRequestFromLineItem({
     lineItemId,
     requesterEmail: session.user.email,
     requesterRole: session.user.role,
   });
 
   revalidatePath(`/training-requests`);
-  redirect(`/training-requests/${request.id}`);
+  revalidatePath(`/training-plans/${submissionId}`);
+  redirect(`/training-plans/${submissionId}`);
 }

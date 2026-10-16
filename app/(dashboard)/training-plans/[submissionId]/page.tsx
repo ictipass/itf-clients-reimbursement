@@ -477,7 +477,7 @@ export default async function TrainingPlanDetailPage({
                         <td className="px-3 py-3">{formatDate(item.plannedDate)}</td>
                         {submission.status === "APPROVED" ? (
                           <td className="px-3 py-3">
-                            <form action={createTrainingRequestFromLineItemAction.bind(null, item.id)}>
+                            <form action={createTrainingRequestFromLineItemAction.bind(null, submission.id, item.id)}>
                               <button className="min-h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800">
                                 Create Form 4A
                               </button>

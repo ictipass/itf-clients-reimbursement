@@ -168,7 +168,8 @@ export async function routeTrainingPlanSubmissionAction(
 
   revalidatePath(`/dashboard`);
   revalidatePath(`/registry/${companyId}`);
-  redirect(`/registry/${companyId}`);
+  revalidatePath(`/training-plans/${submissionId}`);
+  redirect(`/training-plans/${submissionId}`);
 }
 
 export async function submitTrainingPlanSubmissionAction(
@@ -192,5 +193,6 @@ export async function submitTrainingPlanSubmissionAction(
 
   revalidatePath(`/dashboard`);
   revalidatePath(`/registry/${companyId}`);
-  redirect(`/registry/${companyId}`);
+  revalidatePath(`/training-plans/${submissionId}`);
+  redirect(`/training-plans/${submissionId}`);
 }
