@@ -42,6 +42,7 @@ export default async function RoleSettingsPage() {
           <p className="mt-2 max-w-3xl text-sm leading-6 text-zinc-600">
             Review the system-managed roles currently available for reimbursement workflows.
             Configurable role creation will come after workflow boundaries and permissions stabilize.
+            These roles grant application permissions; they are not staff job titles. Job titles and departments are managed separately under Departments and job titles.
           </p>
         </div>
 

@@ -3,12 +3,16 @@ import { generateTemporaryPassword, hashTemporaryPassword } from "@/lib/officer-
 import { writeAuditEvent } from "@/lib/audit";
 import { can, roles, type Role } from "@/lib/rbac";
 import { maxUploadBytes, sanitizeFileName } from "@/lib/storage/security";
+import { getAreaOfficeOfficerRoles, getHeadquartersOfficerRoles } from "@/lib/area-office-management";
+import { assertConfiguredStaffValues, getStaffWorkspace, listStaffDirectoryOptions } from "@/lib/staff-directory-options";
 
 const userCsvColumns = [
   "full name",
   "staff number",
   "email address",
   "phone number",
+  "office",
+  "role",
   "department",
   "job title",
 ] as const;
@@ -39,6 +43,8 @@ type ParsedUserCsvRow = {
   phoneNumber?: string;
   department?: string;
   jobTitle?: string;
+  office?: string;
+  role?: string;
 };
 
 export function getUserCsvTemplate() {
@@ -161,6 +167,7 @@ export async function createDirectoryUser(input: CreateDirectoryUserInput) {
   }
 
   const normalized = normalizeDirectoryUser(input);
+  await assertConfiguredStaffValues(normalized);
 
   await assertStaffNumberAvailable(normalized.staffNumber, normalized.email);
 
@@ -203,6 +210,11 @@ export async function updateDirectoryUser(input: UpdateDirectoryUserInput) {
   }
 
   const normalized = normalizeDirectoryUser(input);
+  const previous = await getDb().user.findUnique({ where: { id: input.userId }, select: { department: true, jobTitle: true } });
+  await assertConfiguredStaffValues({
+    department: normalized.department === previous?.department ? undefined : normalized.department,
+    jobTitle: normalized.jobTitle === previous?.jobTitle ? undefined : normalized.jobTitle,
+  });
 
   await assertUserExists(input.userId);
   await assertEmailAvailable(normalized.email, input.userId);
@@ -310,16 +322,34 @@ export async function importDirectoryUsers(input: ImportDirectoryUsersInput) {
 
   const parsedRows = await parseUserCsvFile(input.file);
   const db = getDb();
-  const credentials = await Promise.all(
-    parsedRows.map(async (row) => {
+  const workspace = await getStaffWorkspace();
+  const organization = await db.organization.findFirst({ where: { workspaceId: workspace.id, organizationType: "ITF_INTERNAL", isActive: true }, select: { id: true } });
+  if (!organization) throw new Error("Create the ITF Headquarters organization before importing staff.");
+  const [offices, options] = await Promise.all([
+    db.areaOffice.findMany({ where: { workspaceId: workspace.id, isActive: true }, select: { id: true, name: true, code: true, slug: true } }),
+    listStaffDirectoryOptions(input.requesterRole),
+  ]);
+  const assignments = parsedRows.map((row, index) => {
+    const officeName = row.office?.toLowerCase();
+    const headquarters = officeName === "headquarters" || officeName === "hq";
+    const office = headquarters ? null : offices.find((item) => [item.name, item.code, item.slug].some((value) => value?.toLowerCase() === officeName));
+    if (!headquarters && !office) throw new Error(`Row ${index + 2}: office “${row.office}” was not found among active Area Offices.`);
+    const allowedRoles: readonly string[] = headquarters ? getHeadquartersOfficerRoles() : getAreaOfficeOfficerRoles();
+    if (!row.role || !allowedRoles.includes(row.role)) throw new Error(`Row ${index + 2}: role “${row.role}” is not valid for ${headquarters ? "Headquarters" : "an Area Office"}.`);
+    for (const [kind, value] of [["DEPARTMENT", row.department], ["JOB_TITLE", row.jobTitle]] as const) {
+      if (value && !options.some((item) => item.kind === kind && item.isActive && item.key === value.toLowerCase())) {
+        throw new Error(`Row ${index + 2}: ${kind === "DEPARTMENT" ? "department" : "job title"} “${value}” is not configured.`);
+      }
+    }
+    return { officeId: office?.id ?? null, role: row.role as Role };
+  });
+  const credentials: { row: ParsedUserCsvRow; temporaryPassword: string; passwordHash: string }[] = [];
+  for (let index = 0; index < parsedRows.length; index += 4) {
+    credentials.push(...await Promise.all(parsedRows.slice(index, index + 4).map(async (row) => {
       const temporaryPassword = generateTemporaryPassword();
-      return {
-        row,
-        temporaryPassword,
-        passwordHash: await hashTemporaryPassword(temporaryPassword),
-      };
-    }),
-  );
+      return { row, temporaryPassword, passwordHash: await hashTemporaryPassword(temporaryPassword) };
+    })));
+  }
 
   return db.$transaction(async (tx) => {
     const existing = await tx.user.findMany({
@@ -331,7 +361,7 @@ export async function importDirectoryUsers(input: ImportDirectoryUsersInput) {
     }
 
     const provisioned = [];
-    for (const credential of credentials) {
+    for (const [index, credential] of credentials.entries()) {
       await assertStaffNumberAvailable(credential.row.staffNumber, credential.row.email);
       const user = await tx.user.create({
         data: {
@@ -350,6 +380,14 @@ export async function importDirectoryUsers(input: ImportDirectoryUsersInput) {
         },
         select: { id: true, email: true, name: true },
       });
+      const assignment = assignments[index];
+      await tx.membership.create({ data: {
+        userId: user.id,
+        workspaceId: workspace.id,
+        organizationId: organization.id,
+        areaOfficeId: assignment.officeId,
+        role: assignment.role,
+      } });
       provisioned.push({ ...user, temporaryPassword: credential.temporaryPassword });
     }
 
@@ -357,7 +395,7 @@ export async function importDirectoryUsers(input: ImportDirectoryUsersInput) {
       imported: parsedRows.length,
       provisioned,
     };
-  });
+  }, { timeout: 30_000 });
 }
 
 function normalizeDirectoryUser(input: CreateDirectoryUserInput): ParsedUserCsvRow {
@@ -476,6 +514,7 @@ async function parseUserCsvFile(file: File) {
   if (lines.length < 2) {
     throw new Error("User import CSV must include a header row and at least one user row.");
   }
+  if (lines.length > 51) throw new Error("User import may contain at most 50 staff rows per batch.");
 
   const headers = parseCsvLine(lines[0]).map(normalizeCsvHeader);
   const missingColumns = userCsvColumns.filter((column) => !headers.includes(column));
@@ -501,7 +540,10 @@ async function parseUserCsvFile(file: File) {
       throw new Error(`Row ${index + 2} has an invalid email address.`);
     }
 
-    return parsedRow;
+    const office = row.office?.trim();
+    const role = row.role?.trim().toUpperCase().replace(/\s+/g, "_");
+    if (!office || !role) throw new Error(`Row ${index + 2} requires both office and role.`);
+    return { ...parsedRow, office, role };
   });
 
   const seenEmails = new Set<string>();

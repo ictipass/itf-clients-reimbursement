@@ -40,6 +40,12 @@ export default async function SettingsPage() {
       visible: can(role, "workspace:manage"),
     },
     {
+      href: "/settings/staff-directory",
+      title: "Departments and job titles",
+      description: "Maintain approved staff directory values and download reference lists.",
+      visible: can(role, "workspace:manage"),
+    },
+    {
       href: "/settings/roles",
       title: "Roles",
       description: "Review role responsibilities and workspace assignments.",

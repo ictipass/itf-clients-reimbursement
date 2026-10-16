@@ -14,7 +14,7 @@ type EditableUser = {
   jobTitle: string | null;
 };
 
-export function UserEditDialog({ user }: Readonly<{ user: EditableUser }>) {
+export function UserEditDialog({ user, departments, jobTitles }: Readonly<{ user: EditableUser; departments: string[]; jobTitles: string[] }>) {
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   return (
@@ -106,19 +106,11 @@ export function UserEditDialog({ user }: Readonly<{ user: EditableUser }>) {
             </label>
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               Department
-              <input
-                name="department"
-                defaultValue={user.department ?? ""}
-                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
-              />
+              <select name="department" defaultValue={user.department ?? ""} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"><option value="">Not set</option>{user.department && !departments.includes(user.department) && <option value={user.department}>{user.department} (inactive)</option>}{departments.map((name) => <option key={name} value={name}>{name}</option>)}</select>
             </label>
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               Job title
-              <input
-                name="jobTitle"
-                defaultValue={user.jobTitle ?? ""}
-                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
-              />
+              <select name="jobTitle" defaultValue={user.jobTitle ?? ""} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"><option value="">Not set</option>{user.jobTitle && !jobTitles.includes(user.jobTitle) && <option value={user.jobTitle}>{user.jobTitle} (inactive)</option>}{jobTitles.map((name) => <option key={name} value={name}>{name}</option>)}</select>
             </label>
           </div>
 

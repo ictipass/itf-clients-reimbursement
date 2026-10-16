@@ -7,6 +7,7 @@ import { UserEditDialog } from "@/app/(dashboard)/settings/users/user-edit-dialo
 import { authOptions } from "@/lib/auth";
 import { can, roles } from "@/lib/rbac";
 import { listDirectoryUsers } from "@/lib/user-directory";
+import { listStaffDirectoryOptions } from "@/lib/staff-directory-options";
 
 function formatRole(value: string) {
   return value.replaceAll("_", " ");
@@ -64,6 +65,9 @@ export default async function UserDirectoryPage({
     status,
     page: Number.isFinite(requestedPage) ? requestedPage : 1,
   });
+  const directoryOptions = await listStaffDirectoryOptions(role);
+  const departments = directoryOptions.filter((item) => item.kind === "DEPARTMENT" && item.isActive).map((item) => item.name);
+  const jobTitles = directoryOptions.filter((item) => item.kind === "JOB_TITLE" && item.isActive).map((item) => item.name);
   const pageHref = (page: number) => {
     const params = new URLSearchParams();
     if (search) params.set("q", search);
@@ -87,12 +91,11 @@ export default async function UserDirectoryPage({
               Offices page; removing an assignment does not delete the staff user.
             </p>
           </div>
-          <Link
-            href="/settings/users/template"
-            className="w-fit rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-800"
-          >
-            Download CSV template
-          </Link>
+          <div className="flex flex-wrap gap-2">
+            <Link href="/settings/staff-directory" className="w-fit rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold">Manage departments and job titles</Link>
+            <a href="/settings/staff-directory/reference" className="w-fit rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold">Download configured lists</a>
+            <Link href="/settings/users/template" className="w-fit rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-800">Download CSV template</Link>
+          </div>
         </div>
 
         {message ? (
@@ -146,17 +149,11 @@ export default async function UserDirectoryPage({
               </label>
               <label className="grid gap-2 text-sm font-medium text-zinc-700">
                 Department
-                <input
-                  name="department"
-                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
-                />
+                <select name="department" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"><option value="">Not set</option>{departments.map((name) => <option key={name} value={name}>{name}</option>)}</select>
               </label>
               <label className="grid gap-2 text-sm font-medium text-zinc-700">
                 Job title
-                <input
-                  name="jobTitle"
-                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
-                />
+                <select name="jobTitle" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"><option value="">Not set</option>{jobTitles.map((name) => <option key={name} value={name}>{name}</option>)}</select>
               </label>
             </div>
             <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
@@ -173,8 +170,8 @@ export default async function UserDirectoryPage({
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Bulk import</h2>
               <p className="mt-1 text-sm leading-6 text-zinc-600">
-                Upload CSV with full name, staff number, email address, phone number, department,
-                and job title.
+                Upload CSV with full name, staff number, email address, phone number, office,
+                role, department, and job title. Office and role create the user’s actual workflow assignment. Import up to 50 staff at a time.
               </p>
             </div>
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
@@ -286,7 +283,7 @@ export default async function UserDirectoryPage({
                   </td>
                   <td className="whitespace-nowrap px-4 py-4 text-right align-top">
                     <div className="flex min-w-max justify-end gap-2">
-                      <UserEditDialog user={user} />
+                      <UserEditDialog user={user} departments={departments} jobTitles={jobTitles} />
                       <form action={updateDirectoryUserManagementStatusAction}>
                         <input type="hidden" name="userId" value={user.id} />
                         <input type="hidden" name="isManagement" value={user.isManagement ? "false" : "true"} />

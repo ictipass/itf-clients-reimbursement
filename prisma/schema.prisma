@@ -48,6 +48,11 @@ enum AuthenticationSource {
   WORKSPACE_SSO
 }
 
+enum StaffDirectoryOptionKind {
+  DEPARTMENT
+  JOB_TITLE
+}
+
 enum OrganizationType {
   ITF_INTERNAL
   EMPLOYER
@@ -431,6 +436,22 @@ model Workspace {
   workItems                     WorkItem[]
   auditEvents                   AuditEvent[]
   developmentEligibilityRecords DevelopmentEligibilityRecord[]
+  staffDirectoryOptions         StaffDirectoryOption[]
+}
+
+model StaffDirectoryOption {
+  id          String                   @id @default(cuid())
+  workspaceId String
+  kind        StaffDirectoryOptionKind
+  name        String
+  key         String
+  isActive    Boolean                  @default(true)
+  createdAt   DateTime                 @default(now())
+  updatedAt   DateTime                 @updatedAt
+  workspace   Workspace                @relation(fields: [workspaceId], references: [id])
+
+  @@unique([workspaceId, kind, key])
+  @@index([workspaceId, kind, isActive])
 }
 
 model AreaOffice {
