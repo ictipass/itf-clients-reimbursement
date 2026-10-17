@@ -918,8 +918,9 @@ export default async function CompanyDetailPage({
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">{company.legalName}</h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-            Form 7A profile, ITF registration state, supporting evidence summary, and
-            compliance history for this employer company.
+            {usesInAppRevenue
+              ? "Form 7A profile, ITF registration state, supporting evidence summary, and compliance history for this employer company."
+              : "Employer profile, ITF registration number, training submissions, and supporting evidence for reimbursement."}
           </p>
         </div>
         <div className="grid gap-2 text-sm md:min-w-64">
@@ -976,7 +977,7 @@ export default async function CompanyDetailPage({
         <DetailItem label="Last updated" value={formatDate(company.updatedAt)} />
       </section>
 
-      {!company.itfEmployerNumber ? (
+      {usesInAppRevenue && (!company.itfEmployerNumber ? (
         <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
@@ -1059,7 +1060,7 @@ export default async function CompanyDetailPage({
             ))}
           </div>
         </section>
-      )}
+      ))}
 
       <details
         open={Boolean(
@@ -1891,6 +1892,340 @@ export default async function CompanyDetailPage({
         ) : null}
       </details>
 
+      <details
+        open={hasActionableTrainingPlanSubmission}
+        className="group mt-8 rounded-lg border border-zinc-200 bg-white p-5"
+      >
+        <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">
+              Training Plan and L&amp;D submissions
+            </h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Yearly Form 3A personnel details, annual training plan evidence, and L&amp;D
+              personnel CV records.
+            </p>
+            <p className="mt-1 text-xs font-semibold text-[#800020] group-open:hidden">Expand card</p>
+            <p className="mt-1 hidden text-xs font-semibold text-zinc-500 group-open:block">Collapse card</p>
+          </div>
+          {canCreateTrainingPlan ? (
+            <Link
+              href={`/registry/${company.id}/training-plans/new`}
+              className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
+            >
+              Create submission
+            </Link>
+          ) : usesInAppRevenue && !hasCurrentYearCertifiedCompliance ? (
+            <span className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm font-semibold text-zinc-500">
+              Compliance required
+            </span>
+          ) : null}
+        </summary>
+
+        {usesInAppRevenue && !hasCurrentYearCertifiedCompliance ? (
+          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
+            Training Plan and L&amp;D submission is available after the company&apos;s {currentYear}{" "}
+            compliance is approved and its compliance certificate has been issued.
+          </p>
+        ) : null}
+
+        <form className="mt-4 grid gap-3 rounded-md bg-zinc-50 p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
+          <HiddenQueryInputs
+            values={companyPageQuery}
+            omit={["trainingPage", "trainingStatus", "trainingDesk", "trainingYear"]}
+          />
+          <label className="grid gap-1 text-xs font-medium text-zinc-700">
+            Year
+            <input
+              name="trainingYear"
+              type="number"
+              defaultValue={trainingYear}
+              className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            />
+          </label>
+          <label className="grid gap-1 text-xs font-medium text-zinc-700">
+            Status
+            <select
+              name="trainingStatus"
+              defaultValue={trainingStatus ?? ""}
+              className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            >
+              <option value="">Any status</option>
+              {[
+                "DRAFT",
+                "SUBMITTED",
+                "IN_REVIEW",
+                "CHANGES_REQUESTED",
+                "APPROVED",
+                "REJECTED",
+              ].map((status) => (
+                <option key={status} value={status}>
+                  {status.replaceAll("_", " ")}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="grid gap-1 text-xs font-medium text-zinc-700">
+            Desk
+            <select
+              name="trainingDesk"
+              defaultValue={trainingDesk ?? ""}
+              className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+            >
+              <option value="">Any desk</option>
+              {["COMPANY", "AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER"].map(
+                (desk) => (
+                  <option key={desk} value={desk}>
+                    {desk.replaceAll("_", " ")}
+                  </option>
+                ),
+              )}
+            </select>
+          </label>
+          <div className="flex items-end">
+            <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
+              Filter
+            </button>
+          </div>
+        </form>
+
+        {filteredTrainingPlanSubmissions.length === 0 ? (
+          <p className="mt-4 text-sm leading-6 text-zinc-600">
+            No Training Plan and L&amp;D submission matches the selected filters.
+          </p>
+        ) : (
+          <div className="mt-4 grid gap-3">
+            {visibleTrainingPlanSubmissions.map((submission) => {
+              const submittedDocumentKinds = new Set(
+                submission.documents.map((document) => document.kind),
+              );
+              const missingRequiredEvidence = [
+                submittedDocumentKinds.has("TRAINING_PLAN_DOCUMENT")
+                  ? undefined
+                  : "training plan document",
+                submittedDocumentKinds.has("LD_PERSONNEL_CV") ? undefined : "L&D personnel CV",
+              ].filter(Boolean);
+              const availableTrainingPlanTransitions = getAvailableTrainingPlanTransitions(
+                submission.currentDesk,
+                submission.status,
+              );
+              const canRouteTrainingPlan =
+                availableTrainingPlanTransitions.length > 0 &&
+                canActAsTrainingPlanDesk(activeRole, submission.currentDesk);
+              const hasCertifiedSubmissionYear = certifiedComplianceYears.has(submission.year);
+              const canSubmitTrainingPlan =
+                (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
+                missingRequiredEvidence.length === 0 &&
+                (!usesInAppRevenue || hasCertifiedSubmissionYear) &&
+                (isEmployerRole(activeRole) || adminOverride);
+              const shouldOpenSubmission = canRouteTrainingPlan || canSubmitTrainingPlan;
+
+              return (
+                <details
+                  key={submission.id}
+                  open={shouldOpenSubmission}
+                  className="group rounded-md border border-zinc-100 p-3 text-sm"
+                >
+                  <summary className="grid cursor-pointer list-none gap-2 rounded-md p-1 md:grid-cols-[1fr_1fr_1fr_1fr_auto] md:items-center">
+                    <p className="font-semibold">{submission.year}</p>
+                    <TrainingPlanStatusBadge status={submission.status} />
+                    <p>Desk: {formatDesk(submission.currentDesk)}</p>
+                    <p>Due {formatDate(submission.dueDate)}</p>
+                    <span className="text-xs font-semibold text-[#800020] group-open:hidden">
+                      Expand
+                    </span>
+                    <span className="hidden text-xs font-semibold text-zinc-500 group-open:inline">
+                      Collapse
+                    </span>
+                  </summary>
+                  <div className="mt-3 border-t border-zinc-100 pt-3">
+                  <div className="mt-3 grid gap-2 rounded-md bg-zinc-50 px-3 py-2 text-xs leading-5 text-zinc-600 md:grid-cols-2">
+                    <p>
+                      L&amp;D personnel count:{" "}
+                      <span className="font-semibold text-zinc-800">
+                        {submission.personnel.length}
+                      </span>
+                    </p>
+                    <p>Submitted: {formatDate(submission.submittedAt)}</p>
+                    <p>Prompt score: {formatPercent(submission.promptSubmissionScore)}</p>
+                    {submission.decisions[0] ? (
+                      <p>
+                        Last decision:{" "}
+                        <span className="font-semibold text-zinc-800">
+                          {submission.decisions[0].action.replaceAll("_", " ")}
+                        </span>{" "}
+                        by {submission.decisions[0].actor.name} on{" "}
+                        {formatDate(submission.decisions[0].createdAt)}
+                        <HighlightedRemark>
+                          {submission.decisions[0].reason}
+                        </HighlightedRemark>
+                      </p>
+                    ) : null}
+                  </div>
+                  {submission.personnel.length > 0 ? (
+                    <div className="mt-3 grid gap-2 rounded-md border border-zinc-100 p-3 text-xs leading-5 text-zinc-600 md:grid-cols-2">
+                      {submission.personnel.map((person) => (
+                        <p key={person.id}>
+                          <span className="font-semibold text-zinc-800">{person.name}</span>
+                          {person.position ? ` · ${person.position}` : ""}
+                          {person.email ? ` · ${person.email}` : ""}
+                          {person.phone ? ` · ${person.phone}` : ""}
+                        </p>
+                      ))}
+                    </div>
+                  ) : null}
+                  {missingRequiredEvidence.length > 0 ? (
+                    <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      Required before submission: {missingRequiredEvidence.join(", ")}.
+                    </p>
+                  ) : null}
+                  {usesInAppRevenue && !hasCertifiedSubmissionYear ? (
+                    <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
+                      Approved {submission.year} compliance with an issued certificate is required
+                      before evidence upload or submission.
+                    </p>
+                  ) : null}
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3">
+                    <p className="text-xs text-zinc-500">
+                      {submission.documents.length === 0
+                        ? "No Training Plan evidence uploaded"
+                        : `${submission.documents.length} evidence document${submission.documents.length === 1 ? "" : "s"}`}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      <Link
+                        href={`/training-plans/${submission.id}`}
+                        className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+                      >
+                        View detail
+                      </Link>
+                    {(!usesInAppRevenue || hasCertifiedSubmissionYear) && isEmployerRole(activeRole) && missingRequiredEvidence.length > 0 ? (
+                      <Link
+                        href={`/registry/${company.id}/training-plans/${submission.id}/evidence/new`}
+                        className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+                      >
+                        Upload evidence
+                      </Link>
+                    ) : null}
+                    </div>
+                  </div>
+                  {canSubmitTrainingPlan ? (
+                    <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+                      Package is ready to submit. Open View detail to review and submit it.
+                    </p>
+                  ) : null}
+                  {canRouteTrainingPlan ? (
+                    <form
+                      action={routeTrainingPlanSubmissionAction.bind(
+                        null,
+                        company.id,
+                        submission.id,
+                      )}
+                      className="mt-3 grid gap-3 rounded-md border border-zinc-100 bg-zinc-50 p-3"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
+                          Training Plan workflow action
+                        </p>
+                        {adminOverride ? (
+                          <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
+                            Admin/testing override
+                          </span>
+                        ) : null}
+                      </div>
+                      <label className="grid gap-2 text-xs font-medium text-zinc-700">
+                        Routing note
+                        <input
+                          name="note"
+                          className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                        />
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {availableTrainingPlanTransitions.map((transition) => (
+                          <button
+                            key={transition}
+                            name="transition"
+                            value={transition}
+                            className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-900"
+                          >
+                            {trainingPlanTransitionLabels[transition]}
+                          </button>
+                        ))}
+                      </div>
+                    </form>
+                  ) : submission.status === "SUBMITTED" || submission.status === "IN_REVIEW" ? (
+                    <p className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                      No Training Plan action is currently assigned to your role. Current desk is{" "}
+                      <span className="font-semibold text-zinc-900">
+                        {formatDesk(submission.currentDesk)}
+                      </span>
+                      .
+                    </p>
+                  ) : null}
+                  {submission.documents.length > 0 ? (
+                    <div className="mt-3 grid gap-2">
+                      {submission.documents.map((document) => (
+                        <div
+                          key={document.id}
+                          className="flex flex-wrap items-center justify-between gap-2 text-xs leading-5 text-zinc-600"
+                        >
+                          <p>
+                            <span className="font-semibold text-zinc-800">
+                              {document.fileName}
+                            </span>{" "}
+                            · {document.kind.replaceAll("_", " ")}
+                          </p>
+                          <EvidenceActions
+                            companyId={company.id}
+                            documentId={document.id}
+                            canDelete={
+                              canDeleteEvidence &&
+                              isEvidenceWorkflowEditable([submission.status])
+                            }
+                            showLocked={
+                              canDeleteEvidence &&
+                              !isEvidenceWorkflowEditable([submission.status])
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  ) : null}
+                  </div>
+                </details>
+              );
+            })}
+            {trainingSubmissionTotalPages > 1 ? (
+              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
+                <p>
+                  Page {trainingPage} of {trainingSubmissionTotalPages} · Showing{" "}
+                  {visibleTrainingPlanSubmissions.length} of{" "}
+                  {filteredTrainingPlanSubmissions.length} submission
+                  {filteredTrainingPlanSubmissions.length === 1 ? "" : "s"}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {trainingPage > 1 ? (
+                    <Link
+                      href={companyHref({ trainingPage: trainingPage - 1 })}
+                      className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                    >
+                      Previous
+                    </Link>
+                  ) : null}
+                  {trainingPage < trainingSubmissionTotalPages ? (
+                    <Link
+                      href={companyHref({ trainingPage: trainingPage + 1 })}
+                      className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
+                    >
+                      Next
+                    </Link>
+                  ) : null}
+                </div>
+              </div>
+            ) : null}
+          </div>
+        )}
+      </details>
+
       <section className="mt-8 grid gap-6 lg:grid-cols-2">
         <details className={`group order-2 min-w-0 rounded-lg border border-zinc-200 bg-white p-5 ${usesInAppRevenue ? "" : "lg:col-span-2"}`}>
           <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -2505,339 +2840,6 @@ export default async function CompanyDetailPage({
         </section>
       ) : null}
 
-      <details
-        open={hasActionableTrainingPlanSubmission}
-        className="group mt-8 rounded-lg border border-zinc-200 bg-white p-5"
-      >
-        <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">
-              Training Plan and L&amp;D submissions
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
-              Yearly Form 3A personnel details, annual training plan evidence, and L&amp;D
-              personnel CV records.
-            </p>
-            <p className="mt-1 text-xs font-semibold text-[#800020] group-open:hidden">Expand card</p>
-            <p className="mt-1 hidden text-xs font-semibold text-zinc-500 group-open:block">Collapse card</p>
-          </div>
-          {canCreateTrainingPlan ? (
-            <Link
-              href={`/registry/${company.id}/training-plans/new`}
-              className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
-            >
-              Create submission
-            </Link>
-          ) : usesInAppRevenue && !hasCurrentYearCertifiedCompliance ? (
-            <span className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm font-semibold text-zinc-500">
-              Compliance required
-            </span>
-          ) : null}
-        </summary>
-
-        {usesInAppRevenue && !hasCurrentYearCertifiedCompliance ? (
-          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            Training Plan and L&amp;D submission is available after the company&apos;s {currentYear}{" "}
-            compliance is approved and its compliance certificate has been issued.
-          </p>
-        ) : null}
-
-        <form className="mt-4 grid gap-3 rounded-md bg-zinc-50 p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
-          <HiddenQueryInputs
-            values={companyPageQuery}
-            omit={["trainingPage", "trainingStatus", "trainingDesk", "trainingYear"]}
-          />
-          <label className="grid gap-1 text-xs font-medium text-zinc-700">
-            Year
-            <input
-              name="trainingYear"
-              type="number"
-              defaultValue={trainingYear}
-              className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-            />
-          </label>
-          <label className="grid gap-1 text-xs font-medium text-zinc-700">
-            Status
-            <select
-              name="trainingStatus"
-              defaultValue={trainingStatus ?? ""}
-              className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-            >
-              <option value="">Any status</option>
-              {[
-                "DRAFT",
-                "SUBMITTED",
-                "IN_REVIEW",
-                "CHANGES_REQUESTED",
-                "APPROVED",
-                "REJECTED",
-              ].map((status) => (
-                <option key={status} value={status}>
-                  {status.replaceAll("_", " ")}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grid gap-1 text-xs font-medium text-zinc-700">
-            Desk
-            <select
-              name="trainingDesk"
-              defaultValue={trainingDesk ?? ""}
-              className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-            >
-              <option value="">Any desk</option>
-              {["COMPANY", "AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER"].map(
-                (desk) => (
-                  <option key={desk} value={desk}>
-                    {desk.replaceAll("_", " ")}
-                  </option>
-                ),
-              )}
-            </select>
-          </label>
-          <div className="flex items-end">
-            <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
-              Filter
-            </button>
-          </div>
-        </form>
-
-        {filteredTrainingPlanSubmissions.length === 0 ? (
-          <p className="mt-4 text-sm leading-6 text-zinc-600">
-            No Training Plan and L&amp;D submission matches the selected filters.
-          </p>
-        ) : (
-          <div className="mt-4 grid gap-3">
-            {visibleTrainingPlanSubmissions.map((submission) => {
-              const submittedDocumentKinds = new Set(
-                submission.documents.map((document) => document.kind),
-              );
-              const missingRequiredEvidence = [
-                submittedDocumentKinds.has("TRAINING_PLAN_DOCUMENT")
-                  ? undefined
-                  : "training plan document",
-                submittedDocumentKinds.has("LD_PERSONNEL_CV") ? undefined : "L&D personnel CV",
-              ].filter(Boolean);
-              const availableTrainingPlanTransitions = getAvailableTrainingPlanTransitions(
-                submission.currentDesk,
-                submission.status,
-              );
-              const canRouteTrainingPlan =
-                availableTrainingPlanTransitions.length > 0 &&
-                canActAsTrainingPlanDesk(activeRole, submission.currentDesk);
-              const hasCertifiedSubmissionYear = certifiedComplianceYears.has(submission.year);
-              const canSubmitTrainingPlan =
-                (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
-                missingRequiredEvidence.length === 0 &&
-                hasCertifiedSubmissionYear &&
-                (isEmployerRole(activeRole) || adminOverride);
-              const shouldOpenSubmission = canRouteTrainingPlan || canSubmitTrainingPlan;
-
-              return (
-                <details
-                  key={submission.id}
-                  open={shouldOpenSubmission}
-                  className="group rounded-md border border-zinc-100 p-3 text-sm"
-                >
-                  <summary className="grid cursor-pointer list-none gap-2 rounded-md p-1 md:grid-cols-[1fr_1fr_1fr_1fr_auto] md:items-center">
-                    <p className="font-semibold">{submission.year}</p>
-                    <TrainingPlanStatusBadge status={submission.status} />
-                    <p>Desk: {formatDesk(submission.currentDesk)}</p>
-                    <p>Due {formatDate(submission.dueDate)}</p>
-                    <span className="text-xs font-semibold text-[#800020] group-open:hidden">
-                      Expand
-                    </span>
-                    <span className="hidden text-xs font-semibold text-zinc-500 group-open:inline">
-                      Collapse
-                    </span>
-                  </summary>
-                  <div className="mt-3 border-t border-zinc-100 pt-3">
-                  <div className="mt-3 grid gap-2 rounded-md bg-zinc-50 px-3 py-2 text-xs leading-5 text-zinc-600 md:grid-cols-2">
-                    <p>
-                      L&amp;D personnel count:{" "}
-                      <span className="font-semibold text-zinc-800">
-                        {submission.personnel.length}
-                      </span>
-                    </p>
-                    <p>Submitted: {formatDate(submission.submittedAt)}</p>
-                    <p>Prompt score: {formatPercent(submission.promptSubmissionScore)}</p>
-                    {submission.decisions[0] ? (
-                      <p>
-                        Last decision:{" "}
-                        <span className="font-semibold text-zinc-800">
-                          {submission.decisions[0].action.replaceAll("_", " ")}
-                        </span>{" "}
-                        by {submission.decisions[0].actor.name} on{" "}
-                        {formatDate(submission.decisions[0].createdAt)}
-                        <HighlightedRemark>
-                          {submission.decisions[0].reason}
-                        </HighlightedRemark>
-                      </p>
-                    ) : null}
-                  </div>
-                  {submission.personnel.length > 0 ? (
-                    <div className="mt-3 grid gap-2 rounded-md border border-zinc-100 p-3 text-xs leading-5 text-zinc-600 md:grid-cols-2">
-                      {submission.personnel.map((person) => (
-                        <p key={person.id}>
-                          <span className="font-semibold text-zinc-800">{person.name}</span>
-                          {person.position ? ` · ${person.position}` : ""}
-                          {person.email ? ` · ${person.email}` : ""}
-                          {person.phone ? ` · ${person.phone}` : ""}
-                        </p>
-                      ))}
-                    </div>
-                  ) : null}
-                  {missingRequiredEvidence.length > 0 ? (
-                    <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                      Required before submission: {missingRequiredEvidence.join(", ")}.
-                    </p>
-                  ) : null}
-                  {!hasCertifiedSubmissionYear ? (
-                    <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                      Approved {submission.year} compliance with an issued certificate is required
-                      before evidence upload or submission.
-                    </p>
-                  ) : null}
-                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3">
-                    <p className="text-xs text-zinc-500">
-                      {submission.documents.length === 0
-                        ? "No Training Plan evidence uploaded"
-                        : `${submission.documents.length} evidence document${submission.documents.length === 1 ? "" : "s"}`}
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      <Link
-                        href={`/training-plans/${submission.id}`}
-                        className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
-                      >
-                        View detail
-                      </Link>
-                    {hasCertifiedSubmissionYear && isEmployerRole(activeRole) && missingRequiredEvidence.length > 0 ? (
-                      <Link
-                        href={`/registry/${company.id}/training-plans/${submission.id}/evidence/new`}
-                        className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
-                      >
-                        Upload evidence
-                      </Link>
-                    ) : null}
-                    </div>
-                  </div>
-                  {canSubmitTrainingPlan ? (
-                    <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-                      Package is ready to submit. Open View detail to review and submit it.
-                    </p>
-                  ) : null}
-                  {canRouteTrainingPlan ? (
-                    <form
-                      action={routeTrainingPlanSubmissionAction.bind(
-                        null,
-                        company.id,
-                        submission.id,
-                      )}
-                      className="mt-3 grid gap-3 rounded-md border border-zinc-100 bg-zinc-50 p-3"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-                          Training Plan workflow action
-                        </p>
-                        {adminOverride ? (
-                          <span className="rounded-full bg-amber-50 px-2 py-1 text-xs font-semibold text-amber-800 ring-1 ring-amber-200">
-                            Admin/testing override
-                          </span>
-                        ) : null}
-                      </div>
-                      <label className="grid gap-2 text-xs font-medium text-zinc-700">
-                        Routing note
-                        <input
-                          name="note"
-                          className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-                        />
-                      </label>
-                      <div className="flex flex-wrap gap-2">
-                        {availableTrainingPlanTransitions.map((transition) => (
-                          <button
-                            key={transition}
-                            name="transition"
-                            value={transition}
-                            className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-900"
-                          >
-                            {trainingPlanTransitionLabels[transition]}
-                          </button>
-                        ))}
-                      </div>
-                    </form>
-                  ) : submission.status === "SUBMITTED" || submission.status === "IN_REVIEW" ? (
-                    <p className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
-                      No Training Plan action is currently assigned to your role. Current desk is{" "}
-                      <span className="font-semibold text-zinc-900">
-                        {formatDesk(submission.currentDesk)}
-                      </span>
-                      .
-                    </p>
-                  ) : null}
-                  {submission.documents.length > 0 ? (
-                    <div className="mt-3 grid gap-2">
-                      {submission.documents.map((document) => (
-                        <div
-                          key={document.id}
-                          className="flex flex-wrap items-center justify-between gap-2 text-xs leading-5 text-zinc-600"
-                        >
-                          <p>
-                            <span className="font-semibold text-zinc-800">
-                              {document.fileName}
-                            </span>{" "}
-                            · {document.kind.replaceAll("_", " ")}
-                          </p>
-                          <EvidenceActions
-                            companyId={company.id}
-                            documentId={document.id}
-                            canDelete={
-                              canDeleteEvidence &&
-                              isEvidenceWorkflowEditable([submission.status])
-                            }
-                            showLocked={
-                              canDeleteEvidence &&
-                              !isEvidenceWorkflowEditable([submission.status])
-                            }
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  ) : null}
-                  </div>
-                </details>
-              );
-            })}
-            {trainingSubmissionTotalPages > 1 ? (
-              <div className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
-                <p>
-                  Page {trainingPage} of {trainingSubmissionTotalPages} · Showing{" "}
-                  {visibleTrainingPlanSubmissions.length} of{" "}
-                  {filteredTrainingPlanSubmissions.length} submission
-                  {filteredTrainingPlanSubmissions.length === 1 ? "" : "s"}
-                </p>
-                <div className="flex flex-wrap gap-2">
-                  {trainingPage > 1 ? (
-                    <Link
-                      href={companyHref({ trainingPage: trainingPage - 1 })}
-                      className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
-                    >
-                      Previous
-                    </Link>
-                  ) : null}
-                  {trainingPage < trainingSubmissionTotalPages ? (
-                    <Link
-                      href={companyHref({ trainingPage: trainingPage + 1 })}
-                      className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 font-semibold text-zinc-800"
-                    >
-                      Next
-                    </Link>
-                  ) : null}
-                </div>
-              </div>
-            ) : null}
-          </div>
-        )}
-      </details>
     </div>
   );
 }
