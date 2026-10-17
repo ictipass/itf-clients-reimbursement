@@ -228,7 +228,13 @@ export default async function DashboardPage() {
           <h2 className="text-2xl font-semibold tracking-tight">Company status</h2>
           {companies.length === 0 ? (
             <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
-              No company is linked to your account yet.
+              No company is linked to your account yet. {activeRole === "EMPLOYER_ADMIN" ? (
+                <Link href="/registry/new" className="font-semibold text-[#800020] underline underline-offset-2 hover:text-[#65001a]">
+                  Click here to add a company to your profile.
+                </Link>
+              ) : (
+                "Ask your employer administrator to add a company to your organization."
+              )}
             </p>
           ) : (
             <div className="mt-5 grid gap-3">
