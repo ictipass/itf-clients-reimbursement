@@ -231,12 +231,12 @@ function decorateQueueItem<T extends {
   };
 }
 
-function getModuleForWorkItem(kind: string, targetHref: string) {
+export function getModuleForWorkItem(kind: string, targetHref: string) {
   if (
     kind === "JURISDICTION_CHANGE_REVIEW" ||
     targetHref.startsWith("/jurisdiction-requests")
   ) {
-    return "registry";
+    return "jurisdiction";
   }
 
   if (kind.startsWith("REGISTRATION") || targetHref.startsWith("/registry")) {

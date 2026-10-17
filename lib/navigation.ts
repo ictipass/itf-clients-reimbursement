@@ -56,7 +56,7 @@ export const navGroups: NavGroup[] = [
       {
         href: "/jurisdiction-requests",
         label: "Jurisdiction Requests",
-        module: "registry",
+        module: "jurisdiction",
         isVisible: canUseRegistry,
       },
     ],
