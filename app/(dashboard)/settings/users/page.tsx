@@ -94,7 +94,7 @@ export default async function UserDirectoryPage({
           <div className="flex flex-wrap gap-2">
             <Link href="/settings/staff-directory" className="w-fit rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold">Manage departments and job titles</Link>
             <a href="/settings/staff-directory/reference" className="w-fit rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold">Download configured lists</a>
-            <Link href="/settings/users/template" className="w-fit rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-800">Download CSV template</Link>
+            <Link href="/settings/users/template" className="w-fit rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm font-semibold text-zinc-800">Download Excel template</Link>
           </div>
         </div>
 
@@ -170,16 +170,16 @@ export default async function UserDirectoryPage({
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Bulk import</h2>
               <p className="mt-1 text-sm leading-6 text-zinc-600">
-                Upload CSV with full name, staff number, email address, phone number, office,
+                Upload the Excel template (or an existing CSV) with full name, staff number, email address, phone number, office,
                 role, department, and job title. Office and role create the user’s actual workflow assignment. Import up to 50 staff at a time.
               </p>
             </div>
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
-              User CSV
+              User Excel or CSV
               <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
                 name="file"
                 required
-                accept=".csv,text/csv"
+                accept=".xlsx,.csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 file:mr-3 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-1.5 file:text-sm file:font-semibold"
               />
             </label>

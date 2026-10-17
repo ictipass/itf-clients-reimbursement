@@ -1,3 +1,5 @@
+import ExcelJS from "exceljs";
+
 import { getDb } from "@/lib/db";
 import { generateTemporaryPassword, hashTemporaryPassword } from "@/lib/officer-provisioning";
 import { writeAuditEvent } from "@/lib/audit";
@@ -49,6 +51,27 @@ type ParsedUserCsvRow = {
 
 export function getUserCsvTemplate() {
   return `${userCsvColumns.join(",")}\n`;
+}
+
+export async function getUserWorkbookTemplate() {
+  const workbook = new ExcelJS.Workbook();
+  const users = workbook.addWorksheet("Users");
+  users.addRow([...userCsvColumns]);
+  users.getRow(1).font = { bold: true };
+  users.columns = [
+    { width: 30 }, { width: 20 }, { width: 32 }, { width: 22 },
+    { width: 32 }, { width: 30 }, { width: 28 }, { width: 28 },
+  ];
+  const instructions = workbook.addWorksheet("Instructions");
+  instructions.addRow(["Enter one staff member per row on the Users sheet. Only the Users sheet is imported."]);
+  instructions.addRow(["Full name, email address, office, and role are required. Staff number, phone number, department, and job title are optional."]);
+  instructions.addRow(["Use Headquarters (or HQ) for a headquarters office, or an active Area Office name, code, or slug."]);
+  instructions.addRow(["Role is a workflow role, not a job title. Choose a role valid for the selected office from Settings > Roles."]);
+  instructions.addRow(["If provided, department and job title must match active values in the configured staff-directory lists."]);
+  instructions.addRow(["Download configured lists from Settings > Users. Use unique email addresses and staff numbers; import at most 50 users per batch."]);
+  instructions.addRow(["The import is atomic: an invalid or duplicate row rejects the entire batch. Passwords are generated and welcome emails are sent after import."]);
+  instructions.getColumn(1).width = 120;
+  return Buffer.from(await workbook.xlsx.writeBuffer());
 }
 
 export async function listDirectoryUsers(input: {
@@ -320,7 +343,9 @@ export async function importDirectoryUsers(input: ImportDirectoryUsersInput) {
     throw new Error("You do not have permission to import users.");
   }
 
-  const parsedRows = await parseUserCsvFile(input.file);
+  const parsedRows = input.file.name.toLowerCase().endsWith(".xlsx")
+    ? await parseUserWorkbookFile(input.file)
+    : await parseUserCsvFile(input.file);
   const db = getDb();
   const workspace = await getStaffWorkspace();
   const organization = await db.organization.findFirst({ where: { workspaceId: workspace.id, organizationType: "ITF_INTERNAL", isActive: true }, select: { id: true } });
@@ -486,6 +511,42 @@ async function assertStaffNumberAvailableForUser(staffNumber: string | undefined
   if (existingUser && existingUser.id !== userId) {
     throw new Error(`Staff number ${staffNumber} already belongs to another user.`);
   }
+}
+
+export async function parseUserWorkbookFile(file: File) {
+  if (file.size === 0 || file.size > maxUploadBytes) {
+    throw new Error("User import workbook must be non-empty and no larger than 10 MB.");
+  }
+  const buffer = Buffer.from(await file.arrayBuffer());
+  if (buffer.subarray(0, 2).toString() !== "PK") {
+    throw new Error("User import file is not an Excel .xlsx workbook.");
+  }
+  const workbook = new ExcelJS.Workbook();
+  try {
+    await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  } catch {
+    throw new Error("User import workbook could not be opened.");
+  }
+  const sheet = workbook.getWorksheet("Users");
+  if (!sheet) throw new Error("User import workbook must contain a Users sheet.");
+  if (sheet.rowCount > 51) throw new Error("User import may contain at most 50 staff rows per batch.");
+  const cellText = (row: number, column: number) => {
+    const value = sheet.getRow(row).getCell(column).value;
+    if (value === null || value === undefined) return "";
+    if (typeof value !== "string" && typeof value !== "number") {
+      throw new Error(`Row ${row}: ${userCsvColumns[column - 1]} must be plain text, not a formula or formatted object.`);
+    }
+    return String(value).trim();
+  };
+  if (userCsvColumns.some((column, index) => normalizeCsvHeader(cellText(1, index + 1)) !== column)) {
+    throw new Error(`First row of Users sheet must be: ${userCsvColumns.join(", ")}.`);
+  }
+  const lines = [userCsvColumns.join(",")];
+  for (let row = 2; row <= sheet.rowCount; row += 1) {
+    const values = userCsvColumns.map((_, index) => cellText(row, index + 1));
+    lines.push(values.map((value) => `"${value.replaceAll('"', '""')}"`).join(","));
+  }
+  return parseUserCsvFile(new File([lines.join("\n")], "users.csv", { type: "text/csv" }));
 }
 
 async function parseUserCsvFile(file: File) {

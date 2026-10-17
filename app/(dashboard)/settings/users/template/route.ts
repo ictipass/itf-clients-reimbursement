@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { can } from "@/lib/rbac";
-import { getUserCsvTemplate } from "@/lib/user-directory";
+import { getUserWorkbookTemplate } from "@/lib/user-directory";
 
 export const dynamic = "force-dynamic";
 
@@ -17,11 +17,11 @@ export async function GET() {
     return new Response("You do not have permission to download user templates.", { status: 403 });
   }
 
-  return new Response(getUserCsvTemplate(), {
+  return new Response(new Uint8Array(await getUserWorkbookTemplate()), {
     headers: {
       "Cache-Control": "private, no-store",
-      "Content-Disposition": "attachment; filename=\"user-directory-template.csv\"",
-      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": "attachment; filename=\"user-directory-template.xlsx\"",
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "X-Content-Type-Options": "nosniff",
     },
   });
