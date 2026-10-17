@@ -48,8 +48,21 @@ export function escapeEmailHtml(value: string) {
   });
 }
 
+export function assertEmailDeliveryReady() {
+  if (getDeliveryMode() === "development_link") return;
+  if (!process.env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is required for Resend delivery.");
+  }
+  const from = process.env.EMAIL_FROM?.trim() ?? "";
+  const address = "[^\\s<>@]+@[^\\s<>@]+\\.[^\\s<>@]+";
+  if (!new RegExp(`^(?:${address}|[^<>]+ <${address}>)$`).test(from)) {
+    throw new Error("EMAIL_FROM must be an email address or Name <email@example.com>; check for extra characters.");
+  }
+}
+
 export async function sendTransactionalEmail(email: TransactionalEmail) {
   const mode = getDeliveryMode();
+  assertEmailDeliveryReady();
   const db = getDb();
   const attempt = await db.emailDeliveryAttempt.create({
     data: {
@@ -68,10 +81,7 @@ export async function sendTransactionalEmail(email: TransactionalEmail) {
   }
 
   const apiKey = process.env.RESEND_API_KEY;
-  const from = process.env.EMAIL_FROM;
-  if (!apiKey || !from) {
-    throw new Error("RESEND_API_KEY and EMAIL_FROM are required for Resend delivery.");
-  }
+  const from = process.env.EMAIL_FROM?.trim();
 
   try {
     const response = await fetch("https://api.resend.com/emails", {
