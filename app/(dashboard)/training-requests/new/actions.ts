@@ -32,7 +32,8 @@ export async function createAdHocTrainingRequestAction(formData: FormData) {
     estimatedCost: Number(required(formData, "estimatedCost")),
     deliveryMode,
     venue: String(formData.get("venue") ?? "").trim() || undefined,
-    adHocJustification: required(formData, "adHocJustification"),
+    adHocJustification: String(formData.get("adHocJustification") ?? "").trim() || undefined,
+    trainingPlanLineItemId: String(formData.get("trainingPlanLineItemId") ?? "").trim() || undefined,
   });
 
   redirect(`/training-requests/${request.id}`);

@@ -15,6 +15,7 @@ import {
   routeTrainingRequest,
   submitTrainingRequest,
   updateTrainingRequestDetails,
+  updateTrainingRequestSource,
   updateTrainingParticipant,
   uploadTrainingRequestEvidence,
   type TrainingRequestEvidenceKind,
@@ -103,6 +104,19 @@ export async function updateTrainingRequestDetailsAction(requestId: string, form
     adHocJustification: readOptionalString(formData, "adHocJustification"),
   });
 
+  revalidatePath(`/training-requests/${requestId}`);
+  redirect(`/training-requests/${requestId}`);
+}
+
+export async function updateTrainingRequestSourceAction(requestId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  await updateTrainingRequestSource({
+    requestId,
+    trainingPlanLineItemId: readOptionalString(formData, "trainingPlanLineItemId"),
+    requesterEmail: session.user.email,
+    requesterRole: session.user.role,
+  });
   revalidatePath(`/training-requests/${requestId}`);
   redirect(`/training-requests/${requestId}`);
 }

@@ -4,6 +4,7 @@ import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
+import { parseTrainingParticipantWorkbook } from "@/lib/training-participant-import";
 
 const trainingRequestEvidenceKinds = [
   "TRAINING_REPORT",
@@ -39,7 +40,8 @@ export type CreateAdHocTrainingRequestInput = {
   estimatedCost: number;
   deliveryMode: "LOCAL_PHYSICAL" | "LOCAL_ONLINE";
   venue?: string;
-  adHocJustification: string;
+  adHocJustification?: string;
+  trainingPlanLineItemId?: string;
 };
 
 export type UpdateTrainingRequestDetailsInput = {
@@ -154,13 +156,40 @@ export async function listEmployerTrainingRequestCompanies(input: {
   });
 }
 
+export async function listApprovedTrainingPlanRows(input: {
+  companyIds: string[];
+  requesterEmail: string;
+  requesterRole: Role;
+}) {
+  if (!can(input.requesterRole, "training:submit") || input.companyIds.length === 0) return [];
+  const actor = await getWorkflowActor(input.requesterEmail);
+  const allowedOrganizationIds = actor.memberships
+    .map((membership) => membership.organizationId)
+    .filter((value): value is string => Boolean(value));
+  return getDb().trainingPlanLineItem.findMany({
+    where: {
+      trainingPlanSubmission: {
+        companyId: { in: input.companyIds },
+        status: "APPROVED",
+        recordTier: "HOT",
+        ...(!isItfRole(input.requesterRole)
+          ? { company: { organizationId: { in: allowedOrganizationIds }, isActive: true } }
+          : {}),
+      },
+    },
+    select: {
+      id: true,
+      trainingTitle: true,
+      staffName: true,
+      trainingPlanSubmission: { select: { companyId: true, year: true } },
+    },
+    orderBy: [{ trainingPlanSubmission: { year: "desc" } }, { rowNumber: "asc" }],
+  });
+}
+
 export async function createAdHocTrainingRequest(input: CreateAdHocTrainingRequestInput) {
   if (!can(input.requesterRole, "training:submit")) {
     throw new Error("You do not have permission to create Training Approval Requests.");
-  }
-
-  if (!input.adHocJustification.trim()) {
-    throw new Error("Explain the impromptu gap this training will address.");
   }
 
   if (input.endsAt < input.startsAt) {
@@ -188,11 +217,27 @@ export async function createAdHocTrainingRequest(input: CreateAdHocTrainingReque
     organizationId: company.organizationId,
   });
 
+  if (input.trainingPlanLineItemId) {
+    const source = await db.trainingPlanLineItem.findFirst({
+      where: {
+        id: input.trainingPlanLineItemId,
+        trainingPlanSubmission: {
+          companyId: company.id,
+          status: "APPROVED",
+          recordTier: "HOT",
+        },
+      },
+      select: { id: true },
+    });
+    if (!source) throw new Error("Selected Training Plan row is not approved for this company.");
+  }
+
   return db.trainingRequest.create({
     data: {
       companyId: company.id,
-      isAdHoc: true,
-      adHocJustification: input.adHocJustification.trim(),
+      trainingPlanLineItemId: input.trainingPlanLineItemId || null,
+      isAdHoc: !input.trainingPlanLineItemId,
+      adHocJustification: input.adHocJustification?.trim() || null,
       title: input.title.trim(),
       provider: input.provider.trim(),
       venue: input.deliveryMode === "LOCAL_PHYSICAL" ? input.venue : null,
@@ -223,10 +268,6 @@ export async function updateTrainingRequestDetails(input: UpdateTrainingRequestD
 
   if (input.deliveryMode === "LOCAL_ONLINE" && !input.onlineUrl?.trim()) {
     throw new Error("Online training URL is required.");
-  }
-
-  if (request.isAdHoc && !input.adHocJustification?.trim()) {
-    throw new Error("Ad-hoc training justification is required.");
   }
 
   return getDb().trainingRequest.update({
@@ -355,6 +396,43 @@ export async function createTrainingRequestFromLineItem(
   });
 }
 
+export async function updateTrainingRequestSource(input: {
+  requestId: string;
+  trainingPlanLineItemId?: string;
+  requesterEmail: string;
+  requesterRole: Role;
+}) {
+  const request = await findEditableTrainingRequestForEmployer(input);
+  const actor = await getWorkflowActor(input.requesterEmail);
+  assertTrainingRequestOrganizationAccess({
+    requesterRole: input.requesterRole,
+    memberships: actor.memberships,
+    organizationId: request.company.organizationId,
+  });
+  if (input.trainingPlanLineItemId) {
+    const source = await getDb().trainingPlanLineItem.findFirst({
+      where: {
+        id: input.trainingPlanLineItemId,
+        trainingPlanSubmission: {
+          companyId: request.company.id,
+          status: "APPROVED",
+          recordTier: "HOT",
+        },
+      },
+      select: { id: true },
+    });
+    if (!source) throw new Error("Selected Training Plan row is not approved for this company.");
+  }
+  return getDb().trainingRequest.update({
+    where: { id: request.id },
+    data: {
+      trainingPlanLineItemId: input.trainingPlanLineItemId || null,
+      isAdHoc: !input.trainingPlanLineItemId,
+    },
+    select: { id: true },
+  });
+}
+
 export async function submitTrainingRequest(input: SubmitTrainingRequestInput) {
   if (!can(input.requesterRole, "training:submit")) {
     throw new Error("You do not have permission to submit Training Approval Requests.");
@@ -390,6 +468,7 @@ export async function submitTrainingRequest(input: SubmitTrainingRequestInput) {
       },
       company: {
         select: {
+          id: true,
           organizationId: true,
           areaOfficeId: true,
           legalName: true,
@@ -464,7 +543,7 @@ export async function submitTrainingRequest(input: SubmitTrainingRequestInput) {
   });
 }
 
-function getTrainingRequestMissingRequirements(request: {
+export function getTrainingRequestMissingRequirements(request: {
   title: string | null;
   provider: string | null;
   startsAt: Date | null;
@@ -495,10 +574,6 @@ function getTrainingRequestMissingRequirements(request: {
 
   if (!request.estimatedCost || Number(request.estimatedCost.toString()) <= 0) {
     missing.push("estimated cost");
-  }
-
-  if (request.isAdHoc && !request.adHocJustification) {
-    missing.push("ad-hoc training justification");
   }
 
   if (request.deliveryMode === "LOCAL_ONLINE" && !request.onlineUrl) {
@@ -830,6 +905,26 @@ export async function addTrainingParticipant(input: TrainingParticipantInput) {
   });
 }
 
+export async function importTrainingParticipants(input: {
+  requestId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  file: File;
+}) {
+  const request = await findEditableTrainingRequestForEmployer(input);
+  const actor = await getWorkflowActor(input.requesterEmail);
+  assertTrainingRequestOrganizationAccess({
+    requesterRole: input.requesterRole,
+    memberships: actor.memberships,
+    organizationId: request.company.organizationId,
+  });
+  const rows = await parseTrainingParticipantWorkbook(input.file, trainingAreas);
+  await getDb().trainingParticipant.createMany({
+    data: rows.map((row) => ({ trainingRequestId: request.id, ...row })),
+  });
+  return rows.length;
+}
+
 export async function updateTrainingParticipant(input: TrainingParticipantInput) {
   if (!input.participantId) {
     throw new Error("Training participant is required.");
@@ -933,6 +1028,7 @@ async function findEditableTrainingRequestForEmployer(input: {
       adHocJustification: true,
       company: {
         select: {
+          id: true,
           organizationId: true,
         },
       },

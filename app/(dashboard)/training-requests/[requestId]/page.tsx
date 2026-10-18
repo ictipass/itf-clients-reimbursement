@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
+import { HostedFileInput } from "@/components/hosted-file-input";
 
 import {
   addTrainingParticipantAction,
@@ -8,12 +9,13 @@ import {
   routeTrainingRequestAction,
   submitTrainingRequestAction,
   updateTrainingRequestDetailsAction,
+  updateTrainingRequestSourceAction,
   updateTrainingParticipantAction,
 } from "@/app/(dashboard)/training-requests/[requestId]/actions";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { type Role } from "@/lib/rbac";
-import { getTrainingAreas } from "@/lib/training-request";
+import { getTrainingAreas, listApprovedTrainingPlanRows } from "@/lib/training-request";
 
 const transitionLabels = {
   am_to_hot: "Forward to HOT",
@@ -165,10 +167,6 @@ function getMissingRequirements(request: {
     missing.push("estimated cost");
   }
 
-  if (request.isAdHoc && !request.adHocJustification) {
-    missing.push("ad-hoc training justification");
-  }
-
   if (request.deliveryMode === "LOCAL_ONLINE" && !request.onlineUrl) {
     missing.push("online training URL");
   }
@@ -192,11 +190,15 @@ export default async function TrainingRequestDetailPage({
   searchParams: Promise<{
     participantPage?: string | string[];
     participantQ?: string | string[];
+    message?: string | string[];
+    error?: string | string[];
   }>;
 }>) {
   const { requestId } = await params;
   const query = await searchParams;
   const participantSearch = readFilter(query.participantQ);
+  const importMessage = readFilter(query.message);
+  const importError = readFilter(query.error);
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
   const adminOverride = isAdminRole(activeRole);
@@ -243,6 +245,7 @@ export default async function TrainingRequestDetailPage({
       },
       trainingPlanLineItem: {
         select: {
+          id: true,
           staffName: true,
           department: true,
           gapIdentified: true,
@@ -376,6 +379,13 @@ export default async function TrainingRequestDetailPage({
     request.currentDesk === "COMPANY" &&
     (request.status === "DRAFT" || request.status === "CHANGES_REQUESTED") &&
     (isEmployerRole(activeRole) || adminOverride);
+  const approvedPlanRows = canSubmit && session?.user?.email
+    ? await listApprovedTrainingPlanRows({
+        companyIds: [request.company.id],
+        requesterEmail: session.user.email,
+        requesterRole: activeRole,
+      })
+    : [];
   const missingRequirements = getMissingRequirements(request);
   const availableTransitions = getAvailableTransitions(
     request.currentDesk,
@@ -485,10 +495,10 @@ export default async function TrainingRequestDetailPage({
                   <dd className="mt-1 font-medium text-zinc-900">{value}</dd>
                 </div>
               ))}
-              {request.isAdHoc ? (
+              {request.adHocJustification ? (
                 <div className="rounded-md bg-amber-50 px-3 py-2 md:col-span-2">
                   <dt className="text-xs font-semibold uppercase tracking-[0.14em] text-amber-700">
-                    Unplanned training justification
+                    Additional context
                   </dt>
                   <dd className="mt-1 font-medium text-amber-950">
                     {request.adHocJustification ?? "Not provided"}
@@ -536,7 +546,7 @@ export default async function TrainingRequestDetailPage({
                   <textarea name="description" defaultValue={request.description ?? ""} placeholder="Description" rows={3} className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2" />
                   <textarea name="expectedOutcome" defaultValue={request.expectedOutcome ?? ""} placeholder="Expected outcome" rows={3} className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2" />
                   {request.isAdHoc ? (
-                    <textarea name="adHocJustification" defaultValue={request.adHocJustification ?? ""} required placeholder="Impromptu gap / justification" rows={3} className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2" />
+                    <textarea name="adHocJustification" defaultValue={request.adHocJustification ?? ""} placeholder="Additional context (optional)" rows={3} className="rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2" />
                   ) : null}
                   <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">
                     Save details
@@ -548,6 +558,8 @@ export default async function TrainingRequestDetailPage({
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2 lg:row-start-3">
             <h2 className="text-xl font-semibold tracking-tight">Participants</h2>
+            {importMessage ? <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{importMessage}</p> : null}
+            {importError ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">{importError}</p> : null}
             <form className="mt-4 flex flex-col gap-3 rounded-md bg-zinc-50 p-3 sm:flex-row sm:items-end">
               <label className="grid flex-1 gap-1 text-xs font-medium text-zinc-700">
                 Search participants
@@ -748,6 +760,21 @@ export default async function TrainingRequestDetailPage({
             )}
 
             {canSubmit ? (
+              <div className="mt-5 rounded-md border border-zinc-200 bg-zinc-50 p-4">
+                <h3 className="font-semibold">Bulk upload participants</h3>
+                <p className="mt-1 text-xs text-zinc-600">Download the Excel template, fill its Participants sheet, then upload it. Rows are added to existing participants.</p>
+                <Link href="/training-requests/participants/template" className="mt-3 inline-flex min-h-9 items-center rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800">Download Excel template</Link>
+                <form action={`/training-requests/${request.id}/participants/import`} method="post" encType="multipart/form-data" className="mt-3 grid gap-3">
+                  <label className="grid gap-2 text-sm font-medium">
+                    Participant workbook
+                    <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)} name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2" />
+                  </label>
+                  <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Import participants</button>
+                </form>
+              </div>
+            ) : null}
+
+            {canSubmit ? (
               <form
                 action={addTrainingParticipantAction.bind(null, request.id)}
                 className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 md:grid-cols-2"
@@ -855,9 +882,21 @@ export default async function TrainingRequestDetailPage({
               </div>
             ) : (
               <p className="mt-3 text-sm leading-6 text-zinc-600">
-                This request is not linked to a structured Training Plan row.
+                This request is not linked to an approved Training Plan row. Form 4A approval is still required.
               </p>
             )}
+            {canSubmit ? (
+              <form action={updateTrainingRequestSourceAction.bind(null, request.id)} className="mt-4 grid gap-2 border-t border-zinc-100 pt-4 text-sm">
+                <label htmlFor="trainingPlanLineItemId" className="font-medium">Link to approved plan row (optional)</label>
+                <select id="trainingPlanLineItemId" name="trainingPlanLineItemId" defaultValue={request.trainingPlanLineItem?.id ?? ""} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3">
+                  <option value="">Not linked to a plan row</option>
+                  {approvedPlanRows.map((row) => (
+                    <option key={row.id} value={row.id}>{row.trainingPlanSubmission.year} · {row.trainingTitle} · {row.staffName}</option>
+                  ))}
+                </select>
+                <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 font-semibold text-white">Save source</button>
+              </form>
+            ) : null}
           </div>
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-2 lg:row-start-2">

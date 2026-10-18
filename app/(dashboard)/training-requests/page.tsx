@@ -79,14 +79,14 @@ export default async function TrainingRequestsPage() {
             Training Approval Requests
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
-            Foundation list for Form 4A training approval requests linked to approved annual
-            Training Plan rows.
+            Submit Form 4A approval requests for each training, whether or not it appears in an
+            approved annual Training Plan.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           {canCreate ? (
             <Link href="/training-requests/new" className="rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">
-              Request unplanned training
+              Request Approval for Training
             </Link>
           ) : null}
           <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
@@ -128,7 +128,7 @@ export default async function TrainingRequestsPage() {
                       <p>{request.title}</p>
                       {request.isAdHoc ? (
                         <span className="mt-1 inline-flex rounded-full bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-800">
-                          Unplanned / ad-hoc
+                          Not linked to plan
                         </span>
                       ) : null}
                       {request.trainingPlanLineItem ? (
