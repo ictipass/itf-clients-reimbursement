@@ -138,7 +138,7 @@ export async function routeTrainingRequestAction(requestId: string, formData: Fo
 
   revalidatePath(`/training-requests`);
   revalidatePath(`/training-requests/${requestId}`);
-  redirect(`/training-requests/${requestId}`);
+  redirect(`/training-requests?routed=1`);
 }
 
 function readEvidenceKind(formData: FormData): TrainingRequestEvidenceKind {

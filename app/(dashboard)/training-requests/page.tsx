@@ -29,7 +29,10 @@ function formatMoney(value: { toString(): string } | null) {
   })}`;
 }
 
-export default async function TrainingRequestsPage() {
+export default async function TrainingRequestsPage({
+  searchParams,
+}: Readonly<{ searchParams: Promise<{ routed?: string }> }>) {
+  const { routed } = await searchParams;
   const session = await getServerSession(authOptions);
   const canCreate = Boolean(session?.user?.email && session.user.role && can(session.user.role, "training:submit"));
   const memberships = session?.user?.email
@@ -100,7 +103,7 @@ export default async function TrainingRequestsPage() {
         <div className="flex flex-wrap gap-2">
           {canCreate ? (
             <Link href="/training-requests/new" className="rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">
-              Request Approval for Training
+              Request Unplanned Training
             </Link>
           ) : null}
           <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
@@ -108,6 +111,12 @@ export default async function TrainingRequestsPage() {
           </span>
         </div>
       </div>
+
+      {routed === "1" ? (
+        <p role="status" className="mt-6 rounded-md border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-900">
+          Request forwarded successfully. It is now available to the next workflow desk.
+        </p>
+      ) : null}
 
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white">
         {requests.length === 0 ? (

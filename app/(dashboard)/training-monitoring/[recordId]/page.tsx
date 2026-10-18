@@ -315,7 +315,8 @@ export default async function TrainingMonitoringDetailPage({
         </div>
       </section>
 
-      <section className="mt-8 grid gap-4 md:grid-cols-3">
+      <div className="flex flex-col">
+      <section className="order-1 mt-8 grid gap-4 md:grid-cols-3">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
             Current desk
@@ -342,10 +343,29 @@ export default async function TrainingMonitoringDetailPage({
         </div>
       </section>
 
+      <section className="order-2 mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <h2 className="text-xl font-semibold tracking-tight">Decision trail</h2>
+        {record.decisions.length === 0 ? (
+          <p className="mt-3 text-sm leading-6 text-zinc-600">No monitoring decision recorded yet.</p>
+        ) : (
+          <div className="mt-4 grid gap-2">
+            {record.decisions.map((decision) => (
+              <div key={decision.id} className="rounded-md bg-zinc-50 px-3 py-2 text-xs">
+                <p className="font-semibold text-zinc-900">{decision.action.replaceAll("_", " ")}</p>
+                <p className="mt-1 leading-5 text-zinc-600">
+                  {decision.actor.name} · {formatDate(decision.createdAt)}
+                  {decision.reason ? ` · ${decision.reason}` : ""}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+      </section>
+
       {canRouteMonitoring ? (
         <form
           action={routeTrainingMonitoringRecordAction.bind(null, record.id)}
-          className="mt-8 rounded-lg border border-zinc-200 bg-white p-5"
+          className="order-4 mt-8 rounded-lg border border-zinc-200 bg-white p-5"
         >
           <h2 className="text-xl font-semibold tracking-tight">Monitoring workflow</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-600">
@@ -376,7 +396,7 @@ export default async function TrainingMonitoringDetailPage({
       ) : null}
 
       {canEditMonitoring ? (
-        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <section className="order-5 mt-8 rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="text-xl font-semibold tracking-tight">Edit monitoring details</h2>
           <form
             action={updateTrainingMonitoringRecordAction.bind(null, record.id)}
@@ -474,7 +494,7 @@ export default async function TrainingMonitoringDetailPage({
         </section>
       ) : null}
 
-      <section className="mt-8 grid gap-6 lg:grid-cols-2">
+      <section className="order-3 mt-8 grid gap-6 lg:grid-cols-2">
         <div className="rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="text-xl font-semibold tracking-tight">Monitoring evidence</h2>
           {record.documents.length === 0 ? (
@@ -612,34 +632,13 @@ export default async function TrainingMonitoringDetailPage({
         </div>
       </section>
 
-      <section className="mt-8 grid gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-xl font-semibold tracking-tight">Employer feedback</h2>
-          <p className="mt-3 text-sm leading-6 text-zinc-600">
-            {record.decisionReason ?? "No final monitoring reason has been recorded yet."}
-          </p>
-        </div>
-        <div className="rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-xl font-semibold tracking-tight">Decision trail</h2>
-          {record.decisions.length === 0 ? (
-            <p className="mt-3 text-sm leading-6 text-zinc-600">No monitoring decision recorded yet.</p>
-          ) : (
-            <div className="mt-4 grid gap-2">
-              {record.decisions.map((decision) => (
-                <div key={decision.id} className="rounded-md bg-zinc-50 px-3 py-2 text-xs">
-                  <p className="font-semibold text-zinc-900">
-                    {decision.action.replaceAll("_", " ")}
-                  </p>
-                  <p className="mt-1 leading-5 text-zinc-600">
-                    {decision.actor.name} · {formatDate(decision.createdAt)}
-                    {decision.reason ? ` · ${decision.reason}` : ""}
-                  </p>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
+      <section className="order-6 mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <h2 className="text-xl font-semibold tracking-tight">Employer feedback</h2>
+        <p className="mt-3 text-sm leading-6 text-zinc-600">
+          {record.decisionReason ?? "No final monitoring reason has been recorded yet."}
+        </p>
       </section>
+      </div>
     </div>
   );
 }
