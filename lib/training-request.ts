@@ -302,8 +302,11 @@ export async function updateTrainingRequestDetails(input: UpdateTrainingRequestD
 export async function createTrainingRequestFromLineItem(
   input: CreateTrainingRequestFromLineItemInput,
 ) {
-  if (!can(input.requesterRole, "training:submit")) {
-    throw new Error("You do not have permission to create Training Approval Requests.");
+  if (
+    input.requesterRole !== "EMPLOYER_ADMIN" &&
+    input.requesterRole !== "EMPLOYER_SUBMITTER"
+  ) {
+    throw new Error("Only employers can create Form 4A requests from Training Plan rows.");
   }
 
   const db = getDb();
@@ -364,7 +367,6 @@ export async function createTrainingRequestFromLineItem(
   }
 
   const hasOrganizationAccess =
-    isItfRole(input.requesterRole) ||
     requester.memberships.some(
       (membership) =>
         membership.organizationId === lineItem.trainingPlanSubmission.company.organizationId,

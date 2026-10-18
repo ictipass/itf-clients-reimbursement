@@ -146,6 +146,7 @@ export default async function TrainingPlanDetailPage({
   if (!session?.user?.email) throw new Error("Authentication is required.");
   const activeRole = session.user.role;
   const adminOverride = isAdminRole(activeRole);
+  const canCreateForm4A = isEmployerRole(activeRole);
   const activeOrganization = isItfRole(activeRole)
     ? null
     : (await getActiveEmployerOrganization(session.user.email)).active;
@@ -428,7 +429,7 @@ export default async function TrainingPlanDetailPage({
                       <th className="px-3 py-2">Trainer</th>
                       <th className="px-3 py-2">Cost</th>
                       <th className="px-3 py-2">Date</th>
-                      {submission.status === "APPROVED" ? (
+                      {submission.status === "APPROVED" && canCreateForm4A ? (
                         <th className="px-3 py-2">Action</th>
                       ) : null}
                     </tr>
@@ -452,7 +453,7 @@ export default async function TrainingPlanDetailPage({
                           NGN {Number(item.estimatedCost.toString()).toLocaleString("en-NG")}
                         </td>
                         <td className="px-3 py-3">{formatDate(item.plannedDate)}</td>
-                        {submission.status === "APPROVED" ? (
+                        {submission.status === "APPROVED" && canCreateForm4A ? (
                           <td className="px-3 py-3">
                             <form action={createTrainingRequestFromLineItemAction.bind(null, submission.id, item.id)}>
                               <CreateForm4AButton />
