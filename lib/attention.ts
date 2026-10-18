@@ -247,8 +247,16 @@ export function getModuleForWorkItem(kind: string, targetHref: string) {
     return "compliance";
   }
 
-  if (kind.startsWith("TRAINING") || targetHref.startsWith("/training")) {
-    return "training";
+  if (kind === "TRAINING_PLAN_REVIEW" || targetHref.startsWith("/training-plans")) {
+    return "training-plans";
+  }
+
+  if (kind === "TRAINING_REQUEST_REVIEW" || targetHref.startsWith("/training-requests")) {
+    return "training-requests";
+  }
+
+  if (kind === "TRAINING_MONITORING_REVIEW" || targetHref.startsWith("/training-monitoring")) {
+    return "training-monitoring";
   }
 
   if (targetHref.startsWith("/claims")) {

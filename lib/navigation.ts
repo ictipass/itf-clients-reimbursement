@@ -67,19 +67,19 @@ export const navGroups: NavGroup[] = [
       {
         href: "/training-plans",
         label: "Training Plans",
-        module: "training",
+        module: "training-plans",
         isVisible: canUseTrainingPlans,
       },
       {
         href: "/training-requests",
         label: "Training Requests",
-        module: "training",
+        module: "training-requests",
         isVisible: canUseTrainingPlans,
       },
       {
         href: "/training-monitoring",
         label: "Monitoring",
-        module: "training",
+        module: "training-monitoring",
         isVisible: canUseTrainingPlans,
       },
     ],

@@ -5,6 +5,9 @@ import { notFound } from "next/navigation";
 import { uploadTrainingRequestEvidenceAction } from "@/app/(dashboard)/training-requests/[requestId]/actions";
 import { getDb } from "@/lib/db";
 import { getTrainingRequestEvidenceKinds } from "@/lib/training-request";
+import { getVisibleTrainingRequestWhere } from "@/lib/training-request-access";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 
 export default async function NewTrainingRequestEvidencePage({
   params,
@@ -12,10 +15,15 @@ export default async function NewTrainingRequestEvidencePage({
   params: Promise<{ requestId: string }>;
 }>) {
   const { requestId } = await params;
+  const session = await getServerSession(authOptions);
+  const visibleWhere = await getVisibleTrainingRequestWhere({
+    email: session?.user?.email,
+    role: session?.user?.role ?? "SYSTEM_ADMIN",
+  });
   const request = await getDb().trainingRequest.findFirst({
     where: {
+      ...visibleWhere,
       id: requestId,
-      recordTier: "HOT",
     },
     select: {
       id: true,

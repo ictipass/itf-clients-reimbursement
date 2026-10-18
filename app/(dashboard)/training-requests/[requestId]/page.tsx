@@ -16,6 +16,7 @@ import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { type Role } from "@/lib/rbac";
 import { getTrainingAreas, listApprovedTrainingPlanRows } from "@/lib/training-request";
+import { getVisibleTrainingRequestWhere } from "@/lib/training-request-access";
 
 const transitionLabels = {
   am_to_hot: "Forward to HOT",
@@ -202,10 +203,14 @@ export default async function TrainingRequestDetailPage({
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
   const adminOverride = isAdminRole(activeRole);
+  const visibleWhere = await getVisibleTrainingRequestWhere({
+    email: session?.user?.email,
+    role: activeRole,
+  });
   const request = await getDb().trainingRequest.findFirst({
     where: {
+      ...visibleWhere,
       id: requestId,
-      recordTier: "HOT",
     },
     select: {
       id: true,

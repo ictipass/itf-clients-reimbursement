@@ -290,16 +290,15 @@ export default async function TrainingPlanListPage({
                     <td className="px-4 py-4">{formatDate(submission.dueDate)}</td>
                     <td className="px-4 py-4">
                       <Link
-                        href={`/registry/${submission.company.id}`}
-                        className="mr-2 inline-flex min-h-8 items-center rounded-md border border-zinc-200 px-2 text-xs font-semibold text-zinc-800"
-                      >
-                        Open company
-                      </Link>
-                      <Link
                         href={`/training-plans/${submission.id}`}
-                        className="inline-flex min-h-8 items-center rounded-md bg-[#800020] px-3 text-xs font-semibold text-white"
+                        aria-label={`View training plan for ${submission.company.legalName}, ${submission.year}`}
+                        title="View details"
+                        className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-zinc-200 text-zinc-800 hover:bg-zinc-50"
                       >
-                        View Details
+                        <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6Z" />
+                          <circle cx="12" cy="12" r="2.5" />
+                        </svg>
                       </Link>
                     </td>
                   </tr>

@@ -6,6 +6,7 @@ import { getDb } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import { archiveDraftTrainingRequestAction } from "@/app/(dashboard)/training-requests/actions";
 import { RemoveDraftButton } from "@/app/(dashboard)/training-requests/remove-draft-button";
+import { getVisibleTrainingRequestWhere } from "@/lib/training-request-access";
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -38,10 +39,12 @@ export default async function TrainingRequestsPage() {
       })
     : null;
   const organizationIds = new Set(memberships?.memberships.map((membership) => membership.organizationId));
+  const visibleWhere = await getVisibleTrainingRequestWhere({
+    email: session?.user?.email,
+    role: session?.user?.role ?? "SYSTEM_ADMIN",
+  });
   const requests = await getDb().trainingRequest.findMany({
-    where: {
-      recordTier: "HOT",
-    },
+    where: visibleWhere,
     select: {
       id: true,
       title: true,
