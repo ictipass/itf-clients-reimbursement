@@ -557,7 +557,32 @@ export default async function TrainingRequestDetailPage({
           </div>
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2 lg:row-start-3">
-            <h2 className="text-xl font-semibold tracking-tight">Participants</h2>
+            <h2 className="text-xl font-semibold tracking-tight">Decision trail</h2>
+            {request.decisions.length === 0 ? (
+              <p className="mt-3 text-sm leading-6 text-zinc-600">No decision recorded yet.</p>
+            ) : (
+              <div className="mt-4 grid gap-2">
+                {request.decisions.map((decision) => (
+                  <div key={decision.id} className="rounded-md bg-zinc-50 px-3 py-2 text-xs">
+                    <p className="font-semibold text-zinc-900">
+                      {decision.action.replaceAll("_", " ")}
+                    </p>
+                    <p className="mt-1 leading-5 text-zinc-600">
+                      {decision.actor.name} · {formatDate(decision.createdAt)}
+                      {decision.reason ? ` · ${decision.reason}` : ""}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <details className="group rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2 lg:row-start-4" open>
+            <summary className="flex cursor-pointer items-center justify-between gap-3 text-xl font-semibold tracking-tight marker:hidden">
+              <span>Participants ({request.participants.length})</span>
+              <span className="text-xs font-semibold text-[#800020] group-open:hidden">Expand</span>
+              <span className="hidden text-xs font-semibold text-[#800020] group-open:inline">Collapse</span>
+            </summary>
             {importMessage ? <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">{importMessage}</p> : null}
             {importError ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">{importError}</p> : null}
             <form className="mt-4 flex flex-col gap-3 rounded-md bg-zinc-50 p-3 sm:flex-row sm:items-end">
@@ -833,7 +858,7 @@ export default async function TrainingRequestDetailPage({
                 </div>
               </form>
             ) : null}
-          </div>
+          </details>
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-1 lg:row-span-2 lg:row-start-5">
             <h2 className="text-xl font-semibold tracking-tight">Evidence</h2>
@@ -1034,26 +1059,6 @@ export default async function TrainingRequestDetailPage({
             </form>
           ) : null}
 
-          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
-            <h2 className="text-xl font-semibold tracking-tight">Decision trail</h2>
-            {request.decisions.length === 0 ? (
-              <p className="mt-3 text-sm leading-6 text-zinc-600">No decision recorded yet.</p>
-            ) : (
-              <div className="mt-4 grid gap-2">
-                {request.decisions.map((decision) => (
-                  <div key={decision.id} className="rounded-md bg-zinc-50 px-3 py-2 text-xs">
-                    <p className="font-semibold text-zinc-900">
-                      {decision.action.replaceAll("_", " ")}
-                    </p>
-                    <p className="mt-1 leading-5 text-zinc-600">
-                      {decision.actor.name} · {formatDate(decision.createdAt)}
-                      {decision.reason ? ` · ${decision.reason}` : ""}
-                    </p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
       </section>
     </div>
   );

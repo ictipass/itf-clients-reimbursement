@@ -374,6 +374,16 @@ export async function createTrainingRequestFromLineItem(
     throw new Error("You do not have access to create this Training Approval Request.");
   }
 
+  const existingRequest = await db.trainingRequest.findFirst({
+    where: { trainingPlanLineItemId: lineItem.id, recordTier: "HOT" },
+    select: { id: true, companyId: true },
+    orderBy: { createdAt: "asc" },
+  });
+
+  if (existingRequest) {
+    return existingRequest;
+  }
+
   const startsAt = lineItem.plannedDate ?? new Date();
 
   return db.trainingRequest.create({
@@ -394,6 +404,63 @@ export async function createTrainingRequestFromLineItem(
       companyId: true,
     },
   });
+}
+
+export async function archiveDraftTrainingRequest(input: {
+  requestId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+}) {
+  if (!can(input.requesterRole, "training:submit")) {
+    throw new Error("You do not have permission to remove Training Approval Requests.");
+  }
+
+  const db = getDb();
+  const request = await db.trainingRequest.findFirst({
+    where: {
+      id: input.requestId,
+      recordTier: "HOT",
+      status: "DRAFT",
+      currentDesk: "COMPANY",
+      submittedAt: null,
+      company: { recordTier: "HOT", isActive: true },
+    },
+    select: { company: { select: { organizationId: true } } },
+  });
+
+  if (!request) {
+    throw new Error("Only unsubmitted draft Training Approval Requests can be removed.");
+  }
+
+  const requester = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { memberships: { where: { isActive: true }, select: { organizationId: true } } },
+  });
+
+  if (!requester) {
+    throw new Error("User account was not found.");
+  }
+
+  assertTrainingRequestOrganizationAccess({
+    requesterRole: input.requesterRole,
+    memberships: requester.memberships,
+    organizationId: request.company.organizationId,
+  });
+
+  const result = await db.trainingRequest.updateMany({
+    where: {
+      id: input.requestId,
+      recordTier: "HOT",
+      status: "DRAFT",
+      currentDesk: "COMPANY",
+      submittedAt: null,
+    },
+    data: { recordTier: "COLD" },
+  });
+
+  if (result.count !== 1) {
+    throw new Error("This Training Approval Request is no longer an unsubmitted draft.");
+  }
 }
 
 export async function updateTrainingRequestSource(input: {

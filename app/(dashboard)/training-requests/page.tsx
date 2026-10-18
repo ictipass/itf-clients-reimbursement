@@ -4,6 +4,8 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { can } from "@/lib/rbac";
+import { archiveDraftTrainingRequestAction } from "@/app/(dashboard)/training-requests/actions";
+import { RemoveDraftButton } from "@/app/(dashboard)/training-requests/remove-draft-button";
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -28,7 +30,14 @@ function formatMoney(value: { toString(): string } | null) {
 
 export default async function TrainingRequestsPage() {
   const session = await getServerSession(authOptions);
-  const canCreate = can(session?.user?.role ?? "SYSTEM_ADMIN", "training:submit");
+  const canCreate = Boolean(session?.user?.email && session.user.role && can(session.user.role, "training:submit"));
+  const memberships = session?.user?.email
+    ? await getDb().user.findUnique({
+        where: { email: session.user.email },
+        select: { memberships: { where: { isActive: true }, select: { organizationId: true } } },
+      })
+    : null;
+  const organizationIds = new Set(memberships?.memberships.map((membership) => membership.organizationId));
   const requests = await getDb().trainingRequest.findMany({
     where: {
       recordTier: "HOT",
@@ -42,11 +51,13 @@ export default async function TrainingRequestsPage() {
       estimatedCost: true,
       status: true,
       currentDesk: true,
+      submittedAt: true,
       isAdHoc: true,
       company: {
         select: {
           id: true,
           legalName: true,
+          organizationId: true,
           areaOffice: {
             select: {
               name: true,
@@ -145,18 +156,24 @@ export default async function TrainingRequestsPage() {
                     <td className="px-4 py-4">{request.currentDesk.replaceAll("_", " ")}</td>
                     <td className="px-4 py-4">{request.status.replaceAll("_", " ")}</td>
                     <td className="px-4 py-4">
-                      <Link
-                        href={`/training-requests/${request.id}`}
-                        className="mr-2 inline-flex min-h-8 items-center rounded-md border border-zinc-200 px-2 text-xs font-semibold text-zinc-800"
-                      >
-                        View detail
-                      </Link>
-                      <Link
-                        href={`/registry/${request.company.id}`}
-                        className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 px-2 text-xs font-semibold text-zinc-800"
-                      >
-                        Open company
-                      </Link>
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/training-requests/${request.id}`}
+                          aria-label={`View Form 4A: ${request.title}`}
+                          title="View Form 4A"
+                          className="inline-flex min-h-9 min-w-9 items-center justify-center rounded-md border border-zinc-200 text-zinc-800 hover:bg-zinc-50"
+                        >
+                          <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M2.5 12s3.5-6 9.5-6 9.5 6 9.5 6-3.5 6-9.5 6-9.5-6Z" />
+                            <circle cx="12" cy="12" r="2.5" />
+                          </svg>
+                        </Link>
+                        {canCreate && organizationIds.has(request.company.organizationId) && request.status === "DRAFT" && request.currentDesk === "COMPANY" && !request.submittedAt ? (
+                          <form action={archiveDraftTrainingRequestAction.bind(null, request.id)}>
+                            <RemoveDraftButton title={request.title} />
+                          </form>
+                        ) : null}
+                      </div>
                     </td>
                   </tr>
                 ))}

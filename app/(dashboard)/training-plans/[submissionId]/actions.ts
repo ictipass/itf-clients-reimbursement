@@ -47,7 +47,7 @@ export async function createTrainingRequestFromLineItemAction(submissionId: stri
     throw new Error("Authentication is required.");
   }
 
-  await createTrainingRequestFromLineItem({
+  const request = await createTrainingRequestFromLineItem({
     lineItemId,
     requesterEmail: session.user.email,
     requesterRole: session.user.role,
@@ -55,5 +55,5 @@ export async function createTrainingRequestFromLineItemAction(submissionId: stri
 
   revalidatePath(`/training-requests`);
   revalidatePath(`/training-plans/${submissionId}`);
-  redirect(`/training-plans/${submissionId}`);
+  redirect(`/training-requests/${request.id}`);
 }

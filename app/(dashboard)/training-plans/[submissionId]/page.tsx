@@ -9,6 +9,7 @@ import {
 import {
   createTrainingRequestFromLineItemAction,
 } from "@/app/(dashboard)/training-plans/[submissionId]/actions";
+import { CreateForm4AButton } from "@/app/(dashboard)/training-plans/[submissionId]/create-form-4a-button";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getActiveEmployerOrganization } from "@/lib/organization-context";
@@ -454,9 +455,7 @@ export default async function TrainingPlanDetailPage({
                         {submission.status === "APPROVED" ? (
                           <td className="px-3 py-3">
                             <form action={createTrainingRequestFromLineItemAction.bind(null, submission.id, item.id)}>
-                              <button className="min-h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800">
-                                Create Form 4A
-                              </button>
+                              <CreateForm4AButton />
                             </form>
                           </td>
                         ) : null}
