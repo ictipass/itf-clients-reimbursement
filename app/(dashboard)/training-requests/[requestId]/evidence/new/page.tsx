@@ -65,7 +65,7 @@ export default async function NewTrainingRequestEvidencePage({
           >
             {getTrainingRequestEvidenceKinds().map((kind) => (
               <option key={kind} value={kind}>
-                {kind.replaceAll("_", " ")}
+                {kind === "TRAINING_SYNOPSIS" ? "Training Synopsis" : kind.replaceAll("_", " ")}
               </option>
             ))}
           </select>

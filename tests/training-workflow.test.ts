@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { getTrainingMonitoringTransitions } from "../lib/training-monitoring";
-import { getTrainingRequestTransitions } from "../lib/training-request";
+import { getTrainingRequestEvidenceKinds, getTrainingRequestTransitions } from "../lib/training-request";
+
+test("Form 4A evidence accepts a training synopsis", () => {
+  assert.equal(getTrainingRequestEvidenceKinds().includes("TRAINING_SYNOPSIS"), true);
+});
 
 test("Form 4A decisions and feedback follow the required Area Office route", () => {
   const transitions = getTrainingRequestTransitions();

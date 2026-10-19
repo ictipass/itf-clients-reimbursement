@@ -7,6 +7,7 @@ import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 import { parseTrainingParticipantWorkbook } from "@/lib/training-participant-import";
 
 const trainingRequestEvidenceKinds = [
+  "TRAINING_SYNOPSIS",
   "TRAINING_REPORT",
   "PAYMENT_RECEIPT",
   "OTHER_SUPPORTING_EVIDENCE",
