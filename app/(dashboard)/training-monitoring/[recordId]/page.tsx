@@ -169,7 +169,7 @@ export default async function TrainingMonitoringDetailPage({
           title: true,
           provider: true,
           venue: true,
-          participantCount: true,
+          _count: { select: { participants: true } },
           company: {
             select: {
               id: true,
@@ -279,7 +279,7 @@ export default async function TrainingMonitoringDetailPage({
             </p>
             <p>
               <span className="font-semibold text-zinc-900">Participants:</span>{" "}
-              {record.trainingRequest.participantCount ?? "Not provided"}
+              {record.trainingRequest._count.participants}
             </p>
             <p>
               <span className="font-semibold text-zinc-900">ITF number:</span>{" "}

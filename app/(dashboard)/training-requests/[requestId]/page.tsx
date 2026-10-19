@@ -231,7 +231,6 @@ export default async function TrainingRequestDetailPage({
       onlineInstructions: true,
       startsAt: true,
       endsAt: true,
-      participantCount: true,
       estimatedCost: true,
       expectedOutcome: true,
       approvalReference: true,
@@ -507,10 +506,10 @@ export default async function TrainingRequestDetailPage({
                 </dd>
               </div>
               {[
-                ["Type", request.trainingType ?? "Not provided"],
+                ["Training type", request.trainingType ?? "Not provided"],
                 ["Delivery", request.deliveryMode.replaceAll("_", " ")],
                 ["Venue", request.venue ?? "Not provided"],
-                ["Participants", request.participantCount ?? "Not provided"],
+                ["Participants", request.participants.length],
                 ["Expected outcome", request.expectedOutcome ?? "Not provided"],
                 ["Approval reference", request.approvalReference ?? "Pending"],
               ].map(([label, value]) => (
@@ -564,7 +563,7 @@ export default async function TrainingRequestDetailPage({
                   <input name="startsAt" type="datetime-local" defaultValue={formatDateTimeInput(request.startsAt)} required className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
                   <input name="endsAt" type="datetime-local" defaultValue={formatDateTimeInput(request.endsAt)} required className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
                   <input name="estimatedCost" type="number" min="0.01" step="0.01" defaultValue={request.estimatedCost.toString()} required className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
-                  <input name="trainingType" defaultValue={request.trainingType ?? ""} placeholder="Training type" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <input name="trainingType" defaultValue={request.trainingType ?? ""} placeholder="Training type (entered here, not from participant upload)" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
                   <input name="onlineUrl" type="url" defaultValue={request.onlineUrl ?? ""} placeholder="Online training URL" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
                   <input name="onlineMeetingId" defaultValue={request.onlineMeetingId ?? ""} placeholder="Meeting ID" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
                   <input name="onlinePassword" defaultValue={request.onlinePassword ?? ""} placeholder="Password / passcode" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
