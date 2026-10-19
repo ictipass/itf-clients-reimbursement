@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 import { HostedFileInput } from "@/components/hosted-file-input";
+import { EmployerFeedbackViewed } from "@/components/employer-feedback-viewed";
 
 import {
   addTrainingParticipantAction,
@@ -412,6 +413,9 @@ export default async function TrainingRequestDetailPage({
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
+      {request.feedbackReleasedAt && isEmployerRole(activeRole) ? (
+        <EmployerFeedbackViewed target="request" targetId={request.id} />
+      ) : null}
       <div className="flex flex-wrap gap-3">
         <Link href="/training-requests" className="text-sm font-semibold text-[#800020]">
           Back to Training Requests
