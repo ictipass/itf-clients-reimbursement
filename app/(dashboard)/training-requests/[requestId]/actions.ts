@@ -128,13 +128,18 @@ export async function routeTrainingRequestAction(requestId: string, formData: Fo
     throw new Error("Authentication is required.");
   }
 
-  await routeTrainingRequest({
-    requestId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    transition: readTrainingRequestTransition(formData),
-    note: readOptionalString(formData, "note"),
-  });
+  try {
+    await routeTrainingRequest({
+      requestId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      transition: readTrainingRequestTransition(formData),
+      note: readOptionalString(formData, "note"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The workflow action could not be completed.";
+    redirect(`/training-requests/${requestId}?workflowError=${encodeURIComponent(message.slice(0, 240))}`);
+  }
 
   revalidatePath(`/training-requests`);
   revalidatePath(`/training-requests/${requestId}`);

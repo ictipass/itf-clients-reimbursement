@@ -675,6 +675,10 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
     throw new Error("A reason is required for the Reimbursement Officer's decision.");
   }
 
+  if (input.transition === "ro_reject" && (input.note?.trim().length ?? 0) < 20) {
+    throw new Error("Explain the rejection in at least 20 characters so the employer understands what needs to change.");
+  }
+
   const db = getDb();
   const request = await db.trainingRequest.findFirst({
     where: {

@@ -194,6 +194,7 @@ export default async function TrainingRequestDetailPage({
     participantQ?: string | string[];
     message?: string | string[];
     error?: string | string[];
+    workflowError?: string | string[];
   }>;
 }>) {
   const { requestId } = await params;
@@ -201,6 +202,7 @@ export default async function TrainingRequestDetailPage({
   const participantSearch = readFilter(query.participantQ);
   const importMessage = readFilter(query.message);
   const importError = readFilter(query.error);
+  const workflowError = readFilter(query.workflowError);
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
   const adminOverride = isAdminRole(activeRole);
@@ -441,14 +443,29 @@ export default async function TrainingRequestDetailPage({
         </span>
       </div>
 
-      <section className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
-        <p className="font-semibold">Training approval request deadline</p>
-        <p className="mt-1">
-          Local training requests should be submitted not later than two (2) weeks before the
-          training starts. International training requests should be submitted not later than three
-          (3) weeks before the training starts.
+      {workflowError ? (
+        <p role="alert" className="mt-6 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-900">
+          {workflowError}
         </p>
-      </section>
+      ) : null}
+
+      {request.status === "REJECTED" && isEmployerRole(activeRole) ? (
+        <section className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm leading-6 text-red-950" role="status">
+          <p className="font-semibold">Training request rejected — reason</p>
+          <p className="mt-1 whitespace-pre-wrap">
+            {request.decisionReason?.trim() || "No rejection reason was recorded. Please contact your Area Office for clarification."}
+          </p>
+        </section>
+      ) : request.status !== "APPROVED" && request.status !== "REJECTED" ? (
+        <section className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
+          <p className="font-semibold">Training approval request deadline</p>
+          <p className="mt-1">
+            Local training requests should be submitted not later than two (2) weeks before the
+            training starts. International training requests should be submitted not later than three
+            (3) weeks before the training starts.
+          </p>
+        </section>
+      ) : null}
 
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -1047,11 +1064,17 @@ export default async function TrainingRequestDetailPage({
               <h2 className="text-xl font-semibold tracking-tight">Workflow action</h2>
               <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
                 Decision/review reason
-                <input
+                <textarea
                   name="note"
                   required={request.currentDesk === "REIMBURSEMENT_OFFICER"}
-                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
+                  rows={3}
+                  className="rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm"
                 />
+                {request.currentDesk === "REIMBURSEMENT_OFFICER" ? (
+                  <span className="text-xs font-normal text-zinc-500">
+                    For a rejection, explain the specific reason and what the employer should address (at least 20 characters).
+                  </span>
+                ) : null}
               </label>
               <div className="mt-4 flex flex-wrap gap-2">
                 {availableTransitions.map((transition) => (
