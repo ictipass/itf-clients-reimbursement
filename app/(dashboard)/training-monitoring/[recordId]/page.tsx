@@ -86,10 +86,14 @@ function getMonitoringTransitions(status: string, desk: string) {
 
 export default async function TrainingMonitoringDetailPage({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ recordId: string }>;
+  searchParams: Promise<{ uploadError?: string | string[] }>;
 }>) {
   const { recordId } = await params;
+  const query = await searchParams;
+  const uploadError = Array.isArray(query.uploadError) ? query.uploadError[0] : query.uploadError;
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
   const evidenceKinds = getTrainingMonitoringEvidenceKinds();
@@ -500,8 +504,15 @@ export default async function TrainingMonitoringDetailPage({
       ) : null}
 
       <section className="order-3 mt-8 grid gap-6 lg:grid-cols-2">
-        <div className="rounded-lg border border-zinc-200 bg-white p-5">
+        <div id="monitoring-evidence" className="rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="text-xl font-semibold tracking-tight">Monitoring evidence</h2>
+          {uploadError ? (
+            <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">
+              {uploadError === "unsupported-type"
+                ? "Only PDF, JPEG, and PNG files can be uploaded as monitoring evidence. Please choose another file."
+                : "Monitoring evidence could not be uploaded. Check the file and try again."}
+            </p>
+          ) : null}
           {record.documents.length === 0 ? (
             <p className="mt-3 text-sm leading-6 text-zinc-600">
               No monitoring evidence has been uploaded yet.
@@ -549,7 +560,7 @@ export default async function TrainingMonitoringDetailPage({
                 File
                 <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
                   name="evidence"
-                  accept=".pdf,.jpg,.jpeg,.png,.csv"
+                  accept=".pdf,.jpg,.jpeg,.png"
                   required
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2 text-sm"
                 />

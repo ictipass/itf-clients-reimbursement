@@ -96,15 +96,22 @@ export async function uploadTrainingMonitoringEvidenceAction(
     throw new Error("Authentication is required.");
   }
 
-  const file = await readUploadedFile(formData, "evidence", session.user.id);
+  try {
+    const file = await readUploadedFile(formData, "evidence", session.user.id);
 
-  await uploadTrainingMonitoringEvidence({
-    recordId,
-    uploadedByEmail: session.user.email,
-    requesterRole: session.user.role,
-    kind: readEvidenceKind(formData),
-    file,
-  });
+    await uploadTrainingMonitoringEvidence({
+      recordId,
+      uploadedByEmail: session.user.email,
+      requesterRole: session.user.role,
+      kind: readEvidenceKind(formData),
+      file,
+    });
+  } catch (error) {
+    const code = error instanceof Error && error.message === "Only PDF, JPEG, and PNG files are allowed for this upload flow."
+      ? "unsupported-type"
+      : "upload-failed";
+    redirect(`/training-monitoring/${recordId}?uploadError=${code}#monitoring-evidence`);
+  }
 
   revalidatePath(`/training-monitoring/${recordId}`);
   redirect(`/training-monitoring/${recordId}`);
