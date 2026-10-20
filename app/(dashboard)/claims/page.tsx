@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 
 import { createClaimAction } from "@/app/(dashboard)/claims/actions";
+import { SelectAllTrainings } from "@/app/(dashboard)/claims/select-all-trainings";
 import { authOptions } from "@/lib/auth";
 import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
 import { getDb } from "@/lib/db";
@@ -190,6 +191,7 @@ export default async function ClaimsPage() {
                   <h3 className="font-semibold text-zinc-950">
                     {trainings[0].company.legalName}
                   </h3>
+                  <SelectAllTrainings />
                   <div className="mt-3 grid gap-2">
                     {trainings.map((training) => (
                       <label
