@@ -362,11 +362,11 @@ export default async function TrainingPlanDetailPage({
             <h2 className="text-xl font-semibold tracking-tight">Evidence</h2>
             {importError ? (
               <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950">
-                <p className="font-semibold">CSV import was not completed</p>
+                <p className="font-semibold">Training plan import was not completed</p>
                 <p className="mt-1 leading-6">{importError}</p>
               </div>
             ) : null}
-            {canImportLineItems ? <p className="mt-3 text-sm text-zinc-600">Uploading the annual training plan CSV also imports its rows below.</p> : null}
+            {canImportLineItems ? <p className="mt-3 text-sm text-zinc-600">Uploading the annual training plan CSV or Excel workbook also imports its rows below.</p> : null}
             {missingRequiredEvidence.length > 0 ? (
               <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
                 Required before submission: {missingRequiredEvidence.join(", ")}.
@@ -417,7 +417,7 @@ export default async function TrainingPlanDetailPage({
             <h2 className="text-xl font-semibold tracking-tight">Structured training plan rows</h2>
             {submission.lineItems.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">
-                No structured CSV rows have been imported yet.
+                No structured training plan rows have been imported yet.
               </p>
             ) : (
               <div className="mt-4 overflow-x-auto">

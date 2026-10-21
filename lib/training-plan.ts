@@ -1,3 +1,5 @@
+import ExcelJS from "exceljs";
+
 import { getDb } from "@/lib/db";
 import { verifyAnnualEligibility } from "@/lib/annual-eligibility";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
@@ -168,17 +170,28 @@ function parseTrainingPlanCsv(text: string) {
   }
 
   const headers = parseCsvLine(lines[0]).map(normalizeCsvHeader);
+  const records = lines.slice(1).map((line, index) => ({
+    rowNumber: index + 2,
+    values: parseCsvLine(line).map((value) => value.trim()),
+  }));
+
+  return parseTrainingPlanRows(headers, records, "CSV");
+}
+
+function parseTrainingPlanRows(
+  headers: string[],
+  records: Array<{ rowNumber: number; values: string[] }>,
+  source: "CSV" | "Excel",
+) {
   const missingColumns = requiredTrainingPlanCsvColumns.filter((column) => !headers.includes(column));
 
   if (missingColumns.length > 0) {
-    throw new Error(`Missing required CSV column(s): ${missingColumns.join(", ")}.`);
+    throw new Error(`Missing required ${source} column(s): ${missingColumns.join(", ")}.`);
   }
 
-  return lines.slice(1).map((line, index) => {
-    const values = parseCsvLine(line).map((value) => value.trim());
-
+  return records.map(({ rowNumber, values }) => {
     if (values.length !== headers.length) {
-      throw new Error(`CSV row ${index + 2} has ${values.length} columns instead of ${headers.length}.`);
+      throw new Error(`${source} row ${rowNumber} has ${values.length} columns instead of ${headers.length}.`);
     }
 
     const row = Object.fromEntries(headers.map((header, headerIndex) => [header, values[headerIndex]]));
@@ -187,11 +200,11 @@ function parseTrainingPlanCsv(text: string) {
     try {
       plannedDate = parseTrainingPlanDate(row.date);
     } catch {
-      throw new Error(`CSV row ${index + 2} has an invalid date. Use YYYY-MM-DD or DD/MM/YYYY.`);
+      throw new Error(`${source} row ${rowNumber} has an invalid date. Use YYYY-MM-DD or DD/MM/YYYY.`);
     }
 
     if (!Number.isFinite(estimatedCost) || estimatedCost < 0) {
-      throw new Error(`CSV row ${index + 2} has an invalid estimated cost.`);
+      throw new Error(`${source} row ${rowNumber} has an invalid estimated cost.`);
     }
 
     return {
@@ -203,9 +216,79 @@ function parseTrainingPlanCsv(text: string) {
       plannedDate,
       location: row.location,
       trainer: row.trainer,
-      rowNumber: index + 2,
+      rowNumber,
     };
   });
+}
+
+async function parseTrainingPlanXlsx(buffer: Buffer) {
+  const workbook = new ExcelJS.Workbook();
+  try {
+    await workbook.xlsx.load(buffer as unknown as Parameters<typeof workbook.xlsx.load>[0]);
+  } catch {
+    throw new Error("Training plan Excel workbook could not be opened. Save it as a valid .xlsx file.");
+  }
+
+  const sheet = workbook.worksheets[0];
+  if (!sheet || sheet.rowCount < 2) {
+    throw new Error("Excel workbook must contain a header row and at least one training plan row on its first sheet.");
+  }
+
+  const headerRow = sheet.getRow(1);
+  const headers = Array.from({ length: headerRow.cellCount }, (_, index) =>
+    normalizeCsvHeader(readTrainingPlanCell(headerRow.getCell(index + 1).value, index + 1, "header", workbook.properties.date1904)),
+  );
+  const records: Array<{ rowNumber: number; values: string[] }> = [];
+
+  for (let rowNumber = 2; rowNumber <= sheet.rowCount; rowNumber += 1) {
+    const row = sheet.getRow(rowNumber);
+    for (let column = headers.length + 1; column <= row.cellCount; column += 1) {
+      const extraValue = row.getCell(column).value;
+      if (extraValue !== null && extraValue !== undefined && extraValue !== "") {
+        throw new Error(`Excel row ${rowNumber} has a value beyond the header columns.`);
+      }
+    }
+    const values = headers.map((header, index) =>
+      readTrainingPlanCell(row.getCell(index + 1).value, rowNumber, header, workbook.properties.date1904),
+    );
+    if (values.some(Boolean)) {
+      records.push({ rowNumber, values });
+    }
+  }
+
+  if (records.length === 0) {
+    throw new Error("Excel workbook must contain at least one training plan row on its first sheet.");
+  }
+
+  return parseTrainingPlanRows(headers, records, "Excel");
+}
+
+export async function parseTrainingPlanDocument(buffer: Buffer, fileName: string, mimeType: string) {
+  const validated = validateTrainingPlanDocumentUpload(buffer, fileName, mimeType);
+  const rows = validated.extension === ".xlsx"
+    ? await parseTrainingPlanXlsx(buffer)
+    : parseTrainingPlanCsv(buffer.toString("utf8").replace(/^\uFEFF/, ""));
+  return { validated, rows };
+}
+
+function readTrainingPlanCell(value: ExcelJS.CellValue, rowNumber: number, column: string, date1904?: boolean) {
+  if (value === null || value === undefined) return "";
+
+  if (value instanceof Date) {
+    if (column !== "date") throw new Error(`Excel row ${rowNumber}: ${column} must be text or a number.`);
+    return value.toISOString().slice(0, 10);
+  }
+
+  if (column === "date" && typeof value === "number") {
+    if (!Number.isInteger(value) || value < 1 || value > 2958465) {
+      throw new Error(`Excel row ${rowNumber} has an invalid date.`);
+    }
+    const epoch = date1904 ? Date.UTC(1904, 0, 1) : Date.UTC(1899, 11, 30);
+    return new Date(epoch + value * 86_400_000).toISOString().slice(0, 10);
+  }
+
+  if (typeof value === "string" || typeof value === "number") return String(value).trim();
+  throw new Error(`Excel row ${rowNumber}: ${column} must be a plain value, not a formula or formatted object.`);
 }
 
 export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubmissionInput) {
@@ -323,11 +406,9 @@ export async function importTrainingPlanCsv(input: ImportTrainingPlanCsvInput) {
     throw new Error("You do not have permission to import training plan rows.");
   }
 
-  if (!input.file.name.toLowerCase().endsWith(".csv")) {
-    throw new Error("Upload a CSV file.");
-  }
-
-  const rows = parseTrainingPlanCsv(await input.file.text());
+  const buffer = Buffer.from(await input.file.arrayBuffer());
+  const fileName = sanitizeFileName(input.file.name);
+  const { rows } = await parseTrainingPlanDocument(buffer, fileName, input.file.type);
   const db = getDb();
   const submission = await db.trainingPlanSubmission.findFirst({
     where: {
@@ -546,10 +627,9 @@ export async function uploadTrainingPlanEvidenceBatch(input: Omit<UploadTraining
   const prepared = await Promise.all(input.files.map(async ({ kind, file }) => {
     const buffer = Buffer.from(await file.arrayBuffer());
     const fileName = sanitizeFileName(file.name);
-    const validated = kind === "TRAINING_PLAN_DOCUMENT"
-      ? validateTrainingPlanCsvUpload(buffer, fileName, file.type)
-      : validateUpload(buffer, fileName, file.type);
-    const rows = kind === "TRAINING_PLAN_DOCUMENT" ? parseTrainingPlanCsv(buffer.toString("utf8")) : null;
+    const { validated, rows } = kind === "TRAINING_PLAN_DOCUMENT"
+      ? await parseTrainingPlanDocument(buffer, fileName, file.type)
+      : { validated: validateUpload(buffer, fileName, file.type), rows: null };
     return { kind, buffer, fileName, validated, rows };
   }));
   if (prepared.some((item) => item.rows) && await db.trainingRequest.count({
@@ -1096,17 +1176,35 @@ function getTrainingPlanDueDate(year: number) {
   return new Date(Date.UTC(year, 2, 31, 23, 59, 59, 999));
 }
 
-function validateTrainingPlanCsvUpload(buffer: Buffer, fileName: string, mimeType: string) {
+function validateTrainingPlanDocumentUpload(buffer: Buffer, fileName: string, mimeType: string) {
   if (buffer.byteLength === 0) {
-    throw new Error("Uploaded CSV file is empty.");
+    throw new Error("Uploaded training plan file is empty.");
   }
 
   if (buffer.byteLength > maxUploadBytes) {
-    throw new Error("Uploaded CSV file exceeds the 10 MB limit.");
+    throw new Error("Uploaded training plan file exceeds the 10 MB limit.");
   }
 
-  if (!fileName.toLowerCase().endsWith(".csv")) {
-    throw new Error("Training plan document must be a CSV file.");
+  const lowerName = fileName.toLowerCase();
+  if (lowerName.endsWith(".xlsx")) {
+    const acceptedExcelMimeTypes = new Set([
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "application/vnd.ms-excel",
+    ]);
+    if (mimeType && !acceptedExcelMimeTypes.has(mimeType)) {
+      throw new Error("Training plan Excel document must be uploaded as an .xlsx workbook.");
+    }
+    if (buffer.subarray(0, 2).toString("ascii") !== "PK") {
+      throw new Error("Training plan Excel document is not a valid .xlsx workbook.");
+    }
+    return {
+      extension: ".xlsx",
+      mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    };
+  }
+
+  if (!lowerName.endsWith(".csv")) {
+    throw new Error("Training plan document must be a CSV or .xlsx file. Save older .xls files as .xlsx.");
   }
 
   const acceptedMimeTypes = new Set([

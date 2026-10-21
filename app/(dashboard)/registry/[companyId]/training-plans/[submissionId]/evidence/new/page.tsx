@@ -34,7 +34,7 @@ export default async function NewTrainingPlanEvidencePage({
       </h1>
       <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
         Add evidence for {submission.company.legalName} for Training Plan and L&amp;D submission{" "}
-        {submission.year}. Annual training plan documents must use the CSV template. L&amp;D
+        {submission.year}. Annual training plans accept CSV or Excel (.xlsx) files with the template columns on the first worksheet. L&amp;D
         personnel CV uploads accept PDF, JPEG, and PNG files up to 10MB.
       </p>
       <Link
@@ -43,7 +43,7 @@ export default async function NewTrainingPlanEvidencePage({
       >
         Download CSV template
       </Link>
-      <p className="mt-2 text-xs leading-5 text-zinc-600">The template uses YYYY-MM-DD dates. If Excel saves them as DD/MM/YYYY, the importer accepts that format too.</p>
+      <p className="mt-2 text-xs leading-5 text-zinc-600">The CSV template opens in Excel and may be saved as .xlsx. Dates may use YYYY-MM-DD, DD/MM/YYYY, or Excel date cells.</p>
 
       {uploadError ? (
         <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-950">
@@ -52,7 +52,7 @@ export default async function NewTrainingPlanEvidencePage({
               <p className="font-semibold">Upload was not accepted</p>
               <p className="mt-1 leading-6">{uploadError}</p>
               <p className="mt-2 text-xs leading-5 text-red-800">
-                Use CSV for annual training plans. Use PDF, JPEG, or PNG for L&amp;D personnel
+                Use CSV or .xlsx for annual training plans. Use PDF, JPEG, or PNG for L&amp;D personnel
                 CVs.
               </p>
             </div>
@@ -74,10 +74,10 @@ export default async function NewTrainingPlanEvidencePage({
         className="mt-6 grid gap-5 rounded-lg border border-zinc-200 bg-white p-6"
       >
         <label className="grid gap-2 text-sm font-medium">
-          Annual training plan CSV (also imports its rows)
+          Annual training plan CSV or Excel (.xlsx) (also imports its rows)
           <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
             name="trainingPlanCsv"
-            accept=".csv,text/csv,application/vnd.ms-excel"
+            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             className="min-h-11 rounded-md border border-zinc-300 px-3 py-2 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-semibold"
           />
         </label>

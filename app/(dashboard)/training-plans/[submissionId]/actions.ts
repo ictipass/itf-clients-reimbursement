@@ -31,7 +31,7 @@ export async function importTrainingPlanCsvAction(
       file,
     });
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Training Plan CSV could not be imported.";
+    const message = error instanceof Error ? error.message : "Training plan file could not be imported.";
     redirect(`/training-plans/${submissionId}?importError=${encodeURIComponent(message.slice(0, 280))}`);
   }
 
