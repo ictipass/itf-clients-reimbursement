@@ -19,7 +19,10 @@ function formatMoney(value: { toString(): string } | null) {
   })}`;
 }
 
-export default async function ClaimsPage() {
+export default async function ClaimsPage({ searchParams }: Readonly<{
+  searchParams: Promise<{ createError?: string }>;
+}>) {
+  const query = await searchParams;
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "EMPLOYER_VIEWER";
   const canCreateClaim = can(activeRole, "claims:submit");
@@ -172,9 +175,10 @@ export default async function ClaimsPage() {
       {canCreateClaim ? (
         <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="text-xl font-semibold tracking-tight">Create reimbursement claim</h2>
+          {query.createError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-900">{query.createError}</p> : null}
           <p className="mt-2 text-sm leading-6 text-zinc-600">
             Select one or more available trainings for the same company. Their estimated costs
-            provide the claim&apos;s starting amount.
+            provide the claim&apos;s starting amount. Annual compliance payment must be verified first.
           </p>
           {eligibleTrainings.length === 0 ? (
             <p className="mt-4 rounded-md bg-zinc-50 p-4 text-sm text-zinc-600">

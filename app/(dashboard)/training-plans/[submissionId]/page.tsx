@@ -249,15 +249,10 @@ export default async function TrainingPlanDetailPage({
     notFound();
   }
 
-  const eligibility = await getDb().annualEligibilityCheck.findUnique({
-    where: { companyId_year: { companyId: submission.company.id, year: submission.year } },
-    select: { status: true, message: true, checkedAt: true },
-  });
-
   const submittedDocumentKinds = new Set(submission.documents.map((document) => document.kind));
   const missingRequiredEvidence = [
     submittedDocumentKinds.has("TRAINING_PLAN_DOCUMENT") ? undefined : "training plan document",
-    submittedDocumentKinds.has("LD_PERSONNEL_CV") ? undefined : "L&D personnel CV",
+    submittedDocumentKinds.has("LD_PERSONNEL_CV") ? undefined : "L&D personnel CV and highest qualification certificate (may be one PDF)",
   ].filter(Boolean);
   const availableTrainingPlanTransitions = getAvailableTrainingPlanTransitions(
     submission.currentDesk,
@@ -303,12 +298,6 @@ export default async function TrainingPlanDetailPage({
         </div>
         <TrainingPlanStatusBadge status={submission.status} />
       </div>
-      {eligibility ? (
-        <p className={`mt-4 rounded-lg px-4 py-3 text-sm ${eligibility.status === "ELIGIBLE" ? "bg-emerald-50 text-emerald-900" : "bg-amber-50 text-amber-950"}`}>
-          Annual eligibility for {submission.year}: <strong>{eligibility.status.replaceAll("_", " ")}</strong>. {eligibility.message}
-          {eligibility.status === "PENDING" ? " Approval is blocked until verification succeeds." : null}
-        </p>
-      ) : null}
 
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -398,12 +387,14 @@ export default async function TrainingPlanDetailPage({
                       {document.kind.replaceAll("_", " ")} · {formatDate(document.createdAt)}
                     </p>
                     <Link
-                      href={`/registry/${submission.company.id}/evidence/${document.id}?disposition=inline`}
+                      href={["AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER"].includes(activeRole) && document.kind === "TRAINING_PLAN_DOCUMENT"
+                        ? `/training-plans/${submission.id}/pdf`
+                        : `/registry/${submission.company.id}/evidence/${document.id}?disposition=inline`}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="mt-3 inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800"
                     >
-                      View evidence
+                      {["AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER"].includes(activeRole) && document.kind === "TRAINING_PLAN_DOCUMENT" ? "View training plan PDF" : "View evidence"}
                     </Link>
                   </div>
                 ))}
@@ -511,10 +502,21 @@ export default async function TrainingPlanDetailPage({
               className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-3 lg:col-span-2"
             >
               <h2 className="text-xl font-semibold tracking-tight">Workflow action</h2>
+              {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? (
+                <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
+                  Recommendation to HOT
+                  <select name="recommendation" required className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm">
+                    <option value="">Select approval or rejection</option>
+                    <option value="APPROVE">Recommend approval</option>
+                    <option value="REJECT">Recommend rejection</option>
+                  </select>
+                </label>
+              ) : null}
               <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
-                Routing note
+                {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? "Approval or rejection remark" : "Routing note"}
                 <input
                   name="note"
+                  required={submission.currentDesk === "REIMBURSEMENT_OFFICER"}
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
                 />
               </label>

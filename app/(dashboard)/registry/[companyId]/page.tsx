@@ -212,18 +212,20 @@ function ActionGroup({
 function EvidenceActions({
   companyId,
   documentId,
+  viewHref,
   canDelete,
   showLocked,
 }: Readonly<{
   companyId: string;
   documentId: string;
+  viewHref?: string;
   canDelete: boolean;
   showLocked?: boolean;
 }>) {
   return (
     <div className="flex flex-wrap gap-2">
       <Link
-        href={`/registry/${companyId}/evidence/${documentId}?disposition=inline`}
+        href={viewHref ?? `/registry/${companyId}/evidence/${documentId}?disposition=inline`}
         target="_blank"
         rel="noopener noreferrer"
         className="inline-flex min-h-8 items-center rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800"
@@ -806,7 +808,7 @@ export default async function CompanyDetailPage({
     (!registrationApplication ||
       registrationApplication.registrationKind === "LEGACY_EMPLOYER");
   const canCreateComplianceYear = Boolean(company.itfEmployerNumber) && isEmployerRole(activeRole);
-  const canCreateTrainingPlan = (!usesInAppRevenue || hasCurrentYearCertifiedCompliance) && isEmployerRole(activeRole);
+  const canCreateTrainingPlan = isEmployerRole(activeRole);
   const hasVisibleRegistrationActions =
     canSubmitRegistration ||
     canRouteRegistration ||
@@ -1903,7 +1905,7 @@ export default async function CompanyDetailPage({
             </h2>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
               Yearly Form 3A personnel details, annual training plan evidence, and L&amp;D
-              personnel CV records.
+              personnel CV and highest qualification certificate evidence (which may be one PDF).
             </p>
             <p className="mt-1 text-xs font-semibold text-[#800020] group-open:hidden">Expand card</p>
             <p className="mt-1 hidden text-xs font-semibold text-zinc-500 group-open:block">Collapse card</p>
@@ -1915,19 +1917,10 @@ export default async function CompanyDetailPage({
             >
               Create submission
             </Link>
-          ) : usesInAppRevenue && !hasCurrentYearCertifiedCompliance ? (
-            <span className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-zinc-50 px-3 text-sm font-semibold text-zinc-500">
-              Compliance required
-            </span>
           ) : null}
         </summary>
 
-        {usesInAppRevenue && !hasCurrentYearCertifiedCompliance ? (
-          <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
-            Training Plan and L&amp;D submission is available after the company&apos;s {currentYear}{" "}
-            compliance is approved and its compliance certificate has been issued.
-          </p>
-        ) : null}
+        <p className="mt-4 text-xs text-zinc-600">Annual payment will be verified when a reimbursement claim is made, not when the Training Plan is submitted.</p>
 
         <form className="mt-4 grid gap-3 rounded-md bg-zinc-50 p-3 md:grid-cols-[1fr_1fr_1fr_auto]">
           <HiddenQueryInputs
@@ -2003,7 +1996,7 @@ export default async function CompanyDetailPage({
                 submittedDocumentKinds.has("TRAINING_PLAN_DOCUMENT")
                   ? undefined
                   : "training plan document",
-                submittedDocumentKinds.has("LD_PERSONNEL_CV") ? undefined : "L&D personnel CV",
+                submittedDocumentKinds.has("LD_PERSONNEL_CV") ? undefined : "L&D personnel CV and highest qualification certificate",
               ].filter(Boolean);
               const availableTrainingPlanTransitions = getAvailableTrainingPlanTransitions(
                 submission.currentDesk,
@@ -2012,11 +2005,9 @@ export default async function CompanyDetailPage({
               const canRouteTrainingPlan =
                 availableTrainingPlanTransitions.length > 0 &&
                 canActAsTrainingPlanDesk(activeRole, submission.currentDesk);
-              const hasCertifiedSubmissionYear = certifiedComplianceYears.has(submission.year);
               const canSubmitTrainingPlan =
                 (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
                 missingRequiredEvidence.length === 0 &&
-                (!usesInAppRevenue || hasCertifiedSubmissionYear) &&
                 (isEmployerRole(activeRole) || adminOverride);
               const shouldOpenSubmission = canRouteTrainingPlan || canSubmitTrainingPlan;
 
@@ -2079,12 +2070,6 @@ export default async function CompanyDetailPage({
                       Required before submission: {missingRequiredEvidence.join(", ")}.
                     </p>
                   ) : null}
-                  {usesInAppRevenue && !hasCertifiedSubmissionYear ? (
-                    <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                      Approved {submission.year} compliance with an issued certificate is required
-                      before evidence upload or submission.
-                    </p>
-                  ) : null}
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-zinc-100 pt-3">
                     <p className="text-xs text-zinc-500">
                       {submission.documents.length === 0
@@ -2098,7 +2083,7 @@ export default async function CompanyDetailPage({
                       >
                         View detail
                       </Link>
-                    {(!usesInAppRevenue || hasCertifiedSubmissionYear) && isEmployerRole(activeRole) && missingRequiredEvidence.length > 0 ? (
+                    {isEmployerRole(activeRole) && missingRequiredEvidence.length > 0 ? (
                       <Link
                         href={`/registry/${company.id}/training-plans/${submission.id}/evidence/new`}
                         className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
@@ -2132,10 +2117,21 @@ export default async function CompanyDetailPage({
                           </span>
                         ) : null}
                       </div>
+                      {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? (
+                        <label className="grid gap-2 text-xs font-medium text-zinc-700">
+                          Recommendation to HOT
+                          <select name="recommendation" required className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm">
+                            <option value="">Select approval or rejection</option>
+                            <option value="APPROVE">Recommend approval</option>
+                            <option value="REJECT">Recommend rejection</option>
+                          </select>
+                        </label>
+                      ) : null}
                       <label className="grid gap-2 text-xs font-medium text-zinc-700">
-                        Routing note
+                        {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? "Approval or rejection remark" : "Routing note"}
                         <input
                           name="note"
+                          required={submission.currentDesk === "REIMBURSEMENT_OFFICER"}
                           className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
                         />
                       </label>
@@ -2177,6 +2173,9 @@ export default async function CompanyDetailPage({
                           <EvidenceActions
                             companyId={company.id}
                             documentId={document.id}
+                            viewHref={["AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER"].includes(activeRole) && document.kind === "TRAINING_PLAN_DOCUMENT"
+                              ? `/training-plans/${submission.id}/pdf`
+                              : undefined}
                             canDelete={
                               canDeleteEvidence &&
                               isEvidenceWorkflowEditable([submission.status])

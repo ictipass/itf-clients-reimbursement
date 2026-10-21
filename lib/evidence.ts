@@ -137,6 +137,7 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
     select: {
       id: true,
       organizationId: true,
+      kind: true,
       fileName: true,
       storageProvider: true,
       bucket: true,
@@ -151,6 +152,11 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
 
   if (!document) {
     return null;
+  }
+
+  if (["AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER"].includes(input.requesterRole) &&
+    document.kind === "TRAINING_PLAN_DOCUMENT") {
+    throw new Error("Area Office officers can view the training plan only through its PDF view.");
   }
 
   if (document.access !== "PRIVATE") {

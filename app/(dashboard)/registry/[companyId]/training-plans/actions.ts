@@ -164,6 +164,7 @@ export async function routeTrainingPlanSubmissionAction(
     requesterRole: session.user.role,
     transition: readTrainingPlanDeskTransition(formData),
     note: readOptionalString(formData, "note"),
+    recommendation: formData.get("recommendation") === "APPROVE" ? "APPROVE" : formData.get("recommendation") === "REJECT" ? "REJECT" : undefined,
   });
 
   revalidatePath(`/dashboard`);

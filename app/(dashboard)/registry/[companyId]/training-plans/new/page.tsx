@@ -6,7 +6,6 @@ import { createTrainingPlanSubmissionAction } from "@/app/(dashboard)/registry/[
 import { PersonnelFields } from "@/app/(dashboard)/registry/[companyId]/training-plans/new/personnel-fields";
 import { authOptions } from "@/lib/auth";
 import { getEmployerCompany } from "@/lib/registry";
-import { usesInAppRevenueWorkflow } from "@/lib/revenue-workflow";
 
 export default async function NewTrainingPlanSubmissionPage({
   params,
@@ -38,13 +37,6 @@ export default async function NewTrainingPlanSubmissionPage({
   const defaultYear = requestedYear && Number.isInteger(Number(requestedYear))
     ? Number(requestedYear)
     : currentYear;
-  const hasCurrentYearCertifiedCompliance = company.complianceYears.some(
-    (complianceYear) =>
-      complianceYear.year === currentYear &&
-      complianceYear.status === "APPROVED" &&
-      complianceYear.certificate,
-  );
-  const integrated = usesInAppRevenueWorkflow(company.organization.workspace.revenueWorkflowMode);
 
   return (
     <div className="mx-auto max-w-5xl px-6 py-8 lg:px-8">
@@ -61,24 +53,9 @@ export default async function NewTrainingPlanSubmissionPage({
         </p>
       </div>
 
-      {integrated && !hasCurrentYearCertifiedCompliance ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-5 text-sm text-amber-950">
-          <p className="font-semibold">Current-year compliance is required</p>
-          <p className="mt-2 max-w-3xl leading-6">
-            Training Plan and L&amp;D submission opens after {company.legalName}&apos;s{" "}
-            {currentYear} annual compliance is approved and its compliance certificate has been
-            issued.
-          </p>
-          <Link
-            href={`/registry/${company.id}`}
-            className="mt-4 inline-flex min-h-10 items-center rounded-md border border-amber-200 bg-white px-3 text-sm font-semibold text-amber-900"
-          >
-            Return to company profile
-          </Link>
-        </div>
-      ) : (
-        <>
-      {!integrated ? <p className="mb-5 rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-900">The ITF number will be checked against the compliance API for the selected training year. If it is unavailable, this submission can be prepared while verification remains pending; approval will wait.</p> : null}
+      <p className="mb-5 rounded-lg bg-blue-50 px-4 py-3 text-sm text-blue-900">
+        Annual compliance payment is not required for Training Plan submission. Payment will be checked when you make a reimbursement claim.
+      </p>
       {createError ? (
         <div className="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-950">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -135,8 +112,6 @@ export default async function NewTrainingPlanSubmissionPage({
           </button>
         </div>
       </form>
-        </>
-      )}
     </div>
   );
 }

@@ -12,6 +12,7 @@ import {
   forwardClaimToAreaReimbursementOfficerAction,
   forwardClaimToHeadOfTrainingAction,
   markClaimKivAction,
+  recheckClaimAnnualPaymentAction,
   resumeClaimFromKivAction,
   submitClaimToAreaManagerAction,
   updateClaimStaffEntriesAction,
@@ -48,6 +49,7 @@ import {
   reimbursementPaymentHandoffStatuses,
 } from "@/lib/reimbursement-payment-schedule";
 import { formatReimbursementPolicyEdition } from "@/lib/reimbursement-policy";
+import { isItfRole } from "@/lib/rbac";
 
 function formatMoney(value: { toString(): string } | null) {
   if (!value) {
@@ -95,10 +97,13 @@ function formatStaffArea(value: string) {
 
 export default async function ClaimDetailPage({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string }>;
 }>) {
   const { claimId } = await params;
+  const query = await searchParams;
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
   const canSubmitClaim = canUseSection(activeRole, "claim.form.edit");
@@ -284,6 +289,13 @@ export default async function ClaimDetailPage({
     notFound();
   }
 
+  const annualPaymentCheck = claim.claimYear && claim.company.id
+    ? await getDb().annualEligibilityCheck.findUnique({
+        where: { companyId_year: { companyId: claim.company.id, year: claim.claimYear } },
+        select: { status: true, message: true, checkedAt: true },
+      })
+    : null;
+
   const canManageClaimTrainings = canSubmitClaim && claim.status === "DRAFT";
   const canSubmitToAreaManager =
     canSubmitClaim && claim.status === "DRAFT" && claim.currentDesk === "COMPANY";
@@ -435,6 +447,9 @@ export default async function ClaimDetailPage({
       <div className="mt-6 rounded-lg border-2 border-red-300 bg-red-50 px-5 py-4 text-sm font-black uppercase leading-6 tracking-wide text-red-900 shadow-sm">
         {CLAIM_SUBMISSION_DEADLINE_NOTICE}
       </div>
+      {query.routingError ? (
+        <p className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-900">{query.routingError}</p>
+      ) : null}
 
       <div className="mt-4 rounded-lg border border-[#800020]/20 bg-[#800020]/5 px-5 py-4">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#800020]">
@@ -740,15 +755,29 @@ export default async function ClaimDetailPage({
               Contribution eligibility verification
             </h2>
             <p className="mt-2 text-sm leading-6 text-zinc-600">
-              Confirms that the employer&apos;s contribution/payment evidence is genuine enough to
-              support this reimbursement claim. This can later be backed by an external compliance
-              verification API.
+              Annual compliance payment for training year {claim.claimYear ?? "not set"}: <strong>{annualPaymentCheck?.status ?? "Not checked"}</strong>.
+              {annualPaymentCheck ? ` ${annualPaymentCheck.message}` : ""}
+              {annualPaymentCheck?.checkedAt ? ` Last checked ${formatDate(annualPaymentCheck.checkedAt)}.` : ""}
+            </p>
+            {query.paymentCheck ? <p className="mt-2 text-sm text-emerald-800">Payment recheck completed: {query.paymentCheck}.</p> : null}
+            {query.paymentCheckError ? <p className="mt-2 text-sm text-red-800">Payment recheck failed: {query.paymentCheckError}</p> : null}
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              The annual payment check above uses the configured compliance source. The verification
+              status below records the reviewer&apos;s assessment of the supporting payment evidence.
             </p>
           </div>
           <span className="inline-flex w-fit rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700">
             {formatContributionVerificationStatus(claim.contributionVerificationStatus)}
           </span>
         </div>
+
+        {session?.user?.email && isItfRole(activeRole) ? (
+          <form action={recheckClaimAnnualPaymentAction.bind(null, claim.id)} className="mt-4">
+            <button className="min-h-10 rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">
+              Recheck annual payment
+            </button>
+          </form>
+        ) : null}
 
         <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
           <p>Source: {formatContributionVerificationSource(claim.contributionVerificationSource)}</p>

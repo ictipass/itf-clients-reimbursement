@@ -146,6 +146,33 @@ export type ClaimWorkflowRoutingInput = ClaimRoutingInput & {
   toDesk: ClaimDesk;
 };
 
+export async function recheckClaimAnnualPayment(input: ClaimRoutingInput) {
+  if (!isItfRole(input.requesterRole)) {
+    throw new Error("Only ITF processing officers can recheck annual payment.");
+  }
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: { id: input.claimId, recordTier: "HOT", company: { isActive: true, recordTier: "HOT" } },
+    select: { companyId: true, claimYear: true, company: { select: { areaOfficeId: true } } },
+  });
+  if (!claim) throw new Error("Reimbursement claim was not found.");
+
+  if (["AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER"].includes(input.requesterRole)) {
+    const membership = await db.membership.findFirst({
+      where: {
+        user: { email: input.requesterEmail, isActive: true },
+        isActive: true,
+        role: input.requesterRole,
+        areaOfficeId: claim.company.areaOfficeId ?? "__no_area_office__",
+      },
+      select: { id: true },
+    });
+    if (!membership) throw new Error("You do not have Area Office access for this claim.");
+  }
+
+  return verifyAnnualEligibility(claim.companyId, claim.claimYear ?? 0);
+}
+
 export type UpdateClaimPaymentHandoffInput = {
   claimId: string;
   requesterEmail: string;
@@ -319,7 +346,9 @@ export async function createClaim(input: CreateClaimInput) {
   }
 
   const eligibility = await verifyAnnualEligibility(requests[0].companyId, claimYear);
-  if (eligibility.status === "INELIGIBLE") throw new Error(eligibility.message);
+  if (eligibility.status !== "ELIGIBLE") {
+    throw new Error(`Annual payment must be confirmed before a claim can be created: ${eligibility.message}`);
+  }
 
   const claimedAmount = requests.reduce(
     (total, request) => total + Number(request.estimatedCost.toString()),
@@ -708,6 +737,13 @@ async function moveClaimThroughIntake(
     organizationId: claim.company.organizationId,
     areaOfficeId: claim.company.areaOfficeId,
   });
+
+  if (transition.from === "COMPANY" || transition.from === "AREA_MANAGER") {
+    const eligibility = await verifyAnnualEligibility(claim.companyId, claim.claimYear ?? 0);
+    if (eligibility.status !== "ELIGIBLE") {
+      throw new Error(`Annual payment must be confirmed before claim processing: ${eligibility.message}`);
+    }
+  }
 
   if (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT") {
     const eligibility = await verifyAnnualEligibility(claim.companyId, claim.claimYear ?? 0);

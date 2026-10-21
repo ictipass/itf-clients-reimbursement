@@ -35,7 +35,7 @@ export default async function NewTrainingPlanEvidencePage({
       <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
         Add evidence for {submission.company.legalName} for Training Plan and L&amp;D submission{" "}
         {submission.year}. Annual training plans accept CSV or Excel (.xlsx) files with the template columns on the first worksheet. L&amp;D
-        personnel CV uploads accept PDF, JPEG, and PNG files up to 10MB.
+        personnel CV evidence must also include the highest qualification certificate. You may combine the CV and certificate in one PDF (up to 10MB).
       </p>
       <Link
         href={`/registry/${companyId}/training-plans/template`}
@@ -53,7 +53,7 @@ export default async function NewTrainingPlanEvidencePage({
               <p className="mt-1 leading-6">{uploadError}</p>
               <p className="mt-2 text-xs leading-5 text-red-800">
                 Use CSV or .xlsx for annual training plans. Use PDF, JPEG, or PNG for L&amp;D personnel
-                CVs.
+                CV and qualification certificate evidence.
               </p>
             </div>
             <a
@@ -82,7 +82,7 @@ export default async function NewTrainingPlanEvidencePage({
           />
         </label>
         <label className="grid gap-2 text-sm font-medium">
-          L&amp;D personnel CV
+          L&amp;D personnel CV and highest qualification certificate (one PDF is accepted)
           <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
             name="personnelCv"
             accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"

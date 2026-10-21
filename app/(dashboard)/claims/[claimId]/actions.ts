@@ -20,6 +20,7 @@ import {
   forwardClaimToHeadOfTraining,
   getClaimEvidenceKinds,
   markClaimKiv,
+  recheckClaimAnnualPayment,
   resumeClaimFromKiv,
   submitClaimToAreaManager,
   updateClaimAuditReview,
@@ -96,6 +97,25 @@ function readRequiredString(formData: FormData, name: string) {
   return value;
 }
 
+export async function recheckClaimAnnualPaymentAction(claimId: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  let result: "ELIGIBLE" | "INELIGIBLE" | "PENDING";
+  try {
+    const check = await recheckClaimAnnualPayment({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+    });
+    result = check.status;
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Annual payment check failed.";
+    redirect(`/claims/${claimId}?paymentCheckError=${encodeURIComponent(message.slice(0, 280))}`);
+  }
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?paymentCheck=${result}`);
+}
+
 export async function updateClaimFormAction(claimId: string, formData: FormData) {
   const session = await getServerSession(authOptions);
 
@@ -132,12 +152,17 @@ export async function submitClaimToAreaManagerAction(claimId: string, formData: 
     throw new Error("Authentication is required.");
   }
 
-  await submitClaimToAreaManager({
-    claimId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    note: readOptionalString(formData, "note"),
-  });
+  try {
+    await submitClaimToAreaManager({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      note: readOptionalString(formData, "note"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Claim could not be submitted.";
+    redirect(`/claims/${claimId}?routingError=${encodeURIComponent(message.slice(0, 280))}`);
+  }
 
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
@@ -155,12 +180,17 @@ export async function forwardClaimToHeadOfTrainingAction(
     throw new Error("Authentication is required.");
   }
 
-  await forwardClaimToHeadOfTraining({
-    claimId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    note: readOptionalString(formData, "note"),
-  });
+  try {
+    await forwardClaimToHeadOfTraining({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      note: readOptionalString(formData, "note"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Claim could not be forwarded.";
+    redirect(`/claims/${claimId}?routingError=${encodeURIComponent(message.slice(0, 280))}`);
+  }
 
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);

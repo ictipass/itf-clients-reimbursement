@@ -1,7 +1,6 @@
 import ExcelJS from "exceljs";
 
 import { getDb } from "@/lib/db";
-import { verifyAnnualEligibility } from "@/lib/annual-eligibility";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
@@ -65,6 +64,7 @@ export type RouteTrainingPlanSubmissionInput = {
   requesterRole: Role;
   transition: TrainingPlanDeskTransition;
   note?: string;
+  recommendation?: "APPROVE" | "REJECT";
 };
 
 export type UploadTrainingPlanEvidenceInput = {
@@ -310,19 +310,6 @@ export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubm
     select: {
       id: true,
       organizationId: true,
-      complianceYears: {
-        where: {
-          year: input.year,
-          status: "APPROVED",
-          certificate: {
-            isNot: null,
-          },
-        },
-        select: {
-          id: true,
-        },
-        take: 1,
-      },
     },
   });
 
@@ -376,8 +363,6 @@ export async function createTrainingPlanSubmission(input: CreateTrainingPlanSubm
     );
   }
 
-  const eligibility = await verifyAnnualEligibility(company.id, input.year);
-  if (eligibility.status === "INELIGIBLE") throw new Error(eligibility.message);
 
   return db.trainingPlanSubmission.create({
     data: {
@@ -565,19 +550,6 @@ export async function uploadTrainingPlanEvidenceBatch(input: Omit<UploadTraining
       company: {
         select: {
           organizationId: true,
-          organization: { select: { workspace: { select: { revenueWorkflowMode: true } } } },
-          complianceYears: {
-            where: {
-              status: "APPROVED",
-              certificate: {
-                isNot: null,
-              },
-            },
-            select: {
-              id: true,
-              year: true,
-            },
-          },
         },
       },
     },
@@ -585,16 +557,6 @@ export async function uploadTrainingPlanEvidenceBatch(input: Omit<UploadTraining
 
   if (!submission) {
     throw new Error("Training plan submission was not found.");
-  }
-
-  const hasCertifiedComplianceYear = submission.company.complianceYears.some(
-    (complianceYear) => complianceYear.year === submission.year,
-  );
-
-  if (!hasCertifiedComplianceYear && submission.company.organization.workspace.revenueWorkflowMode === "IN_APP_REVENUE") {
-    throw new Error(
-      `Approved ${submission.year} compliance with an issued certificate is required before uploading Training Plan evidence.`,
-    );
   }
 
   const user = await db.user.findUnique({
@@ -740,18 +702,6 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
               workspaceId: true,
             },
           },
-          complianceYears: {
-            where: {
-              status: "APPROVED",
-              certificate: {
-                isNot: null,
-              },
-            },
-            select: {
-              id: true,
-              year: true,
-            },
-          },
         },
       },
     },
@@ -795,8 +745,6 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
     throw new Error("You do not have access to this training plan submission.");
   }
 
-  const eligibility = await verifyAnnualEligibility(submission.companyId, submission.year);
-  if (eligibility.status === "INELIGIBLE") throw new Error(eligibility.message);
 
   const submittedAt = new Date();
   const promptSubmissionScore = submittedAt <= submission.dueDate ? "1.00" : "0.00";
@@ -952,11 +900,9 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
     throw new Error("You do not have access to this Area Office training plan submission.");
   }
 
-  if (transition.nextStatus === "APPROVED") {
-    const eligibility = await verifyAnnualEligibility(submission.companyId, submission.year);
-    if (eligibility.status !== "ELIGIBLE") {
-      throw new Error(`Training Plan approval is blocked: ${eligibility.message}`);
-    }
+  if (input.transition === "ro_to_hot" &&
+    (!input.note?.trim() || !["APPROVE", "REJECT"].includes(input.recommendation ?? ""))) {
+    throw new Error("Select approval or rejection and enter a remark before returning this Training Plan to HOT.");
   }
 
   return db.$transaction(async (tx) => {
@@ -984,7 +930,7 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
         companyId: submission.companyId,
         trainingPlanSubmissionId: submission.id,
         action: transition.action,
-        reason: [transition.reason, input.note].filter(Boolean).join(": "),
+        reason: [transition.reason, input.recommendation ? `${input.recommendation} recommendation` : null, input.note].filter(Boolean).join(": "),
       },
     });
 
