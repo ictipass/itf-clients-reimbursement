@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { getRegistryCompanyAttention } from "@/lib/attention";
 import { isItfRole } from "@/lib/rbac";
 import { listEmployerCompanies } from "@/lib/registry";
 
@@ -10,11 +11,12 @@ function readValue(value: string | string[] | undefined) {
   return raw?.trim() || undefined;
 }
 
-function registryHref(input: { query?: string; status?: string; areaOffice?: string; page?: number }) {
+function registryHref(input: { query?: string; status?: string; areaOffice?: string; attention?: boolean; page?: number }) {
   const params = new URLSearchParams();
   if (input.query) params.set("query", input.query);
   if (input.status) params.set("status", input.status);
   if (input.areaOffice) params.set("areaOffice", input.areaOffice);
+  if (input.attention) params.set("attention", "1");
   if (input.page && input.page > 1) params.set("page", String(input.page));
   const query = params.toString();
   return query ? `/registry?${query}` : "/registry";
@@ -31,6 +33,11 @@ export default async function RegistryPage({
   const query = readValue(queryParams.query);
   const status = readValue(queryParams.status);
   const areaOffice = readValue(queryParams.areaOffice);
+  const hasItfScope = isItfRole(session.user.role);
+  const attentionOnly = hasItfScope && readValue(queryParams.attention) === "1";
+  const attentionByCompany = hasItfScope
+    ? await getRegistryCompanyAttention({ requesterEmail: session.user.email, requesterRole: session.user.role })
+    : new Map<string, Array<{ title: string; href: string }>>();
   const requestedPage = Number.parseInt(readValue(queryParams.page) ?? "1", 10);
   const registry = await listEmployerCompanies({
     requesterEmail: session.user.email,
@@ -38,11 +45,11 @@ export default async function RegistryPage({
     query,
     status,
     areaOffice,
+    attentionCompanyIds: attentionOnly ? [...attentionByCompany.keys()] : undefined,
     page: Number.isInteger(requestedPage) ? requestedPage : 1,
   });
   const { companies } = registry;
   const canCreateCompany = session.user.role === "EMPLOYER_ADMIN";
-  const hasItfScope = isItfRole(session.user.role);
 
   return (
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
@@ -72,7 +79,20 @@ export default async function RegistryPage({
         </Link>
       </div> : null}
 
+      {hasItfScope ? (
+        <div className="mt-6 flex flex-wrap items-center gap-3 text-sm">
+          <Link
+            href={registryHref({ query, status, areaOffice, attention: !attentionOnly })}
+            className={`inline-flex min-h-10 items-center rounded-md border px-4 font-semibold ${attentionOnly ? "border-[#800020] bg-[#800020] text-white" : "border-[#800020] bg-white text-[#800020]"}`}
+          >
+            {attentionOnly ? "Show all employers" : "Needs attention"}
+          </Link>
+          <span className="text-zinc-600">{attentionByCompany.size} employer{attentionByCompany.size === 1 ? "" : "s"} with open Registry work</span>
+        </div>
+      ) : null}
+
       <form className="mt-6 grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-4">
+        {attentionOnly ? <input type="hidden" name="attention" value="1" /> : null}
         <label className="grid gap-2 text-sm font-medium text-zinc-700">
           Company, RC, ITF No. or email
           <input name="query" defaultValue={query} className="min-h-10 rounded-md border border-zinc-200 px-3" />
@@ -98,9 +118,9 @@ export default async function RegistryPage({
 
       {companies.length === 0 ? (
         <section className="mt-8 rounded-lg border border-dashed border-zinc-300 bg-white p-8">
-          <h2 className="text-xl font-semibold tracking-tight">No employer records yet</h2>
+          <h2 className="text-xl font-semibold tracking-tight">{attentionOnly ? "No employers need attention" : "No employer records yet"}</h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-zinc-600">
-            No company is linked to your current organization or operational scope.
+            {attentionOnly ? "No open Registry work matches these filters." : "No company is linked to your current organization or operational scope."}
           </p>
         </section>
       ) : (
@@ -114,11 +134,12 @@ export default async function RegistryPage({
                 <th className="px-4 py-3 font-semibold">ITF No.</th>
                 <th className="px-4 py-3 font-semibold">Contact</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
+                {hasItfScope ? <th className="px-4 py-3 font-semibold">Attention</th> : null}
               </tr>
             </thead>
             <tbody>
               {companies.map((company) => (
-                <tr key={company.id} className="border-t border-zinc-100">
+                <tr key={company.id} className={`border-t border-zinc-100 ${attentionByCompany.has(company.id) ? "bg-amber-50/60" : ""}`}>
                   <td className="px-4 py-4 align-top">
                     <Link
                       href={`/registry/${company.id}`}
@@ -153,6 +174,25 @@ export default async function RegistryPage({
                       {company.status.replaceAll("_", " ")}
                     </span>
                   </td>
+                  {hasItfScope ? (
+                    <td className="px-4 py-4 align-top">
+                      {attentionByCompany.get(company.id)?.length ? (
+                        <div className="grid gap-2">
+                          <span className="w-fit rounded-full bg-amber-100 px-2 py-1 text-xs font-semibold text-amber-900">
+                            {attentionByCompany.get(company.id)?.length} open action{attentionByCompany.get(company.id)?.length === 1 ? "" : "s"}
+                          </span>
+                          {attentionByCompany.get(company.id)?.slice(0, 2).map((item, index) => (
+                            <Link key={`${item.href}-${index}`} href={item.href} className="text-xs font-semibold text-[#800020] underline underline-offset-2">
+                              {item.title}
+                            </Link>
+                          ))}
+                          {(attentionByCompany.get(company.id)?.length ?? 0) > 2 ? (
+                            <Link href={`/registry/${company.id}`} className="text-xs font-semibold text-zinc-700 underline underline-offset-2">View all company work</Link>
+                          ) : null}
+                        </div>
+                      ) : <span className="text-xs text-zinc-400">—</span>}
+                    </td>
+                  ) : null}
                 </tr>
               ))}
             </tbody>
@@ -163,8 +203,8 @@ export default async function RegistryPage({
         <div className="mt-4 flex items-center justify-between gap-3 text-sm text-zinc-600">
           <p>Page {registry.page} of {registry.totalPages}</p>
           <div className="flex gap-2">
-            {registry.page > 1 ? <Link className="rounded-md border border-zinc-200 bg-white px-3 py-2 font-semibold" href={registryHref({ query, status, areaOffice, page: registry.page - 1 })}>Previous</Link> : null}
-            {registry.page < registry.totalPages ? <Link className="rounded-md border border-zinc-200 bg-white px-3 py-2 font-semibold" href={registryHref({ query, status, areaOffice, page: registry.page + 1 })}>Next</Link> : null}
+            {registry.page > 1 ? <Link className="rounded-md border border-zinc-200 bg-white px-3 py-2 font-semibold" href={registryHref({ query, status, areaOffice, attention: attentionOnly, page: registry.page - 1 })}>Previous</Link> : null}
+            {registry.page < registry.totalPages ? <Link className="rounded-md border border-zinc-200 bg-white px-3 py-2 font-semibold" href={registryHref({ query, status, areaOffice, attention: attentionOnly, page: registry.page + 1 })}>Next</Link> : null}
           </div>
         </div>
       ) : null}

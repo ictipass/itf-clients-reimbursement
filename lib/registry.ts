@@ -39,6 +39,7 @@ export type EmployerRegistryFilters = {
   areaOffice?: string;
   page?: number;
   pageSize?: number;
+  attentionCompanyIds?: string[];
 };
 
 function slugify(value: string) {
@@ -128,6 +129,7 @@ export async function listEmployerCompanies(input: RegistryRequester & EmployerR
   const where = {
     recordTier: "HOT" as const,
     ...companyScopeWhere(scope),
+    ...(input.attentionCompanyIds ? { id: { in: input.attentionCompanyIds } } : {}),
     ...(input.status ? { status: input.status as never } : {}),
     ...(input.areaOffice
       ? { areaOffice: { name: { contains: input.areaOffice, mode: "insensitive" as const } } }

@@ -208,6 +208,56 @@ export async function getModuleAttentionCounts(input: AttentionSummaryInput) {
   }, {});
 }
 
+export async function getRegistryCompanyAttention(input: AttentionSummaryInput) {
+  const db = getDb();
+  const requester = input.requesterEmail
+    ? await db.user.findUnique({
+        where: { email: input.requesterEmail },
+        select: {
+          id: true,
+          memberships: {
+            where: { isActive: true },
+            select: { organizationId: true, areaOfficeId: true, role: true },
+          },
+        },
+      })
+    : null;
+  const baseWhere = {
+    app: "REIMBURSEMENT" as const,
+    status: "OPEN" as const,
+    recordTier: "HOT" as const,
+  };
+  const canSeeAll = input.requesterRole === "SYSTEM_ADMIN" || input.requesterRole === "WORKSPACE_APP_ADMIN";
+  const scopedWhere = canSeeAll
+    ? baseWhere
+    : buildScopedWorkItemWhere(baseWhere, input.requesterRole, requester);
+  const items = await db.workItem.findMany({
+    where: { ...scopedWhere, companyId: { not: null } },
+    select: {
+      companyId: true,
+      kind: true,
+      title: true,
+      targetHref: true,
+      trainingPlanSubmissionId: true,
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const byCompany = new Map<string, Array<{ title: string; href: string }>>();
+  for (const item of items) {
+    if (!item.companyId || getModuleForWorkItem(item.kind, item.targetHref) !== "registry") continue;
+    const href = item.trainingPlanSubmissionId
+      ? `/training-plans/${item.trainingPlanSubmissionId}`
+      : item.targetHref.startsWith("/") && !item.targetHref.startsWith("//")
+        ? item.targetHref
+        : `/registry/${item.companyId}`;
+    const existing = byCompany.get(item.companyId) ?? [];
+    existing.push({ title: item.title, href });
+    byCompany.set(item.companyId, existing);
+  }
+  return byCompany;
+}
+
 function getQueueCategory(kind: string) {
   return awarenessWorkItemKinds.some((awarenessKind) => awarenessKind === kind)
     ? "AWARENESS"
