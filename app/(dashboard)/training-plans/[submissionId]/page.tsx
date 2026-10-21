@@ -138,7 +138,7 @@ export default async function TrainingPlanDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ submissionId: string }>;
-  searchParams: Promise<{ importError?: string | string[] }>;
+  searchParams: Promise<{ importError?: string | string[]; routeError?: string | string[] }>;
 }>) {
   const { submissionId } = await params;
   const query = await searchParams;
@@ -269,6 +269,7 @@ export default async function TrainingPlanDetailPage({
     (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
     (isEmployerRole(activeRole) || adminOverride);
   const importError = Array.isArray(query.importError) ? query.importError[0] : query.importError;
+  const routeError = Array.isArray(query.routeError) ? query.routeError[0] : query.routeError;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
@@ -298,6 +299,7 @@ export default async function TrainingPlanDetailPage({
         </div>
         <TrainingPlanStatusBadge status={submission.status} />
       </div>
+      {routeError ? <p className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-900">{routeError}</p> : null}
 
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -513,19 +515,22 @@ export default async function TrainingPlanDetailPage({
                 </label>
               ) : null}
               <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
-                {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? "Approval or rejection remark" : "Routing note"}
+                {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? "Approval / rejection / correction remark" : "Routing note"}
                 <input
                   name="note"
-                  required={submission.currentDesk === "REIMBURSEMENT_OFFICER"}
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
                 />
               </label>
+              {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? (
+                <p className="mt-2 text-xs text-zinc-600">A remark is required for rejection or employer correction; it is optional for approval.</p>
+              ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
                 {availableTrainingPlanTransitions.map((transition) => (
                   <button
                     key={transition}
                     name="transition"
                     value={transition}
+                    formNoValidate={transition === "ro_to_company"}
                     className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
                   >
                     {trainingPlanTransitionLabels[transition]}

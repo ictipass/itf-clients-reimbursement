@@ -157,15 +157,24 @@ export async function routeTrainingPlanSubmissionAction(
     throw new Error("Authentication is required.");
   }
 
-  await routeTrainingPlanSubmission({
-    companyId,
-    submissionId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    transition: readTrainingPlanDeskTransition(formData),
-    note: readOptionalString(formData, "note"),
-    recommendation: formData.get("recommendation") === "APPROVE" ? "APPROVE" : formData.get("recommendation") === "REJECT" ? "REJECT" : undefined,
-  });
+  try {
+    const transition = readTrainingPlanDeskTransition(formData);
+    const selectedRecommendation = formData.get("recommendation");
+    await routeTrainingPlanSubmission({
+      companyId,
+      submissionId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      transition,
+      note: readOptionalString(formData, "note"),
+      recommendation: transition === "ro_to_hot" &&
+        (selectedRecommendation === "APPROVE" || selectedRecommendation === "REJECT")
+        ? selectedRecommendation : undefined,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Training Plan could not be routed.";
+    redirect(`/training-plans/${submissionId}?routeError=${encodeURIComponent(message.slice(0, 280))}`);
+  }
 
   revalidatePath(`/dashboard`);
   revalidatePath(`/registry/${companyId}`);

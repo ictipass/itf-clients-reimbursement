@@ -900,9 +900,14 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
     throw new Error("You do not have access to this Area Office training plan submission.");
   }
 
-  if (input.transition === "ro_to_hot" &&
-    (!input.note?.trim() || !["APPROVE", "REJECT"].includes(input.recommendation ?? ""))) {
-    throw new Error("Select approval or rejection and enter a remark before returning this Training Plan to HOT.");
+  if (input.transition === "ro_to_hot" && !["APPROVE", "REJECT"].includes(input.recommendation ?? "")) {
+    throw new Error("Select approval or rejection before returning this Training Plan to HOT.");
+  }
+  if (input.transition === "ro_to_hot" && input.recommendation === "REJECT" && !input.note?.trim()) {
+    throw new Error("Enter a rejection remark before returning this Training Plan to HOT.");
+  }
+  if (input.transition === "ro_to_company" && !input.note?.trim()) {
+    throw new Error("Enter a correction remark before requesting employer correction.");
   }
 
   return db.$transaction(async (tx) => {
@@ -930,7 +935,7 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
         companyId: submission.companyId,
         trainingPlanSubmissionId: submission.id,
         action: transition.action,
-        reason: [transition.reason, input.recommendation ? `${input.recommendation} recommendation` : null, input.note].filter(Boolean).join(": "),
+        reason: [transition.reason, input.transition === "ro_to_hot" ? `${input.recommendation} recommendation` : null, input.note].filter(Boolean).join(": "),
       },
     });
 

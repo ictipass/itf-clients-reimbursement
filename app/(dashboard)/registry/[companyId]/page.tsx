@@ -2128,19 +2128,22 @@ export default async function CompanyDetailPage({
                         </label>
                       ) : null}
                       <label className="grid gap-2 text-xs font-medium text-zinc-700">
-                        {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? "Approval or rejection remark" : "Routing note"}
+                        {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? "Approval / rejection / correction remark" : "Routing note"}
                         <input
                           name="note"
-                          required={submission.currentDesk === "REIMBURSEMENT_OFFICER"}
                           className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm"
                         />
                       </label>
+                      {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? (
+                        <p className="text-xs text-zinc-600">A remark is required for rejection or employer correction; it is optional for approval.</p>
+                      ) : null}
                       <div className="flex flex-wrap gap-2">
                         {availableTrainingPlanTransitions.map((transition) => (
                           <button
                             key={transition}
                             name="transition"
                             value={transition}
+                            formNoValidate={transition === "ro_to_company"}
                             className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-900"
                           >
                             {trainingPlanTransitionLabels[transition]}
