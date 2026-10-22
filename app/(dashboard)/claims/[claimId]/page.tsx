@@ -292,6 +292,9 @@ export default async function ClaimDetailPage({
   if (!claim) {
     notFound();
   }
+  let approvedReimbursementStatus = "Pending ITF decision";
+  if (claim.status === "REJECTED") approvedReimbursementStatus = "Not awarded";
+  else if (["APPROVED", "SETTLED", "ARCHIVED"].includes(claim.status)) approvedReimbursementStatus = "See claim decision trail";
   const bankOptions = await listActiveBankOptions(claim.company.organization.workspaceId);
 
   const annualPaymentCheck = claim.claimYear && claim.company.id
@@ -521,7 +524,7 @@ export default async function ClaimDetailPage({
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-            Award %
+            Indicative reimbursement rate
           </p>
           <p className="mt-2 text-sm font-semibold text-zinc-950">
             {formatPercent(claim.cappedAwardPercent)}
@@ -536,7 +539,7 @@ export default async function ClaimDetailPage({
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
-            Calculated award
+            Estimated claim amount
           </p>
           <p className="mt-2 text-sm font-semibold text-zinc-950">
             {formatMoney(claim.calculatedAwardAmount)}
@@ -1004,8 +1007,8 @@ export default async function ClaimDetailPage({
       <section id="calculations" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Form 2A/2B calculations</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          Enter the employer&apos;s claim schedule and use Calculate to generate award rows. Calculated rows are read-only;
-          Save row updates only a manually added adjustment row.
+          Enter the employer&apos;s claim schedule and use Calculate to estimate the claim. These figures are not an ITF
+          approval. Calculated rows are read-only; Save row updates only a manually added adjustment row.
         </p>
         {query.lineSaved ? <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Manual calculation row saved.</p> : null}
         {query.lineError ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">{query.lineError}</p> : null}
@@ -1023,9 +1026,9 @@ export default async function ClaimDetailPage({
                   <p><strong>Total trained:</strong> {line.totalTrained ?? "Not provided"}</p>
                   <p><strong>Emphasis:</strong> {line.emphasisNumber ?? "Not provided"}</p>
                   <p><strong>Contribution paid:</strong> {formatMoney(line.contributionPaid)}</p>
-                  <p><strong>Employer claim:</strong> {formatMoney(line.employerClaimAmount)}</p>
-                  <p><strong>Percent awarded:</strong> {decimalInput(line.percentAwarded) || "Not calculated"}%</p>
-                  <p><strong>Amount awarded:</strong> {formatMoney(line.amountAwarded)}</p>
+                  <p><strong>Employer claim estimate:</strong> {formatMoney(line.employerClaimAmount)}</p>
+                  <p><strong>Indicative reimbursement rate:</strong> {line.percentAwarded === null ? "Not calculated" : `${decimalInput(line.percentAwarded)}%`}</p>
+                  <p><strong>ITF-approved reimbursement:</strong> {approvedReimbursementStatus}</p>
                 </div> : <form
                   action={updateClaimLineAction.bind(null, claim.id, line.id)}
                   className="grid gap-3 md:grid-cols-4"
@@ -1077,20 +1080,20 @@ export default async function ClaimDetailPage({
                     placeholder="Employer claim"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
                   /></label>
-                  <label className="grid gap-1 text-sm">Percentage awarded<input
+                  <label className="grid gap-1 text-sm">Indicative reimbursement rate<input
                     name="percentAwarded"
                     type="number"
                     step="0.01"
                     defaultValue={decimalInput(line.percentAwarded)}
-                    placeholder="% awarded"
+                    placeholder="Indicative rate %"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
                   /></label>
-                  <label className="grid gap-1 text-sm">Amount awarded<input
+                  <label className="grid gap-1 text-sm">Indicative amount (not approved)<input
                     name="amountAwarded"
                     type="number"
                     step="0.01"
                     defaultValue={decimalInput(line.amountAwarded)}
-                    placeholder="Amount awarded"
+                    placeholder="Indicative amount"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
                   /></label>
                   <label className="grid gap-1 text-sm">Reference page<input
