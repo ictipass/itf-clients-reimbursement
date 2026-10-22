@@ -9,6 +9,7 @@ import {
   type ContributionVerificationStatus,
 } from "@/lib/claim-verification";
 import { isLateClaimSubmission } from "@/lib/claim-policy";
+import { getClaimFilingClock } from "@/lib/claim-test-clock";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import {
@@ -332,12 +333,13 @@ export async function createClaim(input: CreateClaimInput) {
   }
 
   const claimYear = requests[0].startsAt.getFullYear();
-  const filingYear = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", year: "numeric" }).format(new Date()));
+  const filingDate = getClaimFilingClock().now;
+  const filingYear = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Africa/Lagos", year: "numeric" }).format(filingDate));
   if (filingYear < claimYear + 1) {
     throw new Error(`Training held in ${claimYear} can first be claimed in ${claimYear + 1}.`);
   }
   if (
-    isLateClaimSubmission(claimYear) &&
+    isLateClaimSubmission(claimYear, filingDate) &&
     !requests[0].company.organization.workspace.allowLateClaimSubmissions
   ) {
     throw new Error(

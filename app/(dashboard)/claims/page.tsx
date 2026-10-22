@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { createClaimAction } from "@/app/(dashboard)/claims/actions";
 import { SelectAllTrainings } from "@/app/(dashboard)/claims/select-all-trainings";
+import { ClaimTestClockNotice } from "@/components/claim-test-clock-notice";
 import { authOptions } from "@/lib/auth";
 import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
 import { getDb } from "@/lib/db";
@@ -171,6 +172,7 @@ export default async function ClaimsPage({ searchParams }: Readonly<{
       <div className="mt-6 rounded-lg border-2 border-red-300 bg-red-50 px-5 py-4 text-sm font-black uppercase leading-6 tracking-wide text-red-900 shadow-sm">
         {CLAIM_SUBMISSION_DEADLINE_NOTICE}
       </div>
+      <ClaimTestClockNotice />
 
       {canCreateClaim ? (
         <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">

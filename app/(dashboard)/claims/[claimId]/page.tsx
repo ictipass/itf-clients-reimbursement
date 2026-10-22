@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
+import { ClaimTestClockNotice } from "@/components/claim-test-clock-notice";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
@@ -447,6 +448,7 @@ export default async function ClaimDetailPage({
       <div className="mt-6 rounded-lg border-2 border-red-300 bg-red-50 px-5 py-4 text-sm font-black uppercase leading-6 tracking-wide text-red-900 shadow-sm">
         {CLAIM_SUBMISSION_DEADLINE_NOTICE}
       </div>
+      <ClaimTestClockNotice />
       {query.routingError ? (
         <p className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-900">{query.routingError}</p>
       ) : null}
