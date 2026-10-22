@@ -2,11 +2,13 @@ import Link from "next/link";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { getDb } from "@/lib/db";
 import { can, canManageClaimPolicy } from "@/lib/rbac";
 
 export default async function SettingsPage() {
   const session = await getServerSession(authOptions);
   const role = session?.user?.role ?? "EMPLOYER_VIEWER";
+  const hasIntegratedWorkspace = await getDb().workspace.count({ where: { isActive: true, revenueWorkflowMode: "IN_APP_REVENUE" } }) > 0;
   const settingAreas = [
     {
       href: "/settings/preferences",
@@ -58,10 +60,16 @@ export default async function SettingsPage() {
       visible: can(role, "workspace:manage"),
     },
     {
+      href: "/settings/banks",
+      title: "Accepted banks",
+      description: "Maintain the banks and sort codes employers may use on reimbursement claims.",
+      visible: can(role, "workspace:manage"),
+    },
+    {
       href: "/settings/numbers",
       title: "Number registries",
       description: "Manage controlled registration and certificate identifiers.",
-      visible: can(role, "numbers:manage"),
+      visible: hasIntegratedWorkspace && can(role, "numbers:manage"),
     },
     {
       href: "/settings/employers",
@@ -79,13 +87,13 @@ export default async function SettingsPage() {
       href: "/settings/certificates",
       title: "Certificates",
       description: "Manage certificate templates and presentation.",
-      visible: can(role, "workspace:manage"),
+      visible: hasIntegratedWorkspace && can(role, "workspace:manage"),
     },
     {
       href: "/settings/signatures",
       title: "Signatures",
       description: "Manage authorized signature assets.",
-      visible: can(role, "workspace:manage"),
+      visible: hasIntegratedWorkspace && can(role, "workspace:manage"),
     },
     {
       href: "/settings/audit",

@@ -28,11 +28,6 @@ const settingAreas = [
     title: "Offices and organization",
     description: "Configure Headquarters, Area Offices, and staff assignments.",
   },
-  {
-    href: "/settings/numbers",
-    title: "Number registries",
-    description: "Manage controlled identifiers used by registration and certificates.",
-  },
 ] as const;
 
 export default async function SystemSettingsPage() {
@@ -59,6 +54,7 @@ export default async function SystemSettingsPage() {
       name: "asc",
     },
   });
+  const hasIntegratedWorkspace = await getDb().workspace.count({ where: { isActive: true, revenueWorkflowMode: "IN_APP_REVENUE" } }) > 0;
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-8 lg:px-8">
@@ -91,7 +87,7 @@ export default async function SystemSettingsPage() {
         </div>
 
         <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {settingAreas.map((area) => (
+          {[...settingAreas, { href: "/settings/banks", title: "Accepted banks", description: "Maintain banks and sort codes for reimbursement claims." }, ...(hasIntegratedWorkspace ? [{ href: "/settings/numbers", title: "Number registries", description: "Manage registration and certificate identifiers." }] : [])].map((area) => (
             <Link
               key={area.href}
               href={area.href}

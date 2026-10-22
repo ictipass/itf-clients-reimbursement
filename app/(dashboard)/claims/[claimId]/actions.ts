@@ -123,26 +123,30 @@ export async function updateClaimFormAction(claimId: string, formData: FormData)
     throw new Error("Authentication is required.");
   }
 
-  await updateClaimForm({
-    claimId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    claimYear: readOptionalNumber(formData, "claimYear"),
-    trainingContributionDue: readOptionalNumber(formData, "trainingContributionDue"),
-    trainingContributionPaid: readOptionalNumber(formData, "trainingContributionPaid"),
-    itfReceiptNumber: readOptionalString(formData, "itfReceiptNumber"),
-    bankName: readOptionalString(formData, "bankName"),
-    accountNumber: readOptionalString(formData, "accountNumber"),
-    sortCode: readOptionalString(formData, "sortCode"),
-    claimedAmount: readRequiredNumber(formData, "claimedAmount"),
-    employerOfficerName: readOptionalString(formData, "employerOfficerName"),
-    employerOfficerRank: readOptionalString(formData, "employerOfficerRank"),
-    chiefExecutiveName: readOptionalString(formData, "chiefExecutiveName"),
-  });
+  try {
+    await updateClaimForm({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      claimYear: readOptionalNumber(formData, "claimYear"),
+      trainingContributionDue: readOptionalNumber(formData, "trainingContributionDue"),
+      trainingContributionPaid: readOptionalNumber(formData, "trainingContributionPaid"),
+      itfReceiptNumber: readOptionalString(formData, "itfReceiptNumber"),
+      bankId: readOptionalString(formData, "bankId"),
+      accountNumber: readOptionalString(formData, "accountNumber"),
+      claimedAmount: readRequiredNumber(formData, "claimedAmount"),
+      employerOfficerName: readOptionalString(formData, "employerOfficerName"),
+      employerOfficerRank: readOptionalString(formData, "employerOfficerRank"),
+      chiefExecutiveName: readOptionalString(formData, "chiefExecutiveName"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Claim form could not be saved.";
+    redirect(`/claims/${claimId}?formError=${encodeURIComponent(message.slice(0, 280))}#claim-form`);
+  }
 
   revalidatePath(`/claims`);
   revalidatePath(`/claims/${claimId}`);
-  redirect(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?formSaved=1#claim-form`);
 }
 
 export async function submitClaimToAreaManagerAction(claimId: string, formData: FormData) {
@@ -662,15 +666,20 @@ export async function updateClaimLineAction(
     throw new Error("Authentication is required.");
   }
 
-  await updateClaimLine({
-    ...readClaimLineInput(claimId, formData),
-    lineId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-  });
+  try {
+    await updateClaimLine({
+      ...readClaimLineInput(claimId, formData),
+      lineId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Calculation row could not be saved.";
+    redirect(`/claims/${claimId}?lineError=${encodeURIComponent(message.slice(0, 280))}#calculations`);
+  }
 
   revalidatePath(`/claims/${claimId}`);
-  redirect(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?lineSaved=1#calculations`);
 }
 
 export async function deleteClaimLineAction(claimId: string, lineId: string) {

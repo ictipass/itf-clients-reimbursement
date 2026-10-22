@@ -298,6 +298,8 @@ export default async function DashboardPage() {
   }
 
   if (isSystemAdminRole(activeRole)) {
+    const hasIntegratedWorkspace = await getDb().workspace.count({ where: { isActive: true, revenueWorkflowMode: "IN_APP_REVENUE" } }) > 0;
+    const acceptedBanks = await getDb().bankDirectoryEntry.count({ where: { isActive: true } });
     const [
       usersCount,
       officesCount,
@@ -345,9 +347,12 @@ export default async function DashboardPage() {
       { href: "/settings/users", label: "Manage users", value: usersCount },
       { href: "/settings/offices", label: "Manage offices", value: officesCount },
       { href: "/settings/roles", label: "Review roles", value: roles.length },
-      { href: "/settings/numbers", label: "Managed numbers", value: availableNumbers },
-      { href: "/settings/certificates", label: "Certificate templates", value: certificateTemplates },
-      { href: "/settings/signatures", label: "Signature assets", value: signatures },
+      { href: "/settings/banks", label: "Accepted banks", value: acceptedBanks },
+      ...(hasIntegratedWorkspace ? [
+        { href: "/settings/numbers", label: "Managed numbers", value: availableNumbers },
+        { href: "/settings/certificates", label: "Certificate templates", value: certificateTemplates },
+        { href: "/settings/signatures", label: "Signature assets", value: signatures },
+      ] : []),
     ];
 
     return (
@@ -360,8 +365,7 @@ export default async function DashboardPage() {
             Workspace control center
           </h1>
           <p className="mt-4 max-w-3xl text-base leading-7 text-zinc-600">
-            Configure users, offices, roles, managed numbers, certificate assets, signatures, and
-            audit readiness for the reimbursement application.
+            Configure users, offices, roles, accepted banks, and audit readiness for the reimbursement application.
           </p>
         </section>
 

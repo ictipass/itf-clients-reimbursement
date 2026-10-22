@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
+import { ClaimBankFields } from "@/components/claim-bank-fields";
 import { ClaimTestClockNotice } from "@/components/claim-test-clock-notice";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
@@ -27,6 +28,7 @@ import {
   uploadClaimEvidenceAction,
 } from "@/app/(dashboard)/claims/[claimId]/actions";
 import { authOptions } from "@/lib/auth";
+import { listActiveBankOptions } from "@/lib/bank-directory";
 import {
   contributionVerificationSources,
   contributionVerificationStatuses,
@@ -101,7 +103,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -253,6 +255,7 @@ export default async function ClaimDetailPage({
           id: true,
           legalName: true,
           itfEmployerNumber: true,
+          organization: { select: { workspaceId: true } },
           areaOffice: {
             select: {
               name: true,
@@ -289,6 +292,7 @@ export default async function ClaimDetailPage({
   if (!claim) {
     notFound();
   }
+  const bankOptions = await listActiveBankOptions(claim.company.organization.workspaceId);
 
   const annualPaymentCheck = claim.claimYear && claim.company.id
     ? await getDb().annualEligibilityCheck.findUnique({
@@ -997,12 +1001,14 @@ export default async function ClaimDetailPage({
         ) : null}
       </section>
 
-      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+      <section id="calculations" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Form 2A/2B calculations</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          Enter the employer&apos;s claim schedule. The system applies the official Form 2B award
-          scale and writes the calculated employer rows below.
+          Enter the employer&apos;s claim schedule and use Calculate to generate award rows. Calculated rows are read-only;
+          Save row updates only a manually added adjustment row.
         </p>
+        {query.lineSaved ? <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Manual calculation row saved.</p> : null}
+        {query.lineError ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">{query.lineError}</p> : null}
         {claim.lines.length === 0 ? (
           <p className="mt-3 text-sm leading-6 text-zinc-600">
             No calculation row has been added to this claim yet.
@@ -1011,7 +1017,16 @@ export default async function ClaimDetailPage({
           <div className="mt-4 grid gap-4">
             {claim.lines.map((line) => (
               <div key={line.id} className="rounded-md border border-zinc-100 p-3">
-                <form
+                {line.awardArea ? <div className="mt-3 grid gap-2 text-sm text-zinc-700 md:grid-cols-4">
+                  <p><strong>Training area:</strong> {line.trainingArea}</p>
+                  <p><strong>Total workforce:</strong> {line.totalWorkforce ?? "Not provided"}</p>
+                  <p><strong>Total trained:</strong> {line.totalTrained ?? "Not provided"}</p>
+                  <p><strong>Emphasis:</strong> {line.emphasisNumber ?? "Not provided"}</p>
+                  <p><strong>Contribution paid:</strong> {formatMoney(line.contributionPaid)}</p>
+                  <p><strong>Employer claim:</strong> {formatMoney(line.employerClaimAmount)}</p>
+                  <p><strong>Percent awarded:</strong> {decimalInput(line.percentAwarded) || "Not calculated"}%</p>
+                  <p><strong>Amount awarded:</strong> {formatMoney(line.amountAwarded)}</p>
+                </div> : <form
                   action={updateClaimLineAction.bind(null, claim.id, line.id)}
                   className="grid gap-3 md:grid-cols-4"
                 >
@@ -1019,89 +1034,84 @@ export default async function ClaimDetailPage({
                     <span className="rounded-full bg-zinc-100 px-2 py-1">
                       {line.stage.replaceAll("_", " ")}
                     </span>
-                    {line.awardArea ? (
-                      <span className="rounded-full bg-[#800020]/10 px-2 py-1 text-[#65001a]">
-                        {line.awardArea.replaceAll("_", " ")}
-                      </span>
-                    ) : null}
                   </div>
-                  <input
+                  <label className="grid gap-1 text-sm">Training area<input
                     name="trainingArea"
                     defaultValue={line.trainingArea}
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                  />
-                  <input
+                  /></label>
+                  <label className="grid gap-1 text-sm">Total workforce<input
                     name="totalWorkforce"
                     type="number"
                     defaultValue={line.totalWorkforce ?? ""}
                     placeholder="Workforce"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                  />
-                  <input
+                  /></label>
+                  <label className="grid gap-1 text-sm">Total trained<input
                     name="totalTrained"
                     type="number"
                     defaultValue={line.totalTrained ?? ""}
                     placeholder="Trained"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                  />
-                  <input
+                  /></label>
+                  <label className="grid gap-1 text-sm">Emphasis number<input
                     name="emphasisNumber"
                     type="number"
                     defaultValue={line.emphasisNumber ?? ""}
                     placeholder="Emphasis"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                  />
-                  <input
+                  /></label>
+                  <label className="grid gap-1 text-sm">Contribution paid<input
                     name="contributionPaid"
                     type="number"
                     step="0.01"
                     defaultValue={decimalInput(line.contributionPaid)}
                     placeholder="Contribution paid"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                  />
-                  <input
+                  /></label>
+                  <label className="grid gap-1 text-sm">Employer claim amount<input
                     name="employerClaimAmount"
                     type="number"
                     step="0.01"
                     defaultValue={decimalInput(line.employerClaimAmount)}
                     placeholder="Employer claim"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                  />
-                  <input
+                  /></label>
+                  <label className="grid gap-1 text-sm">Percentage awarded<input
                     name="percentAwarded"
                     type="number"
                     step="0.01"
                     defaultValue={decimalInput(line.percentAwarded)}
                     placeholder="% awarded"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                  />
-                  <input
+                  /></label>
+                  <label className="grid gap-1 text-sm">Amount awarded<input
                     name="amountAwarded"
                     type="number"
                     step="0.01"
                     defaultValue={decimalInput(line.amountAwarded)}
                     placeholder="Amount awarded"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                  />
-                  <input
+                  /></label>
+                  <label className="grid gap-1 text-sm">Reference page<input
                     name="referencePage"
                     defaultValue={line.referencePage ?? ""}
                     placeholder="Reference page"
                     className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                  />
-                  <input
+                  /></label>
+                  <label className="grid gap-1 text-sm md:col-span-2">Remarks<input
                     name="remarks"
                     defaultValue={line.remarks ?? ""}
                     placeholder="Remarks"
-                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm md:col-span-2"
-                  />
+                    className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
+                  /></label>
                   {canEditCalculations ? (
                     <button className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm font-semibold">
                       Save row
                     </button>
                   ) : null}
-                </form>
-                {canEditCalculations ? (
+                </form>}
+                {canEditCalculations && !line.awardArea ? (
                   <form
                     action={deleteClaimLineAction.bind(null, claim.id, line.id)}
                     className="mt-2"
@@ -1128,7 +1138,7 @@ export default async function ClaimDetailPage({
               <input type="hidden" name="employerScale" value="MEDIUM_LARGE" />
               <h3 className="font-semibold text-zinc-950">Medium/Large employer schedule</h3>
               <div className="grid gap-3 md:grid-cols-4">
-                <input
+                <label className="grid gap-1 text-sm">Training contribution paid<input
                   name="trainingContributionPaid"
                   type="number"
                   step="0.01"
@@ -1136,7 +1146,7 @@ export default async function ClaimDetailPage({
                   defaultValue={decimalInput(claim.trainingContributionPaid)}
                   placeholder="Contribution paid"
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-                />
+                /></label>
                 {[
                   ["management", "Management"],
                   ["supervisory", "Supervisory"],
@@ -1144,23 +1154,23 @@ export default async function ClaimDetailPage({
                 ].map(([key, label]) => (
                   <div key={key} className="grid gap-2 rounded-md bg-white p-3 ring-1 ring-zinc-200">
                     <p className="text-sm font-semibold text-zinc-900">{label}</p>
-                    <input
+                    <label className="grid gap-1 text-sm">Total staff<input
                       name={`${key}TotalStaff`}
                       type="number"
                       min="0"
                       required
                       placeholder="Total staff"
                       className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                    />
-                    <input
+                    /></label>
+                    <label className="grid gap-1 text-sm">Staff trained<input
                       name={`${key}TotalTrained`}
                       type="number"
                       min="0"
                       required
                       placeholder="Trained"
                       className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-                    />
-                    <select
+                    /></label>
+                    <label className="grid gap-1 text-sm">Emphasis rank<select
                       name={`${key}EmphasisRank`}
                       required
                       className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
@@ -1169,20 +1179,20 @@ export default async function ClaimDetailPage({
                       <option value="1">1st emphasis</option>
                       <option value="2">2nd emphasis</option>
                       <option value="3">3rd emphasis</option>
-                    </select>
+                    </select></label>
                   </div>
                 ))}
                 <div className="grid gap-2 rounded-md bg-white p-3 ring-1 ring-zinc-200">
                   <p className="text-sm font-semibold text-zinc-900">L&D Personnel</p>
-                  <input name="ldTotalStaff" type="number" min="0" placeholder="Total L&D staff" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
-                  <input name="ldTotalTrained" type="number" min="0" placeholder="L&D trained" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <label className="grid gap-1 text-sm">Total L&D staff<input name="ldTotalStaff" type="number" min="0" placeholder="Total L&D staff" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" /></label>
+                  <label className="grid gap-1 text-sm">L&D staff trained<input name="ldTotalTrained" type="number" min="0" placeholder="L&D trained" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" /></label>
                 </div>
                 <div className="grid gap-2 rounded-md bg-white p-3 ring-1 ring-zinc-200">
                   <p className="text-sm font-semibold text-zinc-900">HSE</p>
-                  <input name="hseTotalWorkforce" type="number" min="0" placeholder="Total workforce" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
-                  <input name="hseTotalTrained" type="number" min="0" placeholder="HSE trained" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+                  <label className="grid gap-1 text-sm">Total workforce<input name="hseTotalWorkforce" type="number" min="0" placeholder="Total workforce" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" /></label>
+                  <label className="grid gap-1 text-sm">HSE staff trained<input name="hseTotalTrained" type="number" min="0" placeholder="HSE trained" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" /></label>
                 </div>
-                <input name="siwesStudentsAccepted" type="number" min="0" placeholder="SIWES students" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
+                <label className="grid gap-1 text-sm">SIWES students accepted<input name="siwesStudentsAccepted" type="number" min="0" placeholder="SIWES students" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" /></label>
                 <label className="flex min-h-10 items-center gap-2 rounded-md bg-white px-3 text-sm font-medium ring-1 ring-zinc-200">
                   <input name="trainingPlanSubmittedPromptly" type="checkbox" className="size-4 accent-[#800020]" />
                   Training plan submitted by 31 March
@@ -1200,10 +1210,10 @@ export default async function ClaimDetailPage({
               <input type="hidden" name="employerScale" value="SMALL" />
               <h3 className="font-semibold text-zinc-950">Small Scale employer schedule</h3>
               <div className="grid gap-3 md:grid-cols-4">
-                <input name="trainingContributionPaid" type="number" step="0.01" required defaultValue={decimalInput(claim.trainingContributionPaid)} placeholder="Contribution paid" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
-                <input name="smallTotalStaff" type="number" min="0" required placeholder="Total staff" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
-                <input name="smallTotalTrained" type="number" min="0" required placeholder="Total trained" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
-                <input name="siwesStudentsAccepted" type="number" min="0" placeholder="SIWES students" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
+                <label className="grid gap-1 text-sm">Training contribution paid<input name="trainingContributionPaid" type="number" step="0.01" required defaultValue={decimalInput(claim.trainingContributionPaid)} placeholder="Contribution paid" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" /></label>
+                <label className="grid gap-1 text-sm">Total staff<input name="smallTotalStaff" type="number" min="0" required placeholder="Total staff" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" /></label>
+                <label className="grid gap-1 text-sm">Total staff trained<input name="smallTotalTrained" type="number" min="0" required placeholder="Total trained" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" /></label>
+                <label className="grid gap-1 text-sm">SIWES students accepted<input name="siwesStudentsAccepted" type="number" min="0" placeholder="SIWES students" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" /></label>
                 <label className="flex min-h-10 items-center gap-2 rounded-md bg-white px-3 text-sm font-medium ring-1 ring-zinc-200">
                   <input name="trainingPlanSubmittedPromptly" type="checkbox" className="size-4 accent-[#800020]" />
                   Training plan submitted by 31 March
@@ -1221,10 +1231,10 @@ export default async function ClaimDetailPage({
               <p className="text-sm font-semibold text-zinc-950 md:col-span-4">
                 Manual adjustment row
               </p>
-              <input name="trainingArea" required placeholder="Training area" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
-              <input name="totalWorkforce" type="number" placeholder="Workforce" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
-              <input name="totalTrained" type="number" placeholder="Trained" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
-              <input name="employerClaimAmount" type="number" step="0.01" placeholder="Employer claim" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
+              <label className="grid gap-1 text-sm">Training area<input name="trainingArea" required placeholder="Training area" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" /></label>
+              <label className="grid gap-1 text-sm">Total workforce<input name="totalWorkforce" type="number" placeholder="Workforce" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" /></label>
+              <label className="grid gap-1 text-sm">Total trained<input name="totalTrained" type="number" placeholder="Trained" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" /></label>
+              <label className="grid gap-1 text-sm">Employer claim amount<input name="employerClaimAmount" type="number" step="0.01" placeholder="Employer claim" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" /></label>
               <button className="min-h-10 rounded-md border border-zinc-200 px-4 text-sm font-semibold text-zinc-800">
                 Add manual row
               </button>
@@ -1233,21 +1243,23 @@ export default async function ClaimDetailPage({
         ) : null}
       </section>
 
-      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+      <section id="claim-form" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Employer claim details</h2>
+        {query.formSaved ? <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Claim form saved.</p> : null}
+        {query.formError ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">{query.formError}</p> : null}
         {canSubmitClaim ? (
           <form
             action={updateClaimFormAction.bind(null, claim.id)}
             className="mt-5 grid gap-4 md:grid-cols-2"
           >
-            <input
+            <label className="grid gap-1 text-sm">Claim year<input
               name="claimYear"
               type="number"
               defaultValue={claim.claimYear ?? ""}
               placeholder="Claim year"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
+            /></label>
+            <label className="grid gap-1 text-sm">Claimed amount<input
               name="claimedAmount"
               type="number"
               step="0.01"
@@ -1255,65 +1267,48 @@ export default async function ClaimDetailPage({
               defaultValue={decimalInput(claim.claimedAmount)}
               placeholder="Claimed amount"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
+            /></label>
+            <label className="grid gap-1 text-sm">Training contribution due<input
               name="trainingContributionDue"
               type="number"
               step="0.01"
               defaultValue={decimalInput(claim.trainingContributionDue)}
               placeholder="Training contribution due"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
+            /></label>
+            <label className="grid gap-1 text-sm">Training contribution paid<input
               name="trainingContributionPaid"
               type="number"
               step="0.01"
               defaultValue={decimalInput(claim.trainingContributionPaid)}
               placeholder="Training contribution paid"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
+            /></label>
+            <label className="grid gap-1 text-sm">ITF receipt number<input
               name="itfReceiptNumber"
               defaultValue={claim.itfReceiptNumber ?? ""}
               placeholder="ITF receipt number"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
-              name="bankName"
-              defaultValue={claim.bankName ?? ""}
-              placeholder="Bank name"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
-              name="accountNumber"
-              defaultValue={claim.accountNumber ?? ""}
-              placeholder="Account number"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
-              name="sortCode"
-              defaultValue={claim.sortCode ?? ""}
-              placeholder="Sort code"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
+            /></label>
+            <ClaimBankFields banks={bankOptions} currentBankName={claim.bankName} currentSortCode={claim.sortCode} currentAccountNumber={claim.accountNumber} />
+            <label className="grid gap-1 text-sm">Employer officer name<input
               name="employerOfficerName"
               defaultValue={claim.employerOfficerName ?? ""}
               placeholder="Employer officer name"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
+            /></label>
+            <label className="grid gap-1 text-sm">Employer officer rank<input
               name="employerOfficerRank"
               defaultValue={claim.employerOfficerRank ?? ""}
               placeholder="Employer officer rank"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
+            /></label>
+            <label className="grid gap-1 text-sm">Chief executive name<input
               name="chiefExecutiveName"
               defaultValue={claim.chiefExecutiveName ?? ""}
               placeholder="Chief executive name"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
+            /></label>
             <div className="md:col-span-2">
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Save Claim Form 1
@@ -1482,11 +1477,11 @@ export default async function ClaimDetailPage({
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-xl font-semibold tracking-tight">Payment handoff</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
+            {isItfRole(activeRole) ? <p className="mt-2 text-sm leading-6 text-zinc-600">
               Interim bridge to ITF&apos;s existing payment process. Until ERP/API details are
               available, the e-payment schedule can be downloaded and manually fed into the
               payment system.
-            </p>
+            </p> : null}
           </div>
           {canRecommendClaim ? (
             <Link

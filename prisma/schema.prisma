@@ -438,6 +438,22 @@ model Workspace {
   auditEvents                   AuditEvent[]
   developmentEligibilityRecords DevelopmentEligibilityRecord[]
   staffDirectoryOptions         StaffDirectoryOption[]
+  bankDirectoryEntries          BankDirectoryEntry[]
+}
+
+model BankDirectoryEntry {
+  id          String    @id @default(cuid())
+  workspaceId String
+  name        String
+  nameKey     String
+  sortCode    String
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  workspace   Workspace @relation(fields: [workspaceId], references: [id])
+
+  @@unique([workspaceId, nameKey])
+  @@index([workspaceId, isActive, name])
 }
 
 model StaffDirectoryOption {

@@ -65,9 +65,8 @@ export type UpdateClaimFormInput = {
   trainingContributionDue?: number;
   trainingContributionPaid?: number;
   itfReceiptNumber?: string;
-  bankName?: string;
+  bankId?: string;
   accountNumber?: string;
-  sortCode?: string;
   claimedAmount: number;
   employerOfficerName?: string;
   employerOfficerRank?: string;
@@ -1571,6 +1570,7 @@ export async function updateClaimForm(input: UpdateClaimFormInput) {
       company: {
         select: {
           organizationId: true,
+          organization: { select: { workspaceId: true } },
         },
       },
     },
@@ -1608,6 +1608,14 @@ export async function updateClaimForm(input: UpdateClaimFormInput) {
     throw new Error("You do not have access to update this claim.");
   }
 
+  const bank = input.bankId
+    ? await db.bankDirectoryEntry.findFirst({
+        where: { id: input.bankId, workspaceId: claim.company.organization.workspaceId, isActive: true },
+        select: { name: true, sortCode: true },
+      })
+    : null;
+  if (input.bankId && !bank) throw new Error("Select an active bank from the accepted bank list.");
+
   return db.reimbursementClaim.update({
     where: {
       id: claim.id,
@@ -1617,9 +1625,8 @@ export async function updateClaimForm(input: UpdateClaimFormInput) {
       trainingContributionDue: input.trainingContributionDue,
       trainingContributionPaid: input.trainingContributionPaid,
       itfReceiptNumber: input.itfReceiptNumber,
-      bankName: input.bankName,
+      ...(bank ? { bankName: bank.name, sortCode: bank.sortCode } : {}),
       accountNumber: input.accountNumber,
-      sortCode: input.sortCode,
       claimedAmount: input.claimedAmount,
       employerOfficerName: input.employerOfficerName,
       employerOfficerRank: input.employerOfficerRank,
@@ -2164,6 +2171,13 @@ export async function updateClaimLine(input: ClaimLineInput) {
 
   const claim = await assertClaimLineAccess(input);
 
+  const existingLine = await getDb().reimbursementClaimLine.findFirst({
+    where: { id: input.lineId, reimbursementClaimId: claim.id },
+    select: { awardArea: true },
+  });
+  if (!existingLine) throw new Error("Claim calculation row was not found.");
+  if (existingLine.awardArea) throw new Error("Calculated rows are read-only. Update the schedule and calculate again.");
+
   return getDb().reimbursementClaimLine.update({
     where: {
       id: input.lineId,
@@ -2183,6 +2197,13 @@ export async function deleteClaimLine(input: {
   requesterRole: Role;
 }) {
   const claim = await assertClaimLineAccess(input);
+
+  const existingLine = await getDb().reimbursementClaimLine.findFirst({
+    where: { id: input.lineId, reimbursementClaimId: claim.id },
+    select: { awardArea: true },
+  });
+  if (!existingLine) throw new Error("Claim calculation row was not found.");
+  if (existingLine.awardArea) throw new Error("Calculated rows cannot be deleted individually. Update the schedule and calculate again.");
 
   return getDb().reimbursementClaimLine.delete({
     where: {

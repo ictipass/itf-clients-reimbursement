@@ -70,6 +70,12 @@ export const featureGates: FeatureGate[] = [
     permissions: ["audit:read"],
   },
   {
+    key: "settings-banks",
+    label: "Accepted banks",
+    routePrefix: "/settings/banks",
+    permissions: ["workspace:manage"],
+  },
+  {
     key: "settings-numbers",
     label: "Number registry",
     routePrefix: "/settings/numbers",
