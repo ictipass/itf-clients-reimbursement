@@ -53,7 +53,10 @@ The current local HTTP development API remains restricted to `NODE_ENV=developme
 - [ ] Set the Vercel project root to this app, use a supported Node version, and verify the
       `prisma generate && next build` build and deployment health.
 - [ ] Provision production PostgreSQL with TLS, restricted access, backups/restore testing,
-      and connection capacity appropriate to serverless functions. Set `DATABASE_URL`; run
+      and connection capacity appropriate to serverless functions. For Prisma Postgres, set
+      `DATABASE_URL` to the pooled hostname and `DIRECT_URL` to the direct hostname in each
+      Vercel environment. Keep `DATABASE_POOL_MAX=1` on Vercel unless capacity testing
+      justifies a larger per-instance pool. Run
       `npx prisma migrate deploy` against **production** in a controlled deployment step.
 - [ ] Set strong, unique `NEXTAUTH_SECRET`, canonical HTTPS `NEXTAUTH_URL`, and
       `NEXT_PUBLIC_APP_URL`; configure Google OAuth callback/origin if Google sign-in is used.

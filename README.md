@@ -182,6 +182,10 @@ proxy.ts              Next.js 16 route-level authentication and feature guard
 
    ```env
    DATABASE_URL="postgresql://..."
+   # For Prisma Postgres, use the pooled.db.prisma.io URL for app traffic.
+   # Use the direct db.prisma.io URL only for migrations and seeding.
+   DIRECT_URL="postgresql://..."
+   DATABASE_POOL_MAX="1"
    NEXTAUTH_SECRET="replace-with-a-secure-random-value"
    NEXTAUTH_URL="http://localhost:3000"
    NEXT_PUBLIC_APP_URL="http://localhost:3000"

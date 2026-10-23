@@ -48,7 +48,7 @@ const seed = {
 };
 
 const client = new Client({
-  connectionString: requiredEnv("DATABASE_URL"),
+  connectionString: process.env.DIRECT_URL?.trim() || requiredEnv("DATABASE_URL"),
 });
 
 async function main() {
