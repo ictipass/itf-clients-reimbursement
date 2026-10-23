@@ -2057,6 +2057,21 @@ export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimC
       },
     });
 
+    await tx.reimbursementCalculationSnapshot.create({
+      data: {
+        reimbursementClaimId: claim.id,
+        stage: "EMPLOYER",
+        policyEdition: claim.policyEdition,
+        employerScale: input.calculation.employerScale,
+        calculatedByEmail: input.requesterEmail,
+        calculationInput: input.calculation,
+        calculationResult: result,
+        uncappedAwardPercent: result.uncappedTotalAwardPercent,
+        cappedAwardPercent: result.cappedTotalAwardPercent,
+        totalAmountAwarded: result.totalAmountAwarded,
+      },
+    });
+
     return {
       id: claim.id,
     };

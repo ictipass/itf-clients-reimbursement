@@ -1311,6 +1311,7 @@ model ReimbursementClaim {
   trainingRequests               ReimbursementClaimTraining[]
   documents                      Document[]
   lines                          ReimbursementClaimLine[]
+  calculationSnapshots           ReimbursementCalculationSnapshot[]
   staffEntries                   ReimbursementClaimStaffEntry[]
   computationTables              ReimbursementComputationTable[]
   auditReview                    ReimbursementAuditReview?
@@ -1389,6 +1390,25 @@ model ReimbursementClaimLine {
   @@index([reimbursementClaimId])
   @@index([reimbursementClaimId, stage])
   @@index([sourceLineId])
+}
+
+model ReimbursementCalculationSnapshot {
+  id                      String                      @id @default(cuid())
+  reimbursementClaimId    String
+  stage                   ReimbursementClaimLineStage
+  policyEdition           ReimbursementPolicyEdition
+  employerScale           ReimbursementEmployerScale
+  calculatedByEmail       String
+  calculationInput        Json
+  calculationResult       Json
+  uncappedAwardPercent    Decimal                     @db.Decimal(5, 2)
+  cappedAwardPercent      Decimal                     @db.Decimal(5, 2)
+  totalAmountAwarded      Decimal                     @db.Decimal(14, 2)
+  recordTier              RecordTier                  @default(HOT)
+  createdAt               DateTime                    @default(now())
+  reimbursementClaim      ReimbursementClaim          @relation(fields: [reimbursementClaimId], references: [id], onDelete: Cascade)
+
+  @@index([reimbursementClaimId, stage, createdAt])
 }
 
 model ReimbursementClaimStaffEntry {
