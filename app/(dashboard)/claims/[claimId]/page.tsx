@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 
 import {
+  calculateAreaOfficeClaimAction,
   addClaimLineAction,
   attachTrainingsToClaimAction,
   deleteClaimLineAction,
@@ -29,6 +30,8 @@ import {
   uploadClaimEvidenceAction,
 } from "@/app/(dashboard)/claims/[claimId]/actions";
 import { authOptions } from "@/lib/auth";
+import { getAreaOfficeCalculationBaseline } from "@/lib/area-office-claim-calculation";
+import { nairaInWords } from "@/lib/naira-in-words";
 import { listActiveBankOptions } from "@/lib/bank-directory";
 import {
   contributionVerificationSources,
@@ -110,6 +113,13 @@ function formatStaffArea(value: string) {
   return value.replaceAll("_", " ");
 }
 
+function maxClaimablePercent(area: string | null, emphasis: number | null) {
+  if (["MANAGEMENT", "SUPERVISORY", "OCCUPATIONAL"].includes(area ?? "")) {
+    return ({ 1: 15, 2: 13, 3: 11 } as Record<number, number>)[emphasis ?? 0] ?? 0;
+  }
+  return ({ SMALL_SCALE_TRAINING: 48, LEARNING_DEVELOPMENT_PERSONNEL: 2, HEALTH_SAFETY_ENVIRONMENT: 6, SIWES: 2, TRAINING_PLAN: 1 } as Record<string, number>)[area ?? ""] ?? 0;
+}
+
 function trainingAreaForCalculationRow(awardArea: string | null, trainingArea: string) {
   if (awardArea === "MANAGEMENT") return "management";
   if (awardArea === "SUPERVISORY") return "supervisory";
@@ -125,7 +135,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; evidenceError?: string; evidenceSaved?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -257,6 +267,15 @@ export default async function ClaimDetailPage({
           createdAt: "asc",
         },
       },
+      calculationSnapshots: {
+        where: { stage: "AREA_OFFICE", recordTier: "HOT" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: {
+          id: true, calculatedByEmail: true, createdAt: true, reviewerRemarks: true,
+          policyEdition: true, uncappedAwardPercent: true, cappedAwardPercent: true,
+          totalAmountAwarded: true,
+        },
+      },
       staffEntries: {
         where: {
           recordTier: "HOT",
@@ -328,6 +347,17 @@ export default async function ClaimDetailPage({
     : null;
 
   const canManageClaimTrainings = canSubmitClaim && claim.status === "DRAFT";
+  const areaOfficeBaseline = getAreaOfficeCalculationBaseline(claim);
+  const latestAreaCalculation = claim.calculationSnapshots[0];
+  const employerLines = claim.lines.filter((line) => line.stage === "EMPLOYER");
+  const areaOfficeRows = claim.lines.filter((line) => line.stage === "AREA_OFFICE");
+  const areaOfficeReconciliation = latestAreaCalculation
+    ? Math.round((Number(latestAreaCalculation.totalAmountAwarded.toString()) - areaOfficeRows.reduce((sum, line) => sum + Number(line.amountAwarded?.toString() ?? 0), 0)) * 100) / 100
+    : 0;
+  const verifiedDefault = (area: string, employerDefault: number | undefined) =>
+    areaOfficeRows.find((line) => line.awardArea === area)?.totalTrained ?? employerDefault ?? 0;
+  const canCalculateAreaOffice = claim.status === "SUBMITTED" && claim.currentDesk === "REIMBURSEMENT_OFFICER" &&
+    (activeRole === "REIMBURSEMENT_OFFICER" || activeRole === "SYSTEM_ADMIN" || activeRole === "WORKSPACE_APP_ADMIN");
   const canSubmitToAreaManager =
     canSubmitClaim && claim.status === "DRAFT" && claim.currentDesk === "COMPANY";
   const canForwardToHot =
@@ -419,7 +449,7 @@ export default async function ClaimDetailPage({
   };
   const duplicateStaffEntries = claim.staffEntries.filter((entry) => entry.duplicateGroupKey);
   const unmatchedTrainings = claim.trainingRequests.filter(({ trainingRequest }) =>
-    !claim.lines.some((line) => {
+    !employerLines.some((line) => {
       const rowArea = trainingAreaForCalculationRow(line.awardArea, line.trainingArea);
       return rowArea && trainingRequest.participants.some(({ trainingArea }) =>
         trainingArea && (rowArea === "all" || trainingArea.trim().toLowerCase() === rowArea),
@@ -667,11 +697,12 @@ export default async function ClaimDetailPage({
             >
               <input
                 name="note"
-                placeholder={`Optional ${transition.from.replaceAll("_", " ")} note`}
+                required={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD")}
+                placeholder={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") ? "Required review / approval note" : `Optional ${transition.from.replaceAll("_", " ")} note`}
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
               />
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                Forward to {transition.to.replaceAll("_", " ")}
+                {transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD" ? "Approve and forward to Director FSD" : `Forward to ${transition.to.replaceAll("_", " ")}`}
               </button>
             </form>
           ))}
@@ -1063,13 +1094,13 @@ export default async function ClaimDetailPage({
         </p>
         {query.lineSaved ? <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Manual calculation row saved.</p> : null}
         {query.lineError ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">{query.lineError}</p> : null}
-        {claim.lines.length === 0 ? (
+        {employerLines.length === 0 ? (
           <p className="mt-3 text-sm leading-6 text-zinc-600">
             No calculation row has been added to this claim yet.
           </p>
         ) : (
           <div className="mt-4 grid gap-4">
-            {claim.lines.map((line) => {
+            {employerLines.map((line) => {
               const rowArea = trainingAreaForCalculationRow(line.awardArea, line.trainingArea);
               const linkedTrainings = rowArea ? claim.trainingRequests.filter(({ trainingRequest }) =>
                 trainingRequest.participants.some(({ trainingArea }) =>
@@ -1425,8 +1456,10 @@ export default async function ClaimDetailPage({
       </CollapsibleClaimSection>
 
       <CollapsibleClaimSection title="Supporting evidence">
-      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+      <section id="claim-evidence" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Supporting evidence</h2>
+        {query.evidenceError ? <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.evidenceError}</p> : null}
+        {query.evidenceSaved ? <p className="mt-3 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Claim evidence uploaded.</p> : null}
         {claim.documents.length === 0 ? (
           <p className="mt-3 text-sm leading-6 text-zinc-600">
             No supporting evidence has been uploaded for this claim yet.
@@ -1706,7 +1739,77 @@ export default async function ClaimDetailPage({
       </section>
       </CollapsibleClaimSection>
 
-      {canRecommendClaim ? (
+      {isItfRole(activeRole) ? (
+        <CollapsibleClaimSection title="Area Office Form 1B reviewed claim">
+          <section id="area-office-calculation" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+            <h2 className="text-xl font-semibold tracking-tight">Area Office Form 1B reviewed claim</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">The Area Office RO verifies Form 1A, Form 2A and the attached evidence. Employer emphasis rankings and total workforce stay fixed; verified trainee counts, SIWES acceptances and timely plan submission may differ from the employer&apos;s figures.</p>
+            {query.areaCalculationSaved ? <p className="mt-3 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Area Office calculation saved. Earlier calculations remain in the audit history.</p> : null}
+            {query.areaCalculationError ? <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.areaCalculationError}</p> : null}
+            {latestAreaCalculation ? (
+              <div className="mt-4">
+                <p className="text-sm text-zinc-700">Calculated by {latestAreaCalculation.calculatedByEmail} on {formatDate(latestAreaCalculation.createdAt)} using {formatReimbursementPolicyEdition(latestAreaCalculation.policyEdition)}.</p>
+                <div className="mt-3 overflow-x-auto">
+                  <table className="min-w-full border-collapse text-left text-sm">
+                    <thead><tr className="bg-zinc-50"><th className="border border-zinc-200 p-2">Area of training</th><th className="border border-zinc-200 p-2">Max % claimable</th><th className="border border-zinc-200 p-2">% awarded</th><th className="border border-zinc-200 p-2">Amount awarded</th></tr></thead>
+                    <tbody>
+                      {areaOfficeRows.map((line) => (
+                        <tr key={line.id}><td className="border border-zinc-200 p-2">{line.trainingArea}</td><td className="border border-zinc-200 p-2">{maxClaimablePercent(line.awardArea, line.emphasisNumber)}%</td><td className="border border-zinc-200 p-2">{formatPercent(line.percentAwarded)}</td><td className="border border-zinc-200 p-2">{formatMoney(line.amountAwarded)}</td></tr>
+                      ))}
+                      {areaOfficeReconciliation !== 0 ? <tr><td className="border border-zinc-200 p-2">Policy cap / rounding adjustment</td><td className="border border-zinc-200 p-2">{formatPercent(latestAreaCalculation.cappedAwardPercent)} overall cap</td><td className="border border-zinc-200 p-2">{Number(latestAreaCalculation.uncappedAwardPercent.toString()) > Number(latestAreaCalculation.cappedAwardPercent.toString()) ? "Capped" : "Rounding"}</td><td className="border border-zinc-200 p-2">{formatMoney(areaOfficeReconciliation)}</td></tr> : null}
+                      <tr className="font-semibold"><td className="border border-zinc-200 p-2" colSpan={3}>Total Area Office recommendation</td><td className="border border-zinc-200 p-2">{formatMoney(latestAreaCalculation.totalAmountAwarded)}</td></tr>
+                    </tbody>
+                  </table>
+                </div>
+                <p className="mt-3 text-sm text-zinc-700"><strong>Amount in words:</strong> {nairaInWords(Number(latestAreaCalculation.totalAmountAwarded.toString()))}</p>
+                <p className="mt-3 text-sm text-zinc-700"><strong>RO remark:</strong> {latestAreaCalculation.reviewerRemarks}</p>
+                <p className="mt-2 text-sm text-zinc-700"><strong>Headquarters recommendation:</strong> Pending separate HQ review.</p>
+                {claim.calculationSnapshots.length > 1 ? (
+                  <details className="mt-4 rounded-md border border-zinc-200 p-3 text-sm">
+                    <summary className="cursor-pointer font-semibold">Previous Area Office calculations ({claim.calculationSnapshots.length - 1})</summary>
+                    <ol className="mt-3 grid gap-2">
+                      {claim.calculationSnapshots.slice(1).map((snapshot) => (
+                        <li key={snapshot.id} className="rounded-md bg-zinc-50 p-2">
+                          {formatDate(snapshot.createdAt)} · {snapshot.calculatedByEmail} · {formatMoney(snapshot.totalAmountAwarded)}
+                          <p className="mt-1 text-zinc-600">{snapshot.reviewerRemarks}</p>
+                        </li>
+                      ))}
+                    </ol>
+                  </details>
+                ) : null}
+              </div>
+            ) : <p className="mt-4 text-sm text-zinc-600">No Area Office calculation has been saved yet.</p>}
+            {canCalculateAreaOffice && areaOfficeBaseline ? (
+              <form action={calculateAreaOfficeClaimAction.bind(null, claim.id)} className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2">
+                <h3 className="font-semibold md:col-span-2">{latestAreaCalculation ? "Recalculate reviewed amount" : "Calculate reviewed amount"}</h3>
+                {areaOfficeBaseline.employerScale === "SMALL" ? (
+                  <label className="grid gap-1 text-sm">Verified small-scale trainees (of {areaOfficeBaseline.smallScaleTraining.totalStaff})<input name="smallTrained" type="number" min="0" max={areaOfficeBaseline.smallScaleTraining.totalStaff} required defaultValue={verifiedDefault("SMALL_SCALE_TRAINING", areaOfficeBaseline.smallScaleTraining.totalTrained)} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+                ) : (
+                  <>
+                    {(["MANAGEMENT", "SUPERVISORY", "OCCUPATIONAL"] as const).map((area) => (
+                      <label key={area} className="grid gap-1 text-sm">Verified {area.toLowerCase()} trainees (of {areaOfficeBaseline.trainingAreas[area].totalStaff}; employer emphasis {areaOfficeBaseline.emphasisRanks[area]})<input name={`${area.toLowerCase()}Trained`} type="number" min="0" max={areaOfficeBaseline.trainingAreas[area].totalStaff} required defaultValue={verifiedDefault(area, areaOfficeBaseline.trainingAreas[area].totalTrained)} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+                    ))}
+                    {areaOfficeBaseline.learningDevelopmentPersonnel ? <label className="grid gap-1 text-sm">Verified L&amp;D trainees (of {areaOfficeBaseline.learningDevelopmentPersonnel.totalStaff})<input name="ldTrained" type="number" min="0" max={areaOfficeBaseline.learningDevelopmentPersonnel.totalStaff} required defaultValue={verifiedDefault("LEARNING_DEVELOPMENT_PERSONNEL", areaOfficeBaseline.learningDevelopmentPersonnel.totalTrained)} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label> : null}
+                    {areaOfficeBaseline.healthSafetyEnvironment ? <label className="grid gap-1 text-sm">Verified HSE trainees (of {areaOfficeBaseline.healthSafetyEnvironment.totalWorkforce})<input name="hseTrained" type="number" min="0" max={areaOfficeBaseline.healthSafetyEnvironment.totalWorkforce} required defaultValue={verifiedDefault("HEALTH_SAFETY_ENVIRONMENT", areaOfficeBaseline.healthSafetyEnvironment.totalTrained)} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label> : null}
+                  </>
+                )}
+                <label className="grid gap-1 text-sm">Verified SIWES students accepted (Form 5A)<input name="siwesStudentsAccepted" type="number" min="0" required defaultValue={verifiedDefault("SIWES", areaOfficeBaseline.siwesStudentsAccepted)} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+                <label className="flex items-center gap-2 text-sm"><input name="trainingPlanSubmittedPromptly" type="checkbox" defaultChecked={areaOfficeRows.length > 0 ? Number(areaOfficeRows.find((line) => line.awardArea === "TRAINING_PLAN")?.percentAwarded?.toString() ?? 0) > 0 : areaOfficeBaseline.trainingPlanSubmittedPromptly} />Training plan submitted by 31 March</label>
+                <label className="grid gap-1 text-sm md:col-span-2">RO review remark<textarea name="reviewerRemarks" required defaultValue={latestAreaCalculation?.reviewerRemarks ?? ""} className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>
+                <div className="grid gap-2 text-sm md:col-span-2">
+                  <label className="flex items-center gap-2"><input name="reviewedForm1A" type="checkbox" required />I reviewed Form 1A.</label>
+                  <label className="flex items-center gap-2"><input name="reviewedForm2A" type="checkbox" required />I reviewed Form 2A and the employer calculation.</label>
+                  <label className="flex items-center gap-2"><input name="reviewedEvidence" type="checkbox" required />I reviewed the supporting evidence, including SIWES Form 5A where applicable.</label>
+                </div>
+                <p className="text-xs text-zinc-500 md:col-span-2">Recalculation replaces the current Area Office figures only after saving; previous snapshots remain available for audit.</p>
+                <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">{latestAreaCalculation ? "Recalculate reviewed amount" : "Calculate reviewed amount"}</button>
+              </form>
+            ) : canCalculateAreaOffice ? <p className="mt-4 text-sm font-semibold text-amber-800">The employer calculation is incomplete; ask for its Form 2A/2B schedule before calculating.</p> : null}
+          </section>
+        </CollapsibleClaimSection>
+      ) : null}
+
+      {canRecommendClaim && !["REIMBURSEMENT_OFFICER", "HEAD_OF_TRAINING", "AREA_MANAGER"].includes(activeRole) ? (
         <CollapsibleClaimSection title="Form 1B recommendation">
         <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="text-xl font-semibold tracking-tight">Form 1B recommendation</h2>

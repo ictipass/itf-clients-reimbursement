@@ -1,4 +1,6 @@
 import { getDb } from "@/lib/db";
+import { nairaInWords } from "@/lib/naira-in-words";
+import { applyAreaOfficeVerifiedCounts, getAreaOfficeCalculationBaseline, type AreaOfficeVerifiedCounts } from "@/lib/area-office-claim-calculation";
 import { verifyAnnualEligibility } from "@/lib/annual-eligibility";
 import {
   formatContributionVerificationSource,
@@ -38,6 +40,7 @@ const claimEvidenceKinds = [
   "PAYMENT_RECEIPT",
   "TRAINING_REPORT",
   "TRAINING_PHOTO",
+  "SIWES_FORM_5A",
   "CERTIFICATE",
   "OTHER_SUPPORTING_EVIDENCE",
 ] as const;
@@ -89,6 +92,17 @@ export type UpdateClaimRecommendationInput = {
   claimRecommendedAmount?: number;
   claimRecommendedInWords?: string;
   reviewerRemarks?: string;
+};
+
+export type CalculateAreaOfficeClaimInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  verified: AreaOfficeVerifiedCounts;
+  reviewerRemarks: string;
+  reviewedForm1A: boolean;
+  reviewedForm2A: boolean;
+  reviewedEvidence: boolean;
 };
 
 export type UpdateClaimContributionVerificationInput = {
@@ -216,7 +230,7 @@ type ClaimRoutingTransition = {
   from: ClaimDesk;
   to: ClaimDesk;
   assignedRole: Role;
-  action: "SUBMIT" | "FORWARD";
+  action: "SUBMIT" | "FORWARD" | "RECOMMEND" | "APPROVE";
   reason: string;
   workItemTitle: string;
   workItemSummary: string;
@@ -432,8 +446,8 @@ export function getClaimPostIntakeTransitions() {
       from: "HEAD_OF_TRAINING",
       to: "AREA_MANAGER",
       assignedRole: "AREA_MANAGER",
-      action: "FORWARD",
-      reason: "HOT forwarded processed reimbursement claim to Area Manager.",
+      action: "RECOMMEND",
+      reason: "HOT reviewed the Area Office RO calculation and recommended the claim to Area Manager.",
       workItemTitle: "Release processed reimbursement claim",
       workItemSummary: "has a processed reimbursement claim awaiting Area Manager release.",
     },
@@ -441,8 +455,8 @@ export function getClaimPostIntakeTransitions() {
       from: "AREA_MANAGER",
       to: "DIRECTOR_FSD",
       assignedRole: "DIRECTOR_FSD",
-      action: "FORWARD",
-      reason: "Area Manager forwarded reimbursement claim to Director FSD.",
+      action: "APPROVE",
+      reason: "Area Manager approved the Area Office reimbursement recommendation and forwarded the claim to Director FSD.",
       workItemTitle: "Review Area Office reimbursement claim",
       workItemSummary: "has a reimbursement claim awaiting Director FSD review.",
     },
@@ -738,6 +752,22 @@ async function moveClaimThroughIntake(
     organizationId: claim.company.organizationId,
     areaOfficeId: claim.company.areaOfficeId,
   });
+
+  if (
+    (transition.from === "REIMBURSEMENT_OFFICER" && transition.to === "HEAD_OF_TRAINING") ||
+    (transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") ||
+    (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD")
+  ) {
+    const areaCalculation = await db.reimbursementCalculationSnapshot.findFirst({
+      where: { reimbursementClaimId: claim.id, stage: "AREA_OFFICE", recordTier: "HOT" },
+      select: { id: true },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    if (!areaCalculation) throw new Error("The Area Office RO must save a verified Form 2A/1B calculation before this claim can advance.");
+    if (transition.from !== "REIMBURSEMENT_OFFICER" && !input.note?.trim()) {
+      throw new Error("HOT review and Area Manager approval each require a written decision note.");
+    }
+  }
 
   if (transition.from === "COMPANY" || transition.from === "AREA_MANAGER") {
     const eligibility = await verifyAnnualEligibility(claim.companyId, claim.claimYear ?? 0);
@@ -1703,6 +1733,9 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
   const buffer = Buffer.from(await input.file.arrayBuffer());
   const safeFileName = sanitizeFileName(input.file.name);
   const validated = validateUpload(buffer, safeFileName, input.file.type);
+  if (input.kind === "SIWES_FORM_5A" && validated.mimeType !== "application/pdf") {
+    throw new Error("SIWES Form 5A must be uploaded as a PDF.");
+  }
   const stored = await uploadObject({
     buffer,
     companyId: claim.companyId,
@@ -1743,6 +1776,10 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
 export async function updateClaimRecommendation(input: UpdateClaimRecommendationInput) {
   if (!can(input.requesterRole, "claims:review")) {
     throw new Error("You do not have permission to recommend reimbursement claims.");
+  }
+
+  if (["REIMBURSEMENT_OFFICER", "HEAD_OF_TRAINING", "AREA_MANAGER"].includes(input.requesterRole)) {
+    throw new Error("Area Office Form 1B amounts must come from the RO's verified calculation.");
   }
 
   const db = getDb();
@@ -1812,6 +1849,77 @@ export async function updateClaimRecommendation(input: UpdateClaimRecommendation
     select: {
       id: true,
     },
+  });
+}
+
+export async function calculateAreaOfficeClaim(input: CalculateAreaOfficeClaimInput) {
+  if (input.requesterRole !== "REIMBURSEMENT_OFFICER" && !isAdminRole(input.requesterRole)) {
+    throw new Error("Only the Area Office Reimbursement Officer can calculate this recommendation.");
+  }
+  const remarks = input.reviewerRemarks.trim();
+  if (!remarks) throw new Error("The Area Office RO must record a review remark.");
+  if (!input.reviewedForm1A || !input.reviewedForm2A || !input.reviewedEvidence) {
+    throw new Error("Confirm review of Form 1A, Form 2A and supporting evidence before calculating.");
+  }
+
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: { id: input.claimId, recordTier: "HOT", status: "SUBMITTED", currentDesk: "REIMBURSEMENT_OFFICER" },
+    select: {
+      id: true, companyId: true, employerScale: true, trainingContributionPaid: true, policyEdition: true,
+      company: { select: { areaOfficeId: true } },
+      lines: { where: { stage: "EMPLOYER" }, select: { stage: true, awardArea: true, totalWorkforce: true, totalTrained: true, emphasisNumber: true, percentAwarded: true } },
+    },
+  });
+  if (!claim) throw new Error("This claim is not at the Area Office RO desk.");
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true, memberships: { where: { isActive: true }, select: { areaOfficeId: true, role: true } } },
+  });
+  if (!actor || (!isAdminRole(input.requesterRole) && !actor.memberships.some((membership) =>
+    membership.role === "REIMBURSEMENT_OFFICER" && membership.areaOfficeId && membership.areaOfficeId === claim.company.areaOfficeId
+  ))) throw new Error("You do not have Area Office access to this claim.");
+
+  const baseline = getAreaOfficeCalculationBaseline(claim);
+  if (!baseline) throw new Error("The employer Form 2A/2B calculation is incomplete; the RO cannot reconstruct the baseline.");
+  const calculation = applyAreaOfficeVerifiedCounts(baseline, input.verified);
+  const result = calculateReimbursementAward({ ...calculation, policyEdition: claim.policyEdition });
+  const lines = result.lines.map((line) => ({
+    ...buildEmployerCalculationLine(line, calculation.trainingContributionPaid, calculation),
+    stage: "AREA_OFFICE" as const,
+  }));
+
+  return db.$transaction(async (tx) => {
+    await tx.reimbursementClaimLine.deleteMany({ where: { reimbursementClaimId: claim.id, stage: "AREA_OFFICE" } });
+    await tx.reimbursementClaim.update({
+      where: { id: claim.id },
+      data: {
+        claimRecommendedAmount: result.totalAmountAwarded,
+        claimRecommendedInWords: nairaInWords(result.totalAmountAwarded),
+        lines: { create: lines },
+      },
+      select: { id: true },
+    });
+    const snapshot = await tx.reimbursementCalculationSnapshot.create({
+      data: {
+        reimbursementClaimId: claim.id,
+        stage: "AREA_OFFICE",
+        policyEdition: claim.policyEdition,
+        employerScale: calculation.employerScale,
+        calculatedByEmail: input.requesterEmail,
+        calculationInput: calculation,
+        calculationResult: result,
+        uncappedAwardPercent: result.uncappedTotalAwardPercent,
+        cappedAwardPercent: result.cappedTotalAwardPercent,
+        totalAmountAwarded: result.totalAmountAwarded,
+        reviewerRemarks: remarks,
+      },
+      select: { id: true },
+    });
+    await tx.decision.create({
+      data: { actorId: actor.id, companyId: claim.companyId, reimbursementClaimId: claim.id, action: "RECOMMEND", reason: `Area Office RO reviewed Form 1A, Form 2A and evidence. Recommended NGN ${result.totalAmountAwarded.toFixed(2)}. ${remarks}` },
+    });
+    return snapshot;
   });
 }
 

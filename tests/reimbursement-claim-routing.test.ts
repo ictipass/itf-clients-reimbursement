@@ -3,10 +3,19 @@ import test from "node:test";
 
 import {
   addClaimLine,
+  calculateAreaOfficeClaim,
   canRouteClaimFromDesk,
   getClaimIntakeTransitions,
   getClaimPostIntakeTransitions,
 } from "../lib/claims";
+
+test("only the Area Office RO may calculate reviewed Form 1B", async () => {
+  await assert.rejects(calculateAreaOfficeClaim({
+    claimId: "claim-1", requesterEmail: "hot@example.test", requesterRole: "HEAD_OF_TRAINING",
+    verified: { siwesStudentsAccepted: 0, trainingPlanSubmittedPromptly: false },
+    reviewerRemarks: "Reviewed", reviewedForm1A: true, reviewedForm2A: true, reviewedEvidence: true,
+  }), /Only the Area Office Reimbursement Officer/);
+});
 
 test("staff cannot create employer claim calculation rows through the service", async () => {
   await assert.rejects(addClaimLine({
@@ -36,6 +45,16 @@ test("routes reimbursement claim intake through AM, HOT, then A/O reimbursement 
 
 test("routes processed reimbursement claims through HQ, audit, and finance desks", () => {
   const transitions = getClaimPostIntakeTransitions();
+
+  assert.equal(
+    transitions.find((transition) => transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER")?.action,
+    "RECOMMEND",
+  );
+
+  assert.equal(
+    transitions.find((transition) => transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD")?.action,
+    "APPROVE",
+  );
 
   assert.deepEqual(
     transitions.map((transition) => [

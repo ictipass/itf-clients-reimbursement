@@ -11,6 +11,7 @@ import type {
   ContributionVerificationStatus,
 } from "@/lib/claim-verification";
 import {
+  calculateAreaOfficeClaim,
   addClaimLine,
   attachTrainingsToClaim,
   deleteClaimLine,
@@ -397,18 +398,22 @@ export async function uploadClaimEvidenceAction(claimId: string, formData: FormD
     throw new Error("Authentication is required.");
   }
 
-  const file = await readUploadedFile(formData, "evidence", session.user.id);
-
-  await uploadClaimEvidence({
-    claimId,
-    uploadedByEmail: session.user.email,
-    requesterRole: session.user.role,
-    kind: readEvidenceKind(formData),
-    file,
-  });
+  try {
+    const file = await readUploadedFile(formData, "evidence", session.user.id);
+    await uploadClaimEvidence({
+      claimId,
+      uploadedByEmail: session.user.email,
+      requesterRole: session.user.role,
+      kind: readEvidenceKind(formData),
+      file,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Claim evidence could not be uploaded.";
+    redirect(`/claims/${claimId}?evidenceError=${encodeURIComponent(message.slice(0, 280))}#claim-evidence`);
+  }
 
   revalidatePath(`/claims/${claimId}`);
-  redirect(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?evidenceSaved=1#claim-evidence`);
 }
 
 export async function updateClaimRecommendationAction(claimId: string, formData: FormData) {
@@ -431,6 +436,40 @@ export async function updateClaimRecommendationAction(claimId: string, formData:
   revalidatePath(`/claims`);
   revalidatePath(`/claims/${claimId}`);
   redirect(`/claims/${claimId}`);
+}
+
+export async function calculateAreaOfficeClaimAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+
+  try {
+    await calculateAreaOfficeClaim({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      verified: {
+        managementTrained: readOptionalNumber(formData, "managementTrained"),
+        supervisoryTrained: readOptionalNumber(formData, "supervisoryTrained"),
+        occupationalTrained: readOptionalNumber(formData, "occupationalTrained"),
+        smallTrained: readOptionalNumber(formData, "smallTrained"),
+        ldTrained: readOptionalNumber(formData, "ldTrained"),
+        hseTrained: readOptionalNumber(formData, "hseTrained"),
+        siwesStudentsAccepted: readRequiredNumber(formData, "siwesStudentsAccepted"),
+        trainingPlanSubmittedPromptly: formData.get("trainingPlanSubmittedPromptly") === "on",
+      },
+      reviewerRemarks: readRequiredString(formData, "reviewerRemarks"),
+      reviewedForm1A: formData.get("reviewedForm1A") === "on",
+      reviewedForm2A: formData.get("reviewedForm2A") === "on",
+      reviewedEvidence: formData.get("reviewedEvidence") === "on",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Area Office calculation could not be saved.";
+    redirect(`/claims/${claimId}?areaCalculationError=${encodeURIComponent(message.slice(0, 280))}#area-office-calculation`);
+  }
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?areaCalculationSaved=1#area-office-calculation`);
 }
 
 export async function updateClaimContributionVerificationAction(

@@ -1,0 +1,1 @@
+ALTER TYPE "DocumentKind" ADD VALUE 'SIWES_FORM_5A';
