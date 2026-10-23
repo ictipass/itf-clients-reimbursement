@@ -4,6 +4,7 @@ import { ClaimBankFields } from "@/components/claim-bank-fields";
 import { ClaimTestClockNotice } from "@/components/claim-test-clock-notice";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
+import type { ReactNode } from "react";
 
 import {
   addClaimLineAction,
@@ -69,6 +70,17 @@ function decimalInput(value: { toString(): string } | null) {
   return value?.toString() ?? "";
 }
 
+function CollapsibleClaimSection({ title, children }: Readonly<{ title: string; children: ReactNode }>) {
+  return <details open className="group [&>section]:!mt-2">
+    <summary className="mt-8 flex min-h-10 cursor-pointer list-none items-center justify-between rounded-md border border-zinc-200 bg-zinc-50 px-4 text-sm font-semibold text-zinc-700 [&::-webkit-details-marker]:hidden">
+      <span className="group-open:hidden">{title}</span>
+      <span className="ml-auto hidden text-xs text-zinc-500 group-open:inline">Collapse section</span>
+      <span className="ml-auto text-xs text-zinc-500 group-open:hidden">Expand section</span>
+    </summary>
+    {children}
+  </details>;
+}
+
 function formatDate(value: Date | null) {
   if (!value) {
     return "Not recorded";
@@ -103,7 +115,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -112,7 +124,6 @@ export default async function ClaimDetailPage({
   const canSubmitClaim = canUseSection(activeRole, "claim.form.edit");
   const canRecommendClaim = canUseSection(activeRole, "claim.recommendation.edit");
   const canUploadClaimEvidence = canUseSection(activeRole, "claim.evidence.upload");
-  const canEditCalculations = canUseSection(activeRole, "claim.calculation.edit");
   const evidenceKinds = getClaimEvidenceKinds();
   const claim = await getDb().reimbursementClaim.findFirst({
     where: {
@@ -292,6 +303,7 @@ export default async function ClaimDetailPage({
   if (!claim) {
     notFound();
   }
+  const canEditCalculations = canUseSection(activeRole, "claim.calculation.edit") && !isItfRole(activeRole) && claim.status === "DRAFT";
   let approvedReimbursementStatus = "Pending ITF decision";
   if (claim.status === "REJECTED") approvedReimbursementStatus = "Not awarded";
   else if (["APPROVED", "SETTLED", "ARCHIVED"].includes(claim.status)) approvedReimbursementStatus = "See claim decision trail";
@@ -483,6 +495,7 @@ export default async function ClaimDetailPage({
         </div>
       ) : null}
 
+      <CollapsibleClaimSection title="Claim overview">
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
@@ -562,6 +575,7 @@ export default async function ClaimDetailPage({
           ) : null}
         </div>
       </section>
+      </CollapsibleClaimSection>
 
       {(canSubmitToAreaManager ||
         canForwardToHot ||
@@ -569,6 +583,7 @@ export default async function ClaimDetailPage({
         availablePostIntakeTransitions.length > 0 ||
         canMarkKiv ||
         canResumeKiv) ? (
+        <CollapsibleClaimSection title="Claim routing">
         <section className="mt-8 rounded-lg border border-[#800020]/20 bg-[#800020]/5 p-5">
           <h2 className="text-xl font-semibold tracking-tight">Claim routing</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-700">
@@ -672,8 +687,10 @@ export default async function ClaimDetailPage({
             </form>
           ) : null}
         </section>
+        </CollapsibleClaimSection>
       ) : null}
 
+      <CollapsibleClaimSection title="Attached approved trainings">
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Attached approved trainings</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
@@ -756,8 +773,12 @@ export default async function ClaimDetailPage({
           </form>
         ) : null}
       </section>
+      </CollapsibleClaimSection>
 
-      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+      <CollapsibleClaimSection title="Contribution eligibility verification">
+      <section id="contribution-verification" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        {query.assessmentSaved ? <p className="mb-4 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-950">Evidence assessment saved. Annual payment eligibility must still be confirmed by the configured compliance source.</p> : null}
+        {query.assessmentError ? <p className="mb-4 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-950">{query.assessmentError}</p> : null}
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-xl font-semibold tracking-tight">
@@ -768,11 +789,12 @@ export default async function ClaimDetailPage({
               {annualPaymentCheck ? ` ${annualPaymentCheck.message}` : ""}
               {annualPaymentCheck?.checkedAt ? ` Last checked ${formatDate(annualPaymentCheck.checkedAt)}.` : ""}
             </p>
-            {query.paymentCheck ? <p className="mt-2 text-sm text-emerald-800">Payment recheck completed: {query.paymentCheck}.</p> : null}
-            {query.paymentCheckError ? <p className="mt-2 text-sm text-red-800">Payment recheck failed: {query.paymentCheckError}</p> : null}
+            {query.paymentCheck ? <p className={`mt-3 rounded-md px-4 py-3 text-sm font-bold ${query.paymentCheck === "ELIGIBLE" ? "border border-emerald-300 bg-emerald-50 text-emerald-950" : query.paymentCheck === "INELIGIBLE" ? "border border-red-300 bg-red-50 text-red-950" : "border border-amber-300 bg-amber-50 text-amber-950"}`}>Payment recheck result: {query.paymentCheck}.</p> : null}
+            {query.paymentCheckError ? <p className="mt-3 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm font-bold text-red-950">Payment recheck failed: {query.paymentCheckError}</p> : null}
             <p className="mt-2 text-sm leading-6 text-zinc-600">
-              The annual payment check above uses the configured compliance source. The verification
-              status below records the reviewer&apos;s assessment of the supporting payment evidence.
+              The annual payment check above uses the configured compliance source. The form below
+              records a reviewer&apos;s assessment of supporting payment evidence; it cannot replace
+              the annual eligibility check or bypass the claim-processing gate.
             </p>
           </div>
           <span className="inline-flex w-fit rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700">
@@ -818,7 +840,11 @@ export default async function ClaimDetailPage({
             action={updateClaimContributionVerificationAction.bind(null, claim.id)}
             className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2"
           >
-            <select
+            <div className="md:col-span-2">
+              <h3 className="font-semibold text-zinc-950">Reviewer evidence assessment</h3>
+              <p className="mt-1 text-sm text-zinc-600">Manual review documents what the officer found. A manual Verified selection does not make an API-pending or ineligible company eligible.</p>
+            </div>
+            <label className="grid gap-1 text-sm font-medium text-zinc-700">Evidence assessment status<select
               name="contributionVerificationStatus"
               defaultValue={claim.contributionVerificationStatus}
               className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
@@ -828,8 +854,8 @@ export default async function ClaimDetailPage({
                   {formatContributionVerificationStatus(status)}
                 </option>
               ))}
-            </select>
-            <select
+            </select></label>
+            <label className="grid gap-1 text-sm font-medium text-zinc-700">Assessment source<select
               name="contributionVerificationSource"
               defaultValue={claim.contributionVerificationSource}
               className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
@@ -839,40 +865,42 @@ export default async function ClaimDetailPage({
                   {formatContributionVerificationSource(source)}
                 </option>
               ))}
-            </select>
-            <input
+            </select></label>
+            <label className="grid gap-1 text-sm font-medium text-zinc-700">External provider<input
               name="externalVerificationProvider"
               defaultValue={claim.externalVerificationProvider ?? ""}
               placeholder="External provider e.g. Compliance API"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
+            /></label>
+            <label className="grid gap-1 text-sm font-medium text-zinc-700">External verification reference<input
               name="externalVerificationReference"
               defaultValue={claim.externalVerificationReference ?? ""}
               placeholder="External verification reference"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
+            /></label>
+            <label className="grid gap-1 text-sm font-medium text-zinc-700">External verification message<input
               name="externalVerificationMessage"
               defaultValue={claim.externalVerificationMessage ?? ""}
               placeholder="External verification message"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <textarea
+            /></label>
+            <label className="grid gap-1 text-sm font-medium text-zinc-700 md:col-span-2">Reviewer note<textarea
               name="contributionVerificationNote"
               defaultValue={claim.contributionVerificationNote ?? ""}
               placeholder="Verification note"
-              className="min-h-24 rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2"
-            />
+              className="min-h-24 rounded-md border border-zinc-200 px-3 py-2 text-sm"
+            /></label>
             <div className="md:col-span-2">
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                Save eligibility verification
+                Save evidence assessment
               </button>
             </div>
           </form>
         ) : null}
       </section>
+      </CollapsibleClaimSection>
 
+      <CollapsibleClaimSection title="Claim staff entries">
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Claim staff entries</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
@@ -1003,12 +1031,16 @@ export default async function ClaimDetailPage({
           </form>
         ) : null}
       </section>
+      </CollapsibleClaimSection>
 
+      <CollapsibleClaimSection title="Form 2A/2B calculations">
       <section id="calculations" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Form 2A/2B calculations</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
-          Enter the employer&apos;s claim schedule and use Calculate to estimate the claim. These figures are not an ITF
-          approval. Calculated rows are read-only; Save row updates only a manually added adjustment row.
+          {canEditCalculations
+            ? "Enter the employer claim schedule and use Calculate to estimate the claim. Calculated rows are read-only; Save row updates only a manually added adjustment row."
+            : "The employer claim calculation is read-only here. ITF staff review the submitted figures but do not change the employer schedule or create adjustment rows."}
+          {" "}These figures are not an ITF approval.
         </p>
         {query.lineSaved ? <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Manual calculation row saved.</p> : null}
         {query.lineError ? <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-sm text-red-900">{query.lineError}</p> : null}
@@ -1020,7 +1052,7 @@ export default async function ClaimDetailPage({
           <div className="mt-4 grid gap-4">
             {claim.lines.map((line) => (
               <div key={line.id} className="rounded-md border border-zinc-100 p-3">
-                {line.awardArea ? <div className="mt-3 grid gap-2 text-sm text-zinc-700 md:grid-cols-4">
+                {line.awardArea || !canEditCalculations ? <div className="mt-3 grid gap-2 text-sm text-zinc-700 md:grid-cols-4">
                   <p><strong>Training area:</strong> {line.trainingArea}</p>
                   <p><strong>Total workforce:</strong> {line.totalWorkforce ?? "Not provided"}</p>
                   <p><strong>Total trained:</strong> {line.totalTrained ?? "Not provided"}</p>
@@ -1028,6 +1060,7 @@ export default async function ClaimDetailPage({
                   <p><strong>Contribution paid:</strong> {formatMoney(line.contributionPaid)}</p>
                   <p><strong>Employer claim estimate:</strong> {formatMoney(line.employerClaimAmount)}</p>
                   <p><strong>Indicative reimbursement rate:</strong> {line.percentAwarded === null ? "Not calculated" : `${decimalInput(line.percentAwarded)}%`}</p>
+                  {!line.awardArea && line.amountAwarded ? <p><strong>Indicative amount:</strong> {formatMoney(line.amountAwarded)}</p> : null}
                   <p><strong>ITF-approved reimbursement:</strong> {approvedReimbursementStatus}</p>
                 </div> : <form
                   action={updateClaimLineAction.bind(null, claim.id, line.id)}
@@ -1245,7 +1278,9 @@ export default async function ClaimDetailPage({
           </div>
         ) : null}
       </section>
+      </CollapsibleClaimSection>
 
+      <CollapsibleClaimSection title="Employer claim details">
       <section id="claim-form" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Employer claim details</h2>
         {query.formSaved ? <p className="mt-3 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-900">Claim form saved.</p> : null}
@@ -1331,7 +1366,9 @@ export default async function ClaimDetailPage({
           </div>
         )}
       </section>
+      </CollapsibleClaimSection>
 
+      <CollapsibleClaimSection title="Supporting evidence">
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Supporting evidence</h2>
         {claim.documents.length === 0 ? (
@@ -1389,8 +1426,10 @@ export default async function ClaimDetailPage({
           </form>
         ) : null}
       </section>
+      </CollapsibleClaimSection>
 
       {canViewAuditReview ? (
+        <CollapsibleClaimSection title="Audit review">
         <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
@@ -1474,8 +1513,10 @@ export default async function ClaimDetailPage({
             </form>
           ) : null}
         </section>
+        </CollapsibleClaimSection>
       ) : null}
 
+      <CollapsibleClaimSection title="Payment handoff">
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
@@ -1557,7 +1598,9 @@ export default async function ClaimDetailPage({
           </form>
         ) : null}
       </section>
+      </CollapsibleClaimSection>
 
+      <CollapsibleClaimSection title="Claim decision trail">
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
           <div>
@@ -1605,8 +1648,10 @@ export default async function ClaimDetailPage({
           </ol>
         )}
       </section>
+      </CollapsibleClaimSection>
 
       {canRecommendClaim ? (
+        <CollapsibleClaimSection title="Form 1B recommendation">
         <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="text-xl font-semibold tracking-tight">Form 1B recommendation</h2>
           <form
@@ -1648,6 +1693,7 @@ export default async function ClaimDetailPage({
             </div>
           </form>
         </section>
+        </CollapsibleClaimSection>
       ) : null}
     </div>
   );

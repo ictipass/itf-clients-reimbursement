@@ -1961,8 +1961,8 @@ export async function updateClaimContributionVerification(
 }
 
 export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimCalculationInput) {
-  if (!can(input.requesterRole, "claims:submit")) {
-    throw new Error("You do not have permission to update reimbursement claim calculations.");
+  if (!can(input.requesterRole, "claims:submit") || isItfRole(input.requesterRole)) {
+    throw new Error("Only employers can update reimbursement claim calculations.");
   }
 
   const db = getDb();
@@ -2009,11 +2009,9 @@ export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimC
     throw new Error("User account was not found.");
   }
 
-  const hasOrganizationAccess =
-    isItfRole(input.requesterRole) ||
-    requester.memberships.some(
-      (membership) => membership.organizationId === claim.company.organizationId,
-    );
+  const hasOrganizationAccess = requester.memberships.some(
+    (membership) => membership.organizationId === claim.company.organizationId,
+  );
 
   if (!hasOrganizationAccess) {
     throw new Error("You do not have access to update this claim calculation.");
@@ -2221,14 +2219,15 @@ async function assertClaimLineAccess(input: {
   requesterEmail: string;
   requesterRole: Role;
 }) {
-  if (!can(input.requesterRole, "claims:submit") && !can(input.requesterRole, "claims:review")) {
-    throw new Error("You do not have permission to edit claim calculations.");
+  if (!can(input.requesterRole, "claims:submit") || isItfRole(input.requesterRole)) {
+    throw new Error("Only employers can edit claim calculations.");
   }
 
   const db = getDb();
   const claim = await db.reimbursementClaim.findFirst({
     where: {
       id: input.claimId,
+      status: "DRAFT",
       recordTier: "HOT",
       company: {
         recordTier: "HOT",
@@ -2240,7 +2239,6 @@ async function assertClaimLineAccess(input: {
       company: {
         select: {
           organizationId: true,
-          areaOfficeId: true,
         },
       },
     },
@@ -2259,7 +2257,6 @@ async function assertClaimLineAccess(input: {
         where: { isActive: true },
         select: {
           organizationId: true,
-          areaOfficeId: true,
         },
       },
     },
@@ -2269,13 +2266,9 @@ async function assertClaimLineAccess(input: {
     throw new Error("User account was not found.");
   }
 
-  const hasAccess =
-    isItfRole(input.requesterRole) ||
-    actor.memberships.some(
-      (membership) =>
-        membership.organizationId === claim.company.organizationId ||
-        membership.areaOfficeId === claim.company.areaOfficeId,
-    );
+  const hasAccess = actor.memberships.some(
+    (membership) => membership.organizationId === claim.company.organizationId,
+  );
 
   if (!hasAccess) {
     throw new Error("You do not have access to edit this claim calculation.");

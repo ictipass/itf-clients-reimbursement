@@ -9,7 +9,14 @@ import {
   roles,
 } from "../lib/rbac";
 import { canViewManagementDashboard } from "../lib/management-dashboard";
-import { canAccessPath } from "../lib/feature-gates";
+import { canAccessPath, canUseSection } from "../lib/feature-gates";
+
+test("claim calculation forms are for employers, not claim reviewers", () => {
+  assert.equal(canUseSection("EMPLOYER_ADMIN", "claim.calculation.edit"), true);
+  assert.equal(canUseSection("AREA_MANAGER", "claim.calculation.edit"), false);
+  assert.equal(canUseSection("HEAD_OF_TRAINING", "claim.calculation.edit"), false);
+  assert.equal(canUseSection("REIMBURSEMENT_OFFICER", "claim.calculation.edit"), false);
+});
 import { getVisibleNavGroups } from "../lib/navigation";
 import { getTrainingAreas } from "../lib/training-request";
 

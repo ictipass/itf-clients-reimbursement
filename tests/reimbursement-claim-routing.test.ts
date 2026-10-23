@@ -2,10 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  addClaimLine,
   canRouteClaimFromDesk,
   getClaimIntakeTransitions,
   getClaimPostIntakeTransitions,
 } from "../lib/claims";
+
+test("staff cannot create employer claim calculation rows through the service", async () => {
+  await assert.rejects(addClaimLine({
+    claimId: "claim-1",
+    requesterEmail: "area.manager@example.test",
+    requesterRole: "AREA_MANAGER",
+    trainingArea: "Management",
+  }), /Only employers can edit claim calculations/);
+});
 
 test("routes reimbursement claim intake through AM, HOT, then A/O reimbursement officer", () => {
   const transitions = getClaimIntakeTransitions();

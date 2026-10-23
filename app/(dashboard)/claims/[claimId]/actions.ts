@@ -110,10 +110,10 @@ export async function recheckClaimAnnualPaymentAction(claimId: string) {
     result = check.status;
   } catch (error) {
     const message = error instanceof Error ? error.message : "Annual payment check failed.";
-    redirect(`/claims/${claimId}?paymentCheckError=${encodeURIComponent(message.slice(0, 280))}`);
+    redirect(`/claims/${claimId}?paymentCheckError=${encodeURIComponent(message.slice(0, 280))}#contribution-verification`);
   }
   revalidatePath(`/claims/${claimId}`);
-  redirect(`/claims/${claimId}?paymentCheck=${result}`);
+  redirect(`/claims/${claimId}?paymentCheck=${result}#contribution-verification`);
 }
 
 export async function updateClaimFormAction(claimId: string, formData: FormData) {
@@ -443,36 +443,41 @@ export async function updateClaimContributionVerificationAction(
     throw new Error("Authentication is required.");
   }
 
-  await updateClaimContributionVerification({
-    claimId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    status: readRequiredString(
-      formData,
-      "contributionVerificationStatus",
-    ) as ContributionVerificationStatus,
-    source: readRequiredString(
-      formData,
-      "contributionVerificationSource",
-    ) as ContributionVerificationSource,
-    note: readOptionalString(formData, "contributionVerificationNote"),
-    externalVerificationProvider: readOptionalString(
-      formData,
-      "externalVerificationProvider",
-    ),
-    externalVerificationReference: readOptionalString(
-      formData,
-      "externalVerificationReference",
-    ),
-    externalVerificationMessage: readOptionalString(
-      formData,
-      "externalVerificationMessage",
-    ),
-  });
+  try {
+    await updateClaimContributionVerification({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      status: readRequiredString(
+        formData,
+        "contributionVerificationStatus",
+      ) as ContributionVerificationStatus,
+      source: readRequiredString(
+        formData,
+        "contributionVerificationSource",
+      ) as ContributionVerificationSource,
+      note: readOptionalString(formData, "contributionVerificationNote"),
+      externalVerificationProvider: readOptionalString(
+        formData,
+        "externalVerificationProvider",
+      ),
+      externalVerificationReference: readOptionalString(
+        formData,
+        "externalVerificationReference",
+      ),
+      externalVerificationMessage: readOptionalString(
+        formData,
+        "externalVerificationMessage",
+      ),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Evidence assessment could not be saved.";
+    redirect(`/claims/${claimId}?assessmentError=${encodeURIComponent(message.slice(0, 280))}#contribution-verification`);
+  }
 
   revalidatePath(`/claims`);
   revalidatePath(`/claims/${claimId}`);
-  redirect(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?assessmentSaved=1#contribution-verification`);
 }
 
 function readRequiredPositiveNumber(formData: FormData, name: string) {

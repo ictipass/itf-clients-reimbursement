@@ -17,7 +17,7 @@ const sectionGates: Record<SectionGateKey, Permission[]> = {
   "claim.form.edit": ["claims:submit"],
   "claim.evidence.upload": ["claims:submit", "claims:review"],
   "claim.recommendation.edit": ["claims:review"],
-  "claim.calculation.edit": ["claims:submit", "claims:review"],
+  "claim.calculation.edit": ["claims:submit"],
 };
 
 export const featureGates: FeatureGate[] = [
