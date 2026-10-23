@@ -105,6 +105,8 @@ export type CalculateAreaOfficeClaimInput = {
   reviewedEvidence: boolean;
 };
 
+export type CalculateHeadquartersClaimInput = CalculateAreaOfficeClaimInput;
+
 export type UpdateClaimContributionVerificationInput = {
   claimId: string;
   requesterEmail: string;
@@ -500,8 +502,8 @@ export function getClaimPostIntakeTransitions() {
       from: "DIRECTOR_FSD",
       to: "DIRECTOR_AUDIT",
       assignedRole: "DIRECTOR_AUDIT",
-      action: "FORWARD",
-      reason: "Director FSD forwarded approved reimbursement claim to Director Audit.",
+      action: "APPROVE",
+      reason: "Director FSD approved the HQ reimbursement recommendation and forwarded the claim to Director Audit.",
       workItemTitle: "Receive reimbursement claim for audit",
       workItemSummary: "has an approved reimbursement claim awaiting Director Audit receipt.",
     },
@@ -712,6 +714,7 @@ async function moveClaimThroughIntake(
       status: true,
       currentDesk: true,
       claimYear: true,
+      decisions: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { reason: true } },
       company: {
         select: {
           legalName: true,
@@ -735,6 +738,16 @@ async function moveClaimThroughIntake(
     throw new Error(
       `This claim is currently at ${claim.currentDesk.replaceAll("_", " ")}, not ${transition.from.replaceAll("_", " ")}.`,
     );
+  }
+
+  const lastDecisionReason = claim.decisions[0]?.reason ?? "";
+  if (transition.from === "HEAD_OF_DIVISION" &&
+    (transition.to === "DIRECTOR_FSD") !== lastDecisionReason.includes("HQ RO returned")) {
+    throw new Error("This Head of Division routing step is not available at the current review stage.");
+  }
+  if (transition.from === "DIRECTOR_FSD" &&
+    (transition.to === "DIRECTOR_AUDIT") !== lastDecisionReason.includes("Head Reimbursement Division forwarded verified")) {
+    throw new Error("This Director FSD routing step is not available at the current review stage.");
   }
 
   if (transition.from === "COMPANY" && claim.status !== "DRAFT") {
@@ -776,6 +789,24 @@ async function moveClaimThroughIntake(
     }
   }
 
+  let approvedHeadquartersAmount: number | undefined;
+  if (
+    (transition.from === "HQ_REIMBURSEMENT_OFFICER" && transition.to === "HEAD_OF_DIVISION") ||
+    (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") ||
+    (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT")
+  ) {
+    const headquartersCalculation = await db.reimbursementCalculationSnapshot.findFirst({
+      where: { reimbursementClaimId: claim.id, stage: "HEADQUARTERS", recordTier: "HOT" },
+      select: { totalAmountAwarded: true },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    if (!headquartersCalculation) throw new Error("The HQ Reimbursement Officer must save a verified Form 2A/1B calculation before this claim can advance.");
+    if (transition.from !== "HQ_REIMBURSEMENT_OFFICER" && !input.note?.trim()) {
+      throw new Error("Head of Reimbursement Division review and Director FSD approval each require a written decision note.");
+    }
+    if (transition.to === "DIRECTOR_AUDIT") approvedHeadquartersAmount = Number(headquartersCalculation.totalAmountAwarded.toString());
+  }
+
   if (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT") {
     const eligibility = await verifyAnnualEligibility(claim.companyId, claim.claimYear ?? 0);
     if (eligibility.status !== "ELIGIBLE") throw new Error(`Claim approval is blocked: ${eligibility.message}`);
@@ -792,6 +823,8 @@ async function moveClaimThroughIntake(
         status: "SUBMITTED",
         currentDesk: transition.to,
         submittedAt: transition.action === "SUBMIT" ? now : undefined,
+        claimRecommendedAmount: approvedHeadquartersAmount,
+        claimRecommendedInWords: approvedHeadquartersAmount === undefined ? undefined : nairaInWords(approvedHeadquartersAmount),
       },
       select: {
         id: true,
@@ -1778,8 +1811,8 @@ export async function updateClaimRecommendation(input: UpdateClaimRecommendation
     throw new Error("You do not have permission to recommend reimbursement claims.");
   }
 
-  if (["REIMBURSEMENT_OFFICER", "HEAD_OF_TRAINING", "AREA_MANAGER"].includes(input.requesterRole)) {
-    throw new Error("Area Office Form 1B amounts must come from the RO's verified calculation.");
+  if (["REIMBURSEMENT_OFFICER", "HEAD_OF_TRAINING", "AREA_MANAGER", "HQ_REIMBURSEMENT_OFFICER", "HEAD_OF_DIVISION", "DIRECTOR_FSD"].includes(input.requesterRole)) {
+    throw new Error("Form 1B amounts must come from the RO's verified calculation and the approval workflow.");
   }
 
   const db = getDb();
@@ -1918,6 +1951,66 @@ export async function calculateAreaOfficeClaim(input: CalculateAreaOfficeClaimIn
     });
     await tx.decision.create({
       data: { actorId: actor.id, companyId: claim.companyId, reimbursementClaimId: claim.id, action: "RECOMMEND", reason: `Area Office RO reviewed Form 1A, Form 2A and evidence. Recommended NGN ${result.totalAmountAwarded.toFixed(2)}. ${remarks}` },
+    });
+    return snapshot;
+  });
+}
+
+export async function calculateHeadquartersClaim(input: CalculateHeadquartersClaimInput) {
+  if (input.requesterRole !== "HQ_REIMBURSEMENT_OFFICER" && !isAdminRole(input.requesterRole)) {
+    throw new Error("Only the HQ Reimbursement Officer can calculate this recommendation.");
+  }
+  const remarks = input.reviewerRemarks.trim();
+  if (!remarks) throw new Error("The HQ RO must record a review remark.");
+  if (!input.reviewedForm1A || !input.reviewedForm2A || !input.reviewedEvidence) {
+    throw new Error("Confirm review of Form 1A, Form 2A and supporting evidence before calculating.");
+  }
+
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: { id: input.claimId, recordTier: "HOT", status: "SUBMITTED", currentDesk: "HQ_REIMBURSEMENT_OFFICER" },
+    select: {
+      id: true, companyId: true, employerScale: true, trainingContributionPaid: true, policyEdition: true,
+      company: { select: { organization: { select: { workspaceId: true } } } },
+      lines: { where: { stage: "EMPLOYER" }, select: { stage: true, awardArea: true, totalWorkforce: true, totalTrained: true, emphasisNumber: true, percentAwarded: true } },
+      calculationSnapshots: { where: { stage: "AREA_OFFICE", recordTier: "HOT" }, select: { id: true }, take: 1 },
+    },
+  });
+  if (!claim) throw new Error("This claim is not at the HQ RO desk.");
+  if (!claim.calculationSnapshots.length) throw new Error("The Area Office calculation must be saved before HQ review.");
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true, isActive: true, memberships: { where: { isActive: true }, select: { areaOfficeId: true, role: true, workspaceId: true } } },
+  });
+  if (!actor?.isActive || (!isAdminRole(input.requesterRole) && !actor.memberships.some((membership) =>
+    membership.role === "HQ_REIMBURSEMENT_OFFICER" && membership.areaOfficeId === null && membership.workspaceId === claim.company.organization.workspaceId
+  ))) throw new Error("You do not have Headquarters access to this claim.");
+
+  const baseline = getAreaOfficeCalculationBaseline(claim);
+  if (!baseline) throw new Error("The employer Form 2A/2B calculation is incomplete; HQ cannot reconstruct the baseline.");
+  const calculation = applyAreaOfficeVerifiedCounts(baseline, input.verified);
+  const result = calculateReimbursementAward({ ...calculation, policyEdition: claim.policyEdition });
+  const lines = result.lines.map((line) => ({
+    ...buildEmployerCalculationLine(line, calculation.trainingContributionPaid, calculation),
+    stage: "HEADQUARTERS" as const,
+  }));
+
+  return db.$transaction(async (tx) => {
+    await tx.reimbursementClaimLine.deleteMany({ where: { reimbursementClaimId: claim.id, stage: "HEADQUARTERS" } });
+    await tx.reimbursementClaim.update({ where: { id: claim.id }, data: { lines: { create: lines } }, select: { id: true } });
+    const snapshot = await tx.reimbursementCalculationSnapshot.create({
+      data: {
+        reimbursementClaimId: claim.id, stage: "HEADQUARTERS", policyEdition: claim.policyEdition,
+        employerScale: calculation.employerScale, calculatedByEmail: input.requesterEmail,
+        calculationInput: calculation, calculationResult: result,
+        uncappedAwardPercent: result.uncappedTotalAwardPercent,
+        cappedAwardPercent: result.cappedTotalAwardPercent,
+        totalAmountAwarded: result.totalAmountAwarded, reviewerRemarks: remarks,
+      },
+      select: { id: true },
+    });
+    await tx.decision.create({
+      data: { actorId: actor.id, companyId: claim.companyId, reimbursementClaimId: claim.id, action: "RECOMMEND", reason: `HQ RO independently reviewed Form 1A, Form 2A and evidence. Recommended NGN ${result.totalAmountAwarded.toFixed(2)}. ${remarks}` },
     });
     return snapshot;
   });

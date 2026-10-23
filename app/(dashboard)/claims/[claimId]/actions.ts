@@ -12,6 +12,7 @@ import type {
 } from "@/lib/claim-verification";
 import {
   calculateAreaOfficeClaim,
+  calculateHeadquartersClaim,
   addClaimLine,
   attachTrainingsToClaim,
   deleteClaimLine,
@@ -238,14 +239,19 @@ export async function forwardClaimAlongWorkflowAction(
     throw new Error("Authentication is required.");
   }
 
-  await forwardClaimAlongWorkflow({
-    claimId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    fromDesk,
-    toDesk,
-    note: readOptionalString(formData, "note"),
-  });
+  try {
+    await forwardClaimAlongWorkflow({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      fromDesk,
+      toDesk,
+      note: readOptionalString(formData, "note"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The claim could not be forwarded.";
+    redirect(`/claims/${claimId}?routingError=${encodeURIComponent(message.slice(0, 280))}`);
+  }
 
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
@@ -470,6 +476,40 @@ export async function calculateAreaOfficeClaimAction(claimId: string, formData: 
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
   redirect(`/claims/${claimId}?areaCalculationSaved=1#area-office-calculation`);
+}
+
+export async function calculateHeadquartersClaimAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+
+  try {
+    await calculateHeadquartersClaim({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      verified: {
+        managementTrained: readOptionalNumber(formData, "managementTrained"),
+        supervisoryTrained: readOptionalNumber(formData, "supervisoryTrained"),
+        occupationalTrained: readOptionalNumber(formData, "occupationalTrained"),
+        smallTrained: readOptionalNumber(formData, "smallTrained"),
+        ldTrained: readOptionalNumber(formData, "ldTrained"),
+        hseTrained: readOptionalNumber(formData, "hseTrained"),
+        siwesStudentsAccepted: readRequiredNumber(formData, "siwesStudentsAccepted"),
+        trainingPlanSubmittedPromptly: formData.get("trainingPlanSubmittedPromptly") === "on",
+      },
+      reviewerRemarks: readRequiredString(formData, "reviewerRemarks"),
+      reviewedForm1A: formData.get("reviewedForm1A") === "on",
+      reviewedForm2A: formData.get("reviewedForm2A") === "on",
+      reviewedEvidence: formData.get("reviewedEvidence") === "on",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Headquarters calculation could not be saved.";
+    redirect(`/claims/${claimId}?hqCalculationError=${encodeURIComponent(message.slice(0, 280))}#hq-calculation`);
+  }
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?hqCalculationSaved=1#hq-calculation`);
 }
 
 export async function updateClaimContributionVerificationAction(

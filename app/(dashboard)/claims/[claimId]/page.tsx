@@ -8,6 +8,7 @@ import type { ReactNode } from "react";
 
 import {
   calculateAreaOfficeClaimAction,
+  calculateHeadquartersClaimAction,
   addClaimLineAction,
   attachTrainingsToClaimAction,
   deleteClaimLineAction,
@@ -135,7 +136,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; evidenceError?: string; evidenceSaved?: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; evidenceError?: string; evidenceSaved?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -268,10 +269,10 @@ export default async function ClaimDetailPage({
         },
       },
       calculationSnapshots: {
-        where: { stage: "AREA_OFFICE", recordTier: "HOT" },
+        where: { stage: { in: ["AREA_OFFICE", "HEADQUARTERS"] }, recordTier: "HOT" },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: {
-          id: true, calculatedByEmail: true, createdAt: true, reviewerRemarks: true,
+          id: true, stage: true, calculatedByEmail: true, createdAt: true, reviewerRemarks: true,
           policyEdition: true, uncappedAwardPercent: true, cappedAwardPercent: true,
           totalAmountAwarded: true,
         },
@@ -348,16 +349,25 @@ export default async function ClaimDetailPage({
 
   const canManageClaimTrainings = canSubmitClaim && claim.status === "DRAFT";
   const areaOfficeBaseline = getAreaOfficeCalculationBaseline(claim);
-  const latestAreaCalculation = claim.calculationSnapshots[0];
+  const areaCalculations = claim.calculationSnapshots.filter((snapshot) => snapshot.stage === "AREA_OFFICE");
+  const headquartersCalculations = claim.calculationSnapshots.filter((snapshot) => snapshot.stage === "HEADQUARTERS");
+  const latestAreaCalculation = areaCalculations[0];
+  const latestHeadquartersCalculation = headquartersCalculations[0];
   const employerLines = claim.lines.filter((line) => line.stage === "EMPLOYER");
   const areaOfficeRows = claim.lines.filter((line) => line.stage === "AREA_OFFICE");
+  const headquartersRows = claim.lines.filter((line) => line.stage === "HEADQUARTERS");
   const areaOfficeReconciliation = latestAreaCalculation
     ? Math.round((Number(latestAreaCalculation.totalAmountAwarded.toString()) - areaOfficeRows.reduce((sum, line) => sum + Number(line.amountAwarded?.toString() ?? 0), 0)) * 100) / 100
+    : 0;
+  const headquartersReconciliation = latestHeadquartersCalculation
+    ? Math.round((Number(latestHeadquartersCalculation.totalAmountAwarded.toString()) - headquartersRows.reduce((sum, line) => sum + Number(line.amountAwarded?.toString() ?? 0), 0)) * 100) / 100
     : 0;
   const verifiedDefault = (area: string, employerDefault: number | undefined) =>
     areaOfficeRows.find((line) => line.awardArea === area)?.totalTrained ?? employerDefault ?? 0;
   const canCalculateAreaOffice = claim.status === "SUBMITTED" && claim.currentDesk === "REIMBURSEMENT_OFFICER" &&
     (activeRole === "REIMBURSEMENT_OFFICER" || activeRole === "SYSTEM_ADMIN" || activeRole === "WORKSPACE_APP_ADMIN");
+  const canCalculateHeadquarters = claim.status === "SUBMITTED" && claim.currentDesk === "HQ_REIMBURSEMENT_OFFICER" &&
+    (activeRole === "HQ_REIMBURSEMENT_OFFICER" || activeRole === "SYSTEM_ADMIN" || activeRole === "WORKSPACE_APP_ADMIN");
   const canSubmitToAreaManager =
     canSubmitClaim && claim.status === "DRAFT" && claim.currentDesk === "COMPANY";
   const canForwardToHot =
@@ -697,12 +707,12 @@ export default async function ClaimDetailPage({
             >
               <input
                 name="note"
-                required={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD")}
-                placeholder={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") ? "Required review / approval note" : `Optional ${transition.from.replaceAll("_", " ")} note`}
+                required={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") || (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT")}
+                placeholder={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") || (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT") ? "Required review / approval note" : `Optional ${transition.from.replaceAll("_", " ")} note`}
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
               />
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                {transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD" ? "Approve and forward to Director FSD" : `Forward to ${transition.to.replaceAll("_", " ")}`}
+                {transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD" ? "Approve and forward to Director FSD" : transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT" ? "Approve HQ recommendation and forward to Director Audit" : `Forward to ${transition.to.replaceAll("_", " ")}`}
               </button>
             </form>
           ))}
@@ -1763,12 +1773,12 @@ export default async function ClaimDetailPage({
                 </div>
                 <p className="mt-3 text-sm text-zinc-700"><strong>Amount in words:</strong> {nairaInWords(Number(latestAreaCalculation.totalAmountAwarded.toString()))}</p>
                 <p className="mt-3 text-sm text-zinc-700"><strong>RO remark:</strong> {latestAreaCalculation.reviewerRemarks}</p>
-                <p className="mt-2 text-sm text-zinc-700"><strong>Headquarters recommendation:</strong> Pending separate HQ review.</p>
-                {claim.calculationSnapshots.length > 1 ? (
+                <p className="mt-2 text-sm text-zinc-700"><strong>Headquarters recommendation:</strong> {latestHeadquartersCalculation ? formatMoney(latestHeadquartersCalculation.totalAmountAwarded) : "Pending separate HQ review."}</p>
+                {areaCalculations.length > 1 ? (
                   <details className="mt-4 rounded-md border border-zinc-200 p-3 text-sm">
-                    <summary className="cursor-pointer font-semibold">Previous Area Office calculations ({claim.calculationSnapshots.length - 1})</summary>
+                    <summary className="cursor-pointer font-semibold">Previous Area Office calculations ({areaCalculations.length - 1})</summary>
                     <ol className="mt-3 grid gap-2">
-                      {claim.calculationSnapshots.slice(1).map((snapshot) => (
+                      {areaCalculations.slice(1).map((snapshot) => (
                         <li key={snapshot.id} className="rounded-md bg-zinc-50 p-2">
                           {formatDate(snapshot.createdAt)} · {snapshot.calculatedByEmail} · {formatMoney(snapshot.totalAmountAwarded)}
                           <p className="mt-1 text-zinc-600">{snapshot.reviewerRemarks}</p>
@@ -1809,7 +1819,54 @@ export default async function ClaimDetailPage({
         </CollapsibleClaimSection>
       ) : null}
 
-      {canRecommendClaim && !["REIMBURSEMENT_OFFICER", "HEAD_OF_TRAINING", "AREA_MANAGER"].includes(activeRole) ? (
+      {isItfRole(activeRole) ? (
+        <CollapsibleClaimSection title="Headquarters Form 1B reviewed claim">
+          <section id="hq-calculation" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+            <h2 className="text-xl font-semibold tracking-tight">Headquarters Form 1B reviewed claim</h2>
+            <p className="mt-2 text-sm text-zinc-600">The HQ RO independently verifies the employer figures and evidence. Employer emphasis rankings and workforce remain fixed. This calculation supersedes the Area Office recommendation only after Head of Division review and DFSD approval.</p>
+            <p className="mt-3 text-sm"><strong>Employer calculation:</strong> {formatMoney(claim.calculatedAwardAmount)} · <strong>Area Office recommendation:</strong> {latestAreaCalculation ? formatMoney(latestAreaCalculation.totalAmountAwarded) : "Pending"}</p>
+            {query.hqCalculationSaved ? <p className="mt-3 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">HQ calculation saved. Earlier calculations remain in the audit history.</p> : null}
+            {query.hqCalculationError ? <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.hqCalculationError}</p> : null}
+            {latestHeadquartersCalculation ? (
+              <div className="mt-4">
+                <p className="text-sm text-zinc-700">Calculated by {latestHeadquartersCalculation.calculatedByEmail} on {formatDate(latestHeadquartersCalculation.createdAt)} using {formatReimbursementPolicyEdition(latestHeadquartersCalculation.policyEdition)}.</p>
+                <div className="mt-3 overflow-x-auto"><table className="min-w-full border-collapse text-left text-sm">
+                  <thead><tr className="bg-zinc-50"><th className="border border-zinc-200 p-2">Area of training</th><th className="border border-zinc-200 p-2">Max % claimable</th><th className="border border-zinc-200 p-2">% awarded</th><th className="border border-zinc-200 p-2">Amount awarded</th></tr></thead>
+                  <tbody>
+                    {headquartersRows.map((line) => <tr key={line.id}><td className="border border-zinc-200 p-2">{line.trainingArea}</td><td className="border border-zinc-200 p-2">{maxClaimablePercent(line.awardArea, line.emphasisNumber)}%</td><td className="border border-zinc-200 p-2">{formatPercent(line.percentAwarded)}</td><td className="border border-zinc-200 p-2">{formatMoney(line.amountAwarded)}</td></tr>)}
+                    {headquartersReconciliation !== 0 ? <tr><td className="border border-zinc-200 p-2">Policy cap / rounding adjustment</td><td className="border border-zinc-200 p-2">{formatPercent(latestHeadquartersCalculation.cappedAwardPercent)} overall cap</td><td className="border border-zinc-200 p-2">Reconciliation</td><td className="border border-zinc-200 p-2">{formatMoney(headquartersReconciliation)}</td></tr> : null}
+                    <tr className="font-semibold"><td className="border border-zinc-200 p-2" colSpan={3}>Total Headquarters recommendation</td><td className="border border-zinc-200 p-2">{formatMoney(latestHeadquartersCalculation.totalAmountAwarded)}</td></tr>
+                  </tbody>
+                </table></div>
+                <p className="mt-3 text-sm"><strong>Amount in words:</strong> {nairaInWords(Number(latestHeadquartersCalculation.totalAmountAwarded.toString()))}</p>
+                <p className="mt-2 text-sm"><strong>HQ RO remark:</strong> {latestHeadquartersCalculation.reviewerRemarks}</p>
+                {headquartersCalculations.length > 1 ? <details className="mt-4 rounded-md border border-zinc-200 p-3 text-sm"><summary className="cursor-pointer font-semibold">Previous HQ calculations ({headquartersCalculations.length - 1})</summary><ol className="mt-3 grid gap-2">{headquartersCalculations.slice(1).map((snapshot) => <li key={snapshot.id}>{formatDate(snapshot.createdAt)} · {snapshot.calculatedByEmail} · {formatMoney(snapshot.totalAmountAwarded)} · {snapshot.reviewerRemarks}</li>)}</ol></details> : null}
+              </div>
+            ) : <p className="mt-4 text-sm text-zinc-600">No HQ calculation has been saved yet.</p>}
+            {canCalculateHeadquarters && areaOfficeBaseline && latestAreaCalculation ? (
+              <form action={calculateHeadquartersClaimAction.bind(null, claim.id)} className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2">
+                <h3 className="font-semibold md:col-span-2">{latestHeadquartersCalculation ? "Recalculate HQ reviewed amount" : "Calculate HQ reviewed amount"}</h3>
+                {areaOfficeBaseline.employerScale === "SMALL" ? (
+                  <label className="grid gap-1 text-sm">Verified small-scale trainees (of {areaOfficeBaseline.smallScaleTraining.totalStaff})<input name="smallTrained" type="number" min="0" max={areaOfficeBaseline.smallScaleTraining.totalStaff} required defaultValue={headquartersRows.find((line) => line.awardArea === "SMALL_SCALE_TRAINING")?.totalTrained ?? areaOfficeBaseline.smallScaleTraining.totalTrained} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+                ) : (
+                  <>
+                    {(["MANAGEMENT", "SUPERVISORY", "OCCUPATIONAL"] as const).map((area) => <label key={area} className="grid gap-1 text-sm">Verified {area.toLowerCase()} trainees (of {areaOfficeBaseline.trainingAreas[area].totalStaff}; employer emphasis {areaOfficeBaseline.emphasisRanks[area]})<input name={`${area.toLowerCase()}Trained`} type="number" min="0" max={areaOfficeBaseline.trainingAreas[area].totalStaff} required defaultValue={headquartersRows.find((line) => line.awardArea === area)?.totalTrained ?? areaOfficeBaseline.trainingAreas[area].totalTrained} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>)}
+                    {areaOfficeBaseline.learningDevelopmentPersonnel ? <label className="grid gap-1 text-sm">Verified L&amp;D trainees (of {areaOfficeBaseline.learningDevelopmentPersonnel.totalStaff})<input name="ldTrained" type="number" min="0" max={areaOfficeBaseline.learningDevelopmentPersonnel.totalStaff} required defaultValue={headquartersRows.find((line) => line.awardArea === "LEARNING_DEVELOPMENT_PERSONNEL")?.totalTrained ?? areaOfficeBaseline.learningDevelopmentPersonnel.totalTrained} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label> : null}
+                    {areaOfficeBaseline.healthSafetyEnvironment ? <label className="grid gap-1 text-sm">Verified HSE trainees (of {areaOfficeBaseline.healthSafetyEnvironment.totalWorkforce})<input name="hseTrained" type="number" min="0" max={areaOfficeBaseline.healthSafetyEnvironment.totalWorkforce} required defaultValue={headquartersRows.find((line) => line.awardArea === "HEALTH_SAFETY_ENVIRONMENT")?.totalTrained ?? areaOfficeBaseline.healthSafetyEnvironment.totalTrained} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label> : null}
+                  </>
+                )}
+                <label className="grid gap-1 text-sm">Verified SIWES students accepted (Form 5A)<input name="siwesStudentsAccepted" type="number" min="0" required defaultValue={headquartersRows.find((line) => line.awardArea === "SIWES")?.totalTrained ?? areaOfficeBaseline.siwesStudentsAccepted} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+                <label className="flex items-center gap-2 text-sm"><input name="trainingPlanSubmittedPromptly" type="checkbox" defaultChecked={headquartersRows.length > 0 ? Number(headquartersRows.find((line) => line.awardArea === "TRAINING_PLAN")?.percentAwarded?.toString() ?? 0) > 0 : areaOfficeBaseline.trainingPlanSubmittedPromptly} />Training plan submitted by 31 March</label>
+                <label className="grid gap-1 text-sm md:col-span-2">HQ RO review remark<textarea name="reviewerRemarks" required defaultValue={latestHeadquartersCalculation?.reviewerRemarks ?? ""} className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>
+                <div className="grid gap-2 text-sm md:col-span-2"><label className="flex items-center gap-2"><input name="reviewedForm1A" type="checkbox" required />I reviewed Form 1A.</label><label className="flex items-center gap-2"><input name="reviewedForm2A" type="checkbox" required />I reviewed Form 2A and the employer and Area Office calculations.</label><label className="flex items-center gap-2"><input name="reviewedEvidence" type="checkbox" required />I reviewed the supporting evidence, including SIWES Form 5A where applicable.</label></div>
+                <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">{latestHeadquartersCalculation ? "Recalculate HQ reviewed amount" : "Calculate HQ reviewed amount"}</button>
+              </form>
+            ) : canCalculateHeadquarters ? <p className="mt-4 text-sm font-semibold text-amber-800">An Area Office and employer calculation are required before HQ can calculate.</p> : null}
+          </section>
+        </CollapsibleClaimSection>
+      ) : null}
+
+      {canRecommendClaim && !["REIMBURSEMENT_OFFICER", "HEAD_OF_TRAINING", "AREA_MANAGER", "HQ_REIMBURSEMENT_OFFICER", "HEAD_OF_DIVISION", "DIRECTOR_FSD"].includes(activeRole) ? (
         <CollapsibleClaimSection title="Form 1B recommendation">
         <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
           <h2 className="text-xl font-semibold tracking-tight">Form 1B recommendation</h2>

@@ -4,6 +4,7 @@ import test from "node:test";
 import {
   addClaimLine,
   calculateAreaOfficeClaim,
+  calculateHeadquartersClaim,
   canRouteClaimFromDesk,
   getClaimIntakeTransitions,
   getClaimPostIntakeTransitions,
@@ -15,6 +16,19 @@ test("only the Area Office RO may calculate reviewed Form 1B", async () => {
     verified: { siwesStudentsAccepted: 0, trainingPlanSubmittedPromptly: false },
     reviewerRemarks: "Reviewed", reviewedForm1A: true, reviewedForm2A: true, reviewedEvidence: true,
   }), /Only the Area Office Reimbursement Officer/);
+});
+
+test("only the HQ RO may calculate the independent HQ Form 1B", async () => {
+  await assert.rejects(calculateHeadquartersClaim({
+    claimId: "claim-1", requesterEmail: "area.ro@example.test", requesterRole: "REIMBURSEMENT_OFFICER",
+    verified: { siwesStudentsAccepted: 0, trainingPlanSubmittedPromptly: false },
+    reviewerRemarks: "Reviewed", reviewedForm1A: true, reviewedForm2A: true, reviewedEvidence: true,
+  }), /Only the HQ Reimbursement Officer/);
+  await assert.rejects(calculateHeadquartersClaim({
+    claimId: "claim-1", requesterEmail: "hq.ro@example.test", requesterRole: "HQ_REIMBURSEMENT_OFFICER",
+    verified: { siwesStudentsAccepted: 0, trainingPlanSubmittedPromptly: false },
+    reviewerRemarks: "", reviewedForm1A: true, reviewedForm2A: true, reviewedEvidence: true,
+  }), /HQ RO must record a review remark/);
 });
 
 test("staff cannot create employer claim calculation rows through the service", async () => {
@@ -53,6 +67,10 @@ test("routes processed reimbursement claims through HQ, audit, and finance desks
 
   assert.equal(
     transitions.find((transition) => transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD")?.action,
+    "APPROVE",
+  );
+  assert.equal(
+    transitions.find((transition) => transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT")?.action,
     "APPROVE",
   );
 
