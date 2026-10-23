@@ -4,9 +4,11 @@ import { HostedFileInput } from "@/components/hosted-file-input";
 
 import { createDirectoryUserAction, resetDirectoryUserLocalAccessAction, updateDirectoryUserManagementStatusAction, updateDirectoryUserStatusAction } from "@/app/(dashboard)/settings/users/actions";
 import { UserEditDialog } from "@/app/(dashboard)/settings/users/user-edit-dialog";
+import { CreateUserOfficeFields } from "@/app/(dashboard)/settings/users/create-user-office-fields";
 import { authOptions } from "@/lib/auth";
+import { getAreaOfficeOfficerRoles, getHeadquartersOfficerRoles } from "@/lib/area-office-management";
 import { can, roles } from "@/lib/rbac";
-import { listDirectoryUsers } from "@/lib/user-directory";
+import { listDirectoryUsers, listIndividualStaffOffices } from "@/lib/user-directory";
 import { listStaffDirectoryOptions } from "@/lib/staff-directory-options";
 
 function formatRole(value: string) {
@@ -66,6 +68,7 @@ export default async function UserDirectoryPage({
     page: Number.isFinite(requestedPage) ? requestedPage : 1,
   });
   const directoryOptions = await listStaffDirectoryOptions(role);
+  const assignableOffices = await listIndividualStaffOffices(role);
   const departments = directoryOptions.filter((item) => item.kind === "DEPARTMENT" && item.isActive).map((item) => item.name);
   const jobTitles = directoryOptions.filter((item) => item.kind === "JOB_TITLE" && item.isActive).map((item) => item.name);
   const pageHref = (page: number) => {
@@ -112,7 +115,7 @@ export default async function UserDirectoryPage({
             <div>
               <h2 className="text-lg font-semibold tracking-tight">Create user</h2>
               <p className="mt-1 text-sm leading-6 text-zinc-600">
-                User can be assigned to an Area Office or Headquarters role after creation.
+                Choose the office and workflow role now. The welcome email is sent after the assignment is saved.
               </p>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
@@ -155,6 +158,12 @@ export default async function UserDirectoryPage({
                 Job title
                 <select name="jobTitle" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"><option value="">Not set</option>{jobTitles.map((name) => <option key={name} value={name}>{name}</option>)}</select>
               </label>
+              <CreateUserOfficeFields
+                headquartersAvailable={assignableOffices.headquartersAvailable}
+                areaOffices={assignableOffices.areaOffices}
+                headquartersRoles={getHeadquartersOfficerRoles()}
+                areaOfficeRoles={getAreaOfficeOfficerRoles()}
+              />
             </div>
             <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
               Save user

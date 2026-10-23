@@ -6,12 +6,12 @@ import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { getAppBaseUrl, sendOfficerWelcomeEmail } from "@/lib/email";
+import { assertEmailDeliveryReady, getAppBaseUrl, sendOfficerWelcomeEmail } from "@/lib/email";
 import { writeDevelopmentOfficerCredentials } from "@/lib/officer-provisioning";
 import { createDirectoryUser, resetDirectoryUserLocalAccess, updateDirectoryUser, updateDirectoryUserManagementStatus, updateDirectoryUserStatus } from "@/lib/user-directory";
 import { directoryUserSchema, parseFormData } from "@/lib/validation";
 
-function redirectToUsers(message: string) {
+function redirectToUsers(message: string): never {
   redirect(`/settings/users?message=${encodeURIComponent(message.slice(0, 180))}`);
 }
 
@@ -22,12 +22,23 @@ export async function createDirectoryUserAction(formData: FormData) {
     throw new Error("Authentication is required.");
   }
 
+  let user: Awaited<ReturnType<typeof createDirectoryUser>>;
   try {
+    assertEmailDeliveryReady();
     const values = parseFormData(directoryUserSchema.omit({ userId: true }), formData);
-    const user = await createDirectoryUser({
+    const office = String(formData.get("office") ?? "").trim();
+    user = await createDirectoryUser({
       requesterRole: session.user.role,
       ...values,
+      officeScope: !office ? "" : office === "HEADQUARTERS" ? "HEADQUARTERS" : "AREA_OFFICE",
+      areaOfficeId: office === "HEADQUARTERS" ? undefined : office,
+      role: String(formData.get("role") ?? "").trim(),
     });
+  } catch (error) {
+    redirectToUsers(error instanceof Error ? error.message : "User could not be saved.");
+  }
+
+  try {
     await writeDevelopmentOfficerCredentials({
       email: user.email,
       temporaryPassword: user.temporaryPassword,
@@ -45,7 +56,8 @@ export async function createDirectoryUserAction(formData: FormData) {
       });
     }
   } catch (error) {
-    redirectToUsers(error instanceof Error ? error.message : "User could not be saved.");
+    revalidatePath("/settings/users");
+    redirectToUsers(`User and office assignment saved, but welcome delivery failed. Reset local access to resend credentials. ${error instanceof Error ? error.message : ""}`);
   }
 
   revalidatePath("/settings/users");

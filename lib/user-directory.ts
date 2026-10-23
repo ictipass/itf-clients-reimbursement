@@ -21,6 +21,9 @@ const userCsvColumns = [
 
 export type CreateDirectoryUserInput = {
   requesterRole: Role;
+  officeScope: string;
+  areaOfficeId?: string;
+  role: string;
   name: string;
   staffNumber?: string;
   email: string;
@@ -29,9 +32,43 @@ export type CreateDirectoryUserInput = {
   jobTitle?: string;
 };
 
-export type UpdateDirectoryUserInput = CreateDirectoryUserInput & {
+export type UpdateDirectoryUserInput = Omit<CreateDirectoryUserInput, "officeScope" | "areaOfficeId" | "role"> & {
   userId: string;
 };
+
+export function validateIndividualStaffAssignment(input: {
+  officeScope: string;
+  areaOfficeId?: string;
+  role: string;
+}) {
+  if (input.officeScope !== "HEADQUARTERS" && input.officeScope !== "AREA_OFFICE") {
+    throw new Error("Select Headquarters or an Area Office.");
+  }
+  const allowedRoles: readonly string[] = input.officeScope === "HEADQUARTERS"
+    ? getHeadquartersOfficerRoles()
+    : getAreaOfficeOfficerRoles();
+  if (!allowedRoles.includes(input.role)) {
+    throw new Error("Select a role valid for the chosen office.");
+  }
+  if (input.officeScope === "AREA_OFFICE" && !input.areaOfficeId) {
+    throw new Error("Select an active Area Office.");
+  }
+  if (input.officeScope === "HEADQUARTERS" && input.areaOfficeId) {
+    throw new Error("Headquarters assignments cannot include an Area Office.");
+  }
+  return { officeScope: input.officeScope, role: input.role as Role, areaOfficeId: input.areaOfficeId };
+}
+
+export async function listIndividualStaffOffices(requesterRole: Role) {
+  if (!can(requesterRole, "workspace:manage")) throw new Error("You do not have permission to manage users.");
+  const workspace = await getStaffWorkspace();
+  const db = getDb();
+  const [organization, areaOffices] = await Promise.all([
+    db.organization.findFirst({ where: { workspaceId: workspace.id, organizationType: "ITF_INTERNAL", isActive: true }, select: { id: true } }),
+    db.areaOffice.findMany({ where: { workspaceId: workspace.id, isActive: true }, orderBy: { name: "asc" }, select: { id: true, name: true, code: true } }),
+  ]);
+  return { headquartersAvailable: Boolean(organization), areaOffices };
+}
 
 export type ImportDirectoryUsersInput = {
   requesterRole: Role;
@@ -190,11 +227,26 @@ export async function createDirectoryUser(input: CreateDirectoryUserInput) {
   }
 
   const normalized = normalizeDirectoryUser(input);
+  const assignment = validateIndividualStaffAssignment(input);
   await assertConfiguredStaffValues(normalized);
+
+  const workspace = await getStaffWorkspace();
+  const db = getDb();
+  const organization = await db.organization.findFirst({
+    where: { workspaceId: workspace.id, organizationType: "ITF_INTERNAL", isActive: true },
+    select: { id: true },
+  });
+  if (!organization) throw new Error("Create the ITF Headquarters organization before creating staff users.");
+  if (assignment.officeScope === "AREA_OFFICE") {
+    const office = await db.areaOffice.findFirst({
+      where: { id: assignment.areaOfficeId, workspaceId: workspace.id, isActive: true },
+      select: { id: true },
+    });
+    if (!office) throw new Error("The selected Area Office is not active in this workspace.");
+  }
 
   await assertStaffNumberAvailable(normalized.staffNumber, normalized.email);
 
-  const db = getDb();
   const existing = await db.user.findUnique({
     where: { email: normalized.email },
     select: { id: true },
@@ -220,6 +272,14 @@ export async function createDirectoryUser(input: CreateDirectoryUserInput) {
       mustChangePassword: true,
       provisionedAt: new Date(),
       isActive: true,
+      memberships: {
+        create: {
+          workspaceId: workspace.id,
+          organizationId: organization.id,
+          areaOfficeId: assignment.officeScope === "AREA_OFFICE" ? assignment.areaOfficeId : null,
+          role: assignment.role,
+        },
+      },
     },
     select: { id: true, email: true, name: true },
   });
@@ -423,7 +483,7 @@ export async function importDirectoryUsers(input: ImportDirectoryUsersInput) {
   }, { timeout: 30_000 });
 }
 
-function normalizeDirectoryUser(input: CreateDirectoryUserInput): ParsedUserCsvRow {
+function normalizeDirectoryUser(input: Pick<CreateDirectoryUserInput, "name" | "email" | "staffNumber" | "phoneNumber" | "department" | "jobTitle">): ParsedUserCsvRow {
   const name = input.name.trim();
   const email = normalizeEmail(input.email);
 
@@ -588,7 +648,6 @@ async function parseUserCsvFile(file: File) {
     const values = parseCsvLine(line);
     const row = Object.fromEntries(headers.map((header, headerIndex) => [header, values[headerIndex] ?? ""]));
     const parsedRow = normalizeDirectoryUser({
-      requesterRole: "SYSTEM_ADMIN",
       name: row["full name"],
       staffNumber: row["staff number"],
       email: row["email address"],

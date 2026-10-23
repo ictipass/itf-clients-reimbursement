@@ -125,12 +125,14 @@ function actionEmail(input: {
   message: string;
   actionLabel: string;
   actionUrl: string;
+  credential?: string;
 }) {
   const name = escapeEmailHtml(input.recipientName);
   const heading = escapeEmailHtml(input.heading);
   const message = escapeEmailHtml(input.message);
   const actionLabel = escapeEmailHtml(input.actionLabel);
   const actionUrl = escapeEmailHtml(input.actionUrl);
+  const credential = input.credential ? escapeEmailHtml(input.credential) : null;
 
   return `
     <div style="font-family:Arial,sans-serif;max-width:600px;margin:auto;color:#18181b">
@@ -138,6 +140,7 @@ function actionEmail(input: {
       <h1 style="font-size:24px">${heading}</h1>
       <p>Hello ${name},</p>
       <p style="line-height:1.6">${message}</p>
+      ${credential ? `<p style="font-weight:700">Temporary password</p><p><code style="display:inline-block;padding:10px 14px;background:#f4f4f5;border-radius:6px;font-size:17px;letter-spacing:1px">${credential}</code></p>` : ""}
       <p style="margin:28px 0">
         <a href="${actionUrl}" style="background:#800020;color:#fff;padding:12px 18px;text-decoration:none;border-radius:6px;font-weight:700">${actionLabel}</a>
       </p>
@@ -217,7 +220,8 @@ export async function sendOfficerWelcomeEmail(input: {
     html: actionEmail({
       recipientName: input.name,
       heading: "Your officer account is ready",
-      message: `Sign in with your email address and temporary password: ${input.temporaryPassword}. You must create a new password when you first sign in.`,
+      message: "Sign in with your email address and the temporary password below. You must create a new password when you first sign in.",
+      credential: input.temporaryPassword,
       actionLabel: "Sign in",
       actionUrl,
     }),
