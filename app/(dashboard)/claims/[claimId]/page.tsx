@@ -110,6 +110,16 @@ function formatStaffArea(value: string) {
   return value.replaceAll("_", " ");
 }
 
+function trainingAreaForCalculationRow(awardArea: string | null, trainingArea: string) {
+  if (awardArea === "MANAGEMENT") return "management";
+  if (awardArea === "SUPERVISORY") return "supervisory";
+  if (awardArea === "OCCUPATIONAL") return "occupational";
+  if (awardArea === "HEALTH_SAFETY_ENVIRONMENT") return "health & safety";
+  if (awardArea === "SMALL_SCALE_TRAINING") return "all";
+  if (awardArea) return null;
+  return trainingArea.trim().toLowerCase();
+}
+
 export default async function ClaimDetailPage({
   params,
   searchParams,
@@ -290,6 +300,7 @@ export default async function ClaimDetailPage({
               startsAt: true,
               endsAt: true,
               estimatedCost: true,
+              participants: { select: { trainingArea: true } },
             },
           },
         },
@@ -407,6 +418,14 @@ export default async function ClaimDetailPage({
     OCCUPATIONAL: claim.staffEntries.filter((entry) => entry.trainingArea === "OCCUPATIONAL"),
   };
   const duplicateStaffEntries = claim.staffEntries.filter((entry) => entry.duplicateGroupKey);
+  const unmatchedTrainings = claim.trainingRequests.filter(({ trainingRequest }) =>
+    !claim.lines.some((line) => {
+      const rowArea = trainingAreaForCalculationRow(line.awardArea, line.trainingArea);
+      return rowArea && trainingRequest.participants.some(({ trainingArea }) =>
+        trainingArea && (rowArea === "all" || trainingArea.trim().toLowerCase() === rowArea),
+      );
+    }),
+  );
   const availableTrainings = canManageClaimTrainings
     ? await getDb().trainingRequest.findMany({
         where: {
@@ -690,7 +709,7 @@ export default async function ClaimDetailPage({
         </CollapsibleClaimSection>
       ) : null}
 
-      <CollapsibleClaimSection title="Attached approved trainings">
+      {!isItfRole(activeRole) ? <CollapsibleClaimSection title="Attached approved trainings">
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Attached approved trainings</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
@@ -773,7 +792,7 @@ export default async function ClaimDetailPage({
           </form>
         ) : null}
       </section>
-      </CollapsibleClaimSection>
+      </CollapsibleClaimSection> : null}
 
       <CollapsibleClaimSection title="Contribution eligibility verification">
       <section id="contribution-verification" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
@@ -1050,8 +1069,14 @@ export default async function ClaimDetailPage({
           </p>
         ) : (
           <div className="mt-4 grid gap-4">
-            {claim.lines.map((line) => (
-              <div key={line.id} className="rounded-md border border-zinc-100 p-3">
+            {claim.lines.map((line) => {
+              const rowArea = trainingAreaForCalculationRow(line.awardArea, line.trainingArea);
+              const linkedTrainings = rowArea ? claim.trainingRequests.filter(({ trainingRequest }) =>
+                trainingRequest.participants.some(({ trainingArea }) =>
+                  trainingArea && (rowArea === "all" || trainingArea.trim().toLowerCase() === rowArea),
+                ),
+              ) : [];
+              return <div key={line.id} className="rounded-md border border-zinc-100 p-3">
                 {line.awardArea || !canEditCalculations ? <div className="mt-3 grid gap-2 text-sm text-zinc-700 md:grid-cols-4">
                   <p><strong>Training area:</strong> {line.trainingArea}</p>
                   <p><strong>Total workforce:</strong> {line.totalWorkforce ?? "Not provided"}</p>
@@ -1160,10 +1185,41 @@ export default async function ClaimDetailPage({
                 <p className="mt-2 text-xs text-zinc-500">
                   Trained percentage: {decimalInput(line.percentTrained) || "Not calculated"}
                 </p>
-              </div>
-            ))}
+                {linkedTrainings.length > 0 ? (
+                  <div className="mt-3 border-t border-zinc-100 pt-3">
+                    <p className="text-xs font-semibold text-zinc-700">Attached approved trainings in this area</p>
+                    <ul className="mt-2 grid gap-2 text-sm">
+                      {linkedTrainings.map(({ trainingRequest }) => (
+                        <li key={trainingRequest.id}>
+                          <Link href={`/training-requests/${trainingRequest.id}?claimId=${claim.id}`} className="font-semibold text-[#800020] underline-offset-2 hover:underline">
+                            {trainingRequest.title}
+                          </Link>
+                          <span className="ml-2 text-xs text-zinc-500">{trainingRequest.approvalReference ?? "Approval reference pending"}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null}
+              </div>;
+            })}
           </div>
         )}
+
+        {isItfRole(activeRole) && unmatchedTrainings.length > 0 ? (
+          <div className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-3">
+            <h3 className="text-sm font-semibold text-amber-950">Attached trainings without a matching calculation area</h3>
+            <p className="mt-1 text-xs text-amber-900">These requests remain accessible here because their participants have no matching training area on the current calculation rows.</p>
+            <ul className="mt-2 grid gap-2 text-sm">
+              {unmatchedTrainings.map(({ trainingRequest }) => (
+                <li key={trainingRequest.id}>
+                  <Link href={`/training-requests/${trainingRequest.id}?claimId=${claim.id}`} className="font-semibold text-[#800020] underline-offset-2 hover:underline">
+                    {trainingRequest.title}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
 
         {canEditCalculations ? (
           <div className="mt-5 grid gap-5 border-t border-zinc-100 pt-5">
