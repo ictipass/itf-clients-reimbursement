@@ -1249,6 +1249,10 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
       reference: true,
       claimYear: true,
       paymentScheduleReference: true,
+      paymentScheduleExportedAt: true,
+      currentDesk: true,
+      decisions: { where: { reason: { startsWith: "Pre-Audit Officer returned reimbursement payment audit result" } }, select: { id: true }, take: 1 },
+      workItems: { where: { assignedRole: "REIMBURSEMENT_ACCOUNTANT", app: "REIMBURSEMENT", recordTier: "HOT" }, select: { status: true, updatedAt: true }, take: 1 },
     },
   });
 
@@ -1257,29 +1261,45 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
   }
 
   if (input.status === "PAID") {
+    const returnedAccountantDesk = claim.workItems.some((item) => item.status === "OPEN" &&
+      claim.paymentScheduleExportedAt && item.updatedAt > claim.paymentScheduleExportedAt);
+    if (input.requesterRole !== "REIMBURSEMENT_ACCOUNTANT" || claim.currentDesk !== "REIMBURSEMENT_ACCOUNTANT" || !returnedAccountantDesk) {
+      throw new Error("Only the Reimbursement Schedule Accountant may record payment at the third encounter, after the paid packet returns.");
+    }
     const eligibility = await verifyAnnualEligibility(claim.companyId, claim.claimYear ?? 0);
     if (eligibility.status !== "ELIGIBLE") throw new Error(`Payment is blocked: ${eligibility.message}`);
   }
 
+  if (input.status === "EXPORTED") {
+    if (input.requesterRole !== "REIMBURSEMENT_ACCOUNTANT" || claim.currentDesk !== "REIMBURSEMENT_ACCOUNTANT" || !claim.decisions.length) {
+      throw new Error("Only the Reimbursement Schedule Accountant may create the e-payment schedule at the second encounter, after pre-audit.");
+    }
+    if (claim.paymentScheduleExportedAt) throw new Error("The e-payment schedule has already been created.");
+  }
+  if (input.status === "PV_RAISED" &&
+    (input.requesterRole !== "REIMBURSEMENT_ACCOUNTANT" || claim.currentDesk !== "REIMBURSEMENT_ACCOUNTANT" || claim.decisions.length)) {
+    throw new Error("Only the Reimbursement Schedule Accountant may raise the payment voucher at the first encounter.");
+  }
+  if (input.status === "SENT_TO_PAYMENT_SYSTEM" && !claim.paymentScheduleExportedAt) {
+    throw new Error("The e-payment schedule must be created before it can be sent to a payment system.");
+  }
+
   const now = new Date();
   const note = input.note?.trim();
-  const scheduleReference =
-    claim.paymentScheduleReference ?? buildReimbursementPaymentScheduleReference(claim);
+  const scheduleReference = input.status === "EXPORTED"
+    ? buildReimbursementPaymentScheduleReference(claim)
+    : claim.paymentScheduleReference;
 
   return db.$transaction(async (tx) => {
     const updated = await tx.reimbursementClaim.update({
-      where: { id: claim.id },
+      where: input.status === "EXPORTED"
+        ? { id: claim.id, currentDesk: "REIMBURSEMENT_ACCOUNTANT", paymentScheduleExportedAt: null }
+        : { id: claim.id },
       data: {
         paymentHandoffStatus: input.status,
         paymentScheduleReference: scheduleReference,
-        paymentScheduleExportedAt:
-          input.status === "EXPORTED" || input.status === "SENT_TO_PAYMENT_SYSTEM"
-            ? now
-            : undefined,
-        paymentScheduleExportedById:
-          input.status === "EXPORTED" || input.status === "SENT_TO_PAYMENT_SYSTEM"
-            ? actor.id
-            : undefined,
+        paymentScheduleExportedAt: input.status === "EXPORTED" ? now : undefined,
+        paymentScheduleExportedById: input.status === "EXPORTED" ? actor.id : undefined,
         paymentSystemReference: input.paymentSystemReference,
         paymentSystemStatus: input.paymentSystemStatus,
         paymentSystemSyncedAt:

@@ -5,6 +5,7 @@ import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
 import { getDb } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import {
+  canDownloadEpaymentSchedule,
   buildReimbursementPaymentScheduleCsv,
   buildReimbursementPaymentScheduleFilename,
 } from "@/lib/reimbursement-payment-schedule";
@@ -49,7 +50,10 @@ export async function GET(
       claimRecommendedAmount: true,
       claimRecommendedInWords: true,
       paymentScheduleReference: true,
+      paymentScheduleExportedAt: true,
+      paymentScheduleExportedById: true,
       paymentHandoffStatus: true,
+      workItems: { where: { app: "REIMBURSEMENT", recordTier: "HOT" }, select: { assignedRole: true, updatedAt: true } },
       company: {
         select: {
           legalName: true,
@@ -66,6 +70,18 @@ export async function GET(
 
   if (!claim) {
     return Response.json({ error: "Reimbursement claim was not found." }, { status: 404 });
+  }
+
+  const requester = await getDb().user.findUnique({ where: { email: session.user.email }, select: { id: true } });
+  if (!canDownloadEpaymentSchedule({
+    exportedAt: claim.paymentScheduleExportedAt,
+    exportedById: claim.paymentScheduleExportedById,
+    reference: claim.paymentScheduleReference,
+    requesterId: requester?.id ?? null,
+    requesterRole: session.user.role,
+    deskAssignments: claim.workItems,
+  })) {
+    return Response.json({ error: "The e-payment schedule has not been created for this desk." }, { status: 403 });
   }
 
   const csv = buildReimbursementPaymentScheduleCsv(claim);

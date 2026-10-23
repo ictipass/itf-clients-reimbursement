@@ -309,20 +309,41 @@ export async function updateClaimPaymentHandoffAction(
     throw new Error("Authentication is required.");
   }
 
-  await updateClaimPaymentHandoff({
-    claimId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    status: readRequiredString(formData, "paymentHandoffStatus") as ReimbursementPaymentHandoffStatus,
-    paymentSystemReference: readOptionalString(formData, "paymentSystemReference"),
-    paymentSystemStatus: readOptionalString(formData, "paymentSystemStatus"),
-    note: readOptionalString(formData, "note"),
-  });
+  try {
+    await updateClaimPaymentHandoff({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      status: readRequiredString(formData, "paymentHandoffStatus") as ReimbursementPaymentHandoffStatus,
+      paymentSystemReference: readOptionalString(formData, "paymentSystemReference"),
+      paymentSystemStatus: readOptionalString(formData, "paymentSystemStatus"),
+      note: readOptionalString(formData, "note"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Payment handoff could not be updated.";
+    redirect(`/claims/${claimId}?paymentHandoffError=${encodeURIComponent(message.slice(0, 280))}#payment-handoff`);
+  }
 
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
   revalidatePath("/dashboard");
   redirect(`/claims/${claimId}`);
+}
+
+export async function createEpaymentScheduleAction(claimId: string) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  try {
+    await updateClaimPaymentHandoff({
+      claimId, requesterEmail: session.user.email, requesterRole: session.user.role, status: "EXPORTED",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The e-payment schedule could not be created.";
+    redirect(`/claims/${claimId}?scheduleError=${encodeURIComponent(message.slice(0, 280))}#payment-handoff`);
+  }
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?scheduleCreated=1#payment-handoff`);
 }
 
 export async function updateClaimAuditReviewAction(claimId: string, formData: FormData) {

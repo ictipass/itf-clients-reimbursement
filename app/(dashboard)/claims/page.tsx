@@ -6,7 +6,7 @@ import { SelectAllTrainings } from "@/app/(dashboard)/claims/select-all-training
 import { ClaimTestClockNotice } from "@/components/claim-test-clock-notice";
 import { authOptions } from "@/lib/auth";
 import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
-import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
+import { canBrowseArchivedClaims, getClaimVisibilityWhere } from "@/lib/claim-visibility";
 import { getDb } from "@/lib/db";
 import { can, isItfRole } from "@/lib/rbac";
 
@@ -114,6 +114,7 @@ export default async function ClaimsPage({ searchParams }: Readonly<{
   const claims = await db.reimbursementClaim.findMany({
     where: {
       recordTier: "HOT",
+      status: { not: "ARCHIVED" },
       AND: [visibilityWhere],
     },
     select: {
@@ -167,9 +168,10 @@ export default async function ClaimsPage({ searchParams }: Readonly<{
             Raise a claim and attach one or more approved, monitored trainings as its evidence.
           </p>
         </div>
-        <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
-          {claims.length} shown
-        </span>
+        <div className="flex items-center gap-3">
+          {canBrowseArchivedClaims(activeRole) ? <Link href="/claims/archive" className="rounded-md border border-[#800020] px-4 py-2 text-sm font-semibold text-[#800020]">Browse archived claims by Area Office</Link> : null}
+          <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">{claims.length} active shown</span>
+        </div>
       </div>
 
       <div className="mt-6 rounded-lg border-2 border-red-300 bg-red-50 px-5 py-4 text-sm font-black uppercase leading-6 tracking-wide text-red-900 shadow-sm">

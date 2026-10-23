@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  canDownloadEpaymentSchedule,
   buildReimbursementPaymentScheduleCsv,
   buildReimbursementPaymentScheduleFilename,
   buildReimbursementPaymentScheduleReference,
@@ -51,4 +52,23 @@ test("uses stable reimbursement payment schedule naming", () => {
 test("validates reimbursement payment handoff status values", () => {
   assert.equal(isReimbursementPaymentHandoffStatus("AUDIT_CLEARED"), true);
   assert.equal(isReimbursementPaymentHandoffStatus("KIV"), false);
+});
+
+test("schedule download is disabled before formal creation and restricted to its creator and later desks", () => {
+  const exportedAt = new Date("2026-10-24T12:00:00Z");
+  const base = {
+    exportedAt, exportedById: "accountant-1", reference: "ITF-RMB-2026-CLM-001",
+    requesterId: "accountant-1", requesterRole: "REIMBURSEMENT_ACCOUNTANT",
+    deskAssignments: [{ assignedRole: "DIRECTOR_FSD", updatedAt: new Date("2026-10-23T12:00:00Z") }],
+  };
+  assert.equal(canDownloadEpaymentSchedule({ ...base, exportedAt: null }), false);
+  assert.equal(canDownloadEpaymentSchedule({ ...base, reference: null }), false);
+  assert.equal(canDownloadEpaymentSchedule(base), true);
+  assert.equal(canDownloadEpaymentSchedule({ ...base, requesterId: "accountant-2", deskAssignments: [
+    { assignedRole: "REIMBURSEMENT_ACCOUNTANT", updatedAt: new Date("2026-10-25T12:00:00Z") },
+  ] }), false);
+  assert.equal(canDownloadEpaymentSchedule({ ...base, requesterId: "director-1", requesterRole: "DIRECTOR_FSD" }), false);
+  assert.equal(canDownloadEpaymentSchedule({ ...base, requesterId: "later-1", requesterRole: "HEAD_REIMBURSEMENT_FINANCE", deskAssignments: [
+    { assignedRole: "HEAD_REIMBURSEMENT_FINANCE", updatedAt: new Date("2026-10-25T12:00:00Z") },
+  ] }), true);
 });

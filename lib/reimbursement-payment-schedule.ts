@@ -13,6 +13,24 @@ export const reimbursementPaymentHandoffStatuses = [
 export type ReimbursementPaymentHandoffStatus =
   (typeof reimbursementPaymentHandoffStatuses)[number];
 
+export function canDownloadEpaymentSchedule(input: {
+  exportedAt: Date | null;
+  exportedById: string | null;
+  reference: string | null;
+  requesterId: string | null;
+  requesterRole: string;
+  deskAssignments: { assignedRole: string | null; updatedAt: Date }[];
+}) {
+  const exportedAt = input.exportedAt;
+  if (!exportedAt || !input.exportedById || !input.reference || !input.requesterId) return false;
+  if (input.requesterId === input.exportedById && input.requesterRole === "REIMBURSEMENT_ACCOUNTANT") return true;
+  return input.deskAssignments.some((assignment) =>
+    assignment.assignedRole !== "REIMBURSEMENT_ACCOUNTANT" &&
+    assignment.assignedRole === input.requesterRole &&
+    assignment.updatedAt >= exportedAt
+  );
+}
+
 export function isReimbursementPaymentHandoffStatus(
   value: string | undefined,
 ): value is ReimbursementPaymentHandoffStatus {

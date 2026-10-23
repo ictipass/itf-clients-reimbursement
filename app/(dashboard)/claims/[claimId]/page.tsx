@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import {
   calculateAreaOfficeClaimAction,
   calculateHeadquartersClaimAction,
+  createEpaymentScheduleAction,
   addClaimLineAction,
   attachTrainingsToClaimAction,
   deleteClaimLineAction,
@@ -54,6 +55,7 @@ import {
   reimbursementAuditReviewStatuses,
 } from "@/lib/reimbursement-audit-review";
 import {
+  canDownloadEpaymentSchedule,
   formatReimbursementPaymentHandoffStatus,
   reimbursementPaymentHandoffStatuses,
 } from "@/lib/reimbursement-payment-schedule";
@@ -137,7 +139,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; evidenceError?: string; evidenceSaved?: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -173,6 +175,7 @@ export default async function ClaimDetailPage({
       paymentHandoffStatus: true,
       paymentScheduleReference: true,
       paymentScheduleExportedAt: true,
+      paymentScheduleExportedById: true,
       paymentSystemReference: true,
       paymentSystemStatus: true,
       paymentSystemSyncedAt: true,
@@ -196,6 +199,7 @@ export default async function ClaimDetailPage({
       currentDesk: true,
       policyEdition: true,
       submittedAt: true,
+      workItems: { where: { app: "REIMBURSEMENT", recordTier: "HOT" }, select: { assignedRole: true, status: true, updatedAt: true } },
       auditReview: {
         select: {
           status: true,
@@ -337,6 +341,29 @@ export default async function ClaimDetailPage({
   if (!claim) {
     notFound();
   }
+  const currentUser = session?.user?.email
+    ? await getDb().user.findUnique({ where: { email: session.user.email }, select: { id: true } })
+    : null;
+  const canDownloadSchedule = isItfRole(activeRole) && canDownloadEpaymentSchedule({
+    exportedAt: claim.paymentScheduleExportedAt,
+    exportedById: claim.paymentScheduleExportedById,
+    reference: claim.paymentScheduleReference,
+    requesterId: currentUser?.id ?? null,
+    requesterRole: activeRole,
+    deskAssignments: claim.workItems,
+  });
+  const preAuditReturn = activeRole === "REIMBURSEMENT_ACCOUNTANT" && claim.currentDesk === "REIMBURSEMENT_ACCOUNTANT"
+    ? await getDb().decision.findFirst({
+        where: { reimbursementClaimId: claim.id, reason: { startsWith: "Pre-Audit Officer returned reimbursement payment audit result" } },
+        select: { id: true },
+      })
+    : null;
+  const canCreateSchedule = activeRole === "REIMBURSEMENT_ACCOUNTANT" &&
+    claim.currentDesk === "REIMBURSEMENT_ACCOUNTANT" && !claim.paymentScheduleExportedAt && Boolean(preAuditReturn);
+  const canRecordPaid = activeRole === "REIMBURSEMENT_ACCOUNTANT" && claim.currentDesk === "REIMBURSEMENT_ACCOUNTANT" &&
+    Boolean(claim.paymentScheduleExportedAt) && claim.workItems.some((item) =>
+      item.assignedRole === "REIMBURSEMENT_ACCOUNTANT" && item.status === "OPEN" &&
+      claim.paymentScheduleExportedAt && item.updatedAt > claim.paymentScheduleExportedAt);
   const canEditCalculations = canUseSection(activeRole, "claim.calculation.edit") && !isItfRole(activeRole) && claim.status === "DRAFT";
   let approvedReimbursementStatus = "Pending ITF decision";
   if (claim.status === "REJECTED") approvedReimbursementStatus = "Not awarded";
@@ -393,11 +420,12 @@ export default async function ClaimDetailPage({
     canManageKiv && ["SUBMITTED", "IN_REVIEW", "APPROVED"].includes(claim.status);
   const canResumeKiv = canManageKiv && claim.status === "CHANGES_REQUESTED";
   const canUpdatePaymentHandoff =
+    !["SETTLED", "ARCHIVED"].includes(claim.status) && (
     activeRole === "DIRECTOR_FINANCE" ||
     activeRole === "HEAD_REIMBURSEMENT_FINANCE" ||
     activeRole === "REIMBURSEMENT_ACCOUNTANT" ||
     activeRole === "SYSTEM_ADMIN" ||
-    activeRole === "WORKSPACE_APP_ADMIN";
+    activeRole === "WORKSPACE_APP_ADMIN");
   const canUpdateAuditReview =
     activeRole === "DIRECTOR_AUDIT" ||
     activeRole === "HEAD_REIMBURSEMENT_AUDIT" ||
@@ -1619,7 +1647,7 @@ export default async function ClaimDetailPage({
       ) : null}
 
       <CollapsibleClaimSection title="Payment handoff">
-      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+      <section id="payment-handoff" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
           <div>
             <h2 className="text-xl font-semibold tracking-tight">Payment handoff</h2>
@@ -1629,15 +1657,20 @@ export default async function ClaimDetailPage({
               payment system.
             </p> : null}
           </div>
-          {canRecommendClaim ? (
+          {isItfRole(activeRole) && canDownloadSchedule ? (
             <Link
               href={`/claims/${claim.id}/payment-schedule`}
               className="inline-flex min-h-10 w-fit items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
             >
               Download e-payment schedule CSV
             </Link>
-          ) : null}
+          ) : isItfRole(activeRole) ? <button type="button" disabled className="inline-flex min-h-10 w-fit items-center rounded-md bg-zinc-200 px-4 text-sm font-semibold text-zinc-500">Download e-payment schedule CSV</button> : null}
         </div>
+
+        {query.scheduleError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.scheduleError}</p> : null}
+        {query.paymentHandoffError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.paymentHandoffError}</p> : null}
+        {query.scheduleCreated ? <p className="mt-4 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">E-payment schedule created and ready for authorized download.</p> : null}
+        {canCreateSchedule ? <form action={createEpaymentScheduleAction.bind(null, claim.id)} className="mt-4"><button className="rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Create e-payment schedule</button></form> : null}
 
         <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
           <p>
@@ -1646,7 +1679,7 @@ export default async function ClaimDetailPage({
           </p>
           <p>
             Schedule reference:{" "}
-            {claim.paymentScheduleReference ?? "Generated at download until formally exported"}
+            {claim.paymentScheduleReference ?? "Not yet created"}
           </p>
           <p>Recommended amount: {formatMoney(claim.claimRecommendedAmount)}</p>
           <p>Bank: {claim.bankName ?? "Not provided"}</p>
@@ -1669,7 +1702,14 @@ export default async function ClaimDetailPage({
               defaultValue={claim.paymentHandoffStatus}
               className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
             >
-              {reimbursementPaymentHandoffStatuses.map((status) => (
+              {claim.paymentHandoffStatus === "EXPORTED" ? <option value="EXPORTED" disabled>Exported — choose the next status</option> : null}
+              {claim.paymentHandoffStatus === "PV_RAISED" && !(activeRole === "REIMBURSEMENT_ACCOUNTANT" && claim.currentDesk === "REIMBURSEMENT_ACCOUNTANT" && !preAuditReturn) ? <option value="PV_RAISED" disabled>PV raised — choose the next status</option> : null}
+              {reimbursementPaymentHandoffStatuses.filter((status) =>
+                status !== "EXPORTED" &&
+                (status !== "SENT_TO_PAYMENT_SYSTEM" || Boolean(claim.paymentScheduleExportedAt)) &&
+                (status !== "PV_RAISED" || (activeRole === "REIMBURSEMENT_ACCOUNTANT" && claim.currentDesk === "REIMBURSEMENT_ACCOUNTANT" && !preAuditReturn)) &&
+                (status !== "PAID" || canRecordPaid)
+              ).map((status) => (
                 <option key={status} value={status}>
                   {formatReimbursementPaymentHandoffStatus(status)}
                 </option>

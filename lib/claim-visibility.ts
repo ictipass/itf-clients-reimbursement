@@ -9,6 +9,11 @@ type ActiveMembership = { role: Role; workspaceId: string; organizationId: strin
 const noClaims: Prisma.ReimbursementClaimWhereInput = { id: { in: [] } };
 
 const areaOfficeRoles: Role[] = ["AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER"];
+const archivedClaimRoles: Role[] = ["DIRECTOR_FSD", "HEAD_OF_DIVISION", "HQ_REIMBURSEMENT_OFFICER", ...areaOfficeRoles];
+
+export function canBrowseArchivedClaims(role: Role) {
+  return archivedClaimRoles.includes(role) || role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
+}
 
 /** The packet becomes visible to an officer when a workflow work item is first assigned to that desk. */
 export async function getClaimVisibilityWhere(viewer: ClaimViewer): Promise<Prisma.ReimbursementClaimWhereInput> {
@@ -51,6 +56,9 @@ export function buildClaimVisibilityWhere(role: Role, activeMemberships: ActiveM
       organization: { workspaceId: { in: workspaceIds } },
       ...(areaOfficeRoles.includes(role) ? { areaOfficeId: { in: officeIds } } : {}),
     },
-    workItems: { some: { assignedRole: role, app: "REIMBURSEMENT", recordTier: "HOT" } },
+    OR: [
+      { workItems: { some: { assignedRole: role, app: "REIMBURSEMENT", recordTier: "HOT" } } },
+      ...(archivedClaimRoles.includes(role) ? [{ status: "ARCHIVED" as const }] : []),
+    ],
   };
 }
