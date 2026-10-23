@@ -32,6 +32,7 @@ import {
 } from "@/app/(dashboard)/claims/[claimId]/actions";
 import { authOptions } from "@/lib/auth";
 import { getAreaOfficeCalculationBaseline } from "@/lib/area-office-claim-calculation";
+import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
 import { nairaInWords } from "@/lib/naira-in-words";
 import { listActiveBankOptions } from "@/lib/bank-directory";
 import {
@@ -146,10 +147,12 @@ export default async function ClaimDetailPage({
   const canRecommendClaim = canUseSection(activeRole, "claim.recommendation.edit");
   const canUploadClaimEvidence = canUseSection(activeRole, "claim.evidence.upload");
   const evidenceKinds = getClaimEvidenceKinds();
+  const visibilityWhere = await getClaimVisibilityWhere({ email: session?.user?.email, role: activeRole });
   const claim = await getDb().reimbursementClaim.findFirst({
     where: {
       id: claimId,
       recordTier: "HOT",
+      AND: [visibilityWhere],
     },
     select: {
       id: true,

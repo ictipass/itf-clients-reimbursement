@@ -6,6 +6,7 @@ import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 import { openObject, uploadObject } from "@/lib/storage";
 import { can, isItfRole, type Role } from "@/lib/rbac";
+import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
 
 const companyEvidenceKinds = [
   "CAC_CERTIFICATE",
@@ -137,6 +138,7 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
     select: {
       id: true,
       organizationId: true,
+      reimbursementClaimId: true,
       kind: true,
       fileName: true,
       storageProvider: true,
@@ -152,6 +154,15 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
 
   if (!document) {
     return null;
+  }
+
+  if (document.reimbursementClaimId) {
+    const visibilityWhere = await getClaimVisibilityWhere({ email: input.requesterEmail, role: input.requesterRole });
+    const visibleClaim = await db.reimbursementClaim.findFirst({
+      where: { id: document.reimbursementClaimId, recordTier: "HOT", AND: [visibilityWhere] },
+      select: { id: true },
+    });
+    if (!visibleClaim) return null;
   }
 
   if (["AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER"].includes(input.requesterRole) &&

@@ -6,6 +6,7 @@ import { SelectAllTrainings } from "@/app/(dashboard)/claims/select-all-training
 import { ClaimTestClockNotice } from "@/components/claim-test-clock-notice";
 import { authOptions } from "@/lib/auth";
 import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
+import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
 import { getDb } from "@/lib/db";
 import { can, isItfRole } from "@/lib/rbac";
 
@@ -27,6 +28,7 @@ export default async function ClaimsPage({ searchParams }: Readonly<{
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "EMPLOYER_VIEWER";
   const canCreateClaim = can(activeRole, "claims:submit");
+  const visibilityWhere = await getClaimVisibilityWhere({ email: session?.user?.email, role: activeRole });
   const db = getDb();
   const requester = canCreateClaim && session?.user?.email
     ? await db.user.findUnique({
@@ -112,6 +114,7 @@ export default async function ClaimsPage({ searchParams }: Readonly<{
   const claims = await db.reimbursementClaim.findMany({
     where: {
       recordTier: "HOT",
+      AND: [visibilityWhere],
     },
     select: {
       id: true,

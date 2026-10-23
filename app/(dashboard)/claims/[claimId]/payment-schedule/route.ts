@@ -1,6 +1,7 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
+import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
 import { getDb } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import {
@@ -31,10 +32,12 @@ export async function GET(
   }
 
   const { claimId } = await params;
+  const visibilityWhere = await getClaimVisibilityWhere({ email: session.user.email, role: session.user.role });
   const claim = await getDb().reimbursementClaim.findFirst({
     where: {
       id: claimId,
       recordTier: "HOT",
+      AND: [visibilityWhere],
     },
     select: {
       reference: true,
