@@ -15,7 +15,7 @@ import {
 } from "@/app/(dashboard)/training-requests/[requestId]/actions";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { type Role } from "@/lib/rbac";
+import { can, isItfRole, type Role } from "@/lib/rbac";
 import { getTrainingAreas, listApprovedTrainingPlanRows } from "@/lib/training-request";
 import { getVisibleTrainingRequestWhere } from "@/lib/training-request-access";
 
@@ -195,6 +195,7 @@ export default async function TrainingRequestDetailPage({
     message?: string | string[];
     error?: string | string[];
     workflowError?: string | string[];
+    claimId?: string | string[];
   }>;
 }>) {
   const { requestId } = await params;
@@ -203,6 +204,7 @@ export default async function TrainingRequestDetailPage({
   const importMessage = readFilter(query.message);
   const importError = readFilter(query.error);
   const workflowError = readFilter(query.workflowError);
+  const claimId = readFilter(query.claimId);
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
   const adminOverride = isAdminRole(activeRole);
@@ -210,11 +212,43 @@ export default async function TrainingRequestDetailPage({
     email: session?.user?.email,
     role: activeRole,
   });
+  let claimLinkedStaffAccess = false;
+  if (
+    claimId && session?.user?.email && isItfRole(activeRole) &&
+    (can(activeRole, "claims:review") || can(activeRole, "claims:approve"))
+  ) {
+    const linkedClaim = await getDb().reimbursementClaim.findFirst({
+      where: {
+        id: claimId,
+        recordTier: "HOT",
+        submittedAt: { not: null },
+        trainingRequests: { some: { trainingRequestId: requestId } },
+      },
+      select: { company: { select: { areaOfficeId: true } } },
+    });
+    if (linkedClaim) {
+      const areaDeskRole = activeRole === "AREA_MANAGER" || activeRole === "HEAD_OF_TRAINING" || activeRole === "REIMBURSEMENT_OFFICER";
+      claimLinkedStaffAccess = !areaDeskRole || Boolean(
+        linkedClaim.company.areaOfficeId && await getDb().membership.findFirst({
+          where: {
+            user: { email: session.user.email, isActive: true },
+            isActive: true,
+            role: activeRole,
+            areaOfficeId: linkedClaim.company.areaOfficeId,
+          },
+          select: { id: true },
+        }),
+      );
+    }
+  }
   const request = await getDb().trainingRequest.findFirst({
-    where: {
-      ...visibleWhere,
+    where: claimLinkedStaffAccess ? {
       id: requestId,
-    },
+      OR: [
+        visibleWhere,
+        { recordTier: "HOT", status: "APPROVED", decisionOutcome: "ACCEPTED", submittedAt: { not: null } },
+      ],
+    } : { ...visibleWhere, id: requestId },
     select: {
       id: true,
       title: true,
@@ -378,6 +412,7 @@ export default async function TrainingRequestDetailPage({
   );
   const participantHref = (overrides: Record<string, string | number | undefined>) =>
     buildTrainingRequestHref(request.id, {
+      claimId: claimLinkedStaffAccess ? claimId : undefined,
       participantQ: participantSearch,
       participantPage: participantPage > 1 ? participantPage : undefined,
       ...overrides,
@@ -400,7 +435,7 @@ export default async function TrainingRequestDetailPage({
     request.decisionOutcome,
   );
   const canRoute =
-    availableTransitions.length > 0 && canActAsDesk(activeRole, request.currentDesk);
+    !claimLinkedStaffAccess && availableTransitions.length > 0 && canActAsDesk(activeRole, request.currentDesk);
   const hasApprovedMonitoring = request.monitoringRecords.some(
     (record) => record.status === "APPROVED" && record.decisionOutcome === "ACCEPTED",
   );
@@ -418,8 +453,8 @@ export default async function TrainingRequestDetailPage({
         <EmployerFeedbackViewed target="request" targetId={request.id} />
       ) : null}
       <div className="flex flex-wrap gap-3">
-        <Link href="/training-requests" className="text-sm font-semibold text-[#800020]">
-          Back to Training Requests
+        <Link href={claimLinkedStaffAccess ? `/claims/${claimId}` : "/training-requests"} className="text-sm font-semibold text-[#800020]">
+          {claimLinkedStaffAccess ? "Back to Claim" : "Back to Training Requests"}
         </Link>
         <Link href={`/registry/${request.company.id}`} className="text-sm font-semibold text-zinc-700">
           Open company
@@ -887,12 +922,14 @@ export default async function TrainingRequestDetailPage({
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-1 lg:row-span-2 lg:row-start-5">
             <h2 className="text-xl font-semibold tracking-tight">Evidence</h2>
-            <Link
-              href={`/training-requests/${request.id}/evidence/new`}
-              className="mt-4 inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
-            >
-              Upload evidence
-            </Link>
+            {!claimLinkedStaffAccess ? (
+              <Link
+                href={`/training-requests/${request.id}/evidence/new`}
+                className="mt-4 inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
+              >
+                Upload evidence
+              </Link>
+            ) : null}
             {request.documents.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">
                 No Training Approval evidence has been uploaded yet.

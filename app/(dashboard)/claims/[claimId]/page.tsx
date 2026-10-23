@@ -705,7 +705,7 @@ export default async function ClaimDetailPage({
             >
               <div>
                 <Link
-                  href={`/training-requests/${trainingRequest.id}`}
+                  href={`/training-requests/${trainingRequest.id}?claimId=${claim.id}`}
                   className="text-sm font-semibold text-[#800020]"
                 >
                   {trainingRequest.title}
