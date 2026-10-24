@@ -365,12 +365,15 @@ export async function updateClaimPaymentHandoffAction(
   redirect(`/claims/${claimId}`);
 }
 
-export async function createEpaymentScheduleAction(claimId: string) {
+export async function createEpaymentScheduleAction(claimId: string, formData: FormData) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) throw new Error("Authentication is required.");
   try {
     await updateClaimPaymentHandoff({
       claimId, requesterEmail: session.user.email, requesterRole: session.user.role, status: "EXPORTED",
+      paymentAccountType: readRequiredString(formData, "paymentAccountType"),
+      paymentWithholdingTax: Number(readRequiredString(formData, "paymentWithholdingTax")),
+      paymentTaxOffset: Number(readRequiredString(formData, "paymentTaxOffset")),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "The e-payment schedule could not be created.";

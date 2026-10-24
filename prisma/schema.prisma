@@ -1292,6 +1292,9 @@ model ReimbursementClaim {
   paymentScheduleReference       String?
   paymentScheduleExportedAt      DateTime?
   paymentScheduleExportedById    String?
+  paymentAccountType             String?
+  paymentWithholdingTax          Decimal?                          @db.Decimal(14, 2)
+  paymentTaxOffset               Decimal?                          @db.Decimal(14, 2)
   paymentSystemReference         String?
   paymentSystemStatus            String?
   paymentSystemSyncedAt          DateTime?

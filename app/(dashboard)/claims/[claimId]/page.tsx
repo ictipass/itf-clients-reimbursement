@@ -65,6 +65,7 @@ import {
   formatReimbursementPaymentHandoffStatus,
   reimbursementPaymentHandoffStatuses,
 } from "@/lib/reimbursement-payment-schedule";
+import { canDownloadPaymentVoucher } from "@/lib/reimbursement-payment-voucher";
 import { formatReimbursementPolicyEdition } from "@/lib/reimbursement-policy";
 import { isItfRole } from "@/lib/rbac";
 
@@ -182,6 +183,9 @@ export default async function ClaimDetailPage({
       paymentScheduleReference: true,
       paymentScheduleExportedAt: true,
       paymentScheduleExportedById: true,
+      paymentAccountType: true,
+      paymentWithholdingTax: true,
+      paymentTaxOffset: true,
       paymentSystemReference: true,
       paymentSystemStatus: true,
       paymentSystemSyncedAt: true,
@@ -361,6 +365,17 @@ export default async function ClaimDetailPage({
     exportedAt: claim.paymentScheduleExportedAt,
     exportedById: claim.paymentScheduleExportedById,
     reference: claim.paymentScheduleReference,
+    requesterId: currentUser?.id ?? null,
+    requesterRole: activeRole,
+    deskAssignments: claim.workItems,
+  });
+  const voucherRaised = isItfRole(activeRole) ? await getDb().decision.findFirst({
+    where: { reimbursementClaimId: claim.id, recordTier: "HOT", reason: { startsWith: "Updated reimbursement payment handoff status to PV RAISED" } },
+    orderBy: { createdAt: "asc" }, select: { createdAt: true, actorId: true },
+  }) : null;
+  const canDownloadVoucher = isItfRole(activeRole) && canDownloadPaymentVoucher({
+    raisedAt: voucherRaised?.createdAt ?? null,
+    raisedById: voucherRaised?.actorId ?? null,
     requesterId: currentUser?.id ?? null,
     requesterRole: activeRole,
     deskAssignments: claim.workItems,
@@ -1666,7 +1681,7 @@ export default async function ClaimDetailPage({
           {canUpdatePreAudit ? <form action={updatePaymentFileAuditAction.bind(null, claim.id)} className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2">
             <label className="grid gap-1 text-sm font-medium">Decision<select name="paymentFileAuditStatus" defaultValue={availablePreAuditStatuses.at(-1)} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3">{availablePreAuditStatuses.map((status) => <option key={status} value={status}>{formatReimbursementAuditReviewStatus(status)}</option>)}</select></label>
             {claim.currentDesk === "PRE_AUDIT_OFFICER" ? <>
-              <div className="grid gap-2 text-sm md:col-span-2"><label><input name="voucherChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.voucherChecked ?? false} /> PV-raised record checked (voucher document pending template)</label><label><input name="budgetChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.budgetChecked ?? false} /> Budget clearance checked</label><label><input name="bankDetailsChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.bankDetailsChecked ?? false} /> Bank details checked</label><label><input name="amountChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.amountChecked ?? false} /> Approved amount checked</label></div>
+              <div className="grid gap-2 text-sm md:col-span-2"><label><input name="voucherChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.voucherChecked ?? false} /> Payment voucher PDF checked</label><label><input name="budgetChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.budgetChecked ?? false} /> Budget clearance checked</label><label><input name="bankDetailsChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.bankDetailsChecked ?? false} /> Bank details checked</label><label><input name="amountChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.amountChecked ?? false} /> Approved amount checked</label></div>
               <label className="grid gap-1 text-sm md:col-span-2">Pre-audit observations<textarea name="preAuditObservations" defaultValue={claim.paymentFileAudit?.observations ?? ""} className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>
             </> : <label className="grid gap-1 text-sm md:col-span-2">Head Pre-Audit verification note<textarea name="preAuditDecisionNote" required className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>}
             <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">Save payment-file pre-audit</button>
@@ -1685,20 +1700,29 @@ export default async function ClaimDetailPage({
               payment system.
             </p> : null}
           </div>
+          <div className="flex flex-wrap gap-2">
+          {isItfRole(activeRole) && canDownloadVoucher ? <Link href={`/claims/${claim.id}/payment-voucher`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 w-fit items-center rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">View payment voucher PDF</Link> : isItfRole(activeRole) ? <button type="button" disabled className="inline-flex min-h-10 w-fit items-center rounded-md bg-zinc-200 px-4 text-sm font-semibold text-zinc-500">Payment voucher not raised</button> : null}
           {isItfRole(activeRole) && canDownloadSchedule ? (
             <Link
               href={`/claims/${claim.id}/payment-schedule`}
               className="inline-flex min-h-10 w-fit items-center rounded-md bg-[#800020] px-4 text-sm font-semibold text-white"
             >
-              Download e-payment schedule CSV
+              Download e-payment schedule XLSX
             </Link>
-          ) : isItfRole(activeRole) ? <button type="button" disabled className="inline-flex min-h-10 w-fit items-center rounded-md bg-zinc-200 px-4 text-sm font-semibold text-zinc-500">Download e-payment schedule CSV</button> : null}
+          ) : isItfRole(activeRole) ? <button type="button" disabled className="inline-flex min-h-10 w-fit items-center rounded-md bg-zinc-200 px-4 text-sm font-semibold text-zinc-500">Download e-payment schedule XLSX</button> : null}
+          </div>
         </div>
 
         {query.scheduleError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.scheduleError}</p> : null}
         {query.paymentHandoffError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.paymentHandoffError}</p> : null}
         {query.scheduleCreated ? <p className="mt-4 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">E-payment schedule created and ready for authorized download.</p> : null}
-        {canCreateSchedule ? <form action={createEpaymentScheduleAction.bind(null, claim.id)} className="mt-4"><button className="rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Create e-payment schedule</button></form> : null}
+        {canCreateSchedule ? <form action={createEpaymentScheduleAction.bind(null, claim.id)} className="mt-4 grid gap-3 rounded-md border border-zinc-200 p-4 md:grid-cols-3">
+          <p className="text-sm text-zinc-600 md:col-span-3">Confirm the beneficiary account type and deductions. Payable Amount will equal the approved award minus WHT and Tax Off.</p>
+          <label className="grid gap-1 text-sm font-medium">Account type<input name="paymentAccountType" required maxLength={50} placeholder="e.g. Current" className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+          <label className="grid gap-1 text-sm font-medium">WHT (NGN)<input name="paymentWithholdingTax" type="number" min="0" step="0.01" required placeholder="0.00" className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+          <label className="grid gap-1 text-sm font-medium">Tax Off (NGN)<input name="paymentTaxOffset" type="number" min="0" step="0.01" required placeholder="0.00" className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+          <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white md:col-span-3">Create e-payment schedule</button>
+        </form> : null}
 
         <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
           <p>
@@ -1714,6 +1738,7 @@ export default async function ClaimDetailPage({
           <p>Account number: {claim.accountNumber ?? "Not provided"}</p>
           <p>Sort code: {claim.sortCode ?? "Not provided"}</p>
           <p>Schedule exported at: {formatDate(claim.paymentScheduleExportedAt)}</p>
+          {claim.paymentScheduleExportedAt ? <><p>Account type: {claim.paymentAccountType}</p><p>WHT: {formatMoney(claim.paymentWithholdingTax)}</p><p>Tax Off: {formatMoney(claim.paymentTaxOffset)}</p></> : null}
           <p>Payment system reference: {claim.paymentSystemReference ?? "Not recorded"}</p>
           <p>Payment system status: {claim.paymentSystemStatus ?? "Not synced"}</p>
           <p>Payment system synced at: {formatDate(claim.paymentSystemSyncedAt)}</p>

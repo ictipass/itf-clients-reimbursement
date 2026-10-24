@@ -6,7 +6,7 @@ import { getDb } from "@/lib/db";
 import { can } from "@/lib/rbac";
 import {
   canDownloadEpaymentSchedule,
-  buildReimbursementPaymentScheduleCsv,
+  buildReimbursementPaymentScheduleWorkbook,
   buildReimbursementPaymentScheduleFilename,
 } from "@/lib/reimbursement-payment-schedule";
 
@@ -47,6 +47,9 @@ export async function GET(
       bankName: true,
       accountNumber: true,
       sortCode: true,
+      paymentAccountType: true,
+      paymentWithholdingTax: true,
+      paymentTaxOffset: true,
       claimRecommendedAmount: true,
       claimRecommendedInWords: true,
       paymentScheduleReference: true,
@@ -57,6 +60,8 @@ export async function GET(
       company: {
         select: {
           legalName: true,
+          email: true,
+          telephone: true,
           itfEmployerNumber: true,
           areaOffice: {
             select: {
@@ -84,12 +89,12 @@ export async function GET(
     return Response.json({ error: "The e-payment schedule has not been created for this desk." }, { status: 403 });
   }
 
-  const csv = buildReimbursementPaymentScheduleCsv(claim);
+  const workbook = await buildReimbursementPaymentScheduleWorkbook(claim);
   const filename = buildReimbursementPaymentScheduleFilename(claim);
 
-  return new Response(new Blob([csv]).stream(), {
+  return new Response(new Blob([new Uint8Array(workbook)]).stream(), {
     headers: {
-      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       "Content-Disposition": `attachment; filename="${filename}"`,
       "Cache-Control": "no-store",
     },

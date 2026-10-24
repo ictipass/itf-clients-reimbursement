@@ -29,6 +29,7 @@ import {
 } from "@/lib/reimbursement-staff";
 import {
   buildReimbursementPaymentScheduleReference,
+  validateReimbursementPaymentSchedule,
   isReimbursementPaymentHandoffStatus,
   type ReimbursementPaymentHandoffStatus,
 } from "@/lib/reimbursement-payment-schedule";
@@ -197,6 +198,9 @@ export type UpdateClaimPaymentHandoffInput = {
   paymentSystemReference?: string;
   paymentSystemStatus?: string;
   note?: string;
+  paymentAccountType?: string;
+  paymentWithholdingTax?: number;
+  paymentTaxOffset?: number;
 };
 
 export type UpdateClaimAuditReviewInput = {
@@ -1511,6 +1515,11 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
       status: true,
       paymentScheduleReference: true,
       paymentScheduleExportedAt: true,
+      bankName: true,
+      accountNumber: true,
+      sortCode: true,
+      claimRecommendedAmount: true,
+      company: { select: { legalName: true, email: true, telephone: true } },
       currentDesk: true,
       decisions: { where: { reason: { startsWith: "Pre-Audit Officer returned reimbursement payment audit result" } }, select: { id: true }, take: 1 },
       workItems: { where: { assignedRole: "REIMBURSEMENT_ACCOUNTANT", app: "REIMBURSEMENT", recordTier: "HOT" }, select: { status: true, updatedAt: true }, take: 1 },
@@ -1554,10 +1563,24 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
       throw new Error("Only the Reimbursement Schedule Accountant may create the e-payment schedule at the second encounter, after pre-audit.");
     }
     if (claim.paymentScheduleExportedAt) throw new Error("The e-payment schedule has already been created.");
+    validateReimbursementPaymentSchedule({
+      ...claim,
+      itfReceiptNumber: null,
+      claimRecommendedInWords: null,
+      paymentScheduleReference: claim.paymentScheduleReference,
+      paymentHandoffStatus: "EXPORTED",
+      paymentAccountType: input.paymentAccountType?.trim() ?? null,
+      paymentWithholdingTax: input.paymentWithholdingTax === undefined ? null : { toString: () => String(input.paymentWithholdingTax) },
+      paymentTaxOffset: input.paymentTaxOffset === undefined ? null : { toString: () => String(input.paymentTaxOffset) },
+      company: { ...claim.company, itfEmployerNumber: null, areaOffice: null },
+    });
   }
   if (input.status === "PV_RAISED" &&
     (input.requesterRole !== "REIMBURSEMENT_ACCOUNTANT" || claim.currentDesk !== "REIMBURSEMENT_ACCOUNTANT" || claim.decisions.length)) {
     throw new Error("Only the Reimbursement Schedule Accountant may raise the payment voucher at the first encounter.");
+  }
+  if (input.status === "PV_RAISED" && (!claim.bankName || !claim.accountNumber || !claim.claimRecommendedAmount || Number(claim.claimRecommendedAmount.toString()) <= 0)) {
+    throw new Error("A bank, account number, and approved award amount are required to raise the payment voucher.");
   }
   if (input.status === "SENT_TO_PAYMENT_SYSTEM" && !claim.paymentScheduleExportedAt) {
     throw new Error("The e-payment schedule must be created before it can be sent to a payment system.");
@@ -1579,6 +1602,9 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
         paymentScheduleReference: scheduleReference,
         paymentScheduleExportedAt: input.status === "EXPORTED" ? now : undefined,
         paymentScheduleExportedById: input.status === "EXPORTED" ? actor.id : undefined,
+        paymentAccountType: input.status === "EXPORTED" ? input.paymentAccountType?.trim() : undefined,
+        paymentWithholdingTax: input.status === "EXPORTED" ? input.paymentWithholdingTax : undefined,
+        paymentTaxOffset: input.status === "EXPORTED" ? input.paymentTaxOffset : undefined,
         paymentSystemReference: input.paymentSystemReference,
         paymentSystemStatus: input.paymentSystemStatus,
         paymentSystemSyncedAt:

@@ -1,29 +1,36 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import ExcelJS from "exceljs";
 
 import {
   canDownloadEpaymentSchedule,
-  buildReimbursementPaymentScheduleCsv,
+  buildReimbursementPaymentScheduleWorkbook,
   buildReimbursementPaymentScheduleFilename,
   buildReimbursementPaymentScheduleReference,
   formatReimbursementPaymentHandoffStatus,
   isReimbursementPaymentHandoffStatus,
+  validateReimbursementPaymentSchedule,
 } from "../lib/reimbursement-payment-schedule";
 
-test("builds reimbursement e-payment schedule CSV for ERP handoff", () => {
-  const csv = buildReimbursementPaymentScheduleCsv({
+test("builds reimbursement e-payment XLSX with the required columns and net payable amount", async () => {
+  const bytes = await buildReimbursementPaymentScheduleWorkbook({
     reference: "CLM-001",
     claimYear: 2026,
     itfReceiptNumber: "ITF-RCPT-7",
     bankName: "Example Bank",
     accountNumber: "0123456789",
     sortCode: "123456",
+    paymentAccountType: "Current",
+    paymentWithholdingTax: { toString: () => "25000" },
+    paymentTaxOffset: { toString: () => "5000" },
     claimRecommendedAmount: { toString: () => "1500000" },
     claimRecommendedInWords: "One million five hundred thousand naira only",
     paymentScheduleReference: null,
     paymentHandoffStatus: "READY_FOR_EXPORT",
     company: {
       legalName: "Ada Training Ltd",
+      email: "accounts@example.com",
+      telephone: "08012345678",
       itfEmployerNumber: "ITF/ABJ/001",
       areaOffice: {
         name: "Abuja Area Office",
@@ -31,10 +38,28 @@ test("builds reimbursement e-payment schedule CSV for ERP handoff", () => {
     },
   });
 
-  assert.match(csv, /"Schedule Reference","Claim Reference","Employer Name"/);
-  assert.match(csv, /"ITF-RMB-2026-CLM-001","CLM-001","Ada Training Ltd"/);
-  assert.match(csv, /"1500000.00"/);
-  assert.match(csv, /"Ready for export"/);
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.load(bytes);
+  const sheet = workbook.worksheets[0];
+  assert.deepEqual(Array.from({ length: 12 }, (_, index) => sheet.getRow(1).getCell(index + 1).value), ["Bank Code", "Account Number", "Account Type", "Payable Amount", "Short Description", "Long Description", "Name", "Bank", "Mobile Number", "Email", "WHT", "Tax Off"]);
+  assert.equal(sheet.getRow(2).getCell(1).value, "123456");
+  assert.equal(sheet.getRow(2).getCell(2).value, "0123456789");
+  assert.equal(sheet.getRow(2).getCell(4).value, 1470000);
+  assert.equal(sheet.getRow(2).getCell(11).value, 25000);
+  assert.equal(sheet.getRow(2).getCell(12).value, 5000);
+});
+
+test("schedule rejects unconfirmed deductions and deductions above the award", () => {
+  const claim = {
+    reference: "CLM-001", claimYear: 2026, itfReceiptNumber: null,
+    bankName: "Example Bank", accountNumber: "0123456789", sortCode: "123456",
+    paymentAccountType: "Current", paymentWithholdingTax: null, paymentTaxOffset: null,
+    claimRecommendedAmount: { toString: () => "100" }, claimRecommendedInWords: null,
+    paymentScheduleReference: null, paymentHandoffStatus: "EXPORTED" as const,
+    company: { legalName: "Ada Training Ltd", email: "accounts@example.com", telephone: "08012345678", itfEmployerNumber: null, areaOffice: null },
+  };
+  assert.throws(() => validateReimbursementPaymentSchedule(claim), /confirm WHT/);
+  assert.throws(() => validateReimbursementPaymentSchedule({ ...claim, paymentWithholdingTax: { toString: () => "80" }, paymentTaxOffset: { toString: () => "30" } }), /do not exceed/);
 });
 
 test("uses stable reimbursement payment schedule naming", () => {
@@ -44,7 +69,7 @@ test("uses stable reimbursement payment schedule naming", () => {
   );
   assert.equal(
     buildReimbursementPaymentScheduleFilename({ reference: "CLM-001", claimYear: 2026 }),
-    "reimbursement-payment-schedule-2026-CLM-001.csv",
+    "reimbursement-payment-schedule-2026-CLM-001.xlsx",
   );
   assert.equal(formatReimbursementPaymentHandoffStatus("PV_RAISED"), "PV raised");
 });
