@@ -219,14 +219,37 @@ export type ClaimDesk =
   | "HEAD_OF_DIVISION"
   | "HQ_REIMBURSEMENT_OFFICER"
   | "DIRECTOR_AUDIT"
+  | "DIRECTOR_GENERAL"
   | "HEAD_REIMBURSEMENT_AUDIT"
   | "REIMBURSEMENT_SCHEDULE_AUDITOR"
   | "HEAD_BUDGET"
   | "BUDGET_OFFICER"
   | "PRE_AUDIT_OFFICER"
+  | "HEAD_PRE_AUDIT"
   | "DIRECTOR_FINANCE"
+  | "HEAD_ACCOUNTS"
   | "HEAD_REIMBURSEMENT_FINANCE"
-  | "REIMBURSEMENT_ACCOUNTANT";
+  | "REIMBURSEMENT_ACCOUNTANT"
+  | "HEAD_EXPENDITURE"
+  | "EXPENDITURE_ACCOUNTANT"
+  | "PAYMENT_INITIATOR";
+
+export function formatClaimDesk(desk: ClaimDesk) {
+  const labels: Partial<Record<ClaimDesk, string>> = {
+    DIRECTOR_FSD: "Director, Field Services Department",
+    HEAD_OF_DIVISION: "Head of Reimbursement Division",
+    HQ_REIMBURSEMENT_OFFICER: "HQ Reimbursement Officer",
+    DIRECTOR_FINANCE: "Director, Finance and Accounts Department",
+    HEAD_ACCOUNTS: "Head of Accounts",
+    HEAD_REIMBURSEMENT_FINANCE: "Head of Reimbursement Account",
+    REIMBURSEMENT_ACCOUNTANT: "Reimbursement Schedule Accountant",
+    HEAD_PRE_AUDIT: "Head Pre-Audit",
+    HEAD_EXPENDITURE: "Head Expenditure",
+    EXPENDITURE_ACCOUNTANT: "Expenditure Accountant",
+    PAYMENT_INITIATOR: "Payment Initiator",
+  };
+  return labels[desk] ?? desk.replaceAll("_", " ");
+}
 
 type ClaimRoutingTransition = {
   from: ClaimDesk;
@@ -545,39 +568,66 @@ export function getClaimPostIntakeTransitions() {
     },
     {
       from: "DIRECTOR_AUDIT",
+      to: "DIRECTOR_GENERAL",
+      assignedRole: "DIRECTOR_GENERAL",
+      action: "FORWARD",
+      reason: "Director Audit forwarded audit-cleared claim to Director General.",
+      workItemTitle: "Decide audited reimbursement claim",
+      workItemSummary: "has an audited reimbursement claim awaiting Director General decision.",
+    },
+    {
+      from: "DIRECTOR_GENERAL",
       to: "DIRECTOR_FINANCE",
       assignedRole: "DIRECTOR_FINANCE",
-      action: "FORWARD",
-      reason: "Director Audit forwarded audit-cleared claim to Director Finance.",
-      workItemTitle: "Receive audit-cleared reimbursement claim",
-      workItemSummary: "has an audit-cleared reimbursement claim awaiting finance processing.",
+      action: "APPROVE",
+      reason: "Director General approved the claim for payment and forwarded it to DFAD.",
+      workItemTitle: "Receive DG-approved reimbursement claim",
+      workItemSummary: "has a DG-approved reimbursement claim awaiting finance processing.",
     },
     {
       from: "DIRECTOR_FINANCE",
+      to: "HEAD_ACCOUNTS",
+      assignedRole: "HEAD_ACCOUNTS",
+      action: "FORWARD",
+      reason: "DFAD forwarded reimbursement claim to Head of Accounts.",
+      workItemTitle: "Route reimbursement claim to Accounts",
+      workItemSummary: "has a reimbursement claim awaiting Accounts routing.",
+    },
+    {
+      from: "HEAD_ACCOUNTS",
       to: "HEAD_REIMBURSEMENT_FINANCE",
       assignedRole: "HEAD_REIMBURSEMENT_FINANCE",
       action: "FORWARD",
-      reason: "Director Finance forwarded reimbursement claim to Head Reimbursement Finance.",
-      workItemTitle: "Assign reimbursement finance processing",
-      workItemSummary: "has a reimbursement claim awaiting finance assignment.",
+      reason: "Head of Accounts forwarded claim to Head of Reimbursement Account.",
+      workItemTitle: "Assign reimbursement payment voucher",
+      workItemSummary: "has a reimbursement claim awaiting payment voucher preparation.",
     },
     {
       from: "HEAD_REIMBURSEMENT_FINANCE",
       to: "REIMBURSEMENT_ACCOUNTANT",
       assignedRole: "REIMBURSEMENT_ACCOUNTANT",
       action: "FORWARD",
-      reason: "Head Reimbursement Finance forwarded claim to Reimbursement Accountant.",
-      workItemTitle: "Prepare reimbursement payment handoff",
-      workItemSummary: "has a reimbursement claim awaiting accountant payment handoff.",
+      reason: "Head of Reimbursement Account forwarded claim to Reimbursement Schedule Accountant.",
+      workItemTitle: "Process reimbursement payment packet",
+      workItemSummary: "has a reimbursement claim awaiting Schedule Accountant action.",
     },
     {
       from: "REIMBURSEMENT_ACCOUNTANT",
+      to: "HEAD_REIMBURSEMENT_FINANCE",
+      assignedRole: "HEAD_REIMBURSEMENT_FINANCE",
+      action: "FORWARD",
+      reason: "Reimbursement Schedule Accountant returned payment voucher to Head of Reimbursement Account.",
+      workItemTitle: "Forward payment voucher for budget clearance",
+      workItemSummary: "has a payment voucher awaiting onward routing to Budget.",
+    },
+    {
+      from: "HEAD_REIMBURSEMENT_FINANCE",
       to: "HEAD_BUDGET",
       assignedRole: "HEAD_BUDGET",
       action: "FORWARD",
-      reason: "Reimbursement Accountant forwarded payment file to Head Budget.",
-      workItemTitle: "Review reimbursement payment for budget clearance",
-      workItemSummary: "has a reimbursement payment file awaiting Head Budget review.",
+      reason: "Head of Reimbursement Account forwarded payment voucher to Head Budget.",
+      workItemTitle: "Review reimbursement payment voucher",
+      workItemSummary: "has a payment voucher awaiting budget clearance.",
     },
     {
       from: "HEAD_BUDGET",
@@ -609,27 +659,139 @@ export function getClaimPostIntakeTransitions() {
     },
     {
       from: "DIRECTOR_AUDIT",
+      to: "HEAD_PRE_AUDIT",
+      assignedRole: "HEAD_PRE_AUDIT",
+      action: "FORWARD",
+      reason: "Director Audit forwarded budget-cleared payment file to Head Pre-Audit.",
+      workItemTitle: "Assign payment-file pre-audit",
+      workItemSummary: "has a budget-cleared payment file awaiting pre-audit assignment.",
+    },
+    {
+      from: "HEAD_PRE_AUDIT",
       to: "PRE_AUDIT_OFFICER",
       assignedRole: "PRE_AUDIT_OFFICER",
       action: "FORWARD",
-      reason: "Director Audit forwarded budget-cleared reimbursement payment file to Pre-Audit Officer.",
+      reason: "Head Pre-Audit assigned payment-file pre-audit to Pre-Audit Officer.",
       workItemTitle: "Pre-audit reimbursement payment file",
       workItemSummary: "has a reimbursement payment file awaiting pre-audit review.",
     },
     {
       from: "PRE_AUDIT_OFFICER",
-      to: "DIRECTOR_AUDIT",
-      assignedRole: "DIRECTOR_AUDIT",
+      to: "HEAD_PRE_AUDIT",
+      assignedRole: "HEAD_PRE_AUDIT",
       action: "FORWARD",
-      reason: "Pre-Audit Officer returned reimbursement payment audit result to Director Audit.",
-      workItemTitle: "Approve reimbursement payment audit clearance",
-      workItemSummary: "has a pre-audit result awaiting Director Audit clearance.",
+      reason: "Pre-Audit Officer returned reimbursement payment audit result to Head Pre-Audit.",
+      workItemTitle: "Verify reimbursement payment-file pre-audit",
+      workItemSummary: "has a pre-audit result awaiting Head Pre-Audit verification.",
+    },
+    {
+      from: "HEAD_PRE_AUDIT",
+      to: "HEAD_REIMBURSEMENT_FINANCE",
+      assignedRole: "HEAD_REIMBURSEMENT_FINANCE",
+      action: "FORWARD",
+      reason: "Head Pre-Audit returned cleared payment file to Head of Reimbursement Account.",
+      workItemTitle: "Assign e-payment schedule preparation",
+      workItemSummary: "has a pre-audited payment file awaiting e-payment schedule preparation.",
+    },
+    {
+      from: "REIMBURSEMENT_ACCOUNTANT",
+      to: "HEAD_ACCOUNTS",
+      assignedRole: "HEAD_ACCOUNTS",
+      action: "FORWARD",
+      reason: "Reimbursement Schedule Accountant forwarded e-payment schedule to Head of Accounts.",
+      workItemTitle: "Route e-payment schedule to Expenditure",
+      workItemSummary: "has an e-payment schedule awaiting Accounts review.",
+    },
+    {
+      from: "HEAD_ACCOUNTS",
+      to: "HEAD_EXPENDITURE",
+      assignedRole: "HEAD_EXPENDITURE",
+      action: "FORWARD",
+      reason: "Head of Accounts forwarded e-payment schedule to Head Expenditure.",
+      workItemTitle: "Assign e-payment execution",
+      workItemSummary: "has an e-payment schedule awaiting expenditure routing.",
+    },
+    {
+      from: "HEAD_EXPENDITURE",
+      to: "EXPENDITURE_ACCOUNTANT",
+      assignedRole: "EXPENDITURE_ACCOUNTANT",
+      action: "FORWARD",
+      reason: "Head Expenditure forwarded e-payment schedule to Expenditure Accountant.",
+      workItemTitle: "Review e-payment schedule",
+      workItemSummary: "has an e-payment schedule awaiting expenditure review.",
+    },
+    {
+      from: "EXPENDITURE_ACCOUNTANT",
+      to: "PAYMENT_INITIATOR",
+      assignedRole: "PAYMENT_INITIATOR",
+      action: "FORWARD",
+      reason: "Expenditure Accountant forwarded payment packet to Initiator.",
+      workItemTitle: "Execute reimbursement payment",
+      workItemSummary: "has an approved payment packet awaiting payment execution and evidence.",
+    },
+    {
+      from: "PAYMENT_INITIATOR",
+      to: "HEAD_EXPENDITURE",
+      assignedRole: "HEAD_EXPENDITURE",
+      action: "FORWARD",
+      reason: "Initiator returned payment packet and evidence to Head Expenditure.",
+      workItemTitle: "Forward payment evidence",
+      workItemSummary: "has payment evidence awaiting onward routing.",
+    },
+    {
+      from: "HEAD_EXPENDITURE",
+      to: "HEAD_REIMBURSEMENT_FINANCE",
+      assignedRole: "HEAD_REIMBURSEMENT_FINANCE",
+      action: "FORWARD",
+      reason: "Head Expenditure returned paid packet to Head of Reimbursement Account.",
+      workItemTitle: "Return paid packet to Schedule Accountant",
+      workItemSummary: "has a paid packet awaiting final status recording.",
     },
   ] as const satisfies readonly ClaimRoutingTransition[];
 }
 
 export function getClaimWorkflowTransitions() {
   return [...getClaimIntakeTransitions(), ...getClaimPostIntakeTransitions()] as const;
+}
+
+export function getLatestClaimRoutingReason(decisions: readonly { reason: string | null }[]) {
+  const reasons = getClaimWorkflowTransitions().map((transition) => transition.reason);
+  return decisions.find((decision) => reasons.some((reason) => decision.reason?.startsWith(reason)))?.reason ?? "";
+}
+
+export function isClaimPostIntakeTransitionAvailable(input: {
+  from: ClaimDesk;
+  to: ClaimDesk;
+  lastRoutingReason: string;
+  paymentVoucherRaised: boolean;
+  preAuditReturned: boolean;
+  paymentReturned: boolean;
+  scheduleCreated: boolean;
+}) {
+  const { from, to, lastRoutingReason: reason, paymentVoucherRaised, preAuditReturned, paymentReturned, scheduleCreated } = input;
+  const arrivedFrom = (prefix: string) => reason.startsWith(prefix);
+  if (from === "HEAD_OF_TRAINING" && to === "AREA_MANAGER") return arrivedFrom("A/O Reimbursement Officer forwarded");
+  if (from === "AREA_MANAGER" && to === "DIRECTOR_FSD") return arrivedFrom("HOT reviewed the Area Office");
+  if (from === "HEAD_OF_DIVISION") return to === (arrivedFrom("HQ RO returned") ? "DIRECTOR_FSD" : "HQ_REIMBURSEMENT_OFFICER");
+  if (from === "DIRECTOR_FSD") return to === (arrivedFrom("Head Reimbursement Division forwarded verified") ? "DIRECTOR_AUDIT" : "HEAD_OF_DIVISION");
+  if (from === "HEAD_REIMBURSEMENT_AUDIT") return to === (arrivedFrom("Reimbursement Schedule Auditor returned") ? "DIRECTOR_AUDIT" : "REIMBURSEMENT_SCHEDULE_AUDITOR");
+  if (from === "DIRECTOR_AUDIT") {
+    if (arrivedFrom("Head Budget forwarded budget-cleared")) return to === "HEAD_PRE_AUDIT";
+    return to === (arrivedFrom("Head Reimbursement Audit forwarded verified") ? "DIRECTOR_GENERAL" : "HEAD_REIMBURSEMENT_AUDIT");
+  }
+  if (from === "HEAD_ACCOUNTS") return to === (arrivedFrom("Reimbursement Schedule Accountant forwarded e-payment") ? "HEAD_EXPENDITURE" : "HEAD_REIMBURSEMENT_FINANCE");
+  if (from === "HEAD_REIMBURSEMENT_FINANCE") {
+    return to === (arrivedFrom("Reimbursement Schedule Accountant returned payment voucher") ? "HEAD_BUDGET" : "REIMBURSEMENT_ACCOUNTANT");
+  }
+  if (from === "REIMBURSEMENT_ACCOUNTANT") {
+    if (paymentReturned) return false;
+    if (!preAuditReturned) return paymentVoucherRaised && to === "HEAD_REIMBURSEMENT_FINANCE";
+    return scheduleCreated && to === "HEAD_ACCOUNTS";
+  }
+  if (from === "HEAD_BUDGET") return to === (arrivedFrom("Budget Officer returned") ? "DIRECTOR_AUDIT" : "BUDGET_OFFICER");
+  if (from === "HEAD_PRE_AUDIT") return to === (arrivedFrom("Pre-Audit Officer returned") ? "HEAD_REIMBURSEMENT_FINANCE" : "PRE_AUDIT_OFFICER");
+  if (from === "HEAD_EXPENDITURE") return to === (arrivedFrom("Initiator returned payment packet") ? "HEAD_REIMBURSEMENT_FINANCE" : "EXPENDITURE_ACCOUNTANT");
+  return true;
 }
 
 export async function submitClaimToAreaManager(input: ClaimRoutingInput) {
@@ -714,7 +876,9 @@ async function moveClaimThroughIntake(
       status: true,
       currentDesk: true,
       claimYear: true,
-      decisions: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { reason: true } },
+      paymentHandoffStatus: true,
+      paymentScheduleExportedAt: true,
+      decisions: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 60, select: { reason: true } },
       company: {
         select: {
           legalName: true,
@@ -740,14 +904,21 @@ async function moveClaimThroughIntake(
     );
   }
 
-  const lastDecisionReason = claim.decisions[0]?.reason ?? "";
-  if (transition.from === "HEAD_OF_DIVISION" &&
-    (transition.to === "DIRECTOR_FSD") !== lastDecisionReason.includes("HQ RO returned")) {
-    throw new Error("This Head of Division routing step is not available at the current review stage.");
-  }
-  if (transition.from === "DIRECTOR_FSD" &&
-    (transition.to === "DIRECTOR_AUDIT") !== lastDecisionReason.includes("Head Reimbursement Division forwarded verified")) {
-    throw new Error("This Director FSD routing step is not available at the current review stage.");
+  const lastRoutingReason = getLatestClaimRoutingReason(claim.decisions);
+  const preAuditReturned = claim.decisions.some((decision) => decision.reason?.startsWith("Pre-Audit Officer returned reimbursement payment audit result"));
+  const paymentReturned = claim.decisions.some((decision) => decision.reason?.startsWith("Initiator returned payment packet"));
+  const paymentVoucherRaised = claim.paymentHandoffStatus === "PV_RAISED" ||
+    claim.decisions.some((decision) => decision.reason?.startsWith("Updated reimbursement payment handoff status to PV RAISED"));
+  if (!isClaimPostIntakeTransitionAvailable({
+      from: transition.from,
+      to: transition.to,
+      lastRoutingReason,
+      paymentVoucherRaised,
+      preAuditReturned,
+      paymentReturned,
+      scheduleCreated: Boolean(claim.paymentScheduleExportedAt),
+    })) {
+    throw new Error("This claim routing step is not available at the current review stage.");
   }
 
   if (transition.from === "COMPANY" && claim.status !== "DRAFT") {
@@ -810,6 +981,22 @@ async function moveClaimThroughIntake(
   if (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT") {
     const eligibility = await verifyAnnualEligibility(claim.companyId, claim.claimYear ?? 0);
     if (eligibility.status !== "ELIGIBLE") throw new Error(`Claim approval is blocked: ${eligibility.message}`);
+  }
+
+  if (transition.from === "HEAD_REIMBURSEMENT_FINANCE" && transition.to === "HEAD_BUDGET" && !paymentVoucherRaised) {
+    throw new Error("The Reimbursement Schedule Accountant must raise the payment voucher before budget review.");
+  }
+  if ((transition.from === "PAYMENT_INITIATOR" && transition.to === "HEAD_EXPENDITURE") ||
+    (transition.from === "HEAD_EXPENDITURE" && transition.to === "HEAD_REIMBURSEMENT_FINANCE")) {
+    const receipt = await db.document.findFirst({
+      where: {
+        reimbursementClaimId: claim.id, kind: "PAYMENT_RECEIPT", isActive: true, recordTier: "HOT",
+        createdAt: { gte: claim.paymentScheduleExportedAt ?? new Date() },
+        uploadedBy: { memberships: { some: { role: "PAYMENT_INITIATOR", isActive: true } } },
+      },
+      select: { id: true },
+    });
+    if (!receipt) throw new Error("The Initiator must attach payment evidence before returning the paid packet.");
   }
 
   const now = new Date();
@@ -955,14 +1142,20 @@ const claimDeskRoles: Record<ClaimDesk, Role | null> = {
   HEAD_OF_DIVISION: "HEAD_OF_DIVISION",
   HQ_REIMBURSEMENT_OFFICER: "HQ_REIMBURSEMENT_OFFICER",
   DIRECTOR_AUDIT: "DIRECTOR_AUDIT",
+  DIRECTOR_GENERAL: "DIRECTOR_GENERAL",
   HEAD_REIMBURSEMENT_AUDIT: "HEAD_REIMBURSEMENT_AUDIT",
   REIMBURSEMENT_SCHEDULE_AUDITOR: "REIMBURSEMENT_SCHEDULE_AUDITOR",
   HEAD_BUDGET: "HEAD_BUDGET",
   BUDGET_OFFICER: "BUDGET_OFFICER",
   PRE_AUDIT_OFFICER: "PRE_AUDIT_OFFICER",
+  HEAD_PRE_AUDIT: "HEAD_PRE_AUDIT",
   DIRECTOR_FINANCE: "DIRECTOR_FINANCE",
+  HEAD_ACCOUNTS: "HEAD_ACCOUNTS",
   HEAD_REIMBURSEMENT_FINANCE: "HEAD_REIMBURSEMENT_FINANCE",
   REIMBURSEMENT_ACCOUNTANT: "REIMBURSEMENT_ACCOUNTANT",
+  HEAD_EXPENDITURE: "HEAD_EXPENDITURE",
+  EXPENDITURE_ACCOUNTANT: "EXPENDITURE_ACCOUNTANT",
+  PAYMENT_INITIATOR: "PAYMENT_INITIATOR",
 };
 
 export function canRouteClaimFromDesk(role: Role, desk: ClaimDesk) {
@@ -1026,7 +1219,7 @@ function getAuditReviewDecisionAction(status: ReimbursementAuditReviewStatus) {
   return "RECOMMEND";
 }
 
-export async function markClaimKiv(input: ClaimRoutingInput) {
+export async function markClaimKiv(input: ClaimRoutingInput, outcome: "KIV" | "DISAPPROVE" = "KIV") {
   if (!canManageClaimPause(input.requesterRole)) {
     throw new Error("Only Director General can mark a reimbursement claim KIV.");
   }
@@ -1045,9 +1238,8 @@ export async function markClaimKiv(input: ClaimRoutingInput) {
     where: {
       id: input.claimId,
       recordTier: "HOT",
-      status: {
-        in: ["SUBMITTED", "IN_REVIEW", "APPROVED"],
-      },
+      status: "SUBMITTED",
+      currentDesk: "DIRECTOR_GENERAL",
       company: {
         recordTier: "HOT",
         isActive: true,
@@ -1056,6 +1248,7 @@ export async function markClaimKiv(input: ClaimRoutingInput) {
     select: {
       id: true,
       companyId: true,
+      company: { select: { legalName: true, organizationId: true, areaOfficeId: true, organization: { select: { workspaceId: true } } } },
     },
   });
 
@@ -1065,12 +1258,15 @@ export async function markClaimKiv(input: ClaimRoutingInput) {
 
   const now = new Date();
   const note = input.note?.trim();
+  if (outcome === "DISAPPROVE" && !note) throw new Error("Director General must record a disapproval reason.");
+  const decisionLabel = outcome === "DISAPPROVE" ? "DISAPPROVED" : "KEEP IN VIEW";
 
   return db.$transaction(async (tx) => {
     const updated = await tx.reimbursementClaim.update({
       where: { id: claim.id },
       data: {
-        status: "CHANGES_REQUESTED",
+        status: outcome === "DISAPPROVE" ? "REJECTED" : "CHANGES_REQUESTED",
+        currentDesk: "HEAD_OF_DIVISION",
       },
       select: { id: true },
     });
@@ -1086,13 +1282,35 @@ export async function markClaimKiv(input: ClaimRoutingInput) {
       },
     });
 
+    await tx.workItem.upsert({
+      where: { sourceKey: getClaimWorkItemSourceKey(claim.id, "HEAD_OF_DIVISION") },
+      create: {
+        workspaceId: claim.company.organization.workspaceId,
+        organizationId: claim.company.organizationId,
+        areaOfficeId: claim.company.areaOfficeId,
+        companyId: claim.companyId,
+        reimbursementClaimId: claim.id,
+        assignedRole: "HEAD_OF_DIVISION",
+        app: "REIMBURSEMENT",
+        kind: "REIMBURSEMENT_CLAIM_REVIEW",
+        status: "OPEN",
+        priority: "HIGH",
+        title: `${decisionLabel} — DG decision`,
+        summary: `${claim.company.legalName} has a ${decisionLabel} reimbursement packet for review.`,
+        targetHref: `/claims/${claim.id}`,
+        sourceKey: getClaimWorkItemSourceKey(claim.id, "HEAD_OF_DIVISION"),
+      },
+      update: { status: "OPEN", resolvedAt: null, emailNotifiedAt: null, priority: "HIGH", title: `${decisionLabel} — DG decision`, summary: `${claim.company.legalName} has a ${decisionLabel} reimbursement packet for review.` },
+      select: { id: true },
+    });
+
     await tx.decision.create({
       data: {
         actorId: actor.id,
         companyId: claim.companyId,
         reimbursementClaimId: claim.id,
-        action: "REQUEST_CHANGES",
-        reason: ["Director General marked reimbursement claim KIV/paused.", note]
+        action: outcome === "DISAPPROVE" ? "REJECT" : "REQUEST_CHANGES",
+        reason: [outcome === "DISAPPROVE" ? "Director General disapproved reimbursement claim." : "Director General marked reimbursement claim KIV/paused.", note]
           .filter(Boolean)
           .join(" "),
       },
@@ -1102,9 +1320,13 @@ export async function markClaimKiv(input: ClaimRoutingInput) {
   });
 }
 
+export async function disapproveClaimAtDirectorGeneral(input: ClaimRoutingInput) {
+  return markClaimKiv(input, "DISAPPROVE");
+}
+
 export async function resumeClaimFromKiv(input: ClaimRoutingInput) {
-  if (!canManageClaimPause(input.requesterRole)) {
-    throw new Error("Only Director General can resume a KIV reimbursement claim.");
+  if (input.requesterRole !== "HEAD_OF_DIVISION" && !isAdminRole(input.requesterRole)) {
+    throw new Error("Only Head of Reimbursement Division can return a KIV claim to Director General.");
   }
 
   const db = getDb();
@@ -1121,6 +1343,7 @@ export async function resumeClaimFromKiv(input: ClaimRoutingInput) {
     where: {
       id: input.claimId,
       status: "CHANGES_REQUESTED",
+      currentDesk: "HEAD_OF_DIVISION",
       recordTier: "HOT",
       company: {
         recordTier: "HOT",
@@ -1150,25 +1373,27 @@ export async function resumeClaimFromKiv(input: ClaimRoutingInput) {
     throw new Error("A KIV reimbursement claim was not found.");
   }
 
-  const assignedRole = claimDeskRoles[claim.currentDesk];
-  if (!assignedRole) {
-    throw new Error("This KIV claim cannot be resumed to an employer desk.");
-  }
-
   const note = input.note?.trim();
+  if (!note) throw new Error("Record the instruction to return this KIV claim to Director General.");
 
   return db.$transaction(async (tx) => {
     const updated = await tx.reimbursementClaim.update({
       where: { id: claim.id },
       data: {
         status: "SUBMITTED",
+        currentDesk: "DIRECTOR_GENERAL",
       },
       select: { id: true },
     });
 
+    await tx.workItem.updateMany({
+      where: { reimbursementClaimId: claim.id, status: "OPEN" },
+      data: { status: "RESOLVED", resolvedAt: new Date() },
+    });
+
     await tx.workItem.upsert({
       where: {
-        sourceKey: getClaimWorkItemSourceKey(claim.id, claim.currentDesk),
+        sourceKey: getClaimWorkItemSourceKey(claim.id, "DIRECTOR_GENERAL"),
       },
       create: {
         workspaceId: claim.company.organization.workspaceId,
@@ -1176,24 +1401,24 @@ export async function resumeClaimFromKiv(input: ClaimRoutingInput) {
         areaOfficeId: claim.company.areaOfficeId,
         companyId: claim.companyId,
         reimbursementClaimId: claim.id,
-        assignedRole,
+        assignedRole: "DIRECTOR_GENERAL",
         app: "REIMBURSEMENT",
         kind: "REIMBURSEMENT_CLAIM_REVIEW",
         status: "OPEN",
         priority: "NORMAL",
         title: "Resume KIV reimbursement claim",
-        summary: `${claim.company.legalName} has a resumed reimbursement claim awaiting ${claim.currentDesk.replaceAll("_", " ")} attention.`,
+        summary: `${claim.company.legalName} has a resumed KIV claim awaiting DG decision.`,
         targetHref: `/claims/${claim.id}`,
-        sourceKey: getClaimWorkItemSourceKey(claim.id, claim.currentDesk),
+        sourceKey: getClaimWorkItemSourceKey(claim.id, "DIRECTOR_GENERAL"),
       },
       update: {
         status: "OPEN",
         resolvedAt: null,
         emailNotifiedAt: null,
-        assignedRole,
+        assignedRole: "DIRECTOR_GENERAL",
         priority: "NORMAL",
         title: "Resume KIV reimbursement claim",
-        summary: `${claim.company.legalName} has a resumed reimbursement claim awaiting ${claim.currentDesk.replaceAll("_", " ")} attention.`,
+        summary: `${claim.company.legalName} has a resumed KIV claim awaiting DG decision.`,
         targetHref: `/claims/${claim.id}`,
       },
       select: { id: true },
@@ -1205,7 +1430,7 @@ export async function resumeClaimFromKiv(input: ClaimRoutingInput) {
         companyId: claim.companyId,
         reimbursementClaimId: claim.id,
         action: "REOPEN",
-        reason: ["Director General resumed KIV reimbursement claim.", note]
+        reason: ["Head of Reimbursement Division resumed KIV claim and returned it to Director General.", note]
           .filter(Boolean)
           .join(" "),
       },
@@ -1248,6 +1473,7 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
       companyId: true,
       reference: true,
       claimYear: true,
+      status: true,
       paymentScheduleReference: true,
       paymentScheduleExportedAt: true,
       currentDesk: true,
@@ -1260,12 +1486,30 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
     throw new Error("Reimbursement claim was not found.");
   }
 
+  if (claim.status !== "SUBMITTED") {
+    throw new Error("Payment handoff can only be updated for a submitted claim in the active workflow.");
+  }
+
+  if (!isAdminRole(input.requesterRole) && claim.currentDesk !== input.requesterRole) {
+    throw new Error("Payment handoff can only be updated while the packet is at your desk.");
+  }
+
   if (input.status === "PAID") {
     const returnedAccountantDesk = claim.workItems.some((item) => item.status === "OPEN" &&
       claim.paymentScheduleExportedAt && item.updatedAt > claim.paymentScheduleExportedAt);
     if (input.requesterRole !== "REIMBURSEMENT_ACCOUNTANT" || claim.currentDesk !== "REIMBURSEMENT_ACCOUNTANT" || !returnedAccountantDesk) {
       throw new Error("Only the Reimbursement Schedule Accountant may record payment at the third encounter, after the paid packet returns.");
     }
+    const paymentEvidence = await db.document.findFirst({
+      where: {
+        reimbursementClaimId: claim.id, kind: "PAYMENT_RECEIPT", isActive: true, recordTier: "HOT",
+        createdAt: { gte: claim.paymentScheduleExportedAt ?? new Date() },
+        uploadedBy: { memberships: { some: { role: "PAYMENT_INITIATOR", isActive: true } } },
+      },
+      select: { id: true },
+    });
+    if (!paymentEvidence) throw new Error("The Initiator's payment evidence must be attached before recording payment.");
+    if (!input.paymentSystemReference?.trim()) throw new Error("Record the payment reference before settling the claim.");
     const eligibility = await verifyAnnualEligibility(claim.companyId, claim.claimYear ?? 0);
     if (eligibility.status !== "ELIGIBLE") throw new Error(`Payment is blocked: ${eligibility.message}`);
   }
@@ -1742,6 +1986,7 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
     select: {
       id: true,
       companyId: true,
+      currentDesk: true,
       company: {
         select: {
           organizationId: true,
@@ -1752,6 +1997,11 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
 
   if (!claim) {
     throw new Error("Reimbursement claim was not found.");
+  }
+
+  if (input.requesterRole === "PAYMENT_INITIATOR" &&
+    (claim.currentDesk !== "PAYMENT_INITIATOR" || input.kind !== "PAYMENT_RECEIPT")) {
+    throw new Error("The Initiator may upload only payment evidence while the packet is at their desk.");
   }
 
   const actor = await db.user.findUnique({

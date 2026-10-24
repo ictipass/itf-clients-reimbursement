@@ -24,8 +24,13 @@ export const roles = [
   "BUDGET_OFFICER",
   "PRE_AUDIT_OFFICER",
   "DIRECTOR_FINANCE",
+  "HEAD_ACCOUNTS",
   "HEAD_REIMBURSEMENT_FINANCE",
   "REIMBURSEMENT_ACCOUNTANT",
+  "HEAD_PRE_AUDIT",
+  "HEAD_EXPENDITURE",
+  "EXPENDITURE_ACCOUNTANT",
+  "PAYMENT_INITIATOR",
   "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",
   "HEAD_INSPECTORATE_COMPLIANCE",
   "EMPLOYER_ADMIN",
@@ -105,8 +110,13 @@ const permissionsByRole: Record<Role, Permission[]> = {
   BUDGET_OFFICER: ["claims:review", "company:read", "audit:read"],
   PRE_AUDIT_OFFICER: ["claims:review", "company:read", "audit:read"],
   DIRECTOR_FINANCE: ["claims:approve", "company:read", "audit:read"],
+  HEAD_ACCOUNTS: ["claims:review", "claims:approve", "company:read", "audit:read"],
   HEAD_REIMBURSEMENT_FINANCE: ["claims:review", "claims:approve", "company:read", "audit:read"],
   REIMBURSEMENT_ACCOUNTANT: ["claims:review", "company:read", "audit:read"],
+  HEAD_PRE_AUDIT: ["claims:review", "claims:approve", "company:read", "audit:read"],
+  HEAD_EXPENDITURE: ["claims:review", "claims:approve", "company:read", "audit:read"],
+  EXPENDITURE_ACCOUNTANT: ["claims:review", "company:read", "audit:read"],
+  PAYMENT_INITIATOR: ["claims:review", "company:read", "audit:read"],
   DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE: [
     "registry:review",
     "compliance:review",
@@ -187,8 +197,13 @@ export function isItfRole(role: Role) {
     || role === "BUDGET_OFFICER"
     || role === "PRE_AUDIT_OFFICER"
     || role === "DIRECTOR_FINANCE"
+    || role === "HEAD_ACCOUNTS"
     || role === "HEAD_REIMBURSEMENT_FINANCE"
     || role === "REIMBURSEMENT_ACCOUNTANT"
+    || role === "HEAD_PRE_AUDIT"
+    || role === "HEAD_EXPENDITURE"
+    || role === "EXPENDITURE_ACCOUNTANT"
+    || role === "PAYMENT_INITIATOR"
     || role === "DIRECTOR_GENERAL"
     || role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE"
     || role === "HEAD_INSPECTORATE_COMPLIANCE"

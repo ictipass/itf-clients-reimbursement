@@ -159,20 +159,50 @@ const roleMetadata: Record<Role, Omit<RoleDefinition, "permissions" | "isSystemM
   DIRECTOR_FINANCE: {
     role: "DIRECTOR_FINANCE",
     scope: "HEADQUARTERS",
-    title: "Director Finance",
+    title: "Director, Finance and Accounts Department (DFAD)",
     description: "Receives audit-cleared reimbursement claims for finance processing.",
+  },
+  HEAD_ACCOUNTS: {
+    role: "HEAD_ACCOUNTS",
+    scope: "HEADQUARTERS",
+    title: "Head of Accounts",
+    description: "Routes approved claims and e-payment schedules through Accounts.",
   },
   HEAD_REIMBURSEMENT_FINANCE: {
     role: "HEAD_REIMBURSEMENT_FINANCE",
     scope: "HEADQUARTERS",
-    title: "Head Reimbursement Finance",
+    title: "Head of Reimbursement Account",
     description: "Supervises reimbursement finance transmission to accountants.",
   },
   REIMBURSEMENT_ACCOUNTANT: {
     role: "REIMBURSEMENT_ACCOUNTANT",
     scope: "HEADQUARTERS",
-    title: "Reimbursement Accountant",
+    title: "Reimbursement Schedule Accountant",
     description: "Handles reimbursement accounting and payment-system handoff support.",
+  },
+  HEAD_PRE_AUDIT: {
+    role: "HEAD_PRE_AUDIT",
+    scope: "HEADQUARTERS",
+    title: "Head Pre-Audit",
+    description: "Assigns and verifies the payment-file pre-audit, separate from claim audit.",
+  },
+  HEAD_EXPENDITURE: {
+    role: "HEAD_EXPENDITURE",
+    scope: "HEADQUARTERS",
+    title: "Head Expenditure",
+    description: "Routes payment schedules for execution and receives payment evidence.",
+  },
+  EXPENDITURE_ACCOUNTANT: {
+    role: "EXPENDITURE_ACCOUNTANT",
+    scope: "HEADQUARTERS",
+    title: "Expenditure Accountant",
+    description: "Reviews the e-payment packet before initiation.",
+  },
+  PAYMENT_INITIATOR: {
+    role: "PAYMENT_INITIATOR",
+    scope: "HEADQUARTERS",
+    title: "Payment Initiator",
+    description: "Executes payment externally and attaches payment evidence.",
   },
   DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE: {
     role: "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE",

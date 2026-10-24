@@ -6,8 +6,10 @@ import {
   calculateAreaOfficeClaim,
   calculateHeadquartersClaim,
   canRouteClaimFromDesk,
+  getLatestClaimRoutingReason,
   getClaimIntakeTransitions,
   getClaimPostIntakeTransitions,
+  isClaimPostIntakeTransitionAvailable,
 } from "../lib/claims";
 
 test("only the Area Office RO may calculate reviewed Form 1B", async () => {
@@ -101,21 +103,46 @@ test("routes processed reimbursement claims through HQ, audit, and finance desks
         "HEAD_REIMBURSEMENT_AUDIT",
       ],
       ["HEAD_REIMBURSEMENT_AUDIT", "DIRECTOR_AUDIT", "DIRECTOR_AUDIT"],
-      ["DIRECTOR_AUDIT", "DIRECTOR_FINANCE", "DIRECTOR_FINANCE"],
-      ["DIRECTOR_FINANCE", "HEAD_REIMBURSEMENT_FINANCE", "HEAD_REIMBURSEMENT_FINANCE"],
+      ["DIRECTOR_AUDIT", "DIRECTOR_GENERAL", "DIRECTOR_GENERAL"],
+      ["DIRECTOR_GENERAL", "DIRECTOR_FINANCE", "DIRECTOR_FINANCE"],
+      ["DIRECTOR_FINANCE", "HEAD_ACCOUNTS", "HEAD_ACCOUNTS"],
+      ["HEAD_ACCOUNTS", "HEAD_REIMBURSEMENT_FINANCE", "HEAD_REIMBURSEMENT_FINANCE"],
       [
         "HEAD_REIMBURSEMENT_FINANCE",
         "REIMBURSEMENT_ACCOUNTANT",
         "REIMBURSEMENT_ACCOUNTANT",
       ],
-      ["REIMBURSEMENT_ACCOUNTANT", "HEAD_BUDGET", "HEAD_BUDGET"],
+      ["REIMBURSEMENT_ACCOUNTANT", "HEAD_REIMBURSEMENT_FINANCE", "HEAD_REIMBURSEMENT_FINANCE"],
+      ["HEAD_REIMBURSEMENT_FINANCE", "HEAD_BUDGET", "HEAD_BUDGET"],
       ["HEAD_BUDGET", "BUDGET_OFFICER", "BUDGET_OFFICER"],
       ["BUDGET_OFFICER", "HEAD_BUDGET", "HEAD_BUDGET"],
       ["HEAD_BUDGET", "DIRECTOR_AUDIT", "DIRECTOR_AUDIT"],
-      ["DIRECTOR_AUDIT", "PRE_AUDIT_OFFICER", "PRE_AUDIT_OFFICER"],
-      ["PRE_AUDIT_OFFICER", "DIRECTOR_AUDIT", "DIRECTOR_AUDIT"],
+      ["DIRECTOR_AUDIT", "HEAD_PRE_AUDIT", "HEAD_PRE_AUDIT"],
+      ["HEAD_PRE_AUDIT", "PRE_AUDIT_OFFICER", "PRE_AUDIT_OFFICER"],
+      ["PRE_AUDIT_OFFICER", "HEAD_PRE_AUDIT", "HEAD_PRE_AUDIT"],
+      ["HEAD_PRE_AUDIT", "HEAD_REIMBURSEMENT_FINANCE", "HEAD_REIMBURSEMENT_FINANCE"],
+      ["REIMBURSEMENT_ACCOUNTANT", "HEAD_ACCOUNTS", "HEAD_ACCOUNTS"],
+      ["HEAD_ACCOUNTS", "HEAD_EXPENDITURE", "HEAD_EXPENDITURE"],
+      ["HEAD_EXPENDITURE", "EXPENDITURE_ACCOUNTANT", "EXPENDITURE_ACCOUNTANT"],
+      ["EXPENDITURE_ACCOUNTANT", "PAYMENT_INITIATOR", "PAYMENT_INITIATOR"],
+      ["PAYMENT_INITIATOR", "HEAD_EXPENDITURE", "HEAD_EXPENDITURE"],
+      ["HEAD_EXPENDITURE", "HEAD_REIMBURSEMENT_FINANCE", "HEAD_REIMBURSEMENT_FINANCE"],
     ],
   );
+});
+
+test("repeated finance desks expose only the next valid handoff", () => {
+  const available = (from: Parameters<typeof isClaimPostIntakeTransitionAvailable>[0]["from"], to: Parameters<typeof isClaimPostIntakeTransitionAvailable>[0]["to"], reason: string, options: Partial<Parameters<typeof isClaimPostIntakeTransitionAvailable>[0]> = {}) =>
+    isClaimPostIntakeTransitionAvailable({ from, to, lastRoutingReason: reason, paymentVoucherRaised: false, preAuditReturned: false, paymentReturned: false, scheduleCreated: false, ...options });
+
+  assert.equal(available("REIMBURSEMENT_ACCOUNTANT", "HEAD_REIMBURSEMENT_FINANCE", "", { paymentVoucherRaised: false }), false);
+  assert.equal(available("REIMBURSEMENT_ACCOUNTANT", "HEAD_REIMBURSEMENT_FINANCE", "", { paymentVoucherRaised: true }), true);
+  assert.equal(available("REIMBURSEMENT_ACCOUNTANT", "HEAD_ACCOUNTS", "", { preAuditReturned: true, scheduleCreated: false }), false);
+  assert.equal(available("REIMBURSEMENT_ACCOUNTANT", "HEAD_ACCOUNTS", "", { preAuditReturned: true, scheduleCreated: true }), true);
+  assert.equal(available("REIMBURSEMENT_ACCOUNTANT", "HEAD_ACCOUNTS", "", { preAuditReturned: true, scheduleCreated: true, paymentReturned: true }), false);
+  assert.equal(available("HEAD_ACCOUNTS", "HEAD_EXPENDITURE", "DFAD forwarded reimbursement claim to Head of Accounts."), false);
+  assert.equal(available("HEAD_ACCOUNTS", "HEAD_EXPENDITURE", "Reimbursement Schedule Accountant forwarded e-payment schedule to Head of Accounts."), true);
+  assert.equal(getLatestClaimRoutingReason([{ reason: "Updated reimbursement payment handoff status to PV RAISED." }, { reason: "Head of Accounts forwarded claim to Head of Reimbursement Account." }]), "Head of Accounts forwarded claim to Head of Reimbursement Account.");
 });
 
 test("only the current desk role can route a reimbursement claim", () => {

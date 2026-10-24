@@ -17,6 +17,7 @@ import {
   attachTrainingsToClaim,
   deleteClaimLine,
   detachTrainingFromClaim,
+  disapproveClaimAtDirectorGeneral,
   forwardClaimAlongWorkflow,
   forwardClaimToAreaReimbursementOfficer,
   forwardClaimToHeadOfTraining,
@@ -266,12 +267,39 @@ export async function markClaimKivAction(claimId: string, formData: FormData) {
     throw new Error("Authentication is required.");
   }
 
-  await markClaimKiv({
-    claimId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    note: readOptionalString(formData, "note"),
-  });
+  try {
+    await markClaimKiv({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      note: readOptionalString(formData, "note"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The claim could not be marked KIV.";
+    redirect(`/claims/${claimId}?routingError=${encodeURIComponent(message.slice(0, 280))}`);
+  }
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/dashboard");
+  redirect(`/claims/${claimId}`);
+}
+
+export async function disapproveClaimAtDirectorGeneralAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+
+  try {
+    await disapproveClaimAtDirectorGeneral({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      note: readOptionalString(formData, "note"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The claim could not be disapproved.";
+    redirect(`/claims/${claimId}?routingError=${encodeURIComponent(message.slice(0, 280))}`);
+  }
 
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
@@ -286,12 +314,17 @@ export async function resumeClaimFromKivAction(claimId: string, formData: FormDa
     throw new Error("Authentication is required.");
   }
 
-  await resumeClaimFromKiv({
-    claimId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    note: readOptionalString(formData, "note"),
-  });
+  try {
+    await resumeClaimFromKiv({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      note: readOptionalString(formData, "note"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The KIV claim could not be resumed.";
+    redirect(`/claims/${claimId}?routingError=${encodeURIComponent(message.slice(0, 280))}`);
+  }
 
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);

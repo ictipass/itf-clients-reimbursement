@@ -30,6 +30,11 @@ test("post-HQ reimbursement desks are treated as national attention queues", () 
   assert.equal(isHeadquartersRole("DIRECTOR_FINANCE"), true);
   assert.equal(isHeadquartersRole("HEAD_REIMBURSEMENT_FINANCE"), true);
   assert.equal(isHeadquartersRole("REIMBURSEMENT_ACCOUNTANT"), true);
+  assert.equal(isHeadquartersRole("HEAD_ACCOUNTS"), true);
+  assert.equal(isHeadquartersRole("HEAD_PRE_AUDIT"), true);
+  assert.equal(isHeadquartersRole("HEAD_EXPENDITURE"), true);
+  assert.equal(isHeadquartersRole("EXPENDITURE_ACCOUNTANT"), true);
+  assert.equal(isHeadquartersRole("PAYMENT_INITIATOR"), true);
 });
 
 test("claim attention badges follow the claim's current desk role", () => {
@@ -40,5 +45,8 @@ test("claim attention badges follow the claim's current desk role", () => {
     "REIMBURSEMENT_SCHEDULE_AUDITOR",
   );
   assert.equal(getClaimDeskForRole("DIRECTOR_FINANCE"), "DIRECTOR_FINANCE");
+  assert.equal(getClaimDeskForRole("HEAD_ACCOUNTS"), "HEAD_ACCOUNTS");
+  assert.equal(getClaimDeskForRole("HEAD_PRE_AUDIT"), "HEAD_PRE_AUDIT");
+  assert.equal(getClaimDeskForRole("PAYMENT_INITIATOR"), "PAYMENT_INITIATOR");
   assert.equal(getClaimDeskForRole("EMPLOYER_VIEWER"), null);
 });

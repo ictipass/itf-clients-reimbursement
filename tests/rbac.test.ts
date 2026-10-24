@@ -91,8 +91,13 @@ test("post-HQ reimbursement roles are recognized for workflow assignment", () =>
     "BUDGET_OFFICER",
     "PRE_AUDIT_OFFICER",
     "DIRECTOR_FINANCE",
+    "HEAD_ACCOUNTS",
     "HEAD_REIMBURSEMENT_FINANCE",
     "REIMBURSEMENT_ACCOUNTANT",
+    "HEAD_PRE_AUDIT",
+    "HEAD_EXPENDITURE",
+    "EXPENDITURE_ACCOUNTANT",
+    "PAYMENT_INITIATOR",
   ] as const;
 
   for (const role of postHqRoles) {

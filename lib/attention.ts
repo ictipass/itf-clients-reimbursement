@@ -475,9 +475,9 @@ function buildScopedWorkItemWhere(
                 {
                   reimbursementClaim: {
                     currentDesk: claimDesk,
-                    status: {
-                      not: "CHANGES_REQUESTED" as const,
-                    },
+                    ...(claimDesk === "HEAD_OF_DIVISION"
+                      ? { status: { in: ["SUBMITTED", "CHANGES_REQUESTED", "REJECTED"] as const } }
+                      : { status: { not: "CHANGES_REQUESTED" as const } }),
                   },
                 },
               ]
@@ -567,8 +567,13 @@ export function isHeadquartersRole(role: Role) {
     role === "BUDGET_OFFICER" ||
     role === "PRE_AUDIT_OFFICER" ||
     role === "DIRECTOR_FINANCE" ||
+    role === "HEAD_ACCOUNTS" ||
     role === "HEAD_REIMBURSEMENT_FINANCE" ||
     role === "REIMBURSEMENT_ACCOUNTANT" ||
+    role === "HEAD_PRE_AUDIT" ||
+    role === "HEAD_EXPENDITURE" ||
+    role === "EXPENDITURE_ACCOUNTANT" ||
+    role === "PAYMENT_INITIATOR" ||
     role === "DIRECTOR_REVENUE_INSPECTORATE_COMPLIANCE" ||
     role === "HEAD_INSPECTORATE_COMPLIANCE"
   );
@@ -603,6 +608,10 @@ export function getClaimDeskForRole(role: Role) {
     return "DIRECTOR_AUDIT";
   }
 
+  if (role === "DIRECTOR_GENERAL") {
+    return "DIRECTOR_GENERAL";
+  }
+
   if (role === "HEAD_REIMBURSEMENT_AUDIT") {
     return "HEAD_REIMBURSEMENT_AUDIT";
   }
@@ -625,6 +634,26 @@ export function getClaimDeskForRole(role: Role) {
 
   if (role === "DIRECTOR_FINANCE") {
     return "DIRECTOR_FINANCE";
+  }
+
+  if (role === "HEAD_ACCOUNTS") {
+    return "HEAD_ACCOUNTS";
+  }
+
+  if (role === "HEAD_PRE_AUDIT") {
+    return "HEAD_PRE_AUDIT";
+  }
+
+  if (role === "HEAD_EXPENDITURE") {
+    return "HEAD_EXPENDITURE";
+  }
+
+  if (role === "EXPENDITURE_ACCOUNTANT") {
+    return "EXPENDITURE_ACCOUNTANT";
+  }
+
+  if (role === "PAYMENT_INITIATOR") {
+    return "PAYMENT_INITIATOR";
   }
 
   if (role === "HEAD_REIMBURSEMENT_FINANCE") {

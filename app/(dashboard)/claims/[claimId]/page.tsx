@@ -14,6 +14,7 @@ import {
   attachTrainingsToClaimAction,
   deleteClaimLineAction,
   detachTrainingFromClaimAction,
+  disapproveClaimAtDirectorGeneralAction,
   forwardClaimAlongWorkflowAction,
   forwardClaimToAreaReimbursementOfficerAction,
   forwardClaimToHeadOfTrainingAction,
@@ -45,8 +46,11 @@ import {
 import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
 import {
   canRouteClaimFromDesk,
+  formatClaimDesk,
   getClaimEvidenceKinds,
+  getLatestClaimRoutingReason,
   getClaimPostIntakeTransitions,
+  isClaimPostIntakeTransitionAvailable,
 } from "@/lib/claims";
 import { getDb } from "@/lib/db";
 import { canUseSection } from "@/lib/feature-gates";
@@ -148,7 +152,7 @@ export default async function ClaimDetailPage({
   const canSubmitClaim = canUseSection(activeRole, "claim.form.edit");
   const canRecommendClaim = canUseSection(activeRole, "claim.recommendation.edit");
   const canUploadClaimEvidence = canUseSection(activeRole, "claim.evidence.upload");
-  const evidenceKinds = getClaimEvidenceKinds();
+  const evidenceKinds = activeRole === "PAYMENT_INITIATOR" ? (["PAYMENT_RECEIPT"] as const) : getClaimEvidenceKinds();
   const visibilityWhere = await getClaimVisibilityWhere({ email: session?.user?.email, role: activeRole });
   const claim = await getDb().reimbursementClaim.findFirst({
     where: {
@@ -417,15 +421,17 @@ export default async function ClaimDetailPage({
     activeRole === "SYSTEM_ADMIN" ||
     activeRole === "WORKSPACE_APP_ADMIN";
   const canMarkKiv =
-    canManageKiv && ["SUBMITTED", "IN_REVIEW", "APPROVED"].includes(claim.status);
-  const canResumeKiv = canManageKiv && claim.status === "CHANGES_REQUESTED";
+    canManageKiv && claim.currentDesk === "DIRECTOR_GENERAL" && claim.status === "SUBMITTED";
+  const canResumeKiv = (activeRole === "HEAD_OF_DIVISION" || activeRole === "SYSTEM_ADMIN" || activeRole === "WORKSPACE_APP_ADMIN") &&
+    claim.status === "CHANGES_REQUESTED" && claim.currentDesk === "HEAD_OF_DIVISION";
   const canUpdatePaymentHandoff =
-    !["SETTLED", "ARCHIVED"].includes(claim.status) && (
+    claim.status === "SUBMITTED" && (
     activeRole === "DIRECTOR_FINANCE" ||
     activeRole === "HEAD_REIMBURSEMENT_FINANCE" ||
     activeRole === "REIMBURSEMENT_ACCOUNTANT" ||
     activeRole === "SYSTEM_ADMIN" ||
-    activeRole === "WORKSPACE_APP_ADMIN");
+    activeRole === "WORKSPACE_APP_ADMIN") &&
+    (activeRole === claim.currentDesk || activeRole === "SYSTEM_ADMIN" || activeRole === "WORKSPACE_APP_ADMIN");
   const canUpdateAuditReview =
     activeRole === "DIRECTOR_AUDIT" ||
     activeRole === "HEAD_REIMBURSEMENT_AUDIT" ||
@@ -433,7 +439,9 @@ export default async function ClaimDetailPage({
     activeRole === "SYSTEM_ADMIN" ||
     activeRole === "WORKSPACE_APP_ADMIN";
   const canViewAuditReview = canUpdateAuditReview || Boolean(claim.auditReview);
-  const latestRoutingReason = claim.decisions[0]?.reason ?? "";
+  const latestRoutingReason = getLatestClaimRoutingReason(claim.decisions);
+  const preAuditReturned = claim.decisions.some((decision) => decision.reason?.startsWith("Pre-Audit Officer returned reimbursement payment audit result"));
+  const paymentReturned = claim.decisions.some((decision) => decision.reason?.startsWith("Initiator returned payment packet"));
   const availablePostIntakeTransitions = getClaimPostIntakeTransitions().filter((transition) => {
     if (claim.status !== "SUBMITTED" || claim.currentDesk !== transition.from) {
       return false;
@@ -443,45 +451,15 @@ export default async function ClaimDetailPage({
       return false;
     }
 
-    if (transition.from === "HEAD_OF_DIVISION") {
-      return latestRoutingReason.includes("HQ RO returned")
-        ? transition.to === "DIRECTOR_FSD"
-        : transition.to === "HQ_REIMBURSEMENT_OFFICER";
-    }
-
-    if (transition.from === "DIRECTOR_FSD") {
-      return latestRoutingReason.includes("Head Reimbursement Division forwarded verified")
-        ? transition.to === "DIRECTOR_AUDIT"
-        : transition.to === "HEAD_OF_DIVISION";
-    }
-
-    if (transition.from === "HEAD_REIMBURSEMENT_AUDIT") {
-      return latestRoutingReason.includes("Reimbursement Schedule Auditor returned")
-        ? transition.to === "DIRECTOR_AUDIT"
-        : transition.to === "REIMBURSEMENT_SCHEDULE_AUDITOR";
-    }
-
-    if (transition.from === "HEAD_BUDGET") {
-      return latestRoutingReason.includes("Budget Officer returned")
-        ? transition.to === "DIRECTOR_AUDIT"
-        : transition.to === "BUDGET_OFFICER";
-    }
-
-    if (transition.from === "DIRECTOR_AUDIT") {
-      if (latestRoutingReason.includes("Head Budget forwarded budget-cleared")) {
-        return transition.to === "PRE_AUDIT_OFFICER";
-      }
-
-      if (latestRoutingReason.includes("Pre-Audit Officer returned")) {
-        return false;
-      }
-
-      return latestRoutingReason.includes("Head Reimbursement Audit forwarded verified")
-        ? transition.to === "DIRECTOR_FINANCE"
-        : transition.to === "HEAD_REIMBURSEMENT_AUDIT";
-    }
-
-    return true;
+    return isClaimPostIntakeTransitionAvailable({
+      from: transition.from,
+      to: transition.to,
+      lastRoutingReason: latestRoutingReason,
+      paymentVoucherRaised: claim.paymentHandoffStatus === "PV_RAISED" || claim.decisions.some((decision) => decision.reason?.startsWith("Updated reimbursement payment handoff status to PV RAISED")),
+      preAuditReturned,
+      paymentReturned,
+      scheduleCreated: Boolean(claim.paymentScheduleExportedAt),
+    });
   });
   const staffEntriesByArea = {
     MANAGEMENT: claim.staffEntries.filter((entry) => entry.trainingArea === "MANAGEMENT"),
@@ -549,8 +527,8 @@ export default async function ClaimDetailPage({
             Reimbursement claim for {claim.company.legalName}.
           </p>
         </div>
-        <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">
-          {claim.status.replaceAll("_", " ")}
+        <span className={`w-fit rounded-full px-4 py-2 text-sm font-bold ${claim.status === "REJECTED" ? "bg-red-100 text-red-900" : claim.status === "CHANGES_REQUESTED" ? "bg-amber-100 text-amber-900" : "bg-zinc-100 text-zinc-700"}`}>
+          {claim.status === "REJECTED" ? "DISAPPROVED" : claim.status === "CHANGES_REQUESTED" ? "KEEP IN VIEW" : claim.status.replaceAll("_", " ")}
         </span>
       </div>
 
@@ -577,12 +555,12 @@ export default async function ClaimDetailPage({
 
       {claim.status === "CHANGES_REQUESTED" ? (
         <div className="mt-4 rounded-lg border border-amber-300 bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-900">
-          <p className="font-semibold">This reimbursement claim is currently KIV/paused.</p>
-          <p>
-            Attention badges are cleared while paused. Resume it only when the claim should return
-            to the current desk: {claim.currentDesk.replaceAll("_", " ")}.
-          </p>
+          <p className="font-bold">KEEP IN VIEW — Director General decision</p>
+          <p>The packet is with Head of Reimbursement Division until instructed to return it to Director General.</p>
         </div>
+      ) : null}
+      {claim.status === "REJECTED" && claim.currentDesk === "HEAD_OF_DIVISION" ? (
+        <div className="mt-4 rounded-lg border border-red-300 bg-red-50 px-5 py-4 text-sm font-bold text-red-900">DISAPPROVED — DG decision. See the decision trail for the reason.</div>
       ) : null}
 
       <CollapsibleClaimSection title="Claim overview">
@@ -653,7 +631,7 @@ export default async function ClaimDetailPage({
             Current desk
           </p>
           <p className="mt-2 text-sm font-semibold text-zinc-950">
-            {claim.currentDesk.replaceAll("_", " ")}
+            {formatClaimDesk(claim.currentDesk)}
           </p>
           {claim.submittedAt ? (
             <p className="mt-1 text-xs text-zinc-500">
@@ -739,11 +717,11 @@ export default async function ClaimDetailPage({
               <input
                 name="note"
                 required={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") || (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT")}
-                placeholder={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") || (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT") ? "Required review / approval note" : `Optional ${transition.from.replaceAll("_", " ")} note`}
+                placeholder={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") || (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT") ? "Required review / approval note" : `Optional ${formatClaimDesk(transition.from)} note`}
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
               />
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                {transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD" ? "Approve and forward to Director FSD" : transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT" ? "Approve HQ recommendation and forward to Director Audit" : `Forward to ${transition.to.replaceAll("_", " ")}`}
+                {transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD" ? "Approve and forward to Director FSD" : transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT" ? "Approve HQ recommendation and forward to Director Audit" : transition.from === "DIRECTOR_GENERAL" ? "Approve for payment and forward to DFAD" : `Forward to ${formatClaimDesk(transition.to)}`}
               </button>
             </form>
           ))}
@@ -762,6 +740,12 @@ export default async function ClaimDetailPage({
               </button>
             </form>
           ) : null}
+          {canMarkKiv ? (
+            <form action={disapproveClaimAtDirectorGeneralAction.bind(null, claim.id)} className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+              <input name="note" required placeholder="Required disapproval reason" className="min-h-10 rounded-md border border-red-200 bg-white px-3 text-sm" />
+              <button className="min-h-10 rounded-md bg-red-800 px-4 text-sm font-semibold text-white">Disapprove and return to Head Reimbursement Division</button>
+            </form>
+          ) : null}
           {canResumeKiv ? (
             <form
               action={resumeClaimFromKivAction.bind(null, claim.id)}
@@ -769,11 +753,12 @@ export default async function ClaimDetailPage({
             >
               <input
                 name="note"
-                placeholder="Optional DG resume note"
+                placeholder="Instruction / reason for returning to DG"
+                required
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
               />
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                Resume claim at current desk
+                Return KIV claim to Director General
               </button>
             </form>
           ) : null}
