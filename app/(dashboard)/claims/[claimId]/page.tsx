@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 import {
   calculateAreaOfficeClaimAction,
   calculateHeadquartersClaimAction,
+  calculateAuditorClaimAction,
   createEpaymentScheduleAction,
   addClaimLineAction,
   attachTrainingsToClaimAction,
@@ -24,11 +25,11 @@ import {
   submitClaimToAreaManagerAction,
   updateClaimStaffEntriesAction,
   updateClaimAuditReviewAction,
+  updatePaymentFileAuditAction,
   updateClaimLineAction,
   updateEmployerClaimCalculationAction,
   updateClaimContributionVerificationAction,
   updateClaimPaymentHandoffAction,
-  updateClaimRecommendationAction,
   updateClaimFormAction,
   uploadClaimEvidenceAction,
 } from "@/app/(dashboard)/claims/[claimId]/actions";
@@ -46,6 +47,8 @@ import {
 import { CLAIM_SUBMISSION_DEADLINE_NOTICE } from "@/lib/claim-policy";
 import {
   canRouteClaimFromDesk,
+  canSetClaimAuditStatus,
+  canSetPaymentFileAuditStatus,
   formatClaimDesk,
   getClaimEvidenceKinds,
   getLatestClaimRoutingReason,
@@ -56,7 +59,6 @@ import { getDb } from "@/lib/db";
 import { canUseSection } from "@/lib/feature-gates";
 import {
   formatReimbursementAuditReviewStatus,
-  reimbursementAuditReviewStatuses,
 } from "@/lib/reimbursement-audit-review";
 import {
   canDownloadEpaymentSchedule,
@@ -143,7 +145,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -225,6 +227,13 @@ export default async function ClaimDetailPage({
           },
         },
       },
+      paymentFileAudit: {
+        select: {
+          status: true, voucherChecked: true, budgetChecked: true, bankDetailsChecked: true, amountChecked: true,
+          observations: true, preparedAt: true, verifiedAt: true,
+          preparedBy: { select: { name: true } }, verifiedBy: { select: { name: true } },
+        },
+      },
       decisions: {
         select: {
           id: true,
@@ -280,7 +289,7 @@ export default async function ClaimDetailPage({
         },
       },
       calculationSnapshots: {
-        where: { stage: { in: ["AREA_OFFICE", "HEADQUARTERS"] }, recordTier: "HOT" },
+        where: { stage: { in: ["AREA_OFFICE", "HEADQUARTERS", "AUDIT"] }, recordTier: "HOT" },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         select: {
           id: true, stage: true, calculatedByEmail: true, createdAt: true, reviewerRemarks: true,
@@ -385,11 +394,14 @@ export default async function ClaimDetailPage({
   const areaOfficeBaseline = getAreaOfficeCalculationBaseline(claim);
   const areaCalculations = claim.calculationSnapshots.filter((snapshot) => snapshot.stage === "AREA_OFFICE");
   const headquartersCalculations = claim.calculationSnapshots.filter((snapshot) => snapshot.stage === "HEADQUARTERS");
+  const auditCalculations = claim.calculationSnapshots.filter((snapshot) => snapshot.stage === "AUDIT");
   const latestAreaCalculation = areaCalculations[0];
   const latestHeadquartersCalculation = headquartersCalculations[0];
+  const latestAuditCalculation = auditCalculations[0];
   const employerLines = claim.lines.filter((line) => line.stage === "EMPLOYER");
   const areaOfficeRows = claim.lines.filter((line) => line.stage === "AREA_OFFICE");
   const headquartersRows = claim.lines.filter((line) => line.stage === "HEADQUARTERS");
+  const auditRows = claim.lines.filter((line) => line.stage === "AUDIT");
   const areaOfficeReconciliation = latestAreaCalculation
     ? Math.round((Number(latestAreaCalculation.totalAmountAwarded.toString()) - areaOfficeRows.reduce((sum, line) => sum + Number(line.amountAwarded?.toString() ?? 0), 0)) * 100) / 100
     : 0;
@@ -432,13 +444,14 @@ export default async function ClaimDetailPage({
     activeRole === "SYSTEM_ADMIN" ||
     activeRole === "WORKSPACE_APP_ADMIN") &&
     (activeRole === claim.currentDesk || activeRole === "SYSTEM_ADMIN" || activeRole === "WORKSPACE_APP_ADMIN");
-  const canUpdateAuditReview =
-    activeRole === "DIRECTOR_AUDIT" ||
-    activeRole === "HEAD_REIMBURSEMENT_AUDIT" ||
-    activeRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
-    activeRole === "SYSTEM_ADMIN" ||
-    activeRole === "WORKSPACE_APP_ADMIN";
+  const availableAuditStatuses = (["DRAFT", "SUBMITTED", "VERIFIED", "CLEARED"] as const).filter((nextStatus) =>
+    canSetClaimAuditStatus({ role: activeRole, desk: claim.currentDesk, currentStatus: claim.auditReview?.status, nextStatus }));
+  const canUpdateAuditReview = claim.status === "SUBMITTED" && availableAuditStatuses.length > 0;
   const canViewAuditReview = canUpdateAuditReview || Boolean(claim.auditReview);
+  const availablePreAuditStatuses = (["DRAFT", "SUBMITTED", "VERIFIED"] as const).filter((nextStatus) =>
+    canSetPaymentFileAuditStatus({ role: activeRole, desk: claim.currentDesk, currentStatus: claim.paymentFileAudit?.status, nextStatus }));
+  const canUpdatePreAudit = claim.status === "SUBMITTED" && availablePreAuditStatuses.length > 0;
+  const canViewPreAudit = canUpdatePreAudit || Boolean(claim.paymentFileAudit);
   const latestRoutingReason = getLatestClaimRoutingReason(claim.decisions);
   const preAuditReturned = claim.decisions.some((decision) => decision.reason?.startsWith("Pre-Audit Officer returned reimbursement payment audit result"));
   const paymentReturned = claim.decisions.some((decision) => decision.reason?.startsWith("Initiator returned payment packet"));
@@ -1544,14 +1557,13 @@ export default async function ClaimDetailPage({
       </CollapsibleClaimSection>
 
       {canViewAuditReview ? (
-        <CollapsibleClaimSection title="Audit review">
-        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <CollapsibleClaimSection title="Claim audit review">
+        <section id="claim-audit" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div>
-              <h2 className="text-xl font-semibold tracking-tight">Audit review</h2>
+              <h2 className="text-xl font-semibold tracking-tight">Claim audit review</h2>
               <p className="mt-2 text-sm leading-6 text-zinc-600">
-                Foundation for the Reimbursement Schedule Auditor&apos;s audit work. Detailed
-                checklist fields can be added here once the official audit procedure is provided.
+                The Schedule Auditor examines the claim and may independently recalculate it. This review is separate from the later payment-file pre-audit.
               </p>
             </div>
             <span className="inline-flex w-fit rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700">
@@ -1561,9 +1573,15 @@ export default async function ClaimDetailPage({
             </span>
           </div>
 
+          {query.auditError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.auditError}</p> : null}
+          {query.auditCalculationError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.auditCalculationError}</p> : null}
+          {query.auditSaved || query.auditCalculationSaved ? <p className="mt-4 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Claim audit saved.</p> : null}
+
           <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
+            <p>HQ recommendation: {formatMoney(latestHeadquartersCalculation?.totalAmountAwarded ?? null)}</p>
             <p>Audited amount: {formatMoney(claim.auditReview?.auditedAmount ?? null)}</p>
             <p>Variance amount: {formatMoney(claim.auditReview?.varianceAmount ?? null)}</p>
+            <p>Independent recalculation: {latestAuditCalculation ? `Yes — ${formatMoney(latestAuditCalculation.totalAmountAwarded)}` : "Not required"}</p>
             <p>Prepared by: {claim.auditReview?.preparedBy?.name ?? "Not recorded"}</p>
             <p>Prepared at: {formatDate(claim.auditReview?.preparedAt ?? null)}</p>
             <p>Verified by: {claim.auditReview?.verifiedBy?.name ?? "Not recorded"}</p>
@@ -1576,53 +1594,50 @@ export default async function ClaimDetailPage({
             </p>
           </div>
 
+          {latestAuditCalculation ? <div className="mt-5 overflow-x-auto rounded-md border border-zinc-200 p-3 text-sm">
+            <p className="font-semibold">Independent Schedule Auditor calculation · {formatDate(latestAuditCalculation.createdAt)} · {latestAuditCalculation.calculatedByEmail}</p>
+            <p className="mt-1 text-zinc-600">Reason: {latestAuditCalculation.reviewerRemarks}</p>
+            <table className="mt-3 min-w-full border-collapse text-left"><thead><tr className="bg-zinc-50"><th className="border border-zinc-200 p-2">Training area</th><th className="border border-zinc-200 p-2">% awarded</th><th className="border border-zinc-200 p-2">Amount</th></tr></thead><tbody>
+              {auditRows.map((line) => <tr key={line.id}><td className="border border-zinc-200 p-2">{line.trainingArea}</td><td className="border border-zinc-200 p-2">{formatPercent(line.percentAwarded)}</td><td className="border border-zinc-200 p-2">{formatMoney(line.amountAwarded)}</td></tr>)}
+              <tr className="font-semibold"><td className="border border-zinc-200 p-2" colSpan={2}>Total audited amount (policy cap applied)</td><td className="border border-zinc-200 p-2">{formatMoney(latestAuditCalculation.totalAmountAwarded)}</td></tr>
+            </tbody></table>
+            {auditCalculations.length > 1 ? <details className="mt-3"><summary className="cursor-pointer font-semibold">Previous audit calculations ({auditCalculations.length - 1})</summary><ol className="mt-2 grid gap-1">{auditCalculations.slice(1).map((snapshot) => <li key={snapshot.id}>{formatDate(snapshot.createdAt)} · {formatMoney(snapshot.totalAmountAwarded)} · {snapshot.reviewerRemarks}</li>)}</ol></details> : null}
+          </div> : null}
+
+          {canUpdateAuditReview && claim.currentDesk === "REIMBURSEMENT_SCHEDULE_AUDITOR" && areaOfficeBaseline && latestHeadquartersCalculation ? <details className="mt-5 rounded-md border border-zinc-200 p-4">
+            <summary className="cursor-pointer font-semibold">Optional: independently recalculate claim</summary>
+            <p className="mt-2 text-sm text-zinc-600">Use this only where the employer, Area Office, or HQ calculation missed verified evidence. Workforce and emphasis ranks remain fixed; the claim&apos;s policy edition calculates the amount.</p>
+            <form action={calculateAuditorClaimAction.bind(null, claim.id)} className="mt-4 grid gap-4 md:grid-cols-2">
+              {areaOfficeBaseline.employerScale === "SMALL" ? <label className="grid gap-1 text-sm">Verified small-scale trainees (of {areaOfficeBaseline.smallScaleTraining.totalStaff})<input name="smallTrained" type="number" min="0" max={areaOfficeBaseline.smallScaleTraining.totalStaff} required defaultValue={auditRows.find((line) => line.awardArea === "SMALL_SCALE_TRAINING")?.totalTrained ?? headquartersRows.find((line) => line.awardArea === "SMALL_SCALE_TRAINING")?.totalTrained ?? areaOfficeBaseline.smallScaleTraining.totalTrained} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label> : <>
+                {(["MANAGEMENT", "SUPERVISORY", "OCCUPATIONAL"] as const).map((area) => <label key={area} className="grid gap-1 text-sm">Verified {area.toLowerCase()} trainees (of {areaOfficeBaseline.trainingAreas[area].totalStaff})<input name={`${area.toLowerCase()}Trained`} type="number" min="0" max={areaOfficeBaseline.trainingAreas[area].totalStaff} required defaultValue={auditRows.find((line) => line.awardArea === area)?.totalTrained ?? headquartersRows.find((line) => line.awardArea === area)?.totalTrained ?? areaOfficeBaseline.trainingAreas[area].totalTrained} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>)}
+                {areaOfficeBaseline.learningDevelopmentPersonnel ? <label className="grid gap-1 text-sm">Verified L&amp;D trainees<input name="ldTrained" type="number" min="0" max={areaOfficeBaseline.learningDevelopmentPersonnel.totalStaff} required defaultValue={auditRows.find((line) => line.awardArea === "LEARNING_DEVELOPMENT_PERSONNEL")?.totalTrained ?? headquartersRows.find((line) => line.awardArea === "LEARNING_DEVELOPMENT_PERSONNEL")?.totalTrained ?? areaOfficeBaseline.learningDevelopmentPersonnel.totalTrained} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label> : null}
+                {areaOfficeBaseline.healthSafetyEnvironment ? <label className="grid gap-1 text-sm">Verified HSE trainees<input name="hseTrained" type="number" min="0" max={areaOfficeBaseline.healthSafetyEnvironment.totalWorkforce} required defaultValue={auditRows.find((line) => line.awardArea === "HEALTH_SAFETY_ENVIRONMENT")?.totalTrained ?? headquartersRows.find((line) => line.awardArea === "HEALTH_SAFETY_ENVIRONMENT")?.totalTrained ?? areaOfficeBaseline.healthSafetyEnvironment.totalTrained} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label> : null}
+              </>}
+              <label className="grid gap-1 text-sm">Verified SIWES students accepted (Form 5A)<input name="siwesStudentsAccepted" type="number" min="0" required defaultValue={auditRows.find((line) => line.awardArea === "SIWES")?.totalTrained ?? headquartersRows.find((line) => line.awardArea === "SIWES")?.totalTrained ?? areaOfficeBaseline.siwesStudentsAccepted} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+              <label className="flex items-center gap-2 text-sm"><input name="trainingPlanSubmittedPromptly" type="checkbox" defaultChecked={auditRows.length > 0 ? Number(auditRows.find((line) => line.awardArea === "TRAINING_PLAN")?.percentAwarded?.toString() ?? 0) > 0 : headquartersRows.length > 0 ? Number(headquartersRows.find((line) => line.awardArea === "TRAINING_PLAN")?.percentAwarded?.toString() ?? 0) > 0 : areaOfficeBaseline.trainingPlanSubmittedPromptly} />Training plan submitted promptly</label>
+              <label className="grid gap-1 text-sm md:col-span-2">Discrepancy and recalculation reason<textarea name="reviewerRemarks" required defaultValue={latestAuditCalculation?.reviewerRemarks ?? ""} className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>
+              <div className="grid gap-2 text-sm md:col-span-2"><label><input name="reviewedForm1A" type="checkbox" required /> Reviewed Form 1A</label><label><input name="reviewedForm2A" type="checkbox" required /> Reviewed Form 2A and preceding calculations</label><label><input name="reviewedEvidence" type="checkbox" required /> Reviewed supporting evidence</label></div>
+              <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">Calculate audited amount</button>
+            </form>
+          </details> : null}
+
           {canUpdateAuditReview ? (
             <form
               action={updateClaimAuditReviewAction.bind(null, claim.id)}
               className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2"
             >
-              <select
-                name="auditReviewStatus"
-                defaultValue={claim.auditReview?.status ?? "DRAFT"}
-                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-              >
-                {reimbursementAuditReviewStatuses.map((status) => (
-                  <option key={status} value={status}>
-                    {formatReimbursementAuditReviewStatus(status)}
-                  </option>
-                ))}
-              </select>
-              <input
-                name="auditedAmount"
-                type="number"
-                step="0.01"
-                defaultValue={decimalInput(claim.auditReview?.auditedAmount ?? null)}
-                placeholder="Audited amount"
-                className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-              />
-              <input
-                name="varianceAmount"
-                type="number"
-                step="0.01"
-                defaultValue={decimalInput(claim.auditReview?.varianceAmount ?? null)}
-                placeholder="Variance amount"
-                className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-              />
-              <input
-                name="auditRecommendation"
-                defaultValue={claim.auditReview?.recommendation ?? ""}
-                placeholder="Audit recommendation"
-                className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-              />
-              <textarea
-                name="auditObservations"
-                defaultValue={claim.auditReview?.observations ?? ""}
-                placeholder="Audit observations"
-                className="min-h-24 rounded-md border border-zinc-200 px-3 py-2 text-sm md:col-span-2"
-              />
+              <label className="grid gap-1 text-sm font-medium">Decision
+                <select name="auditReviewStatus" defaultValue={availableAuditStatuses.at(-1)} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm">
+                  {availableAuditStatuses.map((status) => <option key={status} value={status}>{formatReimbursementAuditReviewStatus(status)}</option>)}
+                </select>
+              </label>
+              {claim.currentDesk === "REIMBURSEMENT_SCHEDULE_AUDITOR" ? <>
+                <label className="grid gap-1 text-sm">Audit recommendation<input name="auditRecommendation" defaultValue={claim.auditReview?.recommendation ?? ""} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+                <label className="grid gap-1 text-sm md:col-span-2">Claim audit observations<textarea name="auditObservations" required defaultValue={claim.auditReview?.observations ?? ""} className="min-h-24 rounded-md border border-zinc-200 px-3 py-2" /></label>
+              </> : <label className="grid gap-1 text-sm md:col-span-2">Review decision note<textarea name="auditDecisionNote" required className="min-h-24 rounded-md border border-zinc-200 px-3 py-2" /></label>}
               <div className="md:col-span-2">
                 <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                  Save audit review
+                  Save claim-audit decision
                 </button>
               </div>
             </form>
@@ -1630,6 +1645,34 @@ export default async function ClaimDetailPage({
         </section>
         </CollapsibleClaimSection>
       ) : null}
+
+      {canViewPreAudit ? <CollapsibleClaimSection title="Payment-file pre-audit">
+        <section id="payment-file-audit" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><h2 className="text-xl font-semibold tracking-tight">Payment-file pre-audit</h2><p className="mt-2 text-sm text-zinc-600">Performed after budget clearance and before the e-payment schedule. This does not replace the earlier claim audit.</p></div>
+            <span className="rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold">{claim.paymentFileAudit ? formatReimbursementAuditReviewStatus(claim.paymentFileAudit.status) : "Not started"}</span>
+          </div>
+          {query.preAuditError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.preAuditError}</p> : null}
+          {query.preAuditSaved ? <p className="mt-4 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Payment-file pre-audit saved.</p> : null}
+          <div className="mt-4 grid gap-2 text-sm md:grid-cols-2">
+            <p>PV-raised record: {claim.paymentFileAudit?.voucherChecked ? "Checked" : "Not checked"}</p>
+            <p>Budget clearance: {claim.paymentFileAudit?.budgetChecked ? "Checked" : "Not checked"}</p>
+            <p>Bank details: {claim.paymentFileAudit?.bankDetailsChecked ? "Checked" : "Not checked"}</p>
+            <p>Approved amount: {claim.paymentFileAudit?.amountChecked ? "Checked" : "Not checked"}</p>
+            <p>Prepared by: {claim.paymentFileAudit?.preparedBy?.name ?? "Not recorded"} · {formatDate(claim.paymentFileAudit?.preparedAt ?? null)}</p>
+            <p>Verified by: {claim.paymentFileAudit?.verifiedBy?.name ?? "Not recorded"} · {formatDate(claim.paymentFileAudit?.verifiedAt ?? null)}</p>
+            <p className="md:col-span-2">Observations: {claim.paymentFileAudit?.observations ?? "No observations recorded"}</p>
+          </div>
+          {canUpdatePreAudit ? <form action={updatePaymentFileAuditAction.bind(null, claim.id)} className="mt-5 grid gap-4 border-t border-zinc-100 pt-5 md:grid-cols-2">
+            <label className="grid gap-1 text-sm font-medium">Decision<select name="paymentFileAuditStatus" defaultValue={availablePreAuditStatuses.at(-1)} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3">{availablePreAuditStatuses.map((status) => <option key={status} value={status}>{formatReimbursementAuditReviewStatus(status)}</option>)}</select></label>
+            {claim.currentDesk === "PRE_AUDIT_OFFICER" ? <>
+              <div className="grid gap-2 text-sm md:col-span-2"><label><input name="voucherChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.voucherChecked ?? false} /> PV-raised record checked (voucher document pending template)</label><label><input name="budgetChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.budgetChecked ?? false} /> Budget clearance checked</label><label><input name="bankDetailsChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.bankDetailsChecked ?? false} /> Bank details checked</label><label><input name="amountChecked" type="checkbox" defaultChecked={claim.paymentFileAudit?.amountChecked ?? false} /> Approved amount checked</label></div>
+              <label className="grid gap-1 text-sm md:col-span-2">Pre-audit observations<textarea name="preAuditObservations" defaultValue={claim.paymentFileAudit?.observations ?? ""} className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>
+            </> : <label className="grid gap-1 text-sm md:col-span-2">Head Pre-Audit verification note<textarea name="preAuditDecisionNote" required className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>}
+            <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">Save payment-file pre-audit</button>
+          </form> : null}
+        </section>
+      </CollapsibleClaimSection> : null}
 
       <CollapsibleClaimSection title="Payment handoff">
       <section id="payment-handoff" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
@@ -1894,51 +1937,6 @@ export default async function ClaimDetailPage({
         </CollapsibleClaimSection>
       ) : null}
 
-      {canRecommendClaim && !["REIMBURSEMENT_OFFICER", "HEAD_OF_TRAINING", "AREA_MANAGER", "HQ_REIMBURSEMENT_OFFICER", "HEAD_OF_DIVISION", "DIRECTOR_FSD"].includes(activeRole) ? (
-        <CollapsibleClaimSection title="Form 1B recommendation">
-        <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
-          <h2 className="text-xl font-semibold tracking-tight">Form 1B recommendation</h2>
-          <form
-            action={updateClaimRecommendationAction.bind(null, claim.id)}
-            className="mt-5 grid gap-4 md:grid-cols-2"
-          >
-            <input
-              name="eligibleAmount"
-              type="number"
-              step="0.01"
-              defaultValue={decimalInput(claim.eligibleAmount)}
-              placeholder="Eligible amount"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
-              name="claimRecommendedAmount"
-              type="number"
-              step="0.01"
-              defaultValue={decimalInput(claim.claimRecommendedAmount)}
-              placeholder="Recommended amount"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
-              name="claimRecommendedInWords"
-              defaultValue={claim.claimRecommendedInWords ?? ""}
-              placeholder="Recommended amount in words"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <input
-              name="reviewerRemarks"
-              defaultValue={claim.paymentDetails ?? ""}
-              placeholder="Reviewer remarks"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            />
-            <div className="md:col-span-2">
-              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                Save Form 1B recommendation
-              </button>
-            </div>
-          </form>
-        </section>
-        </CollapsibleClaimSection>
-      ) : null}
     </div>
   );
 }

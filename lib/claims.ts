@@ -206,9 +206,23 @@ export type UpdateClaimAuditReviewInput = {
   status: ReimbursementAuditReviewStatus;
   observations?: string;
   recommendation?: string;
-  auditedAmount?: number;
-  varianceAmount?: number;
+  note?: string;
 };
+
+export type UpdatePaymentFileAuditInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  status: "DRAFT" | "SUBMITTED" | "VERIFIED";
+  voucherChecked?: boolean;
+  budgetChecked?: boolean;
+  bankDetailsChecked?: boolean;
+  amountChecked?: boolean;
+  observations?: string;
+  note?: string;
+};
+
+export type CalculateAuditorClaimInput = CalculateAreaOfficeClaimInput;
 
 export type ClaimDesk =
   | "COMPANY"
@@ -759,6 +773,15 @@ export function getLatestClaimRoutingReason(decisions: readonly { reason: string
   return decisions.find((decision) => reasons.some((reason) => decision.reason?.startsWith(reason)))?.reason ?? "";
 }
 
+export function requiredAuditForClaimHandoff(from: ClaimDesk, to: ClaimDesk) {
+  if (from === "REIMBURSEMENT_SCHEDULE_AUDITOR" && to === "HEAD_REIMBURSEMENT_AUDIT") return { kind: "CLAIM", status: "SUBMITTED" } as const;
+  if (from === "HEAD_REIMBURSEMENT_AUDIT" && to === "DIRECTOR_AUDIT") return { kind: "CLAIM", status: "VERIFIED" } as const;
+  if (from === "DIRECTOR_AUDIT" && to === "DIRECTOR_GENERAL") return { kind: "CLAIM", status: "CLEARED" } as const;
+  if (from === "PRE_AUDIT_OFFICER" && to === "HEAD_PRE_AUDIT") return { kind: "PAYMENT_FILE", status: "SUBMITTED" } as const;
+  if (from === "HEAD_PRE_AUDIT" && to === "HEAD_REIMBURSEMENT_FINANCE") return { kind: "PAYMENT_FILE", status: "VERIFIED" } as const;
+  return null;
+}
+
 export function isClaimPostIntakeTransitionAvailable(input: {
   from: ClaimDesk;
   to: ClaimDesk;
@@ -983,6 +1006,21 @@ async function moveClaimThroughIntake(
     if (eligibility.status !== "ELIGIBLE") throw new Error(`Claim approval is blocked: ${eligibility.message}`);
   }
 
+  const requiredAudit = requiredAuditForClaimHandoff(transition.from, transition.to);
+  if (requiredAudit?.kind === "CLAIM") {
+    const review = await db.reimbursementAuditReview.findUnique({
+      where: { reimbursementClaimId: claim.id }, select: { status: true },
+    });
+    if (review?.status !== requiredAudit.status) throw new Error(`Claim audit must be ${requiredAudit.status.toLowerCase()} before this handoff.`);
+  }
+
+  if (requiredAudit?.kind === "PAYMENT_FILE") {
+    const review = await db.reimbursementPaymentFileAudit.findUnique({
+      where: { reimbursementClaimId: claim.id }, select: { status: true },
+    });
+    if (review?.status !== requiredAudit.status) throw new Error(`Payment-file pre-audit must be ${requiredAudit.status.toLowerCase()} before this handoff.`);
+  }
+
   if (transition.from === "HEAD_REIMBURSEMENT_FINANCE" && transition.to === "HEAD_BUDGET" && !paymentVoucherRaised) {
     throw new Error("The Reimbursement Schedule Accountant must raise the payment voucher before budget review.");
   }
@@ -1183,23 +1221,20 @@ function canManageClaimPaymentHandoff(role: Role) {
   );
 }
 
-function canManageClaimAuditReview(role: Role, status: ReimbursementAuditReviewStatus) {
-  if (isAdminRole(role)) {
-    return true;
-  }
+export function canSetClaimAuditStatus(input: { role: Role; desk: ClaimDesk; currentStatus?: ReimbursementAuditReviewStatus; nextStatus: ReimbursementAuditReviewStatus }) {
+  const { role, desk, currentStatus, nextStatus } = input;
+  if (!isAdminRole(role) && role !== desk) return false;
+  if (desk === "REIMBURSEMENT_SCHEDULE_AUDITOR") return (nextStatus === "DRAFT" || nextStatus === "SUBMITTED") && (!currentStatus || currentStatus === "DRAFT");
+  if (desk === "HEAD_REIMBURSEMENT_AUDIT") return nextStatus === "VERIFIED" && currentStatus === "SUBMITTED";
+  if (desk === "DIRECTOR_AUDIT") return nextStatus === "CLEARED" && currentStatus === "VERIFIED";
+  return false;
+}
 
-  if (role === "REIMBURSEMENT_SCHEDULE_AUDITOR") {
-    return status === "DRAFT" || status === "SUBMITTED";
-  }
-
-  if (role === "HEAD_REIMBURSEMENT_AUDIT") {
-    return status === "RETURNED" || status === "VERIFIED";
-  }
-
-  if (role === "DIRECTOR_AUDIT") {
-    return status === "RETURNED" || status === "CLEARED";
-  }
-
+export function canSetPaymentFileAuditStatus(input: { role: Role; desk: ClaimDesk; currentStatus?: ReimbursementAuditReviewStatus; nextStatus: ReimbursementAuditReviewStatus }) {
+  const { role, desk, currentStatus, nextStatus } = input;
+  if (!isAdminRole(role) && role !== desk) return false;
+  if (desk === "PRE_AUDIT_OFFICER") return (nextStatus === "DRAFT" || nextStatus === "SUBMITTED") && (!currentStatus || currentStatus === "DRAFT");
+  if (desk === "HEAD_PRE_AUDIT") return nextStatus === "VERIFIED" && currentStatus === "SUBMITTED";
   return false;
 }
 
@@ -1600,24 +1635,17 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
     throw new Error("Unsupported reimbursement audit review status.");
   }
 
-  if (!canManageClaimAuditReview(input.requesterRole, input.status)) {
-    throw new Error("You do not have permission to update this audit review status.");
-  }
-
   const db = getDb();
   const actor = await db.user.findUnique({
     where: { email: input.requesterEmail },
-    select: { id: true },
+    select: { id: true, isActive: true, memberships: { where: { isActive: true }, select: { role: true, workspaceId: true } } },
   });
-
-  if (!actor) {
-    throw new Error("User account was not found.");
-  }
 
   const claim = await db.reimbursementClaim.findFirst({
     where: {
       id: input.claimId,
       recordTier: "HOT",
+      status: "SUBMITTED",
       company: {
         recordTier: "HOT",
         isActive: true,
@@ -1626,12 +1654,31 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
     select: {
       id: true,
       companyId: true,
+      currentDesk: true,
+      auditReview: { select: { status: true } },
+      calculationSnapshots: {
+        where: { stage: { in: ["AUDIT", "HEADQUARTERS"] }, recordTier: "HOT" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        select: { stage: true, totalAmountAwarded: true },
+      },
+      company: { select: { organization: { select: { workspaceId: true } } } },
     },
   });
 
-  if (!claim) {
-    throw new Error("Reimbursement claim was not found.");
+  if (!claim) throw new Error("An active submitted reimbursement claim was not found.");
+  if (!actor?.isActive || (!isAdminRole(input.requesterRole) && !actor.memberships.some((membership) =>
+    membership.role === input.requesterRole && membership.workspaceId === claim.company.organization.workspaceId
+  ))) throw new Error("You do not have Headquarters access to this claim.");
+  if (!canSetClaimAuditStatus({ role: input.requesterRole, desk: claim.currentDesk, currentStatus: claim.auditReview?.status, nextStatus: input.status })) {
+    throw new Error("This claim-audit decision is not available at the current desk or review stage.");
   }
+  const headquartersAmount = claim.calculationSnapshots.find((snapshot) => snapshot.stage === "HEADQUARTERS")?.totalAmountAwarded;
+  if (!headquartersAmount) throw new Error("The HQ reviewed calculation is required before claim audit.");
+  const auditAmount = claim.calculationSnapshots.find((snapshot) => snapshot.stage === "AUDIT")?.totalAmountAwarded;
+  const determinedAmount = auditAmount ?? headquartersAmount;
+  const varianceAmount = Math.round((Number(determinedAmount.toString()) - Number(headquartersAmount.toString())) * 100) / 100;
+  if (input.status === "SUBMITTED" && !input.observations?.trim()) throw new Error("The Schedule Auditor must record audit observations.");
+  if ((input.status === "VERIFIED" || input.status === "CLEARED") && !input.note?.trim()) throw new Error("Record a review decision note.");
 
   const now = new Date();
 
@@ -1645,48 +1692,36 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
         status: input.status,
         observations: input.observations,
         recommendation: input.recommendation,
-        auditedAmount: input.auditedAmount,
-        varianceAmount: input.varianceAmount,
-        preparedById:
-          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
-          input.status === "SUBMITTED"
-            ? actor.id
-            : undefined,
-        preparedAt:
-          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
-          input.status === "SUBMITTED"
-            ? now
-            : undefined,
-        verifiedById:
-          input.status === "VERIFIED" || input.status === "CLEARED" ? actor.id : undefined,
-        verifiedAt:
-          input.status === "VERIFIED" || input.status === "CLEARED" ? now : undefined,
+        auditedAmount: input.status === "SUBMITTED" ? determinedAmount : undefined,
+        varianceAmount: input.status === "SUBMITTED" ? varianceAmount : undefined,
+        preparedById: input.status === "SUBMITTED" ? actor.id : undefined,
+        preparedAt: input.status === "SUBMITTED" ? now : undefined,
+        verifiedById: input.status === "VERIFIED" ? actor.id : undefined,
+        verifiedAt: input.status === "VERIFIED" ? now : undefined,
       },
       update: {
         status: input.status,
-        observations: input.observations,
-        recommendation: input.recommendation,
-        auditedAmount: input.auditedAmount,
-        varianceAmount: input.varianceAmount,
-        preparedById:
-          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
-          input.status === "SUBMITTED"
-            ? actor.id
-            : undefined,
-        preparedAt:
-          input.requesterRole === "REIMBURSEMENT_SCHEDULE_AUDITOR" ||
-          input.status === "SUBMITTED"
-            ? now
-            : undefined,
-        verifiedById:
-          input.status === "VERIFIED" || input.status === "CLEARED" ? actor.id : undefined,
-        verifiedAt:
-          input.status === "VERIFIED" || input.status === "CLEARED" ? now : undefined,
+        observations: input.status === "DRAFT" || input.status === "SUBMITTED" ? input.observations : undefined,
+        recommendation: input.status === "DRAFT" || input.status === "SUBMITTED" ? input.recommendation : undefined,
+        auditedAmount: input.status === "SUBMITTED" ? determinedAmount : undefined,
+        varianceAmount: input.status === "SUBMITTED" ? varianceAmount : undefined,
+        preparedById: input.status === "SUBMITTED" ? actor.id : undefined,
+        preparedAt: input.status === "SUBMITTED" ? now : undefined,
+        verifiedById: input.status === "VERIFIED" ? actor.id : undefined,
+        verifiedAt: input.status === "VERIFIED" ? now : undefined,
       },
       select: {
         id: true,
       },
     });
+
+    if (input.status === "CLEARED") {
+      await tx.reimbursementClaim.update({
+        where: { id: claim.id },
+        data: { claimRecommendedAmount: determinedAmount, claimRecommendedInWords: nairaInWords(Number(determinedAmount.toString())) },
+        select: { id: true },
+      });
+    }
 
     await tx.decision.create({
       data: {
@@ -1695,9 +1730,10 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
         reimbursementClaimId: claim.id,
         action: getAuditReviewDecisionAction(input.status),
         reason: [
-          `Updated reimbursement audit review to ${input.status.replaceAll("_", " ")}.`,
-          input.recommendation ? `Recommendation: ${input.recommendation}.` : undefined,
-          input.observations,
+          `Claim audit ${input.status.toLowerCase()}.`,
+          input.status === "SUBMITTED" ? `Audited amount: NGN ${Number(determinedAmount.toString()).toFixed(2)}.` : undefined,
+          input.status === "SUBMITTED" && auditAmount ? "Independent Schedule Auditor recalculation used." : undefined,
+          input.status === "SUBMITTED" ? input.observations : input.note,
         ]
           .filter(Boolean)
           .join(" "),
@@ -1705,6 +1741,94 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
     });
 
     return auditReview;
+  });
+}
+
+export async function updatePaymentFileAudit(input: UpdatePaymentFileAuditInput) {
+  const db = getDb();
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true, isActive: true, memberships: { where: { isActive: true }, select: { role: true, workspaceId: true } } },
+  });
+  const claim = await db.reimbursementClaim.findFirst({
+    where: { id: input.claimId, recordTier: "HOT", status: "SUBMITTED", company: { recordTier: "HOT", isActive: true } },
+    select: {
+      id: true, companyId: true, currentDesk: true, bankName: true, accountNumber: true, sortCode: true,
+      claimRecommendedAmount: true, paymentHandoffStatus: true,
+      paymentFileAudit: { select: { status: true, voucherChecked: true, budgetChecked: true, bankDetailsChecked: true, amountChecked: true } },
+      decisions: {
+        where: { reason: { startsWith: "Head Budget forwarded budget-cleared reimbursement payment file" } },
+        select: { id: true }, take: 1,
+      },
+      company: { select: { organization: { select: { workspaceId: true } } } },
+    },
+  });
+  if (!claim) throw new Error("An active submitted reimbursement claim was not found.");
+  if (!actor?.isActive || (!isAdminRole(input.requesterRole) && !actor.memberships.some((membership) =>
+    membership.role === input.requesterRole && membership.workspaceId === claim.company.organization.workspaceId
+  ))) throw new Error("You do not have Headquarters access to this payment file.");
+  if (!canSetPaymentFileAuditStatus({ role: input.requesterRole, desk: claim.currentDesk, currentStatus: claim.paymentFileAudit?.status, nextStatus: input.status })) {
+    throw new Error("This payment-file pre-audit decision is not available at the current desk or review stage.");
+  }
+  if (input.status === "SUBMITTED") {
+    if (!input.voucherChecked || !input.budgetChecked || !input.bankDetailsChecked || !input.amountChecked) {
+      throw new Error("Complete all four payment-file checks before submitting pre-audit.");
+    }
+    if (!claim.decisions.length) throw new Error("Budget clearance is missing from this payment packet.");
+    if (claim.paymentHandoffStatus !== "PV_RAISED") {
+      const voucher = await db.decision.findFirst({
+        where: { reimbursementClaimId: claim.id, reason: { startsWith: "Updated reimbursement payment handoff status to PV RAISED" } },
+        select: { id: true },
+      });
+      if (!voucher) throw new Error("A raised payment voucher is missing from this payment packet.");
+    }
+    if (!claim.bankName || !claim.accountNumber || !claim.sortCode) throw new Error("Bank details are incomplete.");
+    if (!claim.claimRecommendedAmount) throw new Error("The approved claim amount is missing.");
+  }
+  if (input.status === "VERIFIED" && !input.note?.trim()) throw new Error("Head Pre-Audit must record a verification note.");
+
+  const now = new Date();
+  return db.$transaction(async (tx) => {
+    const review = await tx.reimbursementPaymentFileAudit.upsert({
+      where: { reimbursementClaimId: claim.id },
+      create: {
+        reimbursementClaimId: claim.id,
+        status: input.status,
+        voucherChecked: Boolean(input.voucherChecked),
+        budgetChecked: Boolean(input.budgetChecked),
+        bankDetailsChecked: Boolean(input.bankDetailsChecked),
+        amountChecked: Boolean(input.amountChecked),
+        observations: input.observations,
+        preparedById: input.status === "SUBMITTED" ? actor.id : undefined,
+        preparedAt: input.status === "SUBMITTED" ? now : undefined,
+        verifiedById: input.status === "VERIFIED" ? actor.id : undefined,
+        verifiedAt: input.status === "VERIFIED" ? now : undefined,
+      },
+      update: {
+        status: input.status,
+        voucherChecked: input.status === "VERIFIED" ? undefined : Boolean(input.voucherChecked),
+        budgetChecked: input.status === "VERIFIED" ? undefined : Boolean(input.budgetChecked),
+        bankDetailsChecked: input.status === "VERIFIED" ? undefined : Boolean(input.bankDetailsChecked),
+        amountChecked: input.status === "VERIFIED" ? undefined : Boolean(input.amountChecked),
+        observations: input.status === "VERIFIED" ? undefined : input.observations,
+        preparedById: input.status === "SUBMITTED" ? actor.id : undefined,
+        preparedAt: input.status === "SUBMITTED" ? now : undefined,
+        verifiedById: input.status === "VERIFIED" ? actor.id : undefined,
+        verifiedAt: input.status === "VERIFIED" ? now : undefined,
+      },
+      select: { id: true },
+    });
+    await tx.decision.create({
+      data: {
+        actorId: actor.id, companyId: claim.companyId, reimbursementClaimId: claim.id,
+        action: getAuditReviewDecisionAction(input.status),
+        reason: [
+          `Payment-file pre-audit ${input.status.toLowerCase()}.`,
+          input.status === "VERIFIED" ? input.note : input.observations,
+        ].filter(Boolean).join(" "),
+      },
+    });
+    return review;
   });
 }
 
@@ -2077,6 +2201,9 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
 }
 
 export async function updateClaimRecommendation(input: UpdateClaimRecommendationInput) {
+  if (isItfRole(input.requesterRole)) {
+    throw new Error("Form 1B amounts are determined by the RO calculations and the claim-audit approval workflow.");
+  }
   if (!can(input.requesterRole, "claims:review")) {
     throw new Error("You do not have permission to recommend reimbursement claims.");
   }
@@ -2281,6 +2408,72 @@ export async function calculateHeadquartersClaim(input: CalculateHeadquartersCla
     });
     await tx.decision.create({
       data: { actorId: actor.id, companyId: claim.companyId, reimbursementClaimId: claim.id, action: "RECOMMEND", reason: `HQ RO independently reviewed Form 1A, Form 2A and evidence. Recommended NGN ${result.totalAmountAwarded.toFixed(2)}. ${remarks}` },
+    });
+    return snapshot;
+  });
+}
+
+export async function calculateAuditorClaim(input: CalculateAuditorClaimInput) {
+  if (input.requesterRole !== "REIMBURSEMENT_SCHEDULE_AUDITOR" && !isAdminRole(input.requesterRole)) {
+    throw new Error("Only the Reimbursement Schedule Auditor may recalculate this claim.");
+  }
+  const remarks = input.reviewerRemarks.trim();
+  if (!remarks) throw new Error("Record the discrepancy and reason for this independent recalculation.");
+  if (!input.reviewedForm1A || !input.reviewedForm2A || !input.reviewedEvidence) {
+    throw new Error("Confirm Form 1A, Form 2A and supporting evidence were reviewed.");
+  }
+
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: { id: input.claimId, recordTier: "HOT", status: "SUBMITTED", currentDesk: "REIMBURSEMENT_SCHEDULE_AUDITOR" },
+    select: {
+      id: true, companyId: true, employerScale: true, trainingContributionPaid: true, policyEdition: true,
+      auditReview: { select: { status: true } },
+      company: { select: { organization: { select: { workspaceId: true } } } },
+      lines: { where: { stage: "EMPLOYER" }, select: { stage: true, awardArea: true, totalWorkforce: true, totalTrained: true, emphasisNumber: true, percentAwarded: true } },
+      calculationSnapshots: { where: { stage: "HEADQUARTERS", recordTier: "HOT" }, select: { id: true }, take: 1 },
+    },
+  });
+  if (!claim) throw new Error("This claim is not at the Schedule Auditor desk.");
+  if (claim.auditReview && claim.auditReview.status !== "DRAFT") throw new Error("The claim audit has already been submitted.");
+  if (!claim.calculationSnapshots.length) throw new Error("The HQ calculation must exist before independent audit recalculation.");
+  const actor = await db.user.findUnique({
+    where: { email: input.requesterEmail },
+    select: { id: true, isActive: true, memberships: { where: { isActive: true }, select: { role: true, workspaceId: true } } },
+  });
+  if (!actor?.isActive || (!isAdminRole(input.requesterRole) && !actor.memberships.some((membership) =>
+    membership.role === "REIMBURSEMENT_SCHEDULE_AUDITOR" && membership.workspaceId === claim.company.organization.workspaceId
+  ))) throw new Error("You do not have Headquarters access to this claim.");
+
+  const baseline = getAreaOfficeCalculationBaseline(claim);
+  if (!baseline) throw new Error("The employer calculation cannot be reconstructed for audit.");
+  const calculation = applyAreaOfficeVerifiedCounts(baseline, input.verified);
+  const result = calculateReimbursementAward({ ...calculation, policyEdition: claim.policyEdition });
+  const lines = result.lines.map((line) => ({
+    ...buildEmployerCalculationLine(line, calculation.trainingContributionPaid, calculation),
+    stage: "AUDIT" as const,
+  }));
+
+  return db.$transaction(async (tx) => {
+    await tx.reimbursementClaimLine.deleteMany({ where: { reimbursementClaimId: claim.id, stage: "AUDIT" } });
+    await tx.reimbursementClaim.update({ where: { id: claim.id }, data: { lines: { create: lines } }, select: { id: true } });
+    const snapshot = await tx.reimbursementCalculationSnapshot.create({
+      data: {
+        reimbursementClaimId: claim.id, stage: "AUDIT", policyEdition: claim.policyEdition,
+        employerScale: calculation.employerScale, calculatedByEmail: input.requesterEmail,
+        calculationInput: calculation, calculationResult: result,
+        uncappedAwardPercent: result.uncappedTotalAwardPercent,
+        cappedAwardPercent: result.cappedTotalAwardPercent,
+        totalAmountAwarded: result.totalAmountAwarded, reviewerRemarks: remarks,
+      },
+      select: { id: true },
+    });
+    await tx.decision.create({
+      data: {
+        actorId: actor.id, companyId: claim.companyId, reimbursementClaimId: claim.id,
+        action: "RECOMMEND",
+        reason: `Schedule Auditor independently recalculated the claim to NGN ${result.totalAmountAwarded.toFixed(2)}. ${remarks}`,
+      },
     });
     return snapshot;
   });

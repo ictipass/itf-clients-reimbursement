@@ -13,6 +13,7 @@ import type {
 import {
   calculateAreaOfficeClaim,
   calculateHeadquartersClaim,
+  calculateAuditorClaim,
   addClaimLine,
   attachTrainingsToClaim,
   deleteClaimLine,
@@ -27,6 +28,7 @@ import {
   resumeClaimFromKiv,
   submitClaimToAreaManager,
   updateClaimAuditReview,
+  updatePaymentFileAudit,
   updateClaimLine,
   updateClaimContributionVerification,
   updateClaimPaymentHandoff,
@@ -386,24 +388,86 @@ export async function updateClaimAuditReviewAction(claimId: string, formData: Fo
     throw new Error("Authentication is required.");
   }
 
-  await updateClaimAuditReview({
-    claimId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    status: readRequiredString(
-      formData,
-      "auditReviewStatus",
-    ) as ReimbursementAuditReviewStatus,
-    observations: readOptionalString(formData, "auditObservations"),
-    recommendation: readOptionalString(formData, "auditRecommendation"),
-    auditedAmount: readOptionalNumber(formData, "auditedAmount"),
-    varianceAmount: readOptionalNumber(formData, "varianceAmount"),
-  });
+  try {
+    await updateClaimAuditReview({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      status: readRequiredString(formData, "auditReviewStatus") as ReimbursementAuditReviewStatus,
+      observations: readOptionalString(formData, "auditObservations"),
+      recommendation: readOptionalString(formData, "auditRecommendation"),
+      note: readOptionalString(formData, "auditDecisionNote"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Claim audit could not be saved.";
+    redirect(`/claims/${claimId}?auditError=${encodeURIComponent(message.slice(0, 280))}#claim-audit`);
+  }
 
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
   revalidatePath("/dashboard");
-  redirect(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?auditSaved=1#claim-audit`);
+}
+
+export async function updatePaymentFileAuditAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+
+  try {
+    await updatePaymentFileAudit({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      status: readRequiredString(formData, "paymentFileAuditStatus") as "DRAFT" | "SUBMITTED" | "VERIFIED",
+      voucherChecked: formData.get("voucherChecked") === "on",
+      budgetChecked: formData.get("budgetChecked") === "on",
+      bankDetailsChecked: formData.get("bankDetailsChecked") === "on",
+      amountChecked: formData.get("amountChecked") === "on",
+      observations: readOptionalString(formData, "preAuditObservations"),
+      note: readOptionalString(formData, "preAuditDecisionNote"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Payment-file pre-audit could not be saved.";
+    redirect(`/claims/${claimId}?preAuditError=${encodeURIComponent(message.slice(0, 280))}#payment-file-audit`);
+  }
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?preAuditSaved=1#payment-file-audit`);
+}
+
+export async function calculateAuditorClaimAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+
+  try {
+    await calculateAuditorClaim({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      verified: {
+        managementTrained: readOptionalNumber(formData, "managementTrained"),
+        supervisoryTrained: readOptionalNumber(formData, "supervisoryTrained"),
+        occupationalTrained: readOptionalNumber(formData, "occupationalTrained"),
+        smallTrained: readOptionalNumber(formData, "smallTrained"),
+        ldTrained: readOptionalNumber(formData, "ldTrained"),
+        hseTrained: readOptionalNumber(formData, "hseTrained"),
+        siwesStudentsAccepted: readRequiredNumber(formData, "siwesStudentsAccepted"),
+        trainingPlanSubmittedPromptly: formData.get("trainingPlanSubmittedPromptly") === "on",
+      },
+      reviewerRemarks: readRequiredString(formData, "reviewerRemarks"),
+      reviewedForm1A: formData.get("reviewedForm1A") === "on",
+      reviewedForm2A: formData.get("reviewedForm2A") === "on",
+      reviewedEvidence: formData.get("reviewedEvidence") === "on",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Independent audit calculation could not be saved.";
+    redirect(`/claims/${claimId}?auditCalculationError=${encodeURIComponent(message.slice(0, 280))}#claim-audit`);
+  }
+
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?auditCalculationSaved=1#claim-audit`);
 }
 
 export async function attachTrainingsToClaimAction(claimId: string, formData: FormData) {
