@@ -1,3 +1,5 @@
+import { cache } from "react";
+
 import { getDb } from "@/lib/db";
 
 export const revenueWorkflowModes = ["EXTERNAL_VERIFICATION", "IN_APP_REVENUE"] as const;
@@ -37,7 +39,7 @@ export function usesInAppRevenueWorkflow(mode: RevenueWorkflowMode) {
   return mode === "IN_APP_REVENUE";
 }
 
-export async function getActiveRevenueWorkflowMode() {
+export const getActiveRevenueWorkflowMode = cache(async () => {
   const workspace = await getDb().workspace.findFirst({
     where: {
       isActive: true,
@@ -51,7 +53,7 @@ export async function getActiveRevenueWorkflowMode() {
   });
 
   return workspace?.revenueWorkflowMode ?? DEFAULT_REVENUE_WORKFLOW_MODE;
-}
+});
 
 export async function assertCompanyUsesInAppRevenueWorkflow(companyId: string) {
   const company = await getDb().company.findFirst({

@@ -1,4 +1,5 @@
 import type { NextAuthOptions, User } from "next-auth";
+import { cache } from "react";
 import CredentialsProvider from "next-auth/providers/credentials";
 import GoogleProvider from "next-auth/providers/google";
 
@@ -16,7 +17,7 @@ if (!nextAuthSecret) {
   );
 }
 
-async function getAuthorizedDirectoryUser(email: string) {
+const getAuthorizedDirectoryUser = cache(async (email: string) => {
   const user = await getDb().user.findUnique({
     where: { email: email.toLowerCase() },
     select: {
@@ -42,7 +43,7 @@ async function getAuthorizedDirectoryUser(email: string) {
       user.mustChangePassword,
     ),
   };
-}
+});
 
 export function getConfiguredOAuthProviders() {
   return [
