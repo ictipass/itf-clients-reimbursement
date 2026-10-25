@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { isManualVoucherSignoffKind, recordVoucherSignoff } from "@/lib/reimbursement-voucher-signoffs";
 import { assertClaimActionAssignee, reassignClaimOfficer } from "@/lib/claim-officer-assignment";
 import { readUploadedFile } from "@/lib/storage/staged-upload";
 import type {
@@ -385,13 +386,14 @@ export async function updateClaimPaymentHandoffAction(
   }
 
   await requireAssignedClaimOfficer(claimId, session.user.id);
+  const handoffStatus = readRequiredString(formData, "paymentHandoffStatus") as ReimbursementPaymentHandoffStatus;
 
   try {
     await updateClaimPaymentHandoff({
       claimId,
       requesterEmail: session.user.email,
       requesterRole: session.user.role,
-      status: readRequiredString(formData, "paymentHandoffStatus") as ReimbursementPaymentHandoffStatus,
+      status: handoffStatus,
       paymentSystemReference: readOptionalString(formData, "paymentSystemReference"),
       paymentSystemStatus: readOptionalString(formData, "paymentSystemStatus"),
       note: readOptionalString(formData, "note"),
@@ -403,8 +405,28 @@ export async function updateClaimPaymentHandoffAction(
 
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/claims/archive");
   revalidatePath("/dashboard");
-  redirect(`/claims/${claimId}`);
+  redirect(handoffStatus === "PAID" ? "/claims/archive" : `/claims/${claimId}`);
+}
+
+export async function recordVoucherSignoffAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  const kind = readRequiredString(formData, "signoffKind");
+  if (!isManualVoucherSignoffKind(kind)) throw new Error("Unsupported voucher clearance.");
+  try {
+    await recordVoucherSignoff({
+      claimId, requesterEmail: session.user.email, requesterRole: session.user.role,
+      kind, remark: readRequiredString(formData, "signoffRemark"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Voucher clearance could not be recorded.";
+    redirect(`/claims/${claimId}?signoffError=${encodeURIComponent(message.slice(0, 280))}#payment-handoff`);
+  }
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/claims");
+  redirect(`/claims/${claimId}#payment-handoff`);
 }
 
 export async function createEpaymentScheduleAction(claimId: string, formData: FormData) {

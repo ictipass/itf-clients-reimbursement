@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { requiredVoucherSignoffForHandoff } from "@/lib/reimbursement-voucher-signoffs";
 import { isIndividuallyAssignedClaimRole, listAssignableClaimOfficers, resolveClaimOfficerAssignment } from "@/lib/claim-officer-assignment";
 import { nairaInWords } from "@/lib/naira-in-words";
 import { applyAreaOfficeVerifiedCounts, getAreaOfficeCalculationBaseline, type AreaOfficeVerifiedCounts } from "@/lib/area-office-claim-calculation";
@@ -906,6 +907,9 @@ async function moveClaimThroughIntake(
       currentDesk: true,
       claimYear: true,
       paymentHandoffStatus: true,
+      voucherSignoffRequired: true,
+      claimRecommendedAmount: true,
+      voucherSignoffs: { select: { kind: true } },
       paymentScheduleExportedAt: true,
       decisions: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 60, select: { reason: true } },
       company: {
@@ -1042,6 +1046,10 @@ async function moveClaimThroughIntake(
   if (transition.from === "HEAD_REIMBURSEMENT_FINANCE" && transition.to === "HEAD_BUDGET" && !paymentVoucherRaised) {
     throw new Error("The Reimbursement Schedule Accountant must raise the payment voucher before budget review.");
   }
+  const requiredSignoff = requiredVoucherSignoffForHandoff(transition.from, transition.to);
+  if (claim.voucherSignoffRequired && requiredSignoff && !claim.voucherSignoffs.some((signoff) => signoff.kind === requiredSignoff)) {
+    throw new Error(`Record the ${requiredSignoff.replaceAll("_", " ").toLowerCase()} before forwarding this packet.`);
+  }
   if ((transition.from === "PAYMENT_INITIATOR" && transition.to === "HEAD_EXPENDITURE") ||
     (transition.from === "HEAD_EXPENDITURE" && transition.to === "HEAD_REIMBURSEMENT_FINANCE")) {
     const receipt = await db.document.findFirst({
@@ -1149,6 +1157,18 @@ async function moveClaimThroughIntake(
         reason: [transition.reason, note].filter(Boolean).join(" "),
       },
     });
+
+    if (transition.from === "DIRECTOR_GENERAL" && transition.to === "DIRECTOR_FINANCE") {
+      if (!claim.claimRecommendedAmount) throw new Error("The approved award amount is missing.");
+      await tx.reimbursementVoucherSignoff.upsert({
+        where: { reimbursementClaimId_kind: { reimbursementClaimId: claim.id, kind: "PAYMENT_APPROVED" } },
+        create: {
+          reimbursementClaimId: claim.id, kind: "PAYMENT_APPROVED", actorId: actor.id,
+          actorRole: input.requesterRole, amount: claim.claimRecommendedAmount, remark: note ?? null,
+        },
+        update: {},
+      });
+    }
 
     return result;
   });
@@ -1300,7 +1320,7 @@ export async function markClaimKiv(input: ClaimRoutingInput, outcome: "KIV" | "D
   const db = getDb();
   const actor = await db.user.findUnique({
     where: { email: input.requesterEmail },
-    select: { id: true },
+    select: { id: true, name: true },
   });
 
   if (!actor) {
@@ -1427,6 +1447,7 @@ export async function resumeClaimFromKiv(input: ClaimRoutingInput) {
       id: true,
       companyId: true,
       currentDesk: true,
+      status: true,
       company: {
         select: {
           legalName: true,
@@ -1525,7 +1546,7 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
   const db = getDb();
   const actor = await db.user.findUnique({
     where: { email: input.requesterEmail },
-    select: { id: true },
+    select: { id: true, name: true },
   });
 
   if (!actor) {
@@ -1553,6 +1574,7 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
       accountNumber: true,
       sortCode: true,
       claimRecommendedAmount: true,
+      voucherSignoffRequired: true,
       company: { select: { legalName: true, email: true, telephone: true } },
       currentDesk: true,
       decisions: { where: { reason: { startsWith: "Pre-Audit Officer returned reimbursement payment audit result" } }, select: { id: true }, take: 1 },
@@ -1627,12 +1649,56 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
     : claim.paymentScheduleReference;
 
   return db.$transaction(async (tx) => {
+    const archiveSource = input.status === "PAID" ? await tx.reimbursementClaim.findUniqueOrThrow({
+      where: { id: claim.id },
+      select: {
+        reference: true, claimYear: true, claimRecommendedAmount: true, claimRecommendedInWords: true, paymentScheduleReference: true,
+        paymentWithholdingTax: true, paymentTaxOffset: true, bankName: true, accountNumber: true,
+        company: { select: { legalName: true, businessAddress: true, areaOffice: { select: { name: true } } } },
+        voucherSignoffs: { orderBy: { signedAt: "asc" }, select: { kind: true, actorRole: true, amount: true, remark: true, signedAt: true, actor: { select: { name: true } } } },
+        documents: { where: { isActive: true, recordTier: "HOT" }, orderBy: { createdAt: "asc" }, select: { id: true, kind: true, fileName: true, createdAt: true } },
+        trainingRequests: { select: { trainingRequest: { select: { id: true, title: true, approvalReference: true } } } },
+        decisions: { orderBy: { createdAt: "asc" }, select: { action: true, reason: true, createdAt: true, actor: { select: { name: true } } } },
+      },
+    }) : null;
+    const archiveSnapshot = archiveSource ? {
+      version: 1, archivedAt: now.toISOString(), reference: archiveSource.reference,
+      claimYear: archiveSource.claimYear, companyName: archiveSource.company.legalName,
+      areaOffice: archiveSource.company.areaOffice?.name ?? null,
+      approvedAmount: archiveSource.claimRecommendedAmount?.toString() ?? null,
+      amountInWords: archiveSource.claimRecommendedInWords,
+      companyAddress: archiveSource.company.businessAddress,
+      scheduleReference: archiveSource.paymentScheduleReference,
+      withholdingTax: archiveSource.paymentWithholdingTax?.toString() ?? null,
+      taxOffset: archiveSource.paymentTaxOffset?.toString() ?? null,
+      bankName: archiveSource.bankName,
+      accountNumber: archiveSource.accountNumber,
+      accountNumberLast4: archiveSource.accountNumber?.slice(-4) ?? null,
+      paymentReference: input.paymentSystemReference?.trim() ?? null,
+      voucherRaised: archiveSource.decisions.find((decision) => decision.reason?.startsWith("Updated reimbursement payment handoff status to PV RAISED"))?.createdAt.toISOString() ?? null,
+      voucherPreparedBy: archiveSource.voucherSignoffs.find((signoff) => signoff.kind === "PV_PREPARED")?.actor.name ?? null,
+      signoffs: [
+        ...archiveSource.voucherSignoffs.map((signoff) => ({ kind: signoff.kind, officer: signoff.actor.name, role: signoff.actorRole, amount: signoff.amount.toString(), remark: signoff.remark, signedAt: signoff.signedAt.toISOString() })),
+        { kind: "PAYMENT_RECORDED", officer: actor.name, role: input.requesterRole, amount: archiveSource.claimRecommendedAmount?.toString() ?? "0", remark: note ?? null, signedAt: now.toISOString() },
+      ],
+      evidence: archiveSource.documents.map((document) => ({ id: document.id, kind: document.kind, fileName: document.fileName, uploadedAt: document.createdAt.toISOString() })),
+      trainings: archiveSource.trainingRequests.map(({ trainingRequest }) => ({ id: trainingRequest.id, title: trainingRequest.title, approvalReference: trainingRequest.approvalReference })),
+      decisions: [
+        ...archiveSource.decisions.map((decision) => ({ action: decision.action, reason: decision.reason, officer: decision.actor.name, at: decision.createdAt.toISOString() })),
+        { action: "SETTLE", reason: `Payment recorded. Reference: ${input.paymentSystemReference?.trim() ?? "Not recorded"}. ${note ?? ""}`.trim(), officer: actor.name, at: now.toISOString() },
+      ],
+    } : undefined;
     const updated = await tx.reimbursementClaim.update({
       where: input.status === "EXPORTED"
         ? { id: claim.id, currentDesk: "REIMBURSEMENT_ACCOUNTANT", paymentScheduleExportedAt: null }
-        : { id: claim.id },
+        : input.status === "PAID"
+          ? { id: claim.id, currentDesk: "REIMBURSEMENT_ACCOUNTANT", status: "SUBMITTED" }
+          : { id: claim.id },
       data: {
         paymentHandoffStatus: input.status,
+        voucherSignoffRequired: input.status === "PV_RAISED" ? true : undefined,
+        archivedAt: input.status === "PAID" ? now : undefined,
+        archiveSnapshot,
         paymentScheduleReference: scheduleReference,
         paymentScheduleExportedAt: input.status === "EXPORTED" ? now : undefined,
         paymentScheduleExportedById: input.status === "EXPORTED" ? actor.id : undefined,
@@ -1651,7 +1717,7 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
             ? now
             : undefined,
         paidAt: input.status === "PAID" ? now : undefined,
-        status: input.status === "PAID" ? "SETTLED" : undefined,
+        status: input.status === "PAID" ? "ARCHIVED" : undefined,
         settledAt: input.status === "PAID" ? now : undefined,
       },
       select: { id: true },
@@ -1666,6 +1732,17 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
         data: {
           status: "RESOLVED",
           resolvedAt: now,
+        },
+      });
+    }
+
+    if ((input.status === "PV_RAISED" || input.status === "PAID") && claim.claimRecommendedAmount) {
+      await tx.reimbursementVoucherSignoff.create({
+        data: {
+          reimbursementClaimId: claim.id, actorId: actor.id, actorRole: input.requesterRole,
+          kind: input.status === "PV_RAISED" ? "PV_PREPARED" : "PAYMENT_RECORDED",
+          amount: claim.claimRecommendedAmount,
+          remark: note ?? null,
         },
       });
     }
@@ -2171,6 +2248,7 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
       id: true,
       companyId: true,
       currentDesk: true,
+      status: true,
       company: {
         select: {
           organizationId: true,
@@ -2182,6 +2260,8 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
   if (!claim) {
     throw new Error("Reimbursement claim was not found.");
   }
+
+  if (claim.status === "ARCHIVED") throw new Error("Archived claims cannot accept new evidence.");
 
   if (input.requesterRole === "PAYMENT_INITIATOR" &&
     (claim.currentDesk !== "PAYMENT_INITIATOR" || input.kind !== "PAYMENT_RECEIPT")) {
@@ -2277,6 +2357,7 @@ export async function updateClaimRecommendation(input: UpdateClaimRecommendation
     where: {
       id: input.claimId,
       recordTier: "HOT",
+      status: { not: "ARCHIVED" },
       company: {
         recordTier: "HOT",
         isActive: true,
@@ -2582,6 +2663,7 @@ export async function updateClaimContributionVerification(
     where: {
       id: input.claimId,
       recordTier: "HOT",
+      status: { not: "ARCHIVED" },
       company: {
         recordTier: "HOT",
         isActive: true,

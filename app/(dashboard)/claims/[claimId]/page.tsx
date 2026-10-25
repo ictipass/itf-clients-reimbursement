@@ -22,6 +22,7 @@ import {
   markClaimKivAction,
   reassignClaimOfficerAction,
   recheckClaimAnnualPaymentAction,
+  recordVoucherSignoffAction,
   resumeClaimFromKivAction,
   submitClaimToAreaManagerAction,
   updateClaimStaffEntriesAction,
@@ -68,6 +69,7 @@ import {
   reimbursementPaymentHandoffStatuses,
 } from "@/lib/reimbursement-payment-schedule";
 import { canDownloadPaymentVoucher } from "@/lib/reimbursement-payment-voucher";
+import { canRecordVoucherSignoff, manualVoucherSignoffs, voucherSignoffLabels } from "@/lib/reimbursement-voucher-signoffs";
 import { formatReimbursementPolicyEdition } from "@/lib/reimbursement-policy";
 import { isItfRole } from "@/lib/rbac";
 
@@ -148,7 +150,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; assignmentError?: string; reassigned?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; assignmentError?: string; reassigned?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string; signoffError?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -182,6 +184,9 @@ export default async function ClaimDetailPage({
       externalVerificationCheckedAt: true,
       externalVerificationMessage: true,
       paymentHandoffStatus: true,
+      voucherSignoffRequired: true,
+      archivedAt: true,
+      voucherSignoffs: { orderBy: { signedAt: "asc" }, select: { kind: true, amount: true, remark: true, signedAt: true, actorRole: true, actor: { select: { name: true } } } },
       paymentScheduleReference: true,
       paymentScheduleExportedAt: true,
       paymentScheduleExportedById: true,
@@ -1613,7 +1618,7 @@ export default async function ClaimDetailPage({
           </div>
         )}
 
-        {canUploadClaimEvidence ? (
+        {canUploadClaimEvidence && claim.status !== "ARCHIVED" ? (
           <form
             action={uploadClaimEvidenceAction.bind(null, claim.id)}
             className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 md:grid-cols-[240px_1fr_auto]"
@@ -1773,6 +1778,7 @@ export default async function ClaimDetailPage({
           </div>
           <div className="flex flex-wrap gap-2">
           {isItfRole(activeRole) && canDownloadVoucher ? <Link href={`/claims/${claim.id}/payment-voucher`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 w-fit items-center rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">View payment voucher PDF</Link> : isItfRole(activeRole) ? <button type="button" disabled className="inline-flex min-h-10 w-fit items-center rounded-md bg-zinc-200 px-4 text-sm font-semibold text-zinc-500">Payment voucher not raised</button> : null}
+          {claim.status === "ARCHIVED" && isItfRole(activeRole) ? <Link href={`/claims/${claim.id}/archive-packet`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 w-fit items-center rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">View archived payment packet</Link> : null}
           {isItfRole(activeRole) && canDownloadSchedule ? (
             <Link
               href={`/claims/${claim.id}/payment-schedule`}
@@ -1786,6 +1792,7 @@ export default async function ClaimDetailPage({
 
         {query.scheduleError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.scheduleError}</p> : null}
         {query.paymentHandoffError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.paymentHandoffError}</p> : null}
+        {query.signoffError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.signoffError}</p> : null}
         {query.scheduleCreated ? <p className="mt-4 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">E-payment schedule created and ready for authorized download.</p> : null}
         {canCreateSchedule ? <form action={createEpaymentScheduleAction.bind(null, claim.id)} className="mt-4 grid gap-3 rounded-md border border-zinc-200 p-4 md:grid-cols-3">
           <p className="text-sm text-zinc-600 md:col-span-3">Confirm the beneficiary account type and deductions. Payable Amount will equal the approved award minus WHT and Tax Off.</p>
@@ -1815,6 +1822,24 @@ export default async function ClaimDetailPage({
           <p>Payment system synced at: {formatDate(claim.paymentSystemSyncedAt)}</p>
           <p>Paid at: {formatDate(claim.paidAt)}</p>
         </div>
+
+        {isItfRole(activeRole) ? <div className="mt-5 border-t border-zinc-100 pt-5">
+          <h3 className="font-semibold">Voucher clearance and electronic sign-offs</h3>
+          <p className="mt-1 text-sm text-zinc-600">Each sign-off records the authenticated officer, desk, approved amount and time. It is an electronic attestation, not a handwritten signature.</p>
+          <ul className="mt-3 space-y-2 text-sm">
+            {claim.voucherSignoffs.map((signoff) => <li key={signoff.kind} className="rounded-md bg-zinc-50 p-3"><strong>{voucherSignoffLabels[signoff.kind]}</strong> — {signoff.actor.name} ({signoff.actorRole.replaceAll("_", " ")}) · {formatMoney(signoff.amount)} · {formatDate(signoff.signedAt)}{signoff.remark ? <span className="block text-zinc-600">{signoff.remark}</span> : null}</li>)}
+            {!claim.voucherSignoffs.length ? <li className="text-zinc-600">No electronic sign-offs recorded yet.</li> : null}
+          </ul>
+          {claim.status === "SUBMITTED" && (Object.keys(manualVoucherSignoffs) as (keyof typeof manualVoucherSignoffs)[]).filter((kind) => canRecordVoucherSignoff({
+            kind, role: activeRole, desk: claim.currentDesk, signoffRequired: claim.voucherSignoffRequired,
+            signedKinds: claim.voucherSignoffs.map((signoff) => signoff.kind),
+            paymentVoucherRaised: Boolean(voucherRaised), paymentFileAuditStatus: claim.paymentFileAudit?.status ?? null,
+          })).map((kind) => <form key={kind} action={recordVoucherSignoffAction.bind(null, claim.id)} className="mt-4 grid gap-3 rounded-md border border-zinc-200 p-4">
+            <input type="hidden" name="signoffKind" value={kind} />
+            <label className="grid gap-1 text-sm font-medium">{voucherSignoffLabels[kind]} remark<textarea name="signoffRemark" required className="min-h-20 rounded-md border border-zinc-200 p-3" /></label>
+            <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Record {voucherSignoffLabels[kind]}</button>
+          </form>)}
+        </div> : null}
 
         {canUpdatePaymentHandoff ? (
           <form

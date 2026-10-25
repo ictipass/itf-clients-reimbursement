@@ -30,7 +30,7 @@ export function canDownloadPaymentVoucher(input: {
   return input.deskAssignments.some((item) => item.assignedRole === input.requesterRole && item.updatedAt >= input.raisedAt!);
 }
 
-export async function buildPaymentVoucherPdf(claim: PaymentVoucherClaim, raisedAt: Date, preparedBy: string) {
+export async function buildPaymentVoucherPdf(claim: PaymentVoucherClaim, raisedAt: Date, preparedBy: string, signoffs: { kind: string; officer: string; signedAt: Date }[] = []) {
   const amount = Number(claim.claimRecommendedAmount?.toString());
   if (!Number.isFinite(amount) || amount <= 0) throw new Error("The approved award amount is missing from the payment voucher.");
   const document = await PDFDocument.create();
@@ -71,7 +71,7 @@ export async function buildPaymentVoucherPdf(claim: PaymentVoucherClaim, raisedA
   box(42, 405, 511, 34); line(245, 405, 245, 439); line(395, 405, 395, 439);
   text("PREPARED BY", 48, 426, 7, true); text(preparedBy, 48, 411, 9, false, 36);
   text("CODED BY", 251, 426, 7, true); text("Pending finance coding", 251, 411, 8);
-  text("CHECKED BY", 401, 426, 7, true); text("See workflow audit trail", 401, 411, 8);
+  text("CHECKED BY", 401, 426, 7, true); text(signoffs.find((item) => item.kind === "PV_CHECKED")?.officer ?? "Awaiting check", 401, 411, 8, false, 24);
   box(42, 231, 511, 165);
   line(42, 372, 553, 372); line(42, 256, 553, 256);
   for (const x of [220, 290, 338, 418, 498]) line(x, 231, x, 396);
@@ -83,16 +83,18 @@ export async function buildPaymentVoucherPdf(claim: PaymentVoucherClaim, raisedA
   text(claim.reference, 296, 350, 7, false, 13);
   text(money, 344, 350, 9); text(String(claim.claimYear ?? ""), 504, 350, 8);
   text("TOTAL", 48, 241, 9, true); text(money, 344, 241, 9, true);
-  const clearances = ["BUDGET CLEARANCE", "AUDIT CLEARANCE", "APPROVAL FOR PAYMENT", "RECEIVED BY"];
+  const clearances = ["BUDGET CLEARANCE", "AUDIT CLEARANCE", "APPROVAL FOR PAYMENT", "PAYMENT RECORDED"];
+  const clearanceKinds = ["BUDGET_CLEARED", "PRE_AUDIT_CLEARED", "PAYMENT_APPROVED", "PAYMENT_RECORDED"];
   for (let i = 0; i < 4; i++) {
     const x = 42 + i * 127.75;
+    const signed = signoffs.find((item) => item.kind === clearanceKinds[i]);
     box(x, 77, 127.75, 145);
     text(clearances[i], x + 5, 205, 7, true, 24);
     text(`Amount: NGN ${money}`, x + 5, 182, 7);
-    text("Name: See workflow trail", x + 5, 156, 7);
-    text("Sign: __________________", x + 5, 127, 7);
-    text("Date: __________________", x + 5, 98, 7);
+    text(`Name: ${signed?.officer ?? "Pending"}`, x + 5, 156, 7, false, 27);
+    text(`Attested: ${signed ? "Electronic" : "Pending"}`, x + 5, 127, 7);
+    text(`Date: ${signed?.signedAt.toISOString().slice(0, 10) ?? "Pending"}`, x + 5, 98, 7);
   }
-  text("Electronic voucher; clearance and signatures are recorded separately in the claim decision trail.", 42, 56, 7);
+  text("Electronic attestations are recorded with authenticated officer, role and time in the claim audit trail.", 42, 56, 7);
   return document.save();
 }

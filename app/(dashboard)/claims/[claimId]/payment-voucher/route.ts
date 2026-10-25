@@ -21,6 +21,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cla
       reference: true, claimYear: true, bankName: true, accountNumber: true,
       claimRecommendedAmount: true, claimRecommendedInWords: true,
       company: { select: { legalName: true, businessAddress: true } },
+      voucherSignoffs: { select: { kind: true, signedAt: true, actor: { select: { name: true } } } },
       decisions: {
         where: { reason: { startsWith: "Updated reimbursement payment handoff status to PV RAISED" } },
         orderBy: { createdAt: "asc" }, take: 1,
@@ -36,7 +37,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ cla
     raisedAt: raised?.createdAt ?? null, raisedById: raised?.actorId ?? null, requesterId: requester?.id ?? null,
     requesterRole: session.user.role, deskAssignments: claim.workItems,
   })) return Response.json({ error: "The payment voucher is not available at your desk." }, { status: 403 });
-  const pdf = await buildPaymentVoucherPdf(claim, raised.createdAt, raised.actor.name);
+  const pdf = await buildPaymentVoucherPdf(claim, raised.createdAt, raised.actor.name,
+    claim.voucherSignoffs.map((signoff) => ({ kind: signoff.kind, officer: signoff.actor.name, signedAt: signoff.signedAt })));
   return new Response(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",

@@ -201,6 +201,17 @@ enum ReimbursementPaymentHandoffStatus {
   FAILED
 }
 
+enum ReimbursementVoucherSignoffKind {
+  PAYMENT_APPROVED
+  PV_PREPARED
+  PV_CHECKED
+  BUDGET_CLEARED
+  BUDGET_VERIFIED
+  PRE_AUDIT_CLEARED
+  PRE_AUDIT_VERIFIED
+  PAYMENT_RECORDED
+}
+
 enum ReimbursementAuditReviewStatus {
   DRAFT
   SUBMITTED
@@ -580,6 +591,7 @@ model User {
   verifiedReimbursementAuditReviews                ReimbursementAuditReview[]           @relation("VerifiedReimbursementAuditReviews")
   preparedPaymentFileAudits                         ReimbursementPaymentFileAudit[]      @relation("PreparedPaymentFileAudits")
   verifiedPaymentFileAudits                         ReimbursementPaymentFileAudit[]      @relation("VerifiedPaymentFileAudits")
+  reimbursementVoucherSignoffs                      ReimbursementVoucherSignoff[]         @relation("ReimbursementVoucherSignoffActor")
 }
 
 model EmailVerificationToken {
@@ -1289,6 +1301,7 @@ model ReimbursementClaim {
   externalVerificationMessage    String?
   externalVerificationPayload    Json?
   paymentHandoffStatus           ReimbursementPaymentHandoffStatus @default(NOT_READY)
+  voucherSignoffRequired         Boolean                           @default(false)
   paymentScheduleReference       String?
   paymentScheduleExportedAt      DateTime?
   paymentScheduleExportedById    String?
@@ -1320,6 +1333,8 @@ model ReimbursementClaim {
   recordTier                     RecordTier                        @default(HOT)
   submittedAt                    DateTime?
   settledAt                      DateTime?
+  archivedAt                     DateTime?
+  archiveSnapshot                Json?
   createdAt                      DateTime                          @default(now())
   updatedAt                      DateTime                          @updatedAt
   company                        Company                           @relation(fields: [companyId], references: [id])
@@ -1333,6 +1348,7 @@ model ReimbursementClaim {
   computationTables              ReimbursementComputationTable[]
   auditReview                    ReimbursementAuditReview?
   paymentFileAudit               ReimbursementPaymentFileAudit?
+  voucherSignoffs                ReimbursementVoucherSignoff[]
   workItems                      WorkItem[]
   decisions                      Decision[]
   comments                       Comment[]
@@ -1346,6 +1362,24 @@ model ReimbursementClaim {
   @@index([paymentHandoffStatus, recordTier])
   @@index([paymentScheduleReference, recordTier])
   @@index([paymentScheduleExportedById, recordTier])
+}
+
+model ReimbursementVoucherSignoff {
+  id                   String                             @id @default(cuid())
+  reimbursementClaimId String
+  kind                 ReimbursementVoucherSignoffKind
+  actorId              String
+  actorRole            Role
+  amount               Decimal                            @db.Decimal(14, 2)
+  remark               String?
+  method               String                             @default("AUTHENTICATED_SESSION")
+  signedAt             DateTime                           @default(now())
+  recordTier           RecordTier                         @default(HOT)
+  reimbursementClaim   ReimbursementClaim                 @relation(fields: [reimbursementClaimId], references: [id], onDelete: Cascade)
+  actor                User                               @relation("ReimbursementVoucherSignoffActor", fields: [actorId], references: [id])
+
+  @@unique([reimbursementClaimId, kind])
+  @@index([actorId, signedAt])
 }
 
 model ReimbursementAuditReview {
