@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { isIndividuallyAssignedClaimRole, listAssignableClaimOfficers, resolveClaimOfficerAssignment } from "@/lib/claim-officer-assignment";
 import { nairaInWords } from "@/lib/naira-in-words";
 import { applyAreaOfficeVerifiedCounts, getAreaOfficeCalculationBaseline, type AreaOfficeVerifiedCounts } from "@/lib/area-office-claim-calculation";
 import { verifyAnnualEligibility } from "@/lib/annual-eligibility";
@@ -156,6 +157,7 @@ export type ClaimRoutingInput = {
   requesterEmail: string;
   requesterRole: Role;
   note?: string;
+  assigneeUserId?: string;
 };
 
 export type ClaimWorkflowRoutingInput = ClaimRoutingInput & {
@@ -964,6 +966,18 @@ async function moveClaimThroughIntake(
     areaOfficeId: claim.company.areaOfficeId,
   });
 
+  let assignedUserId: string | null = null;
+  if (isIndividuallyAssignedClaimRole(transition.assignedRole)) {
+    const officers = await listAssignableClaimOfficers({
+      role: transition.assignedRole,
+      workspaceId: claim.company.organization.workspaceId,
+      areaOfficeId: claim.company.areaOfficeId,
+    });
+    assignedUserId = resolveClaimOfficerAssignment(officers, input.assigneeUserId);
+  } else if (input.assigneeUserId) {
+    throw new Error("An individual officer cannot be selected for this shared desk.");
+  }
+
   if (
     (transition.from === "REIMBURSEMENT_OFFICER" && transition.to === "HEAD_OF_TRAINING") ||
     (transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") ||
@@ -1044,9 +1058,27 @@ async function moveClaimThroughIntake(
   const now = new Date();
   const note = input.note?.trim();
   const updated = await db.$transaction(async (tx) => {
+    if (isIndividuallyAssignedClaimRole(transition.from)) {
+      const assignedItem = await tx.workItem.findFirst({
+        where: { reimbursementClaimId: claim.id, assignedRole: transition.from, app: "REIMBURSEMENT", recordTier: "HOT", status: "OPEN" },
+        select: { id: true, assignedUserId: true },
+      });
+      if (assignedItem?.assignedUserId && assignedItem.assignedUserId !== actor.id) {
+        throw new Error("This packet was reassigned to another officer. Reload your claims list.");
+      }
+      if (assignedItem?.assignedUserId) {
+        const closed = await tx.workItem.updateMany({
+          where: { id: assignedItem.id, status: "OPEN", assignedUserId: actor.id },
+          data: { status: "RESOLVED", resolvedAt: now },
+        });
+        if (closed.count !== 1) throw new Error("This packet changed while you were forwarding it. Reload and try again.");
+      }
+    }
     const result = await tx.reimbursementClaim.update({
       where: {
         id: claim.id,
+        currentDesk: transition.from,
+        status: transition.from === "COMPANY" ? "DRAFT" : "SUBMITTED",
       },
       data: {
         status: "SUBMITTED",
@@ -1082,6 +1114,7 @@ async function moveClaimThroughIntake(
         companyId: claim.companyId,
         reimbursementClaimId: claim.id,
         assignedRole: transition.assignedRole,
+        assignedUserId,
         app: "REIMBURSEMENT",
         kind: "REIMBURSEMENT_CLAIM_REVIEW",
         status: "OPEN",
@@ -1096,6 +1129,7 @@ async function moveClaimThroughIntake(
         resolvedAt: null,
         emailNotifiedAt: null,
         assignedRole: transition.assignedRole,
+        assignedUserId,
         priority: "NORMAL",
         title: transition.workItemTitle,
         summary: `${claim.company.legalName} ${transition.workItemSummary}`,

@@ -22,7 +22,7 @@ function formatMoney(value: { toString(): string } | null) {
 }
 
 export default async function ClaimsPage({ searchParams }: Readonly<{
-  searchParams: Promise<{ createError?: string }>;
+  searchParams: Promise<{ createError?: string; routed?: string }>;
 }>) {
   const query = await searchParams;
   const session = await getServerSession(authOptions);
@@ -173,6 +173,8 @@ export default async function ClaimsPage({ searchParams }: Readonly<{
           <span className="w-fit rounded-full bg-zinc-100 px-4 py-2 text-sm font-semibold text-zinc-700">{claims.length} active shown</span>
         </div>
       </div>
+
+      {query.routed ? <p className="mt-5 rounded-md border border-emerald-300 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-950">Claim packet forwarded successfully. The receiving desk now has the action.</p> : null}
 
       <div className="mt-6 rounded-lg border-2 border-red-300 bg-red-50 px-5 py-4 text-sm font-black uppercase leading-6 tracking-wide text-red-900 shadow-sm">
         {CLAIM_SUBMISSION_DEADLINE_NOTICE}

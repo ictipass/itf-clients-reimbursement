@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getClaimDeskForRole, getModuleForWorkItem, isHeadquartersRole } from "../lib/attention";
+import { claimAttentionAssigneeScope, getClaimDeskForRole, getModuleForWorkItem, isHeadquartersRole } from "../lib/attention";
 import { getVisibleNavGroups } from "../lib/navigation";
 
 test("jurisdiction requests and registry have separate attention badges", () => {
@@ -49,4 +49,12 @@ test("claim attention badges follow the claim's current desk role", () => {
   assert.equal(getClaimDeskForRole("HEAD_PRE_AUDIT"), "HEAD_PRE_AUDIT");
   assert.equal(getClaimDeskForRole("PAYMENT_INITIATOR"), "PAYMENT_INITIATOR");
   assert.equal(getClaimDeskForRole("EMPLOYER_VIEWER"), null);
+});
+
+test("a named claim assignment only alerts the selected officer", () => {
+  assert.deepEqual(claimAttentionAssigneeScope("officer-1").OR, [
+    { reimbursementClaimId: null },
+    { assignedUserId: null },
+    { assignedUserId: "officer-1" },
+  ]);
 });

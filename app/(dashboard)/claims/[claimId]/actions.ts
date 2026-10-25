@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { assertClaimActionAssignee, reassignClaimOfficer } from "@/lib/claim-officer-assignment";
 import { readUploadedFile } from "@/lib/storage/staged-upload";
 import type {
   ContributionVerificationSource,
@@ -102,6 +103,15 @@ function readRequiredString(formData: FormData, name: string) {
   return value;
 }
 
+async function requireAssignedClaimOfficer(claimId: string, requesterId: string) {
+  try {
+    await assertClaimActionAssignee({ claimId, requesterId });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "This packet is assigned to another officer.";
+    redirect(`/claims/${claimId}?assignmentError=${encodeURIComponent(message.slice(0, 280))}#claim-routing`);
+  }
+}
+
 export async function recheckClaimAnnualPaymentAction(claimId: string) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) throw new Error("Authentication is required.");
@@ -176,7 +186,7 @@ export async function submitClaimToAreaManagerAction(claimId: string, formData: 
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
   revalidatePath("/dashboard");
-  redirect(`/claims/${claimId}`);
+  redirect("/claims?routed=1");
 }
 
 export async function forwardClaimToHeadOfTrainingAction(
@@ -204,7 +214,7 @@ export async function forwardClaimToHeadOfTrainingAction(
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
   revalidatePath("/dashboard");
-  redirect(`/claims/${claimId}`);
+  redirect("/claims?routed=1");
 }
 
 export async function forwardClaimToAreaReimbursementOfficerAction(
@@ -217,17 +227,23 @@ export async function forwardClaimToAreaReimbursementOfficerAction(
     throw new Error("Authentication is required.");
   }
 
-  await forwardClaimToAreaReimbursementOfficer({
-    claimId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    note: readOptionalString(formData, "note"),
-  });
+  try {
+    await forwardClaimToAreaReimbursementOfficer({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      note: readOptionalString(formData, "note"),
+      assigneeUserId: readOptionalString(formData, "assigneeUserId"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Claim could not be forwarded.";
+    redirect(`/claims/${claimId}?routingError=${encodeURIComponent(message.slice(0, 280))}#claim-routing`);
+  }
 
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
   revalidatePath("/dashboard");
-  redirect(`/claims/${claimId}`);
+  redirect("/claims?routed=1");
 }
 
 export async function forwardClaimAlongWorkflowAction(
@@ -242,6 +258,8 @@ export async function forwardClaimAlongWorkflowAction(
     throw new Error("Authentication is required.");
   }
 
+  await requireAssignedClaimOfficer(claimId, session.user.id);
+
   try {
     await forwardClaimAlongWorkflow({
       claimId,
@@ -250,6 +268,7 @@ export async function forwardClaimAlongWorkflowAction(
       fromDesk,
       toDesk,
       note: readOptionalString(formData, "note"),
+      assigneeUserId: readOptionalString(formData, "assigneeUserId"),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "The claim could not be forwarded.";
@@ -259,7 +278,28 @@ export async function forwardClaimAlongWorkflowAction(
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
   revalidatePath("/dashboard");
-  redirect(`/claims/${claimId}`);
+  redirect("/claims?routed=1");
+}
+
+export async function reassignClaimOfficerAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  try {
+    await reassignClaimOfficer({
+      claimId,
+      requesterId: session.user.id,
+      requesterRole: session.user.role,
+      assigneeUserId: readRequiredString(formData, "assigneeUserId"),
+      reason: readRequiredString(formData, "reason"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The packet could not be reassigned.";
+    redirect(`/claims/${claimId}?assignmentError=${encodeURIComponent(message.slice(0, 280))}#claim-routing`);
+  }
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/dashboard");
+  redirect(`/claims/${claimId}?reassigned=1#claim-routing`);
 }
 
 export async function markClaimKivAction(claimId: string, formData: FormData) {
@@ -284,7 +324,7 @@ export async function markClaimKivAction(claimId: string, formData: FormData) {
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
   revalidatePath("/dashboard");
-  redirect(`/claims/${claimId}`);
+  redirect("/claims?routed=1");
 }
 
 export async function disapproveClaimAtDirectorGeneralAction(claimId: string, formData: FormData) {
@@ -306,7 +346,7 @@ export async function disapproveClaimAtDirectorGeneralAction(claimId: string, fo
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
   revalidatePath("/dashboard");
-  redirect(`/claims/${claimId}`);
+  redirect("/claims?routed=1");
 }
 
 export async function resumeClaimFromKivAction(claimId: string, formData: FormData) {
@@ -331,7 +371,7 @@ export async function resumeClaimFromKivAction(claimId: string, formData: FormDa
   revalidatePath("/claims");
   revalidatePath(`/claims/${claimId}`);
   revalidatePath("/dashboard");
-  redirect(`/claims/${claimId}`);
+  redirect("/claims?routed=1");
 }
 
 export async function updateClaimPaymentHandoffAction(
@@ -343,6 +383,8 @@ export async function updateClaimPaymentHandoffAction(
   if (!session?.user?.email) {
     throw new Error("Authentication is required.");
   }
+
+  await requireAssignedClaimOfficer(claimId, session.user.id);
 
   try {
     await updateClaimPaymentHandoff({
@@ -368,6 +410,7 @@ export async function updateClaimPaymentHandoffAction(
 export async function createEpaymentScheduleAction(claimId: string, formData: FormData) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) throw new Error("Authentication is required.");
+  await requireAssignedClaimOfficer(claimId, session.user.id);
   try {
     await updateClaimPaymentHandoff({
       claimId, requesterEmail: session.user.email, requesterRole: session.user.role, status: "EXPORTED",
@@ -390,6 +433,8 @@ export async function updateClaimAuditReviewAction(claimId: string, formData: Fo
   if (!session?.user?.email) {
     throw new Error("Authentication is required.");
   }
+
+  await requireAssignedClaimOfficer(claimId, session.user.id);
 
   try {
     await updateClaimAuditReview({
@@ -415,6 +460,7 @@ export async function updateClaimAuditReviewAction(claimId: string, formData: Fo
 export async function updatePaymentFileAuditAction(claimId: string, formData: FormData) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) throw new Error("Authentication is required.");
+  await requireAssignedClaimOfficer(claimId, session.user.id);
 
   try {
     await updatePaymentFileAudit({
@@ -442,6 +488,7 @@ export async function updatePaymentFileAuditAction(claimId: string, formData: Fo
 export async function calculateAuditorClaimAction(claimId: string, formData: FormData) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) throw new Error("Authentication is required.");
+  await requireAssignedClaimOfficer(claimId, session.user.id);
 
   try {
     await calculateAuditorClaim({
@@ -525,6 +572,8 @@ export async function uploadClaimEvidenceAction(claimId: string, formData: FormD
     throw new Error("Authentication is required.");
   }
 
+  await requireAssignedClaimOfficer(claimId, session.user.id);
+
   try {
     const file = await readUploadedFile(formData, "evidence", session.user.id);
     await uploadClaimEvidence({
@@ -550,6 +599,8 @@ export async function updateClaimRecommendationAction(claimId: string, formData:
     throw new Error("Authentication is required.");
   }
 
+  await requireAssignedClaimOfficer(claimId, session.user.id);
+
   await updateClaimRecommendation({
     claimId,
     requesterEmail: session.user.email,
@@ -568,6 +619,7 @@ export async function updateClaimRecommendationAction(claimId: string, formData:
 export async function calculateAreaOfficeClaimAction(claimId: string, formData: FormData) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) throw new Error("Authentication is required.");
+  await requireAssignedClaimOfficer(claimId, session.user.id);
 
   try {
     await calculateAreaOfficeClaim({
@@ -602,6 +654,7 @@ export async function calculateAreaOfficeClaimAction(claimId: string, formData: 
 export async function calculateHeadquartersClaimAction(claimId: string, formData: FormData) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) throw new Error("Authentication is required.");
+  await requireAssignedClaimOfficer(claimId, session.user.id);
 
   try {
     await calculateHeadquartersClaim({
@@ -642,6 +695,8 @@ export async function updateClaimContributionVerificationAction(
   if (!session?.user?.email) {
     throw new Error("Authentication is required.");
   }
+
+  await requireAssignedClaimOfficer(claimId, session.user.id);
 
   try {
     await updateClaimContributionVerification({

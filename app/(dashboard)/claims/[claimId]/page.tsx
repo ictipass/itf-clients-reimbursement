@@ -20,6 +20,7 @@ import {
   forwardClaimToAreaReimbursementOfficerAction,
   forwardClaimToHeadOfTrainingAction,
   markClaimKivAction,
+  reassignClaimOfficerAction,
   recheckClaimAnnualPaymentAction,
   resumeClaimFromKivAction,
   submitClaimToAreaManagerAction,
@@ -36,6 +37,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { getAreaOfficeCalculationBaseline } from "@/lib/area-office-claim-calculation";
 import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
+import { getClaimAssignmentSenderId, isClaimAssignedToAnotherOfficer, isIndividuallyAssignedClaimRole, listAssignableClaimOfficers } from "@/lib/claim-officer-assignment";
 import { nairaInWords } from "@/lib/naira-in-words";
 import { listActiveBankOptions } from "@/lib/bank-directory";
 import {
@@ -146,7 +148,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; assignmentError?: string; reassigned?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -209,7 +211,7 @@ export default async function ClaimDetailPage({
       currentDesk: true,
       policyEdition: true,
       submittedAt: true,
-      workItems: { where: { app: "REIMBURSEMENT", recordTier: "HOT" }, select: { assignedRole: true, status: true, updatedAt: true } },
+      workItems: { where: { app: "REIMBURSEMENT", recordTier: "HOT" }, orderBy: { updatedAt: "desc" }, select: { assignedRole: true, assignedUserId: true, assignedUser: { select: { name: true } }, status: true, updatedAt: true } },
       auditReview: {
         select: {
           status: true,
@@ -319,6 +321,7 @@ export default async function ClaimDetailPage({
         select: {
           id: true,
           legalName: true,
+          areaOfficeId: true,
           itfEmployerNumber: true,
           organization: { select: { workspaceId: true } },
           areaOffice: {
@@ -489,6 +492,21 @@ export default async function ClaimDetailPage({
       scheduleCreated: Boolean(claim.paymentScheduleExportedAt),
     });
   });
+  const currentWorkItem = claim.workItems.find((item) => item.status === "OPEN" && item.assignedRole === claim.currentDesk);
+  const assignedElsewhere = isClaimAssignedToAnotherOfficer(currentWorkItem?.assignedUserId ?? null, currentUser?.id ?? null);
+  const currentAssignmentRole = isIndividuallyAssignedClaimRole(claim.currentDesk) ? claim.currentDesk : null;
+  const canReassignOfficer = Boolean(currentAssignmentRole && currentWorkItem && currentUser && (
+    activeRole === "SYSTEM_ADMIN" || activeRole === "WORKSPACE_APP_ADMIN" ||
+    await getClaimAssignmentSenderId(claim.id, currentAssignmentRole) === currentUser.id));
+  const destinationRoles = Array.from(new Set([
+    ...(canForwardToAreaReimbursementOfficer ? ["REIMBURSEMENT_OFFICER"] : []),
+    ...availablePostIntakeTransitions.map((transition) => transition.to),
+    ...(canReassignOfficer && currentAssignmentRole ? [currentAssignmentRole] : []),
+  ].filter(isIndividuallyAssignedClaimRole)));
+  const assignmentOptions = new Map(await Promise.all(destinationRoles.map(async (role) => [
+    role,
+    await listAssignableClaimOfficers({ role, workspaceId: claim.company.organization.workspaceId, areaOfficeId: claim.company.areaOfficeId }),
+  ] as const)));
   const staffEntriesByArea = {
     MANAGEMENT: claim.staffEntries.filter((entry) => entry.trainingArea === "MANAGEMENT"),
     SUPERVISORY: claim.staffEntries.filter((entry) => entry.trainingArea === "SUPERVISORY"),
@@ -567,6 +585,21 @@ export default async function ClaimDetailPage({
       {query.routingError ? (
         <p className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-900">{query.routingError}</p>
       ) : null}
+      {query.assignmentError ? <p className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">{query.assignmentError}</p> : null}
+      {query.reassigned ? <p className="mt-4 rounded-md bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">The packet was reassigned. The decision trail records who reassigned it and why.</p> : null}
+      {currentWorkItem?.assignedUserId ? <p className="mt-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">Current officer: <strong>{currentWorkItem.assignedUser?.name ?? "Assigned officer"}</strong>{assignedElsewhere ? ". You can view this packet, but only the assigned officer can edit or forward it." : "."}</p> : null}
+      {assignedElsewhere && session?.user?.email && isItfRole(activeRole) ? <form action={recheckClaimAnnualPaymentAction.bind(null, claim.id)} className="mt-3"><button className="min-h-10 rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">Recheck annual payment</button></form> : null}
+      {canReassignOfficer && currentAssignmentRole ? <section className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4">
+        <h2 className="font-semibold text-amber-950">Reassign current officer</h2>
+        <p className="mt-1 text-sm text-amber-900">The forwarding officer or a workspace administrator can move this open assignment to another eligible officer. Record why.</p>
+        {(assignmentOptions.get(currentAssignmentRole) ?? []).filter((officer) => officer.id !== currentWorkItem?.assignedUserId).length === 0 ? <p className="mt-3 text-sm font-semibold text-amber-950">No other active officer is available in this role and jurisdiction.</p> : <form action={reassignClaimOfficerAction.bind(null, claim.id)} className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
+          <label className="grid gap-1 text-sm font-medium md:col-span-2">New officer<select name="assigneeUserId" required defaultValue="" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"><option value="" disabled>Select another officer</option>{(assignmentOptions.get(currentAssignmentRole) ?? []).filter((officer) => officer.id !== currentWorkItem?.assignedUserId).map((officer) => <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>)}</select></label>
+          <input name="reason" required placeholder="Reason for reassignment" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
+          <button className="min-h-10 rounded-md border border-[#800020] bg-white px-4 text-sm font-semibold text-[#800020]">Reassign packet</button>
+        </form>}
+      </section> : null}
+
+      <fieldset disabled={assignedElsewhere} className="min-w-0 border-0 p-0">
 
       <div className="mt-4 rounded-lg border border-[#800020]/20 bg-[#800020]/5 px-5 py-4">
         <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#800020]">
@@ -721,6 +754,7 @@ export default async function ClaimDetailPage({
               action={forwardClaimToAreaReimbursementOfficerAction.bind(null, claim.id)}
               className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]"
             >
+              <label className="grid gap-1 text-sm font-medium md:col-span-2">Assign A/O Reimbursement Officer<select name="assigneeUserId" required defaultValue={assignmentOptions.get("REIMBURSEMENT_OFFICER")?.length === 1 ? assignmentOptions.get("REIMBURSEMENT_OFFICER")?.[0].id : ""} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"><option value="" disabled>Select officer</option>{(assignmentOptions.get("REIMBURSEMENT_OFFICER") ?? []).map((officer) => <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>)}</select>{!assignmentOptions.get("REIMBURSEMENT_OFFICER")?.length ? <span className="text-red-800">No active Area Office RO is configured for this office.</span> : null}</label>
               <input
                 name="note"
                 placeholder="Optional HOT note"
@@ -742,6 +776,7 @@ export default async function ClaimDetailPage({
               )}
               className="mt-5 grid gap-3 md:grid-cols-[1fr_auto]"
             >
+              {isIndividuallyAssignedClaimRole(transition.to) ? <label className="grid gap-1 text-sm font-medium md:col-span-2">Assign {formatClaimDesk(transition.to)}<select name="assigneeUserId" required defaultValue={assignmentOptions.get(transition.to)?.length === 1 ? assignmentOptions.get(transition.to)?.[0].id : ""} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"><option value="" disabled>Select officer</option>{(assignmentOptions.get(transition.to) ?? []).map((officer) => <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>)}</select>{!assignmentOptions.get(transition.to)?.length ? <span className="text-red-800">No active officer is configured for this role.</span> : null}</label> : null}
               <input
                 name="note"
                 required={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") || (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT")}
@@ -793,6 +828,42 @@ export default async function ClaimDetailPage({
         </section>
         </CollapsibleClaimSection>
       ) : null}
+
+      <CollapsibleClaimSection title="Claim decision trail">
+      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+          <div>
+            <h2 className="text-xl font-semibold tracking-tight">Claim decision trail</h2>
+            <p className="mt-2 text-sm leading-6 text-zinc-600">
+              Chronological record of claim routing, recommendations, KIV pauses/resumptions,
+              payment updates, and settlement decisions for this employer.
+            </p>
+          </div>
+          <span className="inline-flex w-fit rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700">
+            {claim.decisions.length} recent decision{claim.decisions.length === 1 ? "" : "s"}
+          </span>
+        </div>
+        {claim.decisions.length === 0 ? (
+          <p className="mt-4 text-sm leading-6 text-zinc-600">No decision trail has been recorded for this claim yet.</p>
+        ) : (
+          <ol className="mt-5 space-y-4">
+            {claim.decisions.map((decision) => (
+              <li key={decision.id} className="rounded-lg border border-zinc-100 bg-zinc-50 p-4 text-sm">
+                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="font-semibold uppercase tracking-[0.12em] text-[#800020]">{formatDecisionAction(decision.action)}</p>
+                    <p className="mt-1 font-semibold text-zinc-950">{decision.actor.name}</p>
+                    <p className="text-xs text-zinc-500">{decision.actor.email}</p>
+                  </div>
+                  <time className="text-xs font-semibold text-zinc-500">{formatDate(decision.createdAt)}</time>
+                </div>
+                <p className="mt-3 leading-6 text-zinc-700">{decision.reason ?? "No reason or note recorded."}</p>
+              </li>
+            ))}
+          </ol>
+        )}
+      </section>
+      </CollapsibleClaimSection>
 
       {!isItfRole(activeRole) ? <CollapsibleClaimSection title="Attached approved trainings">
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
@@ -906,7 +977,7 @@ export default async function ClaimDetailPage({
           </span>
         </div>
 
-        {session?.user?.email && isItfRole(activeRole) ? (
+        {!assignedElsewhere && session?.user?.email && isItfRole(activeRole) ? (
           <form action={recheckClaimAnnualPaymentAction.bind(null, claim.id)} className="mt-4">
             <button className="min-h-10 rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">
               Recheck annual payment
@@ -1795,56 +1866,6 @@ export default async function ClaimDetailPage({
       </section>
       </CollapsibleClaimSection>
 
-      <CollapsibleClaimSection title="Claim decision trail">
-      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
-        <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold tracking-tight">Claim decision trail</h2>
-            <p className="mt-2 text-sm leading-6 text-zinc-600">
-              Chronological record of claim routing, recommendations, KIV pauses/resumptions,
-              payment updates, and settlement decisions for this employer.
-            </p>
-          </div>
-          <span className="inline-flex w-fit rounded-full border border-zinc-200 px-3 py-1 text-xs font-semibold text-zinc-700">
-            {claim.decisions.length} recent decision{claim.decisions.length === 1 ? "" : "s"}
-          </span>
-        </div>
-
-        {claim.decisions.length === 0 ? (
-          <p className="mt-4 text-sm leading-6 text-zinc-600">
-            No decision trail has been recorded for this claim yet.
-          </p>
-        ) : (
-          <ol className="mt-5 space-y-4">
-            {claim.decisions.map((decision) => (
-              <li
-                key={decision.id}
-                className="rounded-lg border border-zinc-100 bg-zinc-50 p-4 text-sm"
-              >
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="font-semibold uppercase tracking-[0.12em] text-[#800020]">
-                      {formatDecisionAction(decision.action)}
-                    </p>
-                    <p className="mt-1 font-semibold text-zinc-950">
-                      {decision.actor.name}
-                    </p>
-                    <p className="text-xs text-zinc-500">{decision.actor.email}</p>
-                  </div>
-                  <time className="text-xs font-semibold text-zinc-500">
-                    {formatDate(decision.createdAt)}
-                  </time>
-                </div>
-                <p className="mt-3 leading-6 text-zinc-700">
-                  {decision.reason ?? "No reason or note recorded."}
-                </p>
-              </li>
-            ))}
-          </ol>
-        )}
-      </section>
-      </CollapsibleClaimSection>
-
       {isItfRole(activeRole) ? (
         <CollapsibleClaimSection title="Area Office Form 1B reviewed claim">
           <section id="area-office-calculation" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
@@ -1962,6 +1983,7 @@ export default async function ClaimDetailPage({
         </CollapsibleClaimSection>
       ) : null}
 
+      </fieldset>
     </div>
   );
 }

@@ -465,6 +465,7 @@ function buildScopedWorkItemWhere(
       {
         OR: buildAssigneeScope(requesterRole, requester),
       },
+      claimAttentionAssigneeScope(requester?.id ?? null),
       {
         OR: [
           {
@@ -484,6 +485,16 @@ function buildScopedWorkItemWhere(
             : []),
         ],
       },
+    ],
+  };
+}
+
+export function claimAttentionAssigneeScope(requesterId: string | null) {
+  return {
+    OR: [
+      { reimbursementClaimId: null },
+      { assignedUserId: null },
+      { assignedUserId: requesterId ?? "" },
     ],
   };
 }
