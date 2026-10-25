@@ -8,6 +8,7 @@ import {
   canRouteClaimFromDesk,
   getLatestClaimRoutingReason,
   getClaimIntakeTransitions,
+  getClaimCorrectionReturnTarget,
   getClaimPostIntakeTransitions,
   isClaimPostIntakeTransitionAvailable,
 } from "../lib/claims";
@@ -153,4 +154,12 @@ test("only the current desk role can route a reimbursement claim", () => {
   assert.equal(canRouteClaimFromDesk("PRE_AUDIT_OFFICER", "PRE_AUDIT_OFFICER"), true);
   assert.equal(canRouteClaimFromDesk("SYSTEM_ADMIN", "DIRECTOR_AUDIT"), true);
   assert.equal(canRouteClaimFromDesk("EMPLOYER_SUBMITTER", "COMPANY"), true);
+});
+
+test("HQ correction returns are available only after the subordinate sent the packet", () => {
+  assert.equal(getClaimCorrectionReturnTarget("HEAD_OF_DIVISION", "HQ RO returned reimbursement claim to Head Reimbursement Division."), "HQ_REIMBURSEMENT_OFFICER");
+  assert.equal(getClaimCorrectionReturnTarget("HEAD_OF_DIVISION", "Director FSD forwarded reimbursement claim to Head Reimbursement Division."), null);
+  assert.equal(getClaimCorrectionReturnTarget("HEAD_REIMBURSEMENT_AUDIT", "Reimbursement Schedule Auditor returned audit result to Head Reimbursement Audit."), "REIMBURSEMENT_SCHEDULE_AUDITOR");
+  assert.equal(getClaimCorrectionReturnTarget("HEAD_BUDGET", "Budget Officer returned reimbursement budget clearance to Head Budget."), "BUDGET_OFFICER");
+  assert.equal(getClaimCorrectionReturnTarget("HEAD_PRE_AUDIT", "Pre-Audit Officer returned reimbursement payment audit result to Head Pre-Audit."), "PRE_AUDIT_OFFICER");
 });

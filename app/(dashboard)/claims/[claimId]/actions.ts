@@ -27,6 +27,8 @@ import {
   getClaimEvidenceKinds,
   markClaimKiv,
   recheckClaimAnnualPayment,
+  saveHqComputationTable,
+  returnClaimForCorrection,
   resumeClaimFromKiv,
   submitClaimToAreaManager,
   updateClaimAuditReview,
@@ -280,6 +282,47 @@ export async function forwardClaimAlongWorkflowAction(
   revalidatePath(`/claims/${claimId}`);
   revalidatePath("/dashboard");
   redirect("/claims?routed=1");
+}
+
+export async function returnClaimForCorrectionAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  await requireAssignedClaimOfficer(claimId, session.user.id);
+  try {
+    await returnClaimForCorrection({
+      claimId, requesterEmail: session.user.email, requesterRole: session.user.role,
+      note: readRequiredString(formData, "correctionReason"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The claim could not be returned.";
+    redirect(`/claims/${claimId}?routingError=${encodeURIComponent(message.slice(0, 280))}#claim-routing`);
+  }
+  revalidatePath("/claims");
+  revalidatePath(`/claims/${claimId}`);
+  revalidatePath("/dashboard");
+  redirect("/claims?routed=1");
+}
+
+export async function saveHqComputationTableAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  await requireAssignedClaimOfficer(claimId, session.user.id);
+  try {
+    const lineIds = formData.getAll("hqLineId").map(String);
+    await saveHqComputationTable({
+      claimId, requesterEmail: session.user.email, requesterRole: session.user.role,
+      rows: lineIds.map((lineId) => ({
+        lineId,
+        expenditureClaimed: readRequiredNumber(formData, `expenditure_${lineId}`),
+        remarks: readOptionalString(formData, `remarks_${lineId}`) ?? "",
+      })),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The HQ computation table could not be saved.";
+    redirect(`/claims/${claimId}?computationError=${encodeURIComponent(message.slice(0, 280))}#computation-table`);
+  }
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?computationSaved=1#computation-table`);
 }
 
 export async function reassignClaimOfficerAction(claimId: string, formData: FormData) {

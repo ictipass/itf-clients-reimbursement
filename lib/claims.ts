@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { buildHqComputationTableSummary, isCurrentHqComputationTable } from "@/lib/hq-computation-table";
 import { requiredVoucherSignoffForHandoff } from "@/lib/reimbursement-voucher-signoffs";
 import { isIndividuallyAssignedClaimRole, listAssignableClaimOfficers, resolveClaimOfficerAssignment } from "@/lib/claim-officer-assignment";
 import { nairaInWords } from "@/lib/naira-in-words";
@@ -109,6 +110,12 @@ export type CalculateAreaOfficeClaimInput = {
 };
 
 export type CalculateHeadquartersClaimInput = CalculateAreaOfficeClaimInput;
+export type SaveHqComputationTableInput = {
+  claimId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  rows: { lineId: string; expenditureClaimed: number; remarks: string }[];
+};
 
 export type UpdateClaimContributionVerificationInput = {
   claimId: string;
@@ -260,6 +267,11 @@ export function formatClaimDesk(desk: ClaimDesk) {
     DIRECTOR_FSD: "Director, Field Services Department",
     HEAD_OF_DIVISION: "Head of Reimbursement Division",
     HQ_REIMBURSEMENT_OFFICER: "HQ Reimbursement Officer",
+    HEAD_REIMBURSEMENT_AUDIT: "Head Reimbursement Audit",
+    REIMBURSEMENT_SCHEDULE_AUDITOR: "Reimbursement Schedule Auditor",
+    HEAD_BUDGET: "Head Budget",
+    BUDGET_OFFICER: "Budget Officer",
+    PRE_AUDIT_OFFICER: "Pre-Audit Officer",
     DIRECTOR_FINANCE: "Director, Finance and Accounts Department",
     HEAD_ACCOUNTS: "Head of Accounts",
     HEAD_REIMBURSEMENT_FINANCE: "Head of Reimbursement Account",
@@ -780,6 +792,95 @@ export function getLatestClaimRoutingReason(decisions: readonly { reason: string
   return decisions.find((decision) => reasons.some((reason) => decision.reason?.startsWith(reason)))?.reason ?? "";
 }
 
+const claimCorrectionReturns = [
+  { from: "HEAD_OF_DIVISION", to: "HQ_REIMBURSEMENT_OFFICER", arrived: "HQ RO returned reimbursement claim" },
+  { from: "HEAD_REIMBURSEMENT_AUDIT", to: "REIMBURSEMENT_SCHEDULE_AUDITOR", arrived: "Reimbursement Schedule Auditor returned audit result" },
+  { from: "HEAD_BUDGET", to: "BUDGET_OFFICER", arrived: "Budget Officer returned reimbursement budget clearance" },
+  { from: "HEAD_PRE_AUDIT", to: "PRE_AUDIT_OFFICER", arrived: "Pre-Audit Officer returned reimbursement payment audit result" },
+] as const satisfies readonly { from: ClaimDesk; to: ClaimDesk; arrived: string }[];
+
+export function getClaimCorrectionReturnTarget(desk: ClaimDesk, latestRoutingReason: string): Exclude<ClaimDesk, "COMPANY"> | null {
+  return claimCorrectionReturns.find((item) => item.from === desk && latestRoutingReason.startsWith(item.arrived))?.to ?? null;
+}
+
+export async function returnClaimForCorrection(input: ClaimRoutingInput) {
+  const note = input.note?.trim();
+  if (!note) throw new Error("Explain what the officer must correct before returning the claim.");
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: { id: input.claimId, status: "SUBMITTED", recordTier: "HOT", company: { isActive: true, recordTier: "HOT" } },
+    select: {
+      id: true, companyId: true, currentDesk: true,
+      company: { select: { legalName: true, organizationId: true, areaOfficeId: true, organization: { select: { workspaceId: true } } } },
+      decisions: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 60, select: { reason: true, actorId: true } },
+    },
+  });
+  if (!claim || !canRouteClaimFromDesk(input.requesterRole, claim.currentDesk)) throw new Error("This claim is not at your review desk.");
+  const latestReason = getLatestClaimRoutingReason(claim.decisions);
+  const target = getClaimCorrectionReturnTarget(claim.currentDesk, latestReason);
+  if (!target) throw new Error("A correction return is not available at this review stage.");
+  const forwardingReason = getClaimPostIntakeTransitions().find((item) => item.from === target && item.to === claim.currentDesk)?.reason;
+  const senderDecision = claim.decisions.find((decision) => decision.reason?.startsWith(forwardingReason ?? "\0"));
+  if (!senderDecision) throw new Error("The sending officer could not be identified.");
+  const actor = await db.user.findFirst({
+    where: { email: input.requesterEmail, isActive: true, memberships: { some: { isActive: true, role: input.requesterRole, workspaceId: claim.company.organization.workspaceId } } },
+    select: { id: true },
+  });
+  if (!actor) throw new Error("You do not have access to return this claim.");
+  const sender = await db.user.findFirst({
+    where: { id: senderDecision.actorId, isActive: true, memberships: { some: { isActive: true, role: target, workspaceId: claim.company.organization.workspaceId } } },
+    select: { id: true, name: true },
+  });
+  if (!sender) throw new Error("The sending officer is no longer active in this role. Ask an administrator to resolve the assignment.");
+  const now = new Date();
+  return db.$transaction(async (tx) => {
+    await tx.reimbursementClaim.update({
+      where: { id: claim.id, currentDesk: claim.currentDesk, status: "SUBMITTED" },
+      data: { currentDesk: target }, select: { id: true },
+    });
+    await tx.workItem.updateMany({ where: { reimbursementClaimId: claim.id, status: "OPEN", app: "REIMBURSEMENT" }, data: { status: "RESOLVED", resolvedAt: now } });
+    await tx.workItem.upsert({
+      where: { sourceKey: getClaimWorkItemSourceKey(claim.id, target) },
+      create: {
+        sourceKey: getClaimWorkItemSourceKey(claim.id, target), workspaceId: claim.company.organization.workspaceId,
+        organizationId: claim.company.organizationId, areaOfficeId: claim.company.areaOfficeId,
+        companyId: claim.companyId, reimbursementClaimId: claim.id, app: "REIMBURSEMENT", recordTier: "HOT",
+        kind: "REIMBURSEMENT_CLAIM_REVIEW", assignedRole: target, assignedUserId: sender.id,
+        status: "OPEN", priority: "NORMAL", title: "Correct returned reimbursement claim",
+        summary: `${claim.company.legalName} has a claim returned for correction: ${note}`,
+        targetHref: `/claims/${claim.id}`,
+      },
+      update: {
+        status: "OPEN", resolvedAt: null, emailNotifiedAt: null, assignedRole: target, assignedUserId: sender.id,
+        priority: "NORMAL", title: "Correct returned reimbursement claim",
+        summary: `${claim.company.legalName} has a claim returned for correction: ${note}`,
+        targetHref: `/claims/${claim.id}`,
+      },
+      select: { id: true },
+    });
+    if (target === "REIMBURSEMENT_SCHEDULE_AUDITOR") {
+      await tx.reimbursementAuditReview.updateMany({ where: { reimbursementClaimId: claim.id }, data: {
+        status: "DRAFT", auditedAmount: null, varianceAmount: null, preparedById: null, preparedAt: null,
+        verifiedById: null, verifiedAt: null,
+      } });
+    }
+    if (target === "PRE_AUDIT_OFFICER") {
+      await tx.reimbursementPaymentFileAudit.updateMany({ where: { reimbursementClaimId: claim.id }, data: {
+        status: "DRAFT", voucherChecked: false, budgetChecked: false, bankDetailsChecked: false, amountChecked: false,
+        preparedById: null, preparedAt: null, verifiedById: null, verifiedAt: null,
+      } });
+      await tx.reimbursementVoucherSignoff.deleteMany({ where: { reimbursementClaimId: claim.id, kind: { in: ["PRE_AUDIT_CLEARED", "PRE_AUDIT_VERIFIED"] } } });
+    }
+    if (target === "BUDGET_OFFICER") {
+      await tx.reimbursementVoucherSignoff.deleteMany({ where: { reimbursementClaimId: claim.id, kind: { in: ["BUDGET_CLEARED", "BUDGET_VERIFIED"] } } });
+    }
+    await tx.decision.create({
+      data: { actorId: actor.id, companyId: claim.companyId, reimbursementClaimId: claim.id,
+        action: "REQUEST_CHANGES", reason: `${formatClaimDesk(claim.currentDesk)} returned the claim to ${sender.name} (${formatClaimDesk(target)}) for correction. Previous clearance at that desk, if any, was voided. Reason: ${note}` },
+    });
+  });
+}
+
 export function requiredAuditForClaimHandoff(from: ClaimDesk, to: ClaimDesk) {
   if (from === "REIMBURSEMENT_SCHEDULE_AUDITOR" && to === "HEAD_REIMBURSEMENT_AUDIT") return { kind: "CLAIM", status: "SUBMITTED" } as const;
   if (from === "HEAD_REIMBURSEMENT_AUDIT" && to === "DIRECTOR_AUDIT") return { kind: "CLAIM", status: "VERIFIED" } as const;
@@ -877,6 +978,7 @@ async function moveClaimThroughIntake(
     },
     select: {
       id: true,
+      name: true,
       memberships: {
         where: { isActive: true },
         select: {
@@ -908,10 +1010,11 @@ async function moveClaimThroughIntake(
       claimYear: true,
       paymentHandoffStatus: true,
       voucherSignoffRequired: true,
+      computationRequired: true,
       claimRecommendedAmount: true,
       voucherSignoffs: { select: { kind: true } },
       paymentScheduleExportedAt: true,
-      decisions: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 60, select: { reason: true } },
+      decisions: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 60, select: { reason: true, createdAt: true } },
       company: {
         select: {
           legalName: true,
@@ -1006,6 +1109,7 @@ async function moveClaimThroughIntake(
   }
 
   let approvedHeadquartersAmount: number | undefined;
+  let computationToConfirmId: string | undefined;
   if (
     (transition.from === "HQ_REIMBURSEMENT_OFFICER" && transition.to === "HEAD_OF_DIVISION") ||
     (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") ||
@@ -1013,14 +1117,33 @@ async function moveClaimThroughIntake(
   ) {
     const headquartersCalculation = await db.reimbursementCalculationSnapshot.findFirst({
       where: { reimbursementClaimId: claim.id, stage: "HEADQUARTERS", recordTier: "HOT" },
-      select: { totalAmountAwarded: true },
+      select: { totalAmountAwarded: true, createdAt: true },
       orderBy: [{ createdAt: "desc" }, { id: "desc" }],
     });
     if (!headquartersCalculation) throw new Error("The HQ Reimbursement Officer must save a verified Form 2A/1B calculation before this claim can advance.");
+    const table = claim.computationRequired ? await db.reimbursementComputationTable.findFirst({
+      where: { reimbursementClaimId: claim.id, recordTier: "HOT" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: { id: true, status: true, createdAt: true, amountRecommended: true },
+    }) : null;
+    const lastHqCorrectionAt = claim.decisions.find((decision) => decision.reason?.startsWith("Head of Reimbursement Division returned the claim to"))?.createdAt;
+    if (claim.computationRequired && !isCurrentHqComputationTable({ tableCreatedAt: table?.createdAt ?? null, calculationCreatedAt: headquartersCalculation.createdAt, lastCorrectionAt: lastHqCorrectionAt })) {
+      throw new Error("The HQ RO must prepare a computation table from the latest Form 1B calculation before this claim advances.");
+    }
+    if (transition.from === "HQ_REIMBURSEMENT_OFFICER" && transition.to === "HEAD_OF_DIVISION" && claim.computationRequired && table?.status !== "PREPARED") {
+      throw new Error("Prepare the HQ computation table before returning this claim to Head of Division.");
+    }
+    if (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD" && table) {
+      if (table.status !== "PREPARED") throw new Error("Head of Division can confirm only a prepared HQ computation table.");
+      computationToConfirmId = table.id;
+    }
+    if (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT" && table?.status !== "CONFIRMED" && claim.computationRequired) {
+      throw new Error("Head of Division must confirm the HQ computation table before DFSD approval.");
+    }
     if (transition.from !== "HQ_REIMBURSEMENT_OFFICER" && !input.note?.trim()) {
       throw new Error("Head of Reimbursement Division review and Director FSD approval each require a written decision note.");
     }
-    if (transition.to === "DIRECTOR_AUDIT") approvedHeadquartersAmount = Number(headquartersCalculation.totalAmountAwarded.toString());
+    if (transition.to === "DIRECTOR_AUDIT") approvedHeadquartersAmount = Number((table?.amountRecommended ?? headquartersCalculation.totalAmountAwarded).toString());
   }
 
   if (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT") {
@@ -1099,6 +1222,14 @@ async function moveClaimThroughIntake(
         id: true,
       },
     });
+
+    if (computationToConfirmId) {
+      await tx.reimbursementComputationTable.update({
+        where: { id: computationToConfirmId, status: "PREPARED" },
+        data: { status: "CONFIRMED", confirmedById: actor.id, confirmedByName: actor.name, confirmedAt: now },
+        select: { id: true },
+      });
+    }
 
     await tx.workItem.updateMany({
       where: {
@@ -1658,6 +1789,10 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
         voucherSignoffs: { orderBy: { signedAt: "asc" }, select: { kind: true, actorRole: true, amount: true, remark: true, signedAt: true, actor: { select: { name: true } } } },
         documents: { where: { isActive: true, recordTier: "HOT" }, orderBy: { createdAt: "asc" }, select: { id: true, kind: true, fileName: true, createdAt: true } },
         trainingRequests: { select: { trainingRequest: { select: { id: true, title: true, approvalReference: true } } } },
+        computationTables: { where: { recordTier: "HOT" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: {
+          amountRecommended: true, recommendedContributionPercent: true, confirmedByName: true,
+          rows: { orderBy: { sortOrder: "asc" }, select: { areaOfTraining: true, equivalentAmountOfContribution: true, expenditureClaimed: true, amountAwardedLowerOfContributionOrClaim: true, remarks: true } },
+        } },
         decisions: { orderBy: { createdAt: "asc" }, select: { action: true, reason: true, createdAt: true, actor: { select: { name: true } } } },
       },
     }) : null;
@@ -1683,6 +1818,16 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
       ],
       evidence: archiveSource.documents.map((document) => ({ id: document.id, kind: document.kind, fileName: document.fileName, uploadedAt: document.createdAt.toISOString() })),
       trainings: archiveSource.trainingRequests.map(({ trainingRequest }) => ({ id: trainingRequest.id, title: trainingRequest.title, approvalReference: trainingRequest.approvalReference })),
+      hqComputation: archiveSource.computationTables[0] ? {
+        amountRecommended: archiveSource.computationTables[0].amountRecommended.toString(),
+        recommendedContributionPercent: archiveSource.computationTables[0].recommendedContributionPercent?.toString() ?? null,
+        confirmedBy: archiveSource.computationTables[0].confirmedByName,
+        rows: archiveSource.computationTables[0].rows.map((row) => ({
+          area: row.areaOfTraining, equivalentContribution: row.equivalentAmountOfContribution?.toString() ?? null,
+          expenditureClaimed: row.expenditureClaimed?.toString() ?? null,
+          awarded: row.amountAwardedLowerOfContributionOrClaim?.toString() ?? null, remarks: row.remarks,
+        })),
+      } : null,
       decisions: [
         ...archiveSource.decisions.map((decision) => ({ action: decision.action, reason: decision.reason, officer: decision.actor.name, at: decision.createdAt.toISOString() })),
         { action: "SETTLE", reason: `Payment recorded. Reference: ${input.paymentSystemReference?.trim() ?? "Not recorded"}. ${note ?? ""}`.trim(), officer: actor.name, at: now.toISOString() },
@@ -1792,11 +1937,14 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
       id: true,
       companyId: true,
       currentDesk: true,
+      computationRequired: true,
+      computationTables: { where: { recordTier: "HOT" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { amountRecommended: true, status: true } },
+      decisions: { where: { reason: { startsWith: "Head Reimbursement Audit returned the claim to" } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { createdAt: true } },
       auditReview: { select: { status: true } },
       calculationSnapshots: {
         where: { stage: { in: ["AUDIT", "HEADQUARTERS"] }, recordTier: "HOT" },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: { stage: true, totalAmountAwarded: true },
+        select: { stage: true, totalAmountAwarded: true, createdAt: true },
       },
       company: { select: { organization: { select: { workspaceId: true } } } },
     },
@@ -1809,9 +1957,12 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
   if (!canSetClaimAuditStatus({ role: input.requesterRole, desk: claim.currentDesk, currentStatus: claim.auditReview?.status, nextStatus: input.status })) {
     throw new Error("This claim-audit decision is not available at the current desk or review stage.");
   }
-  const headquartersAmount = claim.calculationSnapshots.find((snapshot) => snapshot.stage === "HEADQUARTERS")?.totalAmountAwarded;
+  const headquartersAmount = claim.computationRequired
+    ? (claim.computationTables[0]?.status === "CONFIRMED" ? claim.computationTables[0].amountRecommended : null)
+    : claim.calculationSnapshots.find((snapshot) => snapshot.stage === "HEADQUARTERS")?.totalAmountAwarded;
   if (!headquartersAmount) throw new Error("The HQ reviewed calculation is required before claim audit.");
-  const auditAmount = claim.calculationSnapshots.find((snapshot) => snapshot.stage === "AUDIT")?.totalAmountAwarded;
+  const lastAuditReturnAt = claim.decisions[0]?.createdAt;
+  const auditAmount = claim.calculationSnapshots.find((snapshot) => snapshot.stage === "AUDIT" && (!lastAuditReturnAt || snapshot.createdAt > lastAuditReturnAt))?.totalAmountAwarded;
   const determinedAmount = auditAmount ?? headquartersAmount;
   const varianceAmount = Math.round((Number(determinedAmount.toString()) - Number(headquartersAmount.toString())) * 100) / 100;
   if (input.status === "SUBMITTED" && !input.observations?.trim()) throw new Error("The Schedule Auditor must record audit observations.");
@@ -2535,7 +2686,7 @@ export async function calculateHeadquartersClaim(input: CalculateHeadquartersCla
 
   return db.$transaction(async (tx) => {
     await tx.reimbursementClaimLine.deleteMany({ where: { reimbursementClaimId: claim.id, stage: "HEADQUARTERS" } });
-    await tx.reimbursementClaim.update({ where: { id: claim.id }, data: { lines: { create: lines } }, select: { id: true } });
+    await tx.reimbursementClaim.update({ where: { id: claim.id }, data: { computationRequired: true, lines: { create: lines } }, select: { id: true } });
     const snapshot = await tx.reimbursementCalculationSnapshot.create({
       data: {
         reimbursementClaimId: claim.id, stage: "HEADQUARTERS", policyEdition: claim.policyEdition,
@@ -2552,6 +2703,99 @@ export async function calculateHeadquartersClaim(input: CalculateHeadquartersCla
     });
     return snapshot;
   });
+}
+
+export async function saveHqComputationTable(input: SaveHqComputationTableInput) {
+  if (input.requesterRole !== "HQ_REIMBURSEMENT_OFFICER" && !isAdminRole(input.requesterRole)) {
+    throw new Error("Only the HQ Reimbursement Officer may prepare the computation table.");
+  }
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: { id: input.claimId, recordTier: "HOT", status: "SUBMITTED", currentDesk: "HQ_REIMBURSEMENT_OFFICER" },
+    select: {
+      id: true, companyId: true, claimYear: true, trainingContributionPaid: true, itfReceiptNumber: true,
+      company: { select: { legalName: true, itfEmployerNumber: true, areaOffice: { select: { name: true } }, organization: { select: { workspaceId: true } } } },
+      calculationSnapshots: { where: { stage: "HEADQUARTERS", recordTier: "HOT" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { id: true, createdAt: true } },
+      lines: { where: { stage: "HEADQUARTERS" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: {
+        id: true, awardArea: true, trainingArea: true, emphasisNumber: true, totalWorkforce: true, totalTrained: true,
+        percentTrained: true, percentAwarded: true,
+      } },
+    },
+  });
+  if (!claim?.calculationSnapshots.length || !claim.trainingContributionPaid || !claim.lines.length) {
+    throw new Error("Save the HQ Form 1B calculation before preparing its computation table.");
+  }
+  const contributionPaid = claim.trainingContributionPaid;
+  const actor = await db.user.findFirst({
+    where: { email: input.requesterEmail, isActive: true, memberships: { some: { isActive: true, role: input.requesterRole, workspaceId: claim.company.organization.workspaceId } } },
+    select: { id: true, name: true },
+  });
+  if (!actor) throw new Error("You do not have access to prepare this HQ computation table.");
+  if (input.rows.length !== claim.lines.length || new Set(input.rows.map((row) => row.lineId)).size !== claim.lines.length) {
+    throw new Error("Provide verified expenditure for every current HQ calculation row.");
+  }
+  const supplied = new Map(input.rows.map((row) => [row.lineId, row]));
+  const summary = buildHqComputationTableSummary({
+    contributionPaid: Number(contributionPaid.toString()),
+    rows: claim.lines.map((line) => {
+      const row = supplied.get(line.id);
+      if (!row) throw new Error("The HQ calculation changed. Reload the claim and prepare the table again.");
+      return {
+        emphasis: line.emphasisNumber ?? undefined, areaOfTraining: line.trainingArea,
+        totalEmployees: line.totalWorkforce ?? undefined, numberTrained: line.totalTrained ?? undefined,
+        percentTrained: line.percentTrained ? Number(line.percentTrained.toString()) : undefined,
+        maxPercentClaimable: getClaimMaxPercentClaimable(line.awardArea, line.emphasisNumber),
+        percentTrainingContributionAwarded: line.percentAwarded ? Number(line.percentAwarded.toString()) : 0,
+        expenditureClaimed: row.expenditureClaimed, remarks: row.remarks.trim() || undefined,
+      };
+    }),
+  });
+  await db.$transaction(async (tx) => {
+    const stillCurrent = await tx.reimbursementClaim.findFirst({
+      where: { id: claim.id, status: "SUBMITTED", currentDesk: "HQ_REIMBURSEMENT_OFFICER" }, select: { id: true },
+    });
+    if (!stillCurrent) throw new Error("The claim moved from the HQ RO desk. Reload it before preparing the table.");
+    const latestSnapshot = await tx.reimbursementCalculationSnapshot.findFirst({
+      where: { reimbursementClaimId: claim.id, stage: "HEADQUARTERS", recordTier: "HOT" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { id: true },
+    });
+    if (latestSnapshot?.id !== claim.calculationSnapshots[0].id) throw new Error("The HQ calculation changed. Reload the claim before preparing its table.");
+    await tx.reimbursementComputationTable.create({
+      data: {
+        reimbursementClaimId: claim.id, companyName: claim.company.legalName,
+        itfEmployerNumber: claim.company.itfEmployerNumber, claimYear: claim.claimYear,
+        contributionPaid, receiptNumber: claim.itfReceiptNumber,
+        fiftyPercentOfContribution: summary.fiftyPercentOfContribution,
+        areaOfficeName: claim.company.areaOffice?.name ?? null,
+        amountRecommended: summary.amountRecommended,
+        amountRecommendedInWords: nairaInWords(summary.amountRecommended),
+        recommendedContributionPercent: summary.recommendedContributionPercent,
+        preparedById: actor.id, preparedByName: actor.name, preparedAt: new Date(), status: "PREPARED",
+        rows: { create: summary.rows.map((row) => ({
+          sortOrder: row.sortOrder, emphasis: row.emphasis, areaOfTraining: row.areaOfTraining,
+          totalEmployees: row.totalEmployees, numberTrained: row.numberTrained,
+          percentTrained: row.percentTrained, maxPercentClaimable: row.maxPercentClaimable,
+          percentTrainingContributionAwarded: row.percentTrainingContributionAwarded,
+          equivalentAmountOfContribution: row.equivalentAmountOfContribution,
+          expenditureClaimed: row.expenditureClaimed,
+          amountAwardedLowerOfContributionOrClaim: row.amountAwardedLowerOfContributionOrClaim,
+          remarks: row.remarks,
+        })) },
+      }, select: { id: true },
+    });
+    await tx.decision.create({ data: {
+      actorId: actor.id, companyId: claim.companyId, reimbursementClaimId: claim.id,
+      action: "RECOMMEND", reason: `HQ RO prepared the computation table with verified expenditure. Recommended NGN ${summary.amountRecommended.toFixed(2)}.`,
+    } });
+  });
+  return summary;
+}
+
+function getClaimMaxPercentClaimable(area: string | null, emphasis: number | null) {
+  if (["MANAGEMENT", "SUPERVISORY", "OCCUPATIONAL"].includes(area ?? "")) {
+    return ({ 1: 15, 2: 13, 3: 11 } as Record<number, number>)[emphasis ?? 0] ?? 0;
+  }
+  return ({ SMALL_SCALE_TRAINING: 48, LEARNING_DEVELOPMENT_PERSONNEL: 2, HEALTH_SAFETY_ENVIRONMENT: 6, SIWES: 2, TRAINING_PLAN: 1 } as Record<string, number>)[area ?? ""] ?? 0;
 }
 
 export async function calculateAuditorClaim(input: CalculateAuditorClaimInput) {

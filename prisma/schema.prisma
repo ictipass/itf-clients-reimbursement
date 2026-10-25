@@ -1302,6 +1302,7 @@ model ReimbursementClaim {
   externalVerificationPayload    Json?
   paymentHandoffStatus           ReimbursementPaymentHandoffStatus @default(NOT_READY)
   voucherSignoffRequired         Boolean                           @default(false)
+  computationRequired            Boolean                           @default(false)
   paymentScheduleReference       String?
   paymentScheduleExportedAt      DateTime?
   paymentScheduleExportedById    String?

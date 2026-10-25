@@ -22,6 +22,7 @@ export type ArchivedPaymentPacket = {
   signoffs: { kind: string; officer: string; role: string; amount: string; remark: string | null; signedAt: string }[];
   evidence: { id: string; kind: string; fileName: string; uploadedAt: string }[];
   trainings?: { id: string; title: string; approvalReference: string | null }[];
+  hqComputation?: { amountRecommended: string; recommendedContributionPercent: string | null; confirmedBy: string | null; rows: { area: string; equivalentContribution: string | null; expenditureClaimed: string | null; awarded: string | null; remarks: string | null }[] } | null;
   decisions: { action: string; reason: string | null; officer: string; at: string }[];
 };
 
@@ -73,6 +74,18 @@ export async function buildArchivedPaymentPacketPdf(packet: ArchivedPaymentPacke
   write("Select an evidence row to open the original file. ITF login and claim access are required.");
   for (const evidence of packet.evidence) write(`${evidence.kind.replaceAll("_", " ")} | ${evidence.fileName} | ${evidence.uploadedAt}`,
     false, `${evidenceBaseUrl}/${encodeURIComponent(evidence.id)}?disposition=inline`);
+  if (packet.hqComputation) {
+    y -= 8;
+    write("HQ COMPUTATION TABLE", true);
+    write(`Recommendation: NGN ${packet.hqComputation.amountRecommended} | Confirmed by: ${packet.hqComputation.confirmedBy ?? "Pending"}`);
+    for (const row of packet.hqComputation.rows) {
+      write(`${row.area} | A ${row.equivalentContribution ?? "-"} | B ${row.expenditureClaimed ?? "-"} | C ${row.awarded ?? "-"}`);
+      if (row.remarks) write(`Remark: ${row.remarks}`);
+    }
+    const rowTotal = packet.hqComputation.rows.reduce((sum, row) => sum + Number(row.awarded ?? 0), 0);
+    const capAdjustment = Math.round((Number(packet.hqComputation.amountRecommended) - rowTotal) * 100) / 100;
+    if (capAdjustment < 0) write(`8th edition 50% contribution cap adjustment: NGN ${capAdjustment.toFixed(2)}`);
+  }
   if (packet.trainings?.length) {
     y -= 8;
     write("ATTACHED APPROVED TRAININGS", true);
