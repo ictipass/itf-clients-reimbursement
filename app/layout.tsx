@@ -1,20 +1,13 @@
 import type { Metadata } from "next";
 
 import { AutoRefresh } from "@/app/AutoRefresh";
-import { getAppNameForMode } from "@/lib/domain";
-import { getActiveRevenueWorkflowMode, usesInAppRevenueWorkflow } from "@/lib/revenue-workflow";
 
 import "./globals.css";
 
-export async function generateMetadata(): Promise<Metadata> {
-  const mode = await getActiveRevenueWorkflowMode();
-  return {
-    title: getAppNameForMode(mode),
-    description: usesInAppRevenueWorkflow(mode)
-      ? "ITF employer registration, annual compliance, training, and reimbursement services."
-      : "ITF training and reimbursement services for employers registered with ITF.",
-  };
-}
+export const metadata: Metadata = {
+  title: "ITF Training and Reimbursement Platform",
+  description: "ITF employer training and reimbursement services.",
+};
 
 export default function RootLayout({
   children,
