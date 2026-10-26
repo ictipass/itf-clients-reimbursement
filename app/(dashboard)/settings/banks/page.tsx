@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
@@ -29,6 +30,7 @@ export default async function BankSettingsPage({ searchParams }: Readonly<{ sear
           <input type="hidden" name="workspaceId" value={workspace.id} />
           <label className="grid gap-1 text-sm font-medium">Completed bank workbook<input name="file" type="file" required accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="min-h-10 rounded-md border border-zinc-300 bg-white px-3 py-2" /></label>
           <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Import banks</button>
+          <FormActionProgress />
         </form>
       </div>
       <h3 className="mt-5 font-semibold">Add or update one bank</h3>
@@ -37,6 +39,7 @@ export default async function BankSettingsPage({ searchParams }: Readonly<{ sear
         <label className="grid gap-1 text-sm font-medium">Bank name<input name="name" required maxLength={100} className="min-h-10 rounded-md border px-3" /></label>
         <label className="grid gap-1 text-sm font-medium">Sort code<input name="sortCode" required inputMode="numeric" pattern="[0-9]{3,12}" className="min-h-10 rounded-md border px-3" /></label>
         <button className="min-h-10 self-end rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Add or update</button>
+        <FormActionProgress />
       </form>
       <div className="mt-5 grid gap-2">
         {workspace.bankDirectoryEntries.length === 0 ? <p className="text-sm text-zinc-500">No banks configured yet.</p> : null}
@@ -46,6 +49,7 @@ export default async function BankSettingsPage({ searchParams }: Readonly<{ sear
             <input type="hidden" name="id" value={bank.id} />
             <input type="hidden" name="isActive" value={String(!bank.isActive)} />
             <button className="font-semibold text-[#800020] underline">{bank.isActive ? "Deactivate" : "Reactivate"}</button>
+            <FormActionProgress />
           </form>
         </div>)}
       </div>

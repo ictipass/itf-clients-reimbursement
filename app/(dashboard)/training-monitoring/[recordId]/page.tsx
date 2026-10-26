@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
 import { EmployerFeedbackViewed } from "@/components/employer-feedback-viewed";
@@ -401,6 +402,7 @@ export default async function TrainingMonitoringDetailPage({
               </button>
             ))}
           </div>
+          <FormActionProgress />
         </form>
       ) : null}
 
@@ -499,6 +501,7 @@ export default async function TrainingMonitoringDetailPage({
                 Save monitoring details
               </button>
             </div>
+            <FormActionProgress />
           </form>
         </section>
       ) : null}
@@ -568,6 +571,7 @@ export default async function TrainingMonitoringDetailPage({
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Upload monitoring evidence
               </button>
+              <FormActionProgress />
             </form>
           ) : null}
         </div>
@@ -643,6 +647,7 @@ export default async function TrainingMonitoringDetailPage({
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Add rating
               </button>
+              <FormActionProgress />
             </form>
           ) : null}
         </div>

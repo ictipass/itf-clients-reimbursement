@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
@@ -70,6 +71,7 @@ function OfficerAssignmentList({
             <button className="min-h-8 rounded-md border border-zinc-200 bg-white px-2 text-xs font-semibold text-zinc-800">
               Remove
             </button>
+            <FormActionProgress />
           </form>
         </div>
       ))}
@@ -131,6 +133,7 @@ function AssignOfficerForm({
       <button className="min-h-10 rounded-md bg-[#800020] px-3 text-sm font-semibold text-white">
         Save assignment
       </button>
+      <FormActionProgress />
     </form>
   );
 }
@@ -238,6 +241,7 @@ export default async function OfficeSettingsPage({
               Save office
             </button>
           </div>
+          <FormActionProgress />
         </form>
 
         <section className="mt-4 rounded-lg border border-zinc-200 bg-white p-4">
@@ -249,6 +253,7 @@ export default async function OfficeSettingsPage({
               <input name="file" type="file" required accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="min-h-10 rounded-md border border-zinc-300 px-3 py-2" />
             </label>
             <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Import offices</button>
+            <FormActionProgress />
           </form>
           <p className="mt-2 text-xs text-zinc-500">Maximum workbook size: 1 MB.</p>
         </section>
@@ -296,6 +301,7 @@ export default async function OfficeSettingsPage({
           <input name="q" defaultValue={search} placeholder="Search Area Office name, code, or slug" className="min-h-10 flex-1 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
           <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Search</button>
           {search ? <Link href="/settings/offices" className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold">Clear</Link> : null}
+          <FormActionProgress />
         </form>
 
         <div className="mt-6 grid gap-4">
@@ -349,6 +355,7 @@ export default async function OfficeSettingsPage({
                   <button className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800">
                     {areaOffice.isActive ? "Deactivate Area Office" : "Activate Area Office"}
                   </button>
+                  <FormActionProgress />
                 </form>
               </div>
             </details>

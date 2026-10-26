@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
@@ -33,6 +34,7 @@ export default async function AcceptInvitationPage({
                 <button className="min-h-11 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                   Accept invitation
                 </button>
+                <FormActionProgress />
               </form>
             ) : (
               <div className="mt-5 flex flex-wrap gap-3">

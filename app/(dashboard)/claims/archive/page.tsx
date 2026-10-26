@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
@@ -67,6 +68,7 @@ export default async function ArchivedClaimsPage({ searchParams }: Readonly<{
         <label className="grid gap-1 text-sm">Employer or ITF number<input name="company" defaultValue={companyQuery} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
         <label className="grid gap-1 text-sm">Area Office<input name="areaOffice" defaultValue={areaOfficeQuery} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
         <button className="min-h-10 self-end rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Find archived claims</button>
+        <FormActionProgress />
       </form>
       <p className="mt-5 text-sm text-zinc-600">{total} archived claim{total === 1 ? "" : "s"} found · Page {page} of {pageCount}</p>
       {groups.length === 0 ? <p className="mt-5 rounded-lg border border-zinc-200 bg-white p-5 text-sm">No archived claims match your access and filters.</p> : null}

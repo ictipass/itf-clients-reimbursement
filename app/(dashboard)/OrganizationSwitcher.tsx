@@ -1,5 +1,6 @@
 "use client";
 
+import { FormActionProgress } from "@/components/form-action-progress";
 import { usePathname } from "next/navigation";
 
 import { selectActiveOrganizationAction } from "@/app/(dashboard)/organization-context-actions";
@@ -36,6 +37,7 @@ export function OrganizationSwitcher({
       <button className="min-h-9 rounded-md border border-zinc-300 bg-white px-3 text-xs font-semibold">
         Switch organization
       </button>
+      <FormActionProgress />
     </form>
   );
 }

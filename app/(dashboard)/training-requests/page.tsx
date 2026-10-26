@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 
@@ -183,6 +184,7 @@ export default async function TrainingRequestsPage({
                         {canCreate && organizationIds.has(request.company.organizationId) && request.status === "DRAFT" && request.currentDesk === "COMPANY" && !request.submittedAt ? (
                           <form action={archiveDraftTrainingRequestAction.bind(null, request.id)}>
                             <RemoveDraftButton title={request.title} />
+                            <FormActionProgress />
                           </form>
                         ) : null}
                       </div>

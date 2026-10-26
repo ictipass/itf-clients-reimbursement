@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
@@ -49,6 +50,7 @@ export default async function AuditLogPage({
           <input name="action" defaultValue={filters.action} placeholder="Action, e.g. REJECT" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
           <input name="eventType" defaultValue={filters.eventType} placeholder="Security event type" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
           <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Filter events</button>
+          <FormActionProgress />
         </form>
 
         <div className="mt-6 overflow-x-auto rounded-lg border border-zinc-200">

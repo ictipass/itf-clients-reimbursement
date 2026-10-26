@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -76,6 +77,7 @@ export default async function NewTrainingRequestPage() {
           <button className="min-h-11 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">
             Create draft request
           </button>
+          <FormActionProgress />
         </form>
       </section>
     </div>

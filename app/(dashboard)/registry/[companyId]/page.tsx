@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
 import { getServerSession } from "next-auth";
@@ -1282,6 +1283,7 @@ export default async function CompanyDetailPage({
                             <button className="min-h-9 rounded-md border border-[#800020]/20 bg-white px-3 text-xs font-semibold text-[#65001a]">
                               Generate invoice PDF
                             </button>
+                            <FormActionProgress />
                           </form>
                         )}
                       </div>
@@ -1339,6 +1341,7 @@ export default async function CompanyDetailPage({
                                   <button className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800">
                                     Check payment status
                                   </button>
+                                  <FormActionProgress />
                                 </form>
                               ) : null}
                             </div>
@@ -1354,6 +1357,7 @@ export default async function CompanyDetailPage({
                             <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                               Pay with Remita
                             </button>
+                            <FormActionProgress />
                           </form>
                         ) : isEmployerRole(activeRole) ? (
                           <p className="text-xs leading-5 text-zinc-500">
@@ -1491,6 +1495,7 @@ export default async function CompanyDetailPage({
                   Record existing ITF number
                 </button>
               </div>
+              <FormActionProgress />
             </form>
           </ActionGroup>
         ) : null}
@@ -1520,6 +1525,7 @@ export default async function CompanyDetailPage({
                 </button>
               ))}
             </div>
+            <FormActionProgress />
           </form>
           </ActionGroup>
         ) : null}
@@ -1570,6 +1576,7 @@ export default async function CompanyDetailPage({
                   Reject claim
                 </button>
               </div>
+              <FormActionProgress />
             </form>
           </ActionGroup>
         ) : null}
@@ -1595,6 +1602,7 @@ export default async function CompanyDetailPage({
                 Confirm recommendation and send to AM
               </button>
             </div>
+            <FormActionProgress />
           </form>
           </ActionGroup>
         ) : null}
@@ -1629,6 +1637,7 @@ export default async function CompanyDetailPage({
                 Release recommendation to company
               </button>
             </div>
+            <FormActionProgress />
           </form>
           </ActionGroup>
         ) : null}
@@ -1665,6 +1674,7 @@ export default async function CompanyDetailPage({
                 Request correction
               </button>
             </div>
+            <FormActionProgress />
           </form>
           </ActionGroup>
         ) : null}
@@ -1690,6 +1700,7 @@ export default async function CompanyDetailPage({
                 Notify Headquarters
               </button>
             </div>
+            <FormActionProgress />
           </form>
           </ActionGroup>
         ) : null}
@@ -1715,6 +1726,7 @@ export default async function CompanyDetailPage({
                 Forward to Head Inspectorate & Compliance
               </button>
             </div>
+            <FormActionProgress />
           </form>
           </ActionGroup>
         ) : null}
@@ -1740,6 +1752,7 @@ export default async function CompanyDetailPage({
                 Forward to HQ Revenue Accountant
               </button>
             </div>
+            <FormActionProgress />
           </form>
           </ActionGroup>
         ) : null}
@@ -1787,6 +1800,7 @@ export default async function CompanyDetailPage({
                 Complete employer registration
               </button>
             </div>
+            <FormActionProgress />
           </form>
           </ActionGroup>
         ) : null}
@@ -1840,6 +1854,7 @@ export default async function CompanyDetailPage({
                 Recommend contribution and return to HORIC
               </button>
             </div>
+            <FormActionProgress />
           </form>
           <form
             action={routeRegistrationApplicationAction.bind(null, company.id)}
@@ -1862,6 +1877,7 @@ export default async function CompanyDetailPage({
                 Request employer correction instead
               </button>
             </div>
+            <FormActionProgress />
           </form>
           </ActionGroup>
         ) : null}
@@ -1889,6 +1905,7 @@ export default async function CompanyDetailPage({
                 Upload payment receipt
               </button>
             </div>
+            <FormActionProgress />
           </form>
           </ActionGroup>
         ) : null}
@@ -1980,6 +1997,7 @@ export default async function CompanyDetailPage({
               Filter
             </button>
           </div>
+          <FormActionProgress />
         </form>
 
         {filteredTrainingPlanSubmissions.length === 0 ? (
@@ -2150,6 +2168,7 @@ export default async function CompanyDetailPage({
                           </button>
                         ))}
                       </div>
+                      <FormActionProgress />
                     </form>
                   ) : submission.status === "SUBMITTED" || submission.status === "IN_REVIEW" ? (
                     <p className="mt-3 rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-600">
@@ -2289,6 +2308,7 @@ export default async function CompanyDetailPage({
                 Filter
               </button>
             </div>
+            <FormActionProgress />
           </form>
           {filteredCompanyDocuments.length === 0 ? (
             <p className="mt-3 text-sm leading-6 text-zinc-600">
@@ -2413,6 +2433,7 @@ export default async function CompanyDetailPage({
                 Filter
               </button>
             </div>
+            <FormActionProgress />
           </form>
           {certificateComplianceYears.length === 0 ? (
             <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm text-zinc-600">
@@ -2550,6 +2571,7 @@ export default async function CompanyDetailPage({
                 Filter
               </button>
             </div>
+            <FormActionProgress />
           </form>
           {!canCreateComplianceYear && isEmployerRole(activeRole) ? (
             <p className="mt-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-900">
@@ -2614,6 +2636,7 @@ export default async function CompanyDetailPage({
                               <button className="min-h-8 rounded-md border border-emerald-200 bg-white px-2 font-semibold text-emerald-900">
                                 Generate PDF
                               </button>
+                              <FormActionProgress />
                             </form>
                           ) : null}
                         </div>
@@ -2690,6 +2713,7 @@ export default async function CompanyDetailPage({
                             </button>
                           ))}
                       </div>
+                      <FormActionProgress />
                     </form>
                   ) : null}
                   {canManageComplianceCertificate &&
@@ -2734,6 +2758,7 @@ export default async function CompanyDetailPage({
                       <button className="min-h-9 w-fit rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
                         Issue compliance certificate
                       </button>
+                      <FormActionProgress />
                     </form>
                   ) : null}
                   {complianceYear.documents.length > 0 ? (
@@ -2838,6 +2863,7 @@ export default async function CompanyDetailPage({
                 {company.registrationApplication ? "Resubmit registration" : "Submit registration"}
               </button>
             </div>
+            <FormActionProgress />
           </form>
         </section>
       ) : null}

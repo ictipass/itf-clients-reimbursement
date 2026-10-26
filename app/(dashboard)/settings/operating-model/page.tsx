@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 
 import { checkDevelopmentEligibilityAction, retryPendingDevelopmentEligibilityAction, saveDevelopmentEligibilityEndpointAction, saveDevelopmentEligibilityRecordAction, updateContributionOperatingModelAction, verifyDevelopmentCompanyAction } from "@/app/(dashboard)/settings/operating-model/actions";
@@ -103,6 +104,7 @@ export default async function ContributionOperatingModelPage({ searchParams }: {
                 <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                   Save operating model
                 </button>
+                <FormActionProgress />
               </form>
               {testRecordsEnabled ? (
                 <section className="grid gap-4 rounded-lg border border-zinc-200 bg-white p-4">
@@ -113,15 +115,18 @@ export default async function ContributionOperatingModelPage({ searchParams }: {
                     <input type="hidden" name="workspaceId" value={workspace.id} />
                     <label className="grid gap-1 text-sm">Endpoint URL<input name="endpointUrl" type="url" required defaultValue={workspace.eligibilityEndpointUrl ?? "http://127.0.0.1:3000/api/development/eligibility"} className="rounded-md border px-3 py-2" /></label>
                     <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Save endpoint</button>
+                    <FormActionProgress />
                   </form>
                   <form action={checkDevelopmentEligibilityAction}>
                     <input type="hidden" name="workspaceId" value={workspace.id} />
                     <button className="rounded-md border px-4 py-2 text-sm font-semibold">Check API availability</button>
+                    <FormActionProgress />
                   </form>
                   </> : null}
                   <form action={retryPendingDevelopmentEligibilityAction}>
                     <input type="hidden" name="workspaceId" value={workspace.id} />
                     <button className="rounded-md border px-4 py-2 text-sm font-semibold">Check pending companies now</button>
+                    <FormActionProgress />
                   </form>
                   <form action={saveDevelopmentEligibilityRecordAction} className="grid gap-3 border-t pt-4">
                     <input type="hidden" name="workspaceId" value={workspace.id} />
@@ -135,6 +140,7 @@ export default async function ContributionOperatingModelPage({ searchParams }: {
                     <label className="flex gap-2 text-sm"><input name="paymentSettled" type="checkbox" /> Payment settled</label>
                     <label className="flex gap-2 text-sm"><input name="certificateIssued" type="checkbox" /> Certificate issued</label>
                     <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Save test result</button>
+                    <FormActionProgress />
                   </form>
                   <form action={verifyDevelopmentCompanyAction} className="grid gap-3 border-t pt-4 sm:grid-cols-2">
                     <input type="hidden" name="workspaceId" value={workspace.id} />
@@ -145,6 +151,7 @@ export default async function ContributionOperatingModelPage({ searchParams }: {
                     <input name="itfEmployerNumber" required placeholder="ITF registration number" className="rounded-md border px-3 py-2" />
                     <input name="year" type="number" min="2000" max={new Date().getFullYear() + 1} required placeholder="Training year" className="rounded-md border px-3 py-2" />
                     <button className="w-fit rounded-md border px-4 py-2 text-sm font-semibold">Run verification</button>
+                    <FormActionProgress />
                   </form>
                   {developmentRecords.filter((record) => record.workspaceId === workspace.id).map((record) => (
                     <p key={record.id} className="text-xs text-zinc-600">{record.itfEmployerNumber} · {record.year} · paid {record.contributionPaid.toString()} · payment {record.paymentSettled ? "settled" : "unsettled"} · certificate {record.certificateIssued ? "issued" : "not issued"}</p>

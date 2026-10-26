@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
 import { getServerSession } from "next-auth";
@@ -83,6 +84,7 @@ export default async function NewEvidencePage({
             Upload evidence
           </button>
         </div>
+        <FormActionProgress />
       </form>
     </div>
   );

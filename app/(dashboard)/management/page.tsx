@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
@@ -162,6 +163,7 @@ export default async function ManagementDashboardPage({
           <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
             Apply filters
           </button>
+          <FormActionProgress />
         </form>
         {!usesInAppRevenue ? (
           <p className="mt-4 rounded-md border border-[#800020]/20 bg-[#800020]/5 px-3 py-2 text-sm leading-6 text-zinc-700">

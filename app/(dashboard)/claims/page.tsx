@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 
@@ -235,6 +236,7 @@ export default async function ClaimsPage({ searchParams }: Readonly<{
                   <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                     Create claim with selected trainings
                   </button>
+                  <FormActionProgress />
                 </form>
               ))}
             </div>

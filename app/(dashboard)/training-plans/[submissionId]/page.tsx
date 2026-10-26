@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
@@ -10,6 +11,7 @@ import {
   createTrainingRequestFromLineItemAction,
 } from "@/app/(dashboard)/training-plans/[submissionId]/actions";
 import { CreateForm4AButton } from "@/app/(dashboard)/training-plans/[submissionId]/create-form-4a-button";
+import { PendingActionButton } from "@/app/(dashboard)/training-plans/[submissionId]/pending-action-button";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { getActiveEmployerOrganization } from "@/lib/organization-context";
@@ -450,6 +452,7 @@ export default async function TrainingPlanDetailPage({
                           <td className="px-3 py-3">
                             <form action={createTrainingRequestFromLineItemAction.bind(null, submission.id, item.id)}>
                               <CreateForm4AButton />
+                              <FormActionProgress />
                             </form>
                           </td>
                         ) : null}
@@ -488,9 +491,8 @@ export default async function TrainingPlanDetailPage({
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
                 />
               </label>
-              <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                Submit Training Plan package
-              </button>
+              <PendingActionButton label="Submit Training Plan package" className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white" />
+              <FormActionProgress />
             </form>
           ) : null}
 
@@ -526,17 +528,17 @@ export default async function TrainingPlanDetailPage({
               ) : null}
               <div className="mt-4 flex flex-wrap gap-2">
                 {availableTrainingPlanTransitions.map((transition) => (
-                  <button
+                  <PendingActionButton
                     key={transition}
+                    label={trainingPlanTransitionLabels[transition]}
                     name="transition"
                     value={transition}
                     formNoValidate={transition === "ro_to_company"}
                     className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm font-semibold text-zinc-900"
-                  >
-                    {trainingPlanTransitionLabels[transition]}
-                  </button>
+                  />
                 ))}
               </div>
+              <FormActionProgress />
             </form>
           ) : null}
 

@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
@@ -177,6 +178,7 @@ export default async function ManagedNumbersPage() {
               Save numbers
             </button>
           </div>
+          <FormActionProgress />
         </form>
 
         {managedNumbers.length === 0 ? (

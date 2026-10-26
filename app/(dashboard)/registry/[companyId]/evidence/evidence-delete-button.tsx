@@ -1,5 +1,6 @@
 "use client";
 
+import { FormActionProgress } from "@/components/form-action-progress";
 export function EvidenceDeleteButton({
   action,
 }: Readonly<{
@@ -21,6 +22,7 @@ export function EvidenceDeleteButton({
       <button className="inline-flex min-h-8 items-center rounded-md border border-red-200 bg-white px-2 text-xs font-semibold text-red-700">
         Delete
       </button>
+      <FormActionProgress />
     </form>
   );
 }

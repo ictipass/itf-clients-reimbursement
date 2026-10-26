@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
 import { notFound } from "next/navigation";
@@ -84,6 +85,7 @@ export default async function NewComplianceEvidencePage({
           <button className="min-h-11 w-fit rounded-md bg-[#800020] px-5 text-sm font-semibold text-white">
             Attach selected receipt
           </button>
+          <FormActionProgress />
         </form>
       ) : null}
 
@@ -116,6 +118,7 @@ export default async function NewComplianceEvidencePage({
             Upload evidence
           </button>
         </div>
+        <FormActionProgress />
       </form>
     </div>
   );

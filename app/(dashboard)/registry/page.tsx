@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 
@@ -114,6 +115,7 @@ export default async function RegistryPage({
           <button className="min-h-10 flex-1 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Apply filters</button>
           <Link href="/registry" className="inline-flex min-h-10 items-center rounded-md border border-zinc-200 px-3 text-sm font-semibold">Clear</Link>
         </div>
+        <FormActionProgress />
       </form>
 
       {companies.length === 0 ? (

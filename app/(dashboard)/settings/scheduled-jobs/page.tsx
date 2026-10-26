@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
@@ -24,6 +25,7 @@ export default async function ScheduledJobsPage({ searchParams }: { searchParams
           <form action={runScheduledJobAction} className="mt-4">
             <input type="hidden" name="job" value="annual-eligibility" />
             <button className="rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Run eligibility retry</button>
+            <FormActionProgress />
           </form>
         </section>
         <section className="rounded-lg border bg-white p-5">
@@ -32,6 +34,7 @@ export default async function ScheduledJobsPage({ searchParams }: { searchParams
           <form action={runScheduledJobAction} className="mt-4">
             <input type="hidden" name="job" value="workflow-notifications" />
             <button className="rounded-md border px-4 py-2 text-sm font-semibold">Run email dispatch</button>
+            <FormActionProgress />
           </form>
         </section>
       </div>

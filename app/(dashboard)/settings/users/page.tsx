@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
@@ -168,6 +169,7 @@ export default async function UserDirectoryPage({
             <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
               Save user
             </button>
+            <FormActionProgress />
           </form>
 
           <form
@@ -195,6 +197,7 @@ export default async function UserDirectoryPage({
             <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
               Import users
             </button>
+            <FormActionProgress />
           </form>
         </div>
 
@@ -216,6 +219,7 @@ export default async function UserDirectoryPage({
           </select>
           <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Filter</button>
           <Link href="/settings/users" className="inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold">Clear</Link>
+          <FormActionProgress />
         </form>
 
         <div className="mt-6 overflow-x-auto rounded-lg border border-zinc-200">
@@ -299,12 +303,14 @@ export default async function UserDirectoryPage({
                         <button className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold">
                           {user.isManagement ? "Remove management" : "Make management"}
                         </button>
+                        <FormActionProgress />
                       </form>
                       <form action={resetDirectoryUserLocalAccessAction}>
                         <input type="hidden" name="userId" value={user.id} />
                         <button className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold">
                           Reset local access
                         </button>
+                        <FormActionProgress />
                       </form>
                       <form action={updateDirectoryUserStatusAction}>
                         <input type="hidden" name="userId" value={user.id} />
@@ -312,6 +318,7 @@ export default async function UserDirectoryPage({
                         <button className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold">
                           {user.isActive ? "Deactivate" : "Reactivate"}
                         </button>
+                        <FormActionProgress />
                       </form>
                     </div>
                   </td>

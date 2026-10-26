@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
 import { notFound } from "next/navigation";
@@ -102,6 +103,7 @@ export default async function NewTrainingPlanEvidencePage({
             Upload selected files
           </button>
         </div>
+        <FormActionProgress />
       </form>
     </div>
   );

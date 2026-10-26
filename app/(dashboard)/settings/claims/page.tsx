@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 
 import { updateClaimSubmissionPolicyAction } from "@/app/(dashboard)/settings/claims/actions";
@@ -82,6 +83,7 @@ export default async function ClaimSettingsPage() {
                 <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                   Save claim settings
                 </button>
+                <FormActionProgress />
               </form>
             ))}
           </div>

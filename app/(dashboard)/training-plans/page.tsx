@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 
@@ -246,6 +247,7 @@ export default async function TrainingPlanListPage({
             Apply filters
           </button>
         </div>
+        <FormActionProgress />
       </form>
 
       <section className="mt-6 rounded-lg border border-zinc-200 bg-white">

@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 import { redirect } from "next/navigation";
@@ -168,6 +169,7 @@ export default async function EmployerUsersPage({
           <button className="min-h-11 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
             Create invitation
           </button>
+          <FormActionProgress />
         </form>
 
         <div className="overflow-hidden rounded-lg border border-zinc-200 bg-white">
@@ -188,6 +190,7 @@ export default async function EmployerUsersPage({
               </select>
               <button className="min-h-10 rounded-md bg-[#800020] px-3 text-sm font-semibold text-white">Filter</button>
               <Link href="/employer/users" className="inline-flex min-h-10 items-center justify-center rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold">Clear</Link>
+              <FormActionProgress />
             </form>
             {data.members.map((membership) => (
               <div key={membership.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1fr_auto] md:items-center">
@@ -208,6 +211,7 @@ export default async function EmployerUsersPage({
                       <button className="min-h-9 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold">
                         Update role
                       </button>
+                      <FormActionProgress />
                     </form>
                     <form action={deactivateEmployerMemberAction}>
                       <input type="hidden" name="membershipId" value={membership.id} />
@@ -215,6 +219,7 @@ export default async function EmployerUsersPage({
                       <button className="min-h-9 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold">
                         Deactivate
                       </button>
+                      <FormActionProgress />
                     </form>
                   </div>
                 ) : (
@@ -223,6 +228,7 @@ export default async function EmployerUsersPage({
                     <button className="min-h-9 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold">
                       Reactivate
                     </button>
+                    <FormActionProgress />
                   </form>
                 )}
               </div>
@@ -260,6 +266,7 @@ export default async function EmployerUsersPage({
                   <button className="min-h-9 rounded-md border border-zinc-300 bg-white px-3 text-sm font-semibold">
                     Revoke
                   </button>
+                  <FormActionProgress />
                 </form>
               </div>
             ))}

@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
@@ -229,6 +230,7 @@ export default async function ComplianceReviewPage({
                   </button>
                 ))}
               </div>
+              <FormActionProgress />
             </form>
           ) : null}
 
@@ -264,6 +266,7 @@ export default async function ComplianceReviewPage({
                           ? "Regenerate PDF"
                           : "Generate PDF"}
                       </button>
+                      <FormActionProgress />
                     </form>
                   </div>
                 </div>
@@ -297,6 +300,7 @@ export default async function ComplianceReviewPage({
                   <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                     Issue compliance certificate
                   </button>
+                  <FormActionProgress />
                 </form>
               )}
             </div>

@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
@@ -36,6 +37,7 @@ export default async function PreferencesPage() {
             Enable my private calendar feed
           </label>
           <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Save preference</button>
+          <FormActionProgress />
         </form>
         {user.calendarFeedEnabled && feedUrl ? (
           <div className="mt-5 rounded-md bg-zinc-50 p-4">
@@ -44,6 +46,7 @@ export default async function PreferencesPage() {
             <p className="mt-3 text-xs leading-5 text-zinc-500">In Google Calendar, use “Other calendars” → “From URL”. Most mobile calendar apps offer “Add subscribed calendar”.</p>
             <form action={resetCalendarFeedAction}>
               <button className="mt-3 min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold">Reset private link</button>
+              <FormActionProgress />
             </form>
           </div>
         ) : null}

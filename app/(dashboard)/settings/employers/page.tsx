@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 
@@ -52,6 +53,7 @@ export default async function EmployerAccessPage({
         />
         <button className="min-h-11 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Search</button>
         {query.q ? <Link href="/settings/employers" className="inline-flex min-h-11 items-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold">Clear</Link> : null}
+        <FormActionProgress />
       </form>
 
       <div className="grid gap-4">
@@ -106,6 +108,7 @@ export default async function EmployerAccessPage({
                 <button className="min-h-11 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                   Replace employer administrators
                 </button>
+                <FormActionProgress />
               </form>
             </div>
           </details>

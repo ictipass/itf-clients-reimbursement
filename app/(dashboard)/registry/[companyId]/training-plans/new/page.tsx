@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
@@ -111,6 +112,7 @@ export default async function NewTrainingPlanSubmissionPage({
             Create submission
           </button>
         </div>
+        <FormActionProgress />
       </form>
     </div>
   );

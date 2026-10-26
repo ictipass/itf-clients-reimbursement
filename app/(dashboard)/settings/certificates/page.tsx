@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
@@ -200,6 +201,7 @@ export default async function CertificateTemplatesPage() {
               className="rounded-md border border-zinc-200 bg-white px-3 py-2"
             />
           </label>
+          <FormActionProgress />
         </form>
 
         {templates.length === 0 ? (
@@ -356,6 +358,7 @@ export default async function CertificateTemplatesPage() {
                           <button className="min-h-8 w-fit rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800">
                             Save placement
                           </button>
+                          <FormActionProgress />
                         </form>
                       </div>
                     </td>
@@ -402,6 +405,7 @@ export default async function CertificateTemplatesPage() {
                           <button className="min-h-8 w-fit rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
                             {template.designDocument ? "Replace design" : "Attach design"}
                           </button>
+                          <FormActionProgress />
                         </form>
                       </div>
                     </td>
@@ -416,6 +420,7 @@ export default async function CertificateTemplatesPage() {
                             <button className="min-h-8 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
                               Activate
                             </button>
+                            <FormActionProgress />
                           </form>
                         ) : null}
                         {template.status !== "RETIRED" ? (
@@ -424,6 +429,7 @@ export default async function CertificateTemplatesPage() {
                             <button className="min-h-8 rounded-md border border-zinc-200 bg-white px-3 text-xs font-semibold text-zinc-800">
                               Retire
                             </button>
+                            <FormActionProgress />
                           </form>
                         ) : null}
                       </div>

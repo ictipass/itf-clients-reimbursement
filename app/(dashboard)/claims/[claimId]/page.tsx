@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
 import { ClaimBankFields } from "@/components/claim-bank-fields";
@@ -627,7 +628,7 @@ export default async function ClaimDetailPage({
       {query.assignmentError ? <p className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm font-semibold text-red-900">{query.assignmentError}</p> : null}
       {query.reassigned ? <p className="mt-4 rounded-md bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-900">The packet was reassigned. The decision trail records who reassigned it and why.</p> : null}
       {currentWorkItem?.assignedUserId ? <p className="mt-4 rounded-md border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-950">Current officer: <strong>{currentWorkItem.assignedUser?.name ?? "Assigned officer"}</strong>{assignedElsewhere ? ". You can view this packet, but only the assigned officer can edit or forward it." : "."}</p> : null}
-      {assignedElsewhere && session?.user?.email && isItfRole(activeRole) ? <form action={recheckClaimAnnualPaymentAction.bind(null, claim.id)} className="mt-3"><button className="min-h-10 rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">Recheck annual payment</button></form> : null}
+      {assignedElsewhere && session?.user?.email && isItfRole(activeRole) ? <form action={recheckClaimAnnualPaymentAction.bind(null, claim.id)} className="mt-3"><button className="min-h-10 rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">Recheck annual payment</button><FormActionProgress /></form> : null}
       {canReassignOfficer && currentAssignmentRole ? <section className="mt-4 rounded-md border border-amber-200 bg-amber-50 p-4">
         <h2 className="font-semibold text-amber-950">Reassign current officer</h2>
         <p className="mt-1 text-sm text-amber-900">The forwarding officer or a workspace administrator can move this open assignment to another eligible officer. Record why.</p>
@@ -635,6 +636,7 @@ export default async function ClaimDetailPage({
           <label className="grid gap-1 text-sm font-medium md:col-span-2">New officer<select name="assigneeUserId" required defaultValue="" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"><option value="" disabled>Select another officer</option>{(assignmentOptions.get(currentAssignmentRole) ?? []).filter((officer) => officer.id !== currentWorkItem?.assignedUserId).map((officer) => <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>)}</select></label>
           <input name="reason" required placeholder="Reason for reassignment" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
           <button className="min-h-10 rounded-md border border-[#800020] bg-white px-4 text-sm font-semibold text-[#800020]">Reassign packet</button>
+          <FormActionProgress />
         </form>}
       </section> : null}
 
@@ -772,6 +774,7 @@ export default async function ClaimDetailPage({
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Submit to Area Manager
               </button>
+              <FormActionProgress />
             </form>
           ) : null}
           {canForwardToHot ? (
@@ -787,6 +790,7 @@ export default async function ClaimDetailPage({
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Forward to HOT
               </button>
+              <FormActionProgress />
             </form>
           ) : null}
           {canForwardToAreaReimbursementOfficer ? (
@@ -803,6 +807,7 @@ export default async function ClaimDetailPage({
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Forward to A/O Reimbursement Officer
               </button>
+              <FormActionProgress />
             </form>
           ) : null}
           {availablePostIntakeTransitions.map((transition) => (
@@ -826,11 +831,13 @@ export default async function ClaimDetailPage({
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 {transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD" ? "Approve and forward to Director FSD" : transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT" ? "Approve HQ recommendation and forward to Director Audit" : transition.from === "DIRECTOR_GENERAL" ? "Approve for payment and forward to DFAD" : `Forward to ${formatClaimDesk(transition.to)}`}
               </button>
+              <FormActionProgress />
             </form>
           ))}
           {correctionReturnTarget ? <form action={returnClaimForCorrectionAction.bind(null, claim.id)} className="mt-5 grid gap-3 border-t border-amber-200 pt-5 md:grid-cols-[1fr_auto]">
             <label className="grid gap-1 text-sm font-medium">Required correction reason<input name="correctionReason" required minLength={5} maxLength={1000} className="min-h-10 rounded-md border border-amber-300 bg-white px-3" placeholder={`What must ${formatClaimDesk(correctionReturnTarget)} correct?`} /></label>
             <button className="min-h-10 self-end rounded-md bg-amber-700 px-4 text-sm font-semibold text-white">Return to sending {formatClaimDesk(correctionReturnTarget)}</button>
+            <FormActionProgress />
           </form> : null}
           {canMarkKiv ? (
             <form
@@ -845,12 +852,14 @@ export default async function ClaimDetailPage({
               <button className="min-h-10 rounded-md bg-amber-700 px-4 text-sm font-semibold text-white">
                 Mark KIV / pause claim
               </button>
+              <FormActionProgress />
             </form>
           ) : null}
           {canMarkKiv ? (
             <form action={disapproveClaimAtDirectorGeneralAction.bind(null, claim.id)} className="mt-3 grid gap-3 md:grid-cols-[1fr_auto]">
               <input name="note" required placeholder="Required disapproval reason" className="min-h-10 rounded-md border border-red-200 bg-white px-3 text-sm" />
               <button className="min-h-10 rounded-md bg-red-800 px-4 text-sm font-semibold text-white">Disapprove and return to Head Reimbursement Division</button>
+              <FormActionProgress />
             </form>
           ) : null}
           {canResumeKiv ? (
@@ -867,6 +876,7 @@ export default async function ClaimDetailPage({
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Return KIV claim to Director General
               </button>
+              <FormActionProgress />
             </form>
           ) : null}
         </section>
@@ -982,6 +992,7 @@ export default async function ClaimDetailPage({
                 Save Claim Form 1
               </button>
             </div>
+            <FormActionProgress />
           </form>
         ) : (
           <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
@@ -1059,6 +1070,7 @@ export default async function ClaimDetailPage({
             <label className="grid gap-1 text-sm">Remarks<input name={`remarks_${line.id}`} maxLength={500} defaultValue={currentComputationTable?.rows[index]?.remarks ?? ""} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
           </div>)}
           <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Prepare HQ computation table</button>
+          <FormActionProgress />
         </form> : null}
       </section>
       </CollapsibleClaimSection> : null}
@@ -1125,6 +1137,7 @@ export default async function ClaimDetailPage({
               <label className="grid gap-1 text-sm md:col-span-2">Discrepancy and recalculation reason<textarea name="reviewerRemarks" required defaultValue={latestAuditCalculation?.reviewerRemarks ?? ""} className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>
               <div className="grid gap-2 text-sm md:col-span-2"><label><input name="reviewedForm1A" type="checkbox" required /> Reviewed Form 1A</label><label><input name="reviewedForm2A" type="checkbox" required /> Reviewed Form 2A and preceding calculations</label><label><input name="reviewedEvidence" type="checkbox" required /> Reviewed supporting evidence</label></div>
               <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">Calculate audited amount</button>
+              <FormActionProgress />
             </form>
           </details> : null}
 
@@ -1147,6 +1160,7 @@ export default async function ClaimDetailPage({
                   Save claim-audit decision
                 </button>
               </div>
+              <FormActionProgress />
             </form>
           ) : null}
         </section>
@@ -1194,6 +1208,7 @@ export default async function ClaimDetailPage({
                 <label className="grid gap-1 text-sm md:col-span-2">HQ RO review remark<textarea name="reviewerRemarks" required defaultValue={latestHeadquartersCalculation?.reviewerRemarks ?? ""} className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>
                 <div className="grid gap-2 text-sm md:col-span-2"><label className="flex items-center gap-2"><input name="reviewedForm1A" type="checkbox" required />I reviewed Form 1A.</label><label className="flex items-center gap-2"><input name="reviewedForm2A" type="checkbox" required />I reviewed Form 2A and the employer and Area Office calculations.</label><label className="flex items-center gap-2"><input name="reviewedEvidence" type="checkbox" required />I reviewed the supporting evidence, including SIWES Form 5A where applicable.</label></div>
                 <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">{latestHeadquartersCalculation ? "Recalculate HQ reviewed amount" : "Calculate HQ reviewed amount"}</button>
+                <FormActionProgress />
               </form>
             ) : canCalculateHeadquarters ? <p className="mt-4 text-sm font-semibold text-amber-800">An Area Office and employer calculation are required before HQ can calculate.</p> : null}
           </section>
@@ -1264,6 +1279,7 @@ export default async function ClaimDetailPage({
                 </div>
                 <p className="text-xs text-zinc-500 md:col-span-2">Recalculation replaces the current Area Office figures only after saving; previous snapshots remain available for audit.</p>
                 <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">{latestAreaCalculation ? "Recalculate reviewed amount" : "Calculate reviewed amount"}</button>
+                <FormActionProgress />
               </form>
             ) : canCalculateAreaOffice ? <p className="mt-4 text-sm font-semibold text-amber-800">The employer calculation is incomplete; ask for its Form 2A/2B schedule before calculating.</p> : null}
           </section>
@@ -1389,6 +1405,7 @@ export default async function ClaimDetailPage({
                       Save row
                     </button>
                   ) : null}
+                  <FormActionProgress />
                 </form>}
                 {canEditCalculations && !line.awardArea ? (
                   <form
@@ -1398,6 +1415,7 @@ export default async function ClaimDetailPage({
                     <button className="min-h-9 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700">
                       Delete row
                     </button>
+                    <FormActionProgress />
                   </form>
                 ) : null}
                 <p className="mt-2 text-xs text-zinc-500">
@@ -1511,6 +1529,7 @@ export default async function ClaimDetailPage({
               <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Calculate Medium/Large claim
               </button>
+              <FormActionProgress />
             </form>
 
             <form
@@ -1532,6 +1551,7 @@ export default async function ClaimDetailPage({
               <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Calculate Small Scale claim
               </button>
+              <FormActionProgress />
             </form>
 
             <form
@@ -1548,6 +1568,7 @@ export default async function ClaimDetailPage({
               <button className="min-h-10 rounded-md border border-zinc-200 px-4 text-sm font-semibold text-zinc-800">
                 Add manual row
               </button>
+              <FormActionProgress />
             </form>
           </div>
         ) : null}
@@ -1586,6 +1607,7 @@ export default async function ClaimDetailPage({
             <button className="min-h-10 rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">
               Recheck annual payment
             </button>
+            <FormActionProgress />
           </form>
         ) : null}
 
@@ -1674,6 +1696,7 @@ export default async function ClaimDetailPage({
                 Save evidence assessment
               </button>
             </div>
+            <FormActionProgress />
           </form>
         ) : null}
       </section>
@@ -1736,6 +1759,7 @@ export default async function ClaimDetailPage({
             <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
               Upload evidence
             </button>
+            <FormActionProgress />
           </form>
         ) : null}
       </section>
@@ -1869,6 +1893,7 @@ export default async function ClaimDetailPage({
                 Save staff entries
               </button>
             </div>
+            <FormActionProgress />
           </form>
         ) : null}
       </section>
@@ -1909,6 +1934,7 @@ export default async function ClaimDetailPage({
           <label className="grid gap-1 text-sm font-medium">WHT (NGN)<input name="paymentWithholdingTax" type="number" min="0" step="0.01" required placeholder="0.00" className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
           <label className="grid gap-1 text-sm font-medium">Tax Off (NGN)<input name="paymentTaxOffset" type="number" min="0" step="0.01" required placeholder="0.00" className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
           <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white md:col-span-3">Create e-payment schedule</button>
+          <FormActionProgress />
         </form> : null}
 
         <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
@@ -1947,6 +1973,7 @@ export default async function ClaimDetailPage({
             <input type="hidden" name="signoffKind" value={kind} />
             <label className="grid gap-1 text-sm font-medium">{voucherSignoffLabels[kind]} remark<textarea name="signoffRemark" required className="min-h-20 rounded-md border border-zinc-200 p-3" /></label>
             <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Record {voucherSignoffLabels[kind]}</button>
+            <FormActionProgress />
           </form>)}
         </div> : null}
 
@@ -1995,6 +2022,7 @@ export default async function ClaimDetailPage({
                 Update payment handoff
               </button>
             </div>
+            <FormActionProgress />
           </form>
         ) : null}
       </section>
@@ -2039,6 +2067,7 @@ export default async function ClaimDetailPage({
                   <button className="min-h-9 rounded-md border border-red-200 px-3 text-xs font-semibold text-red-700">
                     Remove from claim
                   </button>
+                  <FormActionProgress />
                 </form>
               ) : null}
             </div>
@@ -2080,6 +2109,7 @@ export default async function ClaimDetailPage({
             <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
               Attach selected trainings
             </button>
+            <FormActionProgress />
           </form>
         ) : null}
       </section>
@@ -2109,6 +2139,7 @@ export default async function ClaimDetailPage({
               <label className="grid gap-1 text-sm md:col-span-2">Pre-audit observations<textarea name="preAuditObservations" defaultValue={claim.paymentFileAudit?.observations ?? ""} className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>
             </> : <label className="grid gap-1 text-sm md:col-span-2">Head Pre-Audit verification note<textarea name="preAuditDecisionNote" required className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>}
             <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">Save payment-file pre-audit</button>
+            <FormActionProgress />
           </form> : null}
         </section>
       </CollapsibleClaimSection> : null}

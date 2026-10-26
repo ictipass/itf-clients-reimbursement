@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 
@@ -19,8 +20,8 @@ export default async function StaffDirectorySettingsPage({ searchParams }: { sea
     <a href="/settings/staff-directory/reference" className="mt-4 inline-flex rounded-md border px-3 py-2 text-sm font-semibold">Download configured lists (.xlsx)</a>
     <div className="mt-6 grid gap-6 md:grid-cols-2">{(["DEPARTMENT", "JOB_TITLE"] as const).map((kind) => <section key={kind} className="rounded-lg border bg-white p-4">
       <h2 className="text-lg font-semibold">{kind === "DEPARTMENT" ? "Departments" : "Job titles"}</h2>
-      <form action={saveStaffDirectoryOptionAction} className="mt-3 flex gap-2"><input type="hidden" name="kind" value={kind} /><input name="name" required maxLength={100} placeholder={kind === "DEPARTMENT" ? "Department name" : "Job title"} className="min-w-0 flex-1 rounded-md border px-3 py-2 text-sm" /><button className="rounded-md bg-[#800020] px-3 text-sm font-semibold text-white">Add</button></form>
-      <ul className="mt-4 space-y-2">{options.filter((option) => option.kind === kind).map((option) => <li key={option.id} className="flex items-center justify-between gap-2 rounded-md bg-zinc-50 p-2 text-sm"><span>{option.name}{!option.isActive && " (inactive)"}</span><form action={setStaffDirectoryOptionStatusAction}><input type="hidden" name="id" value={option.id} /><input type="hidden" name="isActive" value={String(!option.isActive)} /><button className="text-[#800020] underline">{option.isActive ? "Deactivate" : "Reactivate"}</button></form></li>)}</ul>
+      <form action={saveStaffDirectoryOptionAction} className="mt-3 flex gap-2"><input type="hidden" name="kind" value={kind} /><input name="name" required maxLength={100} placeholder={kind === "DEPARTMENT" ? "Department name" : "Job title"} className="min-w-0 flex-1 rounded-md border px-3 py-2 text-sm" /><button className="rounded-md bg-[#800020] px-3 text-sm font-semibold text-white">Add</button><FormActionProgress /></form>
+      <ul className="mt-4 space-y-2">{options.filter((option) => option.kind === kind).map((option) => <li key={option.id} className="flex items-center justify-between gap-2 rounded-md bg-zinc-50 p-2 text-sm"><span>{option.name}{!option.isActive && " (inactive)"}</span><form action={setStaffDirectoryOptionStatusAction}><input type="hidden" name="id" value={option.id} /><input type="hidden" name="isActive" value={String(!option.isActive)} /><button className="text-[#800020] underline">{option.isActive ? "Deactivate" : "Reactivate"}</button><FormActionProgress /></form></li>)}</ul>
     </section>)}</div>
   </div>;
 }

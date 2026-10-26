@@ -1,5 +1,6 @@
 "use client";
 
+import { FormActionProgress } from "@/components/form-action-progress";
 import Image from "next/image";
 import { signIn } from "next-auth/react";
 import { FormEvent, useState } from "react";
@@ -98,6 +99,7 @@ export function SignInForm({ callbackUrl, initialError, oauthProviders }: SignIn
       >
         {isPending ? "Checking..." : "Continue"}
       </button>
+        <FormActionProgress />
       </form>
     </div>
   );

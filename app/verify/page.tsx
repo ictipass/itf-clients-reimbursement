@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Image from "next/image";
 import Link from "next/link";
 import { headers } from "next/headers";
@@ -95,6 +96,7 @@ export default async function VerifyCertificatePage({
             <button className="min-h-11 self-end rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
               Verify
             </button>
+            <FormActionProgress />
           </form>
         </div>
 

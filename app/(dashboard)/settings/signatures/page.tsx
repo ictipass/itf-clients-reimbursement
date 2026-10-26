@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import { getServerSession } from "next-auth";
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
@@ -144,6 +145,7 @@ export default async function SignatureAssetsPage() {
               Upload signature
             </button>
           </div>
+          <FormActionProgress />
         </form>
 
         {signatureAssets.length === 0 ? (

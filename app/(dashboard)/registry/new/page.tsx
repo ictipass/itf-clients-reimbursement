@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
@@ -123,6 +124,7 @@ export default async function NewCompanyPage() {
             Create company
           </button>
         </div>
+        <FormActionProgress />
       </form>
     </div>
   );

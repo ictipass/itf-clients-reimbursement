@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Image from "next/image";
 import Link from "next/link";
 
@@ -69,6 +70,7 @@ export default async function GetStartedPage({
               <label className="grid gap-2 text-sm font-medium">Confirm password<input name="confirmPassword" type="password" required minLength={12} autoComplete="new-password" className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
             </div>
             <button className="min-h-11 w-fit rounded-md bg-[#800020] px-5 text-sm font-semibold text-white">Create portal account</button>
+            <FormActionProgress />
           </form>
           <div className="my-6 flex items-center gap-3"><span className="h-px flex-1 bg-zinc-200" /><span className="text-xs font-semibold uppercase text-zinc-500">or</span><span className="h-px flex-1 bg-zinc-200" /></div>
           {googleEnabled ? (

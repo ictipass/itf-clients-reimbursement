@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 
 import { requestPasswordResetAction } from "@/app/forgot-password/actions";
@@ -16,6 +17,7 @@ export default async function ForgotPasswordPage({
         <form action={requestPasswordResetAction} className="mt-5 grid gap-4">
           <label className="grid gap-2 text-sm font-medium">Email address<input name="email" type="email" required className="min-h-11 rounded-md border border-zinc-300 px-3" /></label>
           <button className="min-h-11 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Request reset link</button>
+          <FormActionProgress />
         </form>
         <Link href="/sign-in" className="mt-5 block text-sm font-semibold text-[#800020]">Return to sign in</Link>
       </section>

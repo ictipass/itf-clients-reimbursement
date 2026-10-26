@@ -1,3 +1,4 @@
+import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
@@ -611,6 +612,7 @@ export default async function TrainingRequestDetailPage({
                   <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white md:col-span-2">
                     Save details
                   </button>
+                  <FormActionProgress />
                 </form>
               </details>
             ) : null}
@@ -657,6 +659,7 @@ export default async function TrainingRequestDetailPage({
               <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
                 Filter
               </button>
+              <FormActionProgress />
             </form>
             {filteredParticipants.length === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">
@@ -788,6 +791,7 @@ export default async function TrainingRequestDetailPage({
                                     <button className="min-h-9 rounded-md bg-[#800020] px-3 text-xs font-semibold text-white">
                                       Save
                                     </button>
+                                    <FormActionProgress />
                                   </form>
                                 </div>
                               </details>
@@ -804,6 +808,7 @@ export default async function TrainingRequestDetailPage({
                                 >
                                   Remove
                                 </button>
+                                <FormActionProgress />
                               </form>
                             </div>
                           ) : (
@@ -855,6 +860,7 @@ export default async function TrainingRequestDetailPage({
                     <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)} name="file" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" required className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2" />
                   </label>
                   <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Import participants</button>
+                  <FormActionProgress />
                 </form>
               </div>
             ) : null}
@@ -916,6 +922,7 @@ export default async function TrainingRequestDetailPage({
                     Add participant
                   </button>
                 </div>
+                <FormActionProgress />
               </form>
             ) : null}
           </details>
@@ -982,6 +989,7 @@ export default async function TrainingRequestDetailPage({
                   ))}
                 </select>
                 <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 font-semibold text-white">Save source</button>
+                <FormActionProgress />
               </form>
             ) : null}
           </div>
@@ -1089,6 +1097,7 @@ export default async function TrainingRequestDetailPage({
               >
                 Submit Form 4A
               </button>
+              <FormActionProgress />
             </form>
           ) : null}
 
@@ -1124,6 +1133,7 @@ export default async function TrainingRequestDetailPage({
                   </button>
                 ))}
               </div>
+              <FormActionProgress />
             </form>
           ) : null}
 

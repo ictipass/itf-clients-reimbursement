@@ -1,5 +1,6 @@
 "use client";
 
+import { FormActionProgress } from "@/components/form-action-progress";
 import { useRef } from "react";
 
 import { updateDirectoryUserAction } from "@/app/(dashboard)/settings/users/actions";
@@ -126,6 +127,7 @@ export function UserEditDialog({ user, departments, jobTitles }: Readonly<{ user
               Save changes
             </button>
           </div>
+          <FormActionProgress />
         </form>
       </dialog>
     </>
