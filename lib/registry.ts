@@ -501,6 +501,14 @@ export async function createCompany(input: CreateCompanyInput) {
     throw new Error("Only an employer administrator can create a company.");
   }
 
+  // This helper uses the regular Prisma client. Resolve it before opening an
+  // interactive transaction so it cannot wait on the transaction's only
+  // pooled connection (DATABASE_POOL_MAX=1 on Vercel).
+  const activeOrganization = await getActiveEmployerOrganization(input.requesterEmail);
+  if (activeOrganization.requiresSelection) {
+    throw new Error("Select an active organization before creating another company.");
+  }
+
   return db.$transaction(async (tx) => {
     const user = await tx.user.findUnique({
       where: { email: input.requesterEmail.toLowerCase() },
@@ -528,11 +536,6 @@ export async function createCompany(input: CreateCompanyInput) {
     }
     if (!reimbursementOnly && itfEmployerNumber) {
       throw new Error("ITF registration numbers are issued by the registration workflow in Integrated mode.");
-    }
-
-    const activeOrganization = await getActiveEmployerOrganization(input.requesterEmail);
-    if (activeOrganization.requiresSelection) {
-      throw new Error("Select an active organization before creating another company.");
     }
 
     let organizationId = activeOrganization.active?.id;
