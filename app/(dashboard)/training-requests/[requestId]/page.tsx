@@ -19,6 +19,7 @@ import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { getTrainingAreas, listApprovedTrainingPlanRows } from "@/lib/training-request";
+import { summarizeTrainingRequestAreas } from "@/lib/training-request-area";
 import { listAssignableTrainingPlanReimbursementOfficers } from "@/lib/training-plan";
 import { getVisibleTrainingRequestWhere } from "@/lib/training-request-access";
 
@@ -256,7 +257,6 @@ export default async function TrainingRequestDetailPage({
       id: true,
       title: true,
       description: true,
-      trainingType: true,
       isAdHoc: true,
       adHocJustification: true,
       deliveryMode: true,
@@ -565,7 +565,7 @@ export default async function TrainingRequestDetailPage({
                 </dd>
               </div>
               {[
-                ["Training type", request.trainingType ?? "Not provided"],
+                ["Training area", summarizeTrainingRequestAreas(request.participants)],
                 ["Delivery", request.deliveryMode.replaceAll("_", " ")],
                 ["Venue", request.venue ?? "Not provided"],
                 ["Participants", request.participants.length],
@@ -622,7 +622,6 @@ export default async function TrainingRequestDetailPage({
                   <input name="startsAt" type="datetime-local" defaultValue={formatDateTimeInput(request.startsAt)} required className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
                   <input name="endsAt" type="datetime-local" defaultValue={formatDateTimeInput(request.endsAt)} required className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
                   <input name="estimatedCost" type="number" min="0.01" step="0.01" defaultValue={request.estimatedCost.toString()} required className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
-                  <input name="trainingType" defaultValue={request.trainingType ?? ""} placeholder="Training type (entered here, not from participant upload)" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
                   <input name="onlineUrl" type="url" defaultValue={request.onlineUrl ?? ""} placeholder="Online training URL" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
                   <input name="onlineMeetingId" defaultValue={request.onlineMeetingId ?? ""} placeholder="Meeting ID" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />
                   <input name="onlinePassword" defaultValue={request.onlinePassword ?? ""} placeholder="Password / passcode" className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm" />

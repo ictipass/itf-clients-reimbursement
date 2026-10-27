@@ -52,7 +52,6 @@ export type UpdateTrainingRequestDetailsInput = {
   requesterRole: Role;
   title: string;
   description?: string;
-  trainingType?: string;
   provider: string;
   venue?: string;
   startsAt: Date;
@@ -286,7 +285,6 @@ export async function updateTrainingRequestDetails(input: UpdateTrainingRequestD
     data: {
       title: input.title.trim(),
       description: input.description?.trim() || null,
-      trainingType: input.trainingType?.trim() || null,
       provider: input.provider.trim(),
       venue: input.deliveryMode === "LOCAL_PHYSICAL" ? input.venue?.trim() || null : null,
       startsAt: input.startsAt,
@@ -704,7 +702,7 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
       id: true,
       companyId: true,
       title: true,
-      trainingType: true,
+      deliveryMode: true,
       startsAt: true,
       endsAt: true,
       decisionOutcome: true,
@@ -882,7 +880,7 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
         const monitoringRecord = await tx.trainingMonitoringRecord.create({
           data: {
             trainingRequestId: request.id,
-            mode: request.trainingType?.toLowerCase().includes("virtual")
+            mode: request.deliveryMode === "LOCAL_ONLINE"
               ? "LOCAL_VIRTUAL"
               : "LOCAL_PHYSICAL",
             monitoringDate: request.startsAt,

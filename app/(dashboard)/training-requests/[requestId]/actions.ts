@@ -90,7 +90,6 @@ export async function updateTrainingRequestDetailsAction(requestId: string, form
     requesterRole: session.user.role,
     title,
     description: readOptionalString(formData, "description"),
-    trainingType: readOptionalString(formData, "trainingType"),
     provider,
     venue: readOptionalString(formData, "venue"),
     startsAt: new Date(startsAt),
