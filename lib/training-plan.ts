@@ -65,7 +65,28 @@ export type RouteTrainingPlanSubmissionInput = {
   transition: TrainingPlanDeskTransition;
   note?: string;
   recommendation?: "APPROVE" | "REJECT";
+  assigneeUserId?: string;
 };
+
+export async function listAssignableTrainingPlanReimbursementOfficers(workspaceId: string, areaOfficeId: string | null) {
+  if (!areaOfficeId) return [];
+  return getDb().user.findMany({
+    where: {
+      isActive: true,
+      memberships: { some: { isActive: true, role: "REIMBURSEMENT_OFFICER", workspaceId, areaOfficeId } },
+    },
+    select: { id: true, name: true, email: true },
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+  });
+}
+
+export function resolveTrainingPlanOfficerAssignment(officers: readonly { id: string }[], requestedId?: string) {
+  if (!officers.length) throw new Error("No active Reimbursement Officer is assigned to this Area Office.");
+  if (!requestedId && officers.length > 1) throw new Error("Select the Reimbursement Officer who will receive this Training Plan.");
+  const officer = officers.find((candidate) => candidate.id === (requestedId ?? officers[0].id));
+  if (!officer) throw new Error("The selected Reimbursement Officer is not active in this Area Office.");
+  return officer.id;
+}
 
 export type UploadTrainingPlanEvidenceInput = {
   companyId: string;
@@ -145,7 +166,7 @@ function getTrainingPlanDeskWorkItem(desk: "AREA_MANAGER" | "HEAD_OF_TRAINING" |
   if (desk === "REIMBURSEMENT_OFFICER") {
     return {
       assignedRole: "REIMBURSEMENT_OFFICER" as const,
-      sourceSuffix: "reimbursement-officer-review",
+      sourceSuffix: "reimbursement_officer",
       title: "Resume Training Plan and L&D evidence review",
       summary: "resubmitted Training Plan and L&D corrections for Reimbursement Officer review.",
     };
@@ -783,6 +804,11 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
       },
     });
 
+    await tx.workItem.updateMany({
+      where: { trainingPlanSubmissionId: submission.id, status: "OPEN" },
+      data: { status: "RESOLVED", resolvedAt: new Date() },
+    });
+
     await tx.workItem.upsert({
       where: {
         sourceKey: `training-plan:${submission.id}:${workItem.sourceSuffix}`,
@@ -900,6 +926,28 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
     throw new Error("You do not have access to this Area Office training plan submission.");
   }
 
+  let assignedRoWorkItemId: string | null = null;
+  if (submission.currentDesk === "REIMBURSEMENT_OFFICER" && !["SYSTEM_ADMIN", "WORKSPACE_APP_ADMIN"].includes(input.requesterRole)) {
+    const currentWorkItem = await db.workItem.findFirst({
+      where: { trainingPlanSubmissionId: submission.id, assignedRole: "REIMBURSEMENT_OFFICER", status: "OPEN", recordTier: "HOT" },
+      select: { id: true, assignedUserId: true },
+    });
+    if (currentWorkItem?.assignedUserId && currentWorkItem.assignedUserId !== actor.id) {
+      throw new Error("This Training Plan is assigned to another Reimbursement Officer.");
+    }
+    if (currentWorkItem?.assignedUserId) assignedRoWorkItemId = currentWorkItem.id;
+  }
+
+  const assignedUserId = input.transition === "hot_to_ro"
+    ? resolveTrainingPlanOfficerAssignment(
+        await listAssignableTrainingPlanReimbursementOfficers(
+          submission.company.organization.workspaceId,
+          submission.company.areaOfficeId,
+        ),
+        input.assigneeUserId,
+      )
+    : null;
+
   if (input.transition === "ro_to_hot" && !["APPROVE", "REJECT"].includes(input.recommendation ?? "")) {
     throw new Error("Select approval or rejection before returning this Training Plan to HOT.");
   }
@@ -911,6 +959,13 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
   }
 
   return db.$transaction(async (tx) => {
+    if (assignedRoWorkItemId) {
+      const claimed = await tx.workItem.updateMany({
+        where: { id: assignedRoWorkItemId, assignedUserId: actor.id, status: "OPEN" },
+        data: { status: "RESOLVED", resolvedAt: new Date() },
+      });
+      if (claimed.count !== 1) throw new Error("This Training Plan was reassigned or routed by someone else. Reload and try again.");
+    }
     const updated = await tx.trainingPlanSubmission.update({
       where: {
         id: submission.id,
@@ -962,6 +1017,7 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
           companyId: submission.companyId,
           trainingPlanSubmissionId: submission.id,
           assignedRole: transition.assignedRole,
+          assignedUserId,
           app: "REIMBURSEMENT",
           kind: "TRAINING_PLAN_REVIEW",
           status: "OPEN",
@@ -973,6 +1029,7 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
         },
         update: {
           status: "OPEN",
+          assignedUserId,
           resolvedAt: null,
           priority: transition.priority,
           summary: `${submission.company.legalName} ${transition.workItemSummary}`,
@@ -985,6 +1042,70 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
     }
 
     return updated;
+  });
+}
+
+export async function reassignTrainingPlanReimbursementOfficer(input: {
+  submissionId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  assigneeUserId: string;
+  reason: string;
+}) {
+  const reason = input.reason.trim();
+  if (!reason) throw new Error("Record a reason for reassigning this Training Plan.");
+  const db = getDb();
+  const [submission, actor] = await Promise.all([
+    db.trainingPlanSubmission.findFirst({
+      where: { id: input.submissionId, recordTier: "HOT", status: "IN_REVIEW", currentDesk: "REIMBURSEMENT_OFFICER" },
+      select: { id: true, companyId: true, company: { select: { areaOfficeId: true, organization: { select: { workspaceId: true } } } } },
+    }),
+    db.user.findUnique({ where: { email: input.requesterEmail }, select: { id: true } }),
+  ]);
+  if (!submission || !actor) throw new Error("An open Reimbursement Officer Training Plan assignment was not found.");
+  const forwardingDecision = await db.decision.findFirst({
+    where: { trainingPlanSubmissionId: submission.id, recordTier: "HOT", reason: { startsWith: "HOT forwarded Training Plan and L&D submission to Reimbursement Officer" } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { actorId: true },
+  });
+  const adminOverride = input.requesterRole === "SYSTEM_ADMIN" || input.requesterRole === "WORKSPACE_APP_ADMIN";
+  if (forwardingDecision?.actorId !== actor.id && !adminOverride) {
+    throw new Error("Only the HOT who forwarded this Training Plan may reassign it.");
+  }
+  if (adminOverride) {
+    const adminMembership = await db.membership.findFirst({
+      where: { userId: actor.id, workspaceId: submission.company.organization.workspaceId, role: input.requesterRole, isActive: true },
+      select: { id: true },
+    });
+    if (!adminMembership) throw new Error("You do not have administrative authority in this workspace.");
+  }
+  const officers = await listAssignableTrainingPlanReimbursementOfficers(
+    submission.company.organization.workspaceId,
+    submission.company.areaOfficeId,
+  );
+  const assigneeId = resolveTrainingPlanOfficerAssignment(officers, input.assigneeUserId);
+  const assignee = officers.find((officer) => officer.id === assigneeId)!;
+  const workItem = await db.workItem.findFirst({
+    where: { trainingPlanSubmissionId: submission.id, assignedRole: "REIMBURSEMENT_OFFICER", status: "OPEN", recordTier: "HOT" },
+    select: { id: true, assignedUserId: true },
+  });
+  if (!workItem) throw new Error("The Reimbursement Officer assignment is no longer open.");
+  if (workItem.assignedUserId === assigneeId) throw new Error("Select a different Reimbursement Officer.");
+  await db.$transaction(async (tx) => {
+    const result = await tx.workItem.updateMany({
+      where: { id: workItem.id, status: "OPEN", assignedUserId: workItem.assignedUserId },
+      data: { assignedUserId: assigneeId, emailNotifiedAt: null },
+    });
+    if (result.count !== 1) throw new Error("This Training Plan was reassigned by someone else. Reload and try again.");
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: submission.companyId,
+        trainingPlanSubmissionId: submission.id,
+        action: "FORWARD",
+        reason: `Reassigned Training Plan to ${assignee.name} (${assignee.email}). Reason: ${reason}`,
+      },
+    });
   });
 }
 

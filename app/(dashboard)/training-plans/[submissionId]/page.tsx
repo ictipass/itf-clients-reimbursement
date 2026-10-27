@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
 
 import {
+  reassignTrainingPlanReimbursementOfficerAction,
   routeTrainingPlanSubmissionAction,
   submitTrainingPlanSubmissionAction,
 } from "@/app/(dashboard)/registry/[companyId]/training-plans/actions";
@@ -17,6 +18,7 @@ import { getDb } from "@/lib/db";
 import { getActiveEmployerOrganization } from "@/lib/organization-context";
 import { isItfRole, type Role } from "@/lib/rbac";
 import { getItfTrainingPlanCompanyWhere } from "@/lib/training-plan-access";
+import { listAssignableTrainingPlanReimbursementOfficers } from "@/lib/training-plan";
 
 const trainingPlanTransitionLabels = {
   am_to_hot: "Forward to HOT",
@@ -174,6 +176,8 @@ export default async function TrainingPlanDetailPage({
         select: {
           id: true,
           legalName: true,
+          areaOfficeId: true,
+          organization: { select: { workspaceId: true } },
           areaOffice: {
             select: {
               name: true,
@@ -231,6 +235,7 @@ export default async function TrainingPlanDetailPage({
         },
         select: {
           id: true,
+          actorId: true,
           action: true,
           reason: true,
           createdAt: true,
@@ -243,6 +248,11 @@ export default async function TrainingPlanDetailPage({
         orderBy: {
           createdAt: "desc",
         },
+      },
+      workItems: {
+        where: { status: "OPEN", assignedRole: "REIMBURSEMENT_OFFICER", recordTier: "HOT" },
+        select: { assignedUserId: true, assignedUser: { select: { name: true, email: true } } },
+        take: 1,
       },
     },
   });
@@ -260,9 +270,24 @@ export default async function TrainingPlanDetailPage({
     submission.currentDesk,
     submission.status,
   );
+  const currentRoWorkItem = submission.workItems[0];
+  const assignedToAnotherRo = submission.currentDesk === "REIMBURSEMENT_OFFICER" &&
+    Boolean(currentRoWorkItem?.assignedUserId && currentRoWorkItem.assignedUserId !== session.user.id);
   const canRouteTrainingPlan =
     availableTrainingPlanTransitions.length > 0 &&
-    canActAsTrainingPlanDesk(activeRole, submission.currentDesk);
+    canActAsTrainingPlanDesk(activeRole, submission.currentDesk) &&
+    (!assignedToAnotherRo || adminOverride);
+  const latestHotForward = submission.decisions.find((decision) =>
+    decision.reason?.startsWith("HOT forwarded Training Plan and L&D submission to Reimbursement Officer"),
+  );
+  const canReassignRo = submission.currentDesk === "REIMBURSEMENT_OFFICER" && submission.status === "IN_REVIEW" &&
+    Boolean(currentRoWorkItem) && (adminOverride || latestHotForward?.actorId === session.user.id);
+  const roOfficers = (submission.currentDesk === "HEAD_OF_TRAINING" && canRouteTrainingPlan) || canReassignRo
+    ? await listAssignableTrainingPlanReimbursementOfficers(
+        submission.company.organization.workspaceId,
+        submission.company.areaOfficeId,
+      )
+    : [];
   const canSubmitTrainingPlan =
     (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
     missingRequiredEvidence.length === 0 &&
@@ -506,6 +531,16 @@ export default async function TrainingPlanDetailPage({
               className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-3 lg:col-span-2"
             >
               <h2 className="text-xl font-semibold tracking-tight">Workflow action</h2>
+              {submission.currentDesk === "HEAD_OF_TRAINING" ? (
+                <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
+                  Reimbursement Officer for “Forward to Reimbursement Officer”
+                  <select name="assigneeUserId" defaultValue={roOfficers.length === 1 ? roOfficers[0].id : ""} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm">
+                    <option value="">Select an officer</option>
+                    {roOfficers.map((officer) => <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>)}
+                  </select>
+                  {!roOfficers.length ? <span className="text-red-800">No active Reimbursement Officer is configured for this Area Office.</span> : null}
+                </label>
+              ) : null}
               {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? (
                 <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
                   Recommendation to HOT
@@ -538,6 +573,32 @@ export default async function TrainingPlanDetailPage({
                   />
                 ))}
               </div>
+              <FormActionProgress />
+            </form>
+          ) : null}
+
+          {submission.currentDesk === "REIMBURSEMENT_OFFICER" && currentRoWorkItem?.assignedUser ? (
+            <p className="rounded-lg border border-zinc-200 bg-white p-4 text-sm lg:col-span-2">
+              Assigned Reimbursement Officer: <strong>{currentRoWorkItem.assignedUser.name}</strong> ({currentRoWorkItem.assignedUser.email}).
+              {assignedToAnotherRo && !adminOverride ? " This Training Plan is available to view, but only that officer can act on it." : ""}
+            </p>
+          ) : null}
+          {canReassignRo ? (
+            <form action={reassignTrainingPlanReimbursementOfficerAction.bind(null, submission.id)} className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
+              <h2 className="text-lg font-semibold">Reassign Reimbursement Officer</h2>
+              <p className="mt-1 text-sm text-zinc-600">The HOT who forwarded this plan can move it to another officer while it awaits review.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <label className="grid gap-2 text-sm font-medium">New officer
+                  <select name="assigneeUserId" required defaultValue="" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3">
+                    <option value="" disabled>Select another officer</option>
+                    {roOfficers.filter((officer) => officer.id !== currentRoWorkItem?.assignedUserId).map((officer) => <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-medium">Reason for reassignment
+                  <input name="reason" required className="min-h-10 rounded-md border border-zinc-200 bg-white px-3" />
+                </label>
+              </div>
+              <button className="mt-4 min-h-10 rounded-md border border-zinc-200 px-4 text-sm font-semibold">Reassign plan</button>
               <FormActionProgress />
             </form>
           ) : null}

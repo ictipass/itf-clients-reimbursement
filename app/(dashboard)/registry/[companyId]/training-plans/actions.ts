@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 import {
   createTrainingPlanSubmission,
   getTrainingPlanDeskTransitions,
+  reassignTrainingPlanReimbursementOfficer,
   routeTrainingPlanSubmission,
   submitTrainingPlanSubmission,
   type TrainingPlanDeskTransition,
@@ -170,6 +171,7 @@ export async function routeTrainingPlanSubmissionAction(
       recommendation: transition === "ro_to_hot" &&
         (selectedRecommendation === "APPROVE" || selectedRecommendation === "REJECT")
         ? selectedRecommendation : undefined,
+      assigneeUserId: readOptionalString(formData, "assigneeUserId"),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Training Plan could not be routed.";
@@ -178,6 +180,27 @@ export async function routeTrainingPlanSubmissionAction(
 
   revalidatePath(`/dashboard`);
   revalidatePath(`/registry/${companyId}`);
+  revalidatePath(`/training-plans/${submissionId}`);
+  redirect(`/training-plans/${submissionId}`);
+}
+
+export async function reassignTrainingPlanReimbursementOfficerAction(submissionId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  try {
+    await reassignTrainingPlanReimbursementOfficer({
+      submissionId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      assigneeUserId: readOptionalString(formData, "assigneeUserId") ?? "",
+      reason: readOptionalString(formData, "reason") ?? "",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Training Plan could not be reassigned.";
+    redirect(`/training-plans/${submissionId}?routeError=${encodeURIComponent(message.slice(0, 280))}`);
+  }
+  revalidatePath("/dashboard");
+  revalidatePath("/training-plans");
   revalidatePath(`/training-plans/${submissionId}`);
   redirect(`/training-plans/${submissionId}`);
 }

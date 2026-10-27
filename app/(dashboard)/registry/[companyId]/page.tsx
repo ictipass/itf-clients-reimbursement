@@ -39,6 +39,7 @@ import { listAvailableManagedNumbers } from "@/lib/managed-numbers";
 import { isRemitaConfigured } from "@/lib/remita";
 import { canManageAnnualCompliance, type Role } from "@/lib/rbac";
 import { getEmployerCompany } from "@/lib/registry";
+import { listAssignableTrainingPlanReimbursementOfficers } from "@/lib/training-plan";
 import {
   formatRevenueWorkflowMode,
   usesInAppRevenueWorkflow,
@@ -572,6 +573,10 @@ export default async function CompanyDetailPage({
   }
 
   const activeRole = session.user.role;
+  const requesterId = session.user.id;
+  const roOfficers = activeRole === "HEAD_OF_TRAINING" || isAdminRole(activeRole)
+    ? await listAssignableTrainingPlanReimbursementOfficers(company.organization.workspaceId, company.areaOfficeId)
+    : [];
   const roleFocus = getRegistryRoleFocus(activeRole);
   const adminOverride = isAdminRole(activeRole);
   const canDeleteEvidence = isEmployerRole(activeRole);
@@ -873,7 +878,9 @@ export default async function CompanyDetailPage({
   const hasActionableTrainingPlanSubmission = company.trainingPlanSubmissions.some(
     (submission) =>
       getAvailableTrainingPlanTransitions(submission.currentDesk, submission.status).length > 0 &&
-      canActAsTrainingPlanDesk(activeRole, submission.currentDesk),
+      canActAsTrainingPlanDesk(activeRole, submission.currentDesk) &&
+      (adminOverride || submission.currentDesk !== "REIMBURSEMENT_OFFICER" ||
+        !submission.workItems[0]?.assignedUserId || submission.workItems[0].assignedUserId === requesterId),
   );
   const registeredCompanySteps = [
     {
@@ -2022,7 +2029,9 @@ export default async function CompanyDetailPage({
               );
               const canRouteTrainingPlan =
                 availableTrainingPlanTransitions.length > 0 &&
-                canActAsTrainingPlanDesk(activeRole, submission.currentDesk);
+                canActAsTrainingPlanDesk(activeRole, submission.currentDesk) &&
+                (adminOverride || submission.currentDesk !== "REIMBURSEMENT_OFFICER" ||
+                  !submission.workItems[0]?.assignedUserId || submission.workItems[0].assignedUserId === requesterId);
               const canSubmitTrainingPlan =
                 (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
                 missingRequiredEvidence.length === 0 &&
@@ -2143,6 +2152,16 @@ export default async function CompanyDetailPage({
                             <option value="APPROVE">Recommend approval</option>
                             <option value="REJECT">Recommend rejection</option>
                           </select>
+                        </label>
+                      ) : null}
+                      {submission.currentDesk === "HEAD_OF_TRAINING" ? (
+                        <label className="grid gap-2 text-xs font-medium text-zinc-700">
+                          Reimbursement Officer for “Forward to Reimbursement Officer”
+                          <select name="assigneeUserId" defaultValue={roOfficers.length === 1 ? roOfficers[0].id : ""} className="min-h-9 rounded-md border border-zinc-200 bg-white px-3 text-sm">
+                            <option value="">Select an officer</option>
+                            {roOfficers.map((officer) => <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>)}
+                          </select>
+                          {!roOfficers.length ? <span className="text-red-800">No active Reimbursement Officer is configured for this Area Office.</span> : null}
                         </label>
                       ) : null}
                       <label className="grid gap-2 text-xs font-medium text-zinc-700">

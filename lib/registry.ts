@@ -194,6 +194,7 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
     select: {
       id: true,
       legalName: true,
+      areaOfficeId: true,
       rcNumber: true,
       taxId: true,
       itfEmployerNumber: true,
@@ -433,6 +434,11 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
           dueDate: true,
           submittedAt: true,
           promptSubmissionScore: true,
+          workItems: {
+            where: { status: "OPEN", assignedRole: "REIMBURSEMENT_OFFICER", recordTier: "HOT" },
+            select: { assignedUserId: true },
+            take: 1,
+          },
           personnel: {
             select: {
               id: true,
