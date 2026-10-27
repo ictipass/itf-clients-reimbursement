@@ -1,5 +1,6 @@
 import { writeAuditEvent } from "@/lib/audit";
 import { getDb } from "@/lib/db";
+import { assertNoOpenAssignedWork } from "@/lib/open-assignment-guard";
 import { can, type Role } from "@/lib/rbac";
 
 const employerRoles = ["EMPLOYER_ADMIN", "EMPLOYER_SUBMITTER", "EMPLOYER_VIEWER"] as const;
@@ -133,6 +134,13 @@ export async function replaceEmployerAdministrators(input: {
       },
       select: { id: true, userId: true },
     });
+
+    for (const membership of previousAdministrators) {
+      await assertNoOpenAssignedWork({
+        userId: membership.userId, role: "EMPLOYER_ADMIN", workspaceId: organization.workspaceId,
+        organizationId: organization.id, db: tx,
+      });
+    }
 
     await tx.membership.updateMany({
       where: { id: { in: previousAdministrators.map((membership) => membership.id) } },

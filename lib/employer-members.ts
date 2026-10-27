@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 import { writeAuditEvent } from "@/lib/audit";
 import { getDb } from "@/lib/db";
+import { assertNoOpenAssignedWork } from "@/lib/open-assignment-guard";
 import { sendOrganizationInvitationEmail } from "@/lib/email";
 import {
   ActiveEmployerOrganizationRequiredError,
@@ -304,6 +305,23 @@ export async function acceptOrganizationInvitation(input: {
   }
 
   await db.$transaction(async (tx) => {
+    const replacedMemberships = await tx.membership.findMany({
+      where: {
+        userId: user.id,
+        role: { in: [...employerRoles] },
+        isActive: true,
+        OR: [{ organizationId: invitation.organizationId }, { organizationId: null }],
+      },
+      select: { role: true, organizationId: true },
+    });
+    for (const membership of replacedMemberships) {
+      if (membership.role !== invitation.role || membership.organizationId !== invitation.organizationId) {
+        await assertNoOpenAssignedWork({
+          userId: user.id, role: membership.role, workspaceId: invitation.organization.workspaceId,
+          organizationId: membership.organizationId ?? undefined, db: tx,
+        });
+      }
+    }
     await tx.membership.updateMany({
       where: {
         userId: user.id,
@@ -424,6 +442,10 @@ export async function changeEmployerMemberRole(input: {
   }
 
   await db.$transaction(async (tx) => {
+    await assertNoOpenAssignedWork({
+      userId: membership.userId, role: membership.role, workspaceId: context.workspaceId,
+      organizationId: context.organizationId, db: tx,
+    });
     await tx.membership.update({
       where: { id: membership.id },
       data: {

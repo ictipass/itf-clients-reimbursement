@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { assertNoOpenAssignedWork } from "@/lib/open-assignment-guard";
 import { writeAuditEvent } from "@/lib/audit";
 import { can, type Role } from "@/lib/rbac";
 
@@ -31,7 +32,7 @@ export async function deactivateMembership(input: DeactivateMembershipInput) {
     }),
     db.membership.findUnique({
       where: { id: input.membershipId },
-      select: { id: true, userId: true, workspaceId: true, organizationId: true, role: true, isActive: true },
+      select: { id: true, userId: true, workspaceId: true, organizationId: true, areaOfficeId: true, role: true, isActive: true },
     }),
   ]);
 
@@ -65,15 +66,25 @@ export async function deactivateMembership(input: DeactivateMembershipInput) {
     }
   }
 
-  const result = await db.membership.update({
-    where: { id: membership.id },
-    data: {
-      isActive: false,
-      deactivatedAt: new Date(),
-      deactivatedById: requester.id,
-      deactivatedReason: input.reason.trim(),
-    },
-    select: { id: true, isActive: true, deactivatedAt: true },
+  const result = await db.$transaction(async (tx) => {
+    await assertNoOpenAssignedWork({
+      userId: membership.userId,
+      role: membership.role,
+      workspaceId: membership.workspaceId,
+      organizationId: membership.role.startsWith("EMPLOYER_") ? membership.organizationId ?? undefined : undefined,
+      areaOfficeId: membership.areaOfficeId ?? undefined,
+      db: tx,
+    });
+    return tx.membership.update({
+      where: { id: membership.id },
+      data: {
+        isActive: false,
+        deactivatedAt: new Date(),
+        deactivatedById: requester.id,
+        deactivatedReason: input.reason.trim(),
+      },
+      select: { id: true, isActive: true, deactivatedAt: true },
+    });
   });
 
   await writeAuditEvent({

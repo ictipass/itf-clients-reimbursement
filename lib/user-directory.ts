@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 
 import { getDb } from "@/lib/db";
+import { assertNoOpenAssignedWork } from "@/lib/open-assignment-guard";
 import { generateTemporaryPassword, hashTemporaryPassword } from "@/lib/officer-provisioning";
 import { writeAuditEvent } from "@/lib/audit";
 import { can, roles, type Role } from "@/lib/rbac";
@@ -352,7 +353,10 @@ export async function updateDirectoryUserStatus(input: {
     }
   }
   if (user.isActive === input.isActive) return;
-  await db.user.update({ where: { id: user.id }, data: { isActive: input.isActive } });
+  await db.$transaction(async (tx) => {
+    if (!input.isActive) await assertNoOpenAssignedWork({ userId: user.id, db: tx });
+    await tx.user.update({ where: { id: user.id }, data: { isActive: input.isActive } });
+  });
   const workspaceId = requester.memberships[0]?.workspaceId;
   if (workspaceId) {
     await writeAuditEvent({

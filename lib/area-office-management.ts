@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { deactivateMembership } from "@/lib/membership-lifecycle";
+import { assertNoOpenAssignedWork } from "@/lib/open-assignment-guard";
 import { can, type Role } from "@/lib/rbac";
 
 const areaOfficeOfficerRoles = [
@@ -348,34 +349,47 @@ export async function assignOfficeOfficer(input: AssignOfficeOfficerInput) {
   const membershipScope = office.areaOfficeId ?? office.organizationId ?? office.workspaceId;
   const membershipId = `${user.id}-${input.role.toLowerCase()}-${membershipScope}`;
 
-  return db.membership.upsert({
-    where: {
-      userId_workspaceId_organizationId_role: {
+  return db.$transaction(async (tx) => {
+    const existingAssignment = await tx.membership.findUnique({
+      where: { userId_workspaceId_organizationId_role: {
+        userId: user.id, workspaceId: office.workspaceId, organizationId: office.organizationId, role: input.role,
+      } },
+      select: { isActive: true, areaOfficeId: true },
+    });
+    if (existingAssignment?.isActive && existingAssignment.areaOfficeId !== office.areaOfficeId) {
+      await assertNoOpenAssignedWork({
+        userId: user.id, role: input.role, workspaceId: office.workspaceId,
+        areaOfficeId: existingAssignment.areaOfficeId ?? undefined, db: tx,
+      });
+    }
+
+    return tx.membership.upsert({
+      where: {
+        userId_workspaceId_organizationId_role: {
+          userId: user.id,
+          workspaceId: office.workspaceId,
+          organizationId: office.organizationId,
+          role: input.role,
+        },
+      },
+      update: {
+        areaOfficeId: office.areaOfficeId,
+        isActive: true,
+        activatedAt: new Date(),
+        deactivatedAt: null,
+        deactivatedById: null,
+        deactivatedReason: null,
+      },
+      create: {
+        id: membershipId,
         userId: user.id,
         workspaceId: office.workspaceId,
         organizationId: office.organizationId,
+        areaOfficeId: office.areaOfficeId,
         role: input.role,
       },
-    },
-    update: {
-      areaOfficeId: office.areaOfficeId,
-      isActive: true,
-      activatedAt: new Date(),
-      deactivatedAt: null,
-      deactivatedById: null,
-      deactivatedReason: null,
-    },
-    create: {
-      id: membershipId,
-      userId: user.id,
-      workspaceId: office.workspaceId,
-      organizationId: office.organizationId,
-      areaOfficeId: office.areaOfficeId,
-      role: input.role,
-    },
-    select: {
-      id: true,
-    },
+      select: { id: true },
+    });
   });
 }
 
@@ -493,16 +507,19 @@ export async function updateAreaOfficeStatus(input: UpdateAreaOfficeStatusInput)
     throw new Error("You do not have permission to update Area Offices.");
   }
 
-  return getDb().areaOffice.update({
-    where: {
-      id: input.areaOfficeId,
-    },
-    data: {
-      isActive: input.isActive,
-    },
-    select: {
-      id: true,
-      isActive: true,
-    },
+  const db = getDb();
+  return db.$transaction(async (tx) => {
+    if (!input.isActive) {
+      const item = await tx.workItem.findFirst({
+        where: { areaOfficeId: input.areaOfficeId, status: "OPEN", assignedUserId: { not: null } },
+        select: { title: true, targetHref: true },
+      });
+      if (item) throw new Error(`This Area Office has an open assigned job (${item.title}). Reassign or complete it at ${item.targetHref} before deactivating the office.`);
+    }
+    return tx.areaOffice.update({
+      where: { id: input.areaOfficeId },
+      data: { isActive: input.isActive },
+      select: { id: true, isActive: true },
+    });
   });
 }
