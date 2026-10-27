@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { claimAttentionAssigneeScope, getClaimDeskForRole, getModuleForWorkItem, isHeadquartersRole, trainingPlanAttentionAssigneeScope } from "../lib/attention";
+import { claimAttentionAssigneeScope, getClaimDeskForRole, getModuleForWorkItem, isHeadquartersRole, trainingPlanAttentionAssigneeScope, trainingRequestAttentionAssigneeScope } from "../lib/attention";
 import { getVisibleNavGroups } from "../lib/navigation";
 
 test("jurisdiction requests and registry have separate attention badges", () => {
@@ -62,6 +62,14 @@ test("a named claim assignment only alerts the selected officer", () => {
 test("a named training plan assignment only alerts the selected officer", () => {
   assert.deepEqual(trainingPlanAttentionAssigneeScope("officer-1").OR, [
     { trainingPlanSubmissionId: null },
+    { assignedUserId: null },
+    { assignedUserId: "officer-1" },
+  ]);
+});
+
+test("a named training approval request only alerts the selected officer", () => {
+  assert.deepEqual(trainingRequestAttentionAssigneeScope("officer-1").OR, [
+    { kind: { not: "TRAINING_REQUEST_REVIEW" } },
     { assignedUserId: null },
     { assignedUserId: "officer-1" },
   ]);

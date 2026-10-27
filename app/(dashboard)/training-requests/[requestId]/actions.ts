@@ -13,6 +13,7 @@ import {
   getTrainingRequestEvidenceKinds,
   getTrainingAreas,
   routeTrainingRequest,
+  reassignTrainingRequestReimbursementOfficer,
   submitTrainingRequest,
   updateTrainingRequestDetails,
   updateTrainingRequestSource,
@@ -135,6 +136,7 @@ export async function routeTrainingRequestAction(requestId: string, formData: Fo
       requesterRole: session.user.role,
       transition: readTrainingRequestTransition(formData),
       note: readOptionalString(formData, "note"),
+      assigneeUserId: readOptionalString(formData, "assigneeUserId"),
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : "The workflow action could not be completed.";
@@ -144,6 +146,26 @@ export async function routeTrainingRequestAction(requestId: string, formData: Fo
   revalidatePath(`/training-requests`);
   revalidatePath(`/training-requests/${requestId}`);
   redirect(`/training-requests?routed=1`);
+}
+
+export async function reassignTrainingRequestReimbursementOfficerAction(requestId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  try {
+    await reassignTrainingRequestReimbursementOfficer({
+      requestId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      assigneeUserId: readOptionalString(formData, "assigneeUserId") ?? "",
+      reason: readOptionalString(formData, "reason") ?? "",
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The request could not be reassigned.";
+    redirect(`/training-requests/${requestId}?workflowError=${encodeURIComponent(message.slice(0, 240))}`);
+  }
+  revalidatePath("/training-requests");
+  revalidatePath(`/training-requests/${requestId}`);
+  redirect(`/training-requests/${requestId}`);
 }
 
 function readEvidenceKind(formData: FormData): TrainingRequestEvidenceKind {

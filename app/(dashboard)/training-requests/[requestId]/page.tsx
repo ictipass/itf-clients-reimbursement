@@ -8,6 +8,7 @@ import { EmployerFeedbackViewed } from "@/components/employer-feedback-viewed";
 import {
   addTrainingParticipantAction,
   deleteTrainingParticipantAction,
+  reassignTrainingRequestReimbursementOfficerAction,
   routeTrainingRequestAction,
   submitTrainingRequestAction,
   updateTrainingRequestDetailsAction,
@@ -18,6 +19,7 @@ import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { getTrainingAreas, listApprovedTrainingPlanRows } from "@/lib/training-request";
+import { listAssignableTrainingPlanReimbursementOfficers } from "@/lib/training-plan";
 import { getVisibleTrainingRequestWhere } from "@/lib/training-request-access";
 
 const transitionLabels = {
@@ -278,6 +280,8 @@ export default async function TrainingRequestDetailPage({
         select: {
           id: true,
           legalName: true,
+          areaOfficeId: true,
+          organization: { select: { workspaceId: true } },
           areaOffice: {
             select: {
               name: true,
@@ -361,6 +365,7 @@ export default async function TrainingRequestDetailPage({
         },
         select: {
           id: true,
+          actorId: true,
           action: true,
           reason: true,
           createdAt: true,
@@ -435,8 +440,26 @@ export default async function TrainingRequestDetailPage({
     request.status,
     request.decisionOutcome,
   );
+  const currentRoWorkItem = request.currentDesk === "REIMBURSEMENT_OFFICER"
+    ? await getDb().workItem.findUnique({
+        where: { sourceKey: `training-request:${request.id}:reimbursement_officer` },
+        select: { status: true, assignedUserId: true, assignedUser: { select: { name: true, email: true } } },
+      })
+    : null;
+  const assignedToAnotherRo = request.currentDesk === "REIMBURSEMENT_OFFICER" && currentRoWorkItem?.status === "OPEN" &&
+    Boolean(currentRoWorkItem.assignedUserId && currentRoWorkItem.assignedUserId !== session?.user?.id);
   const canRoute =
-    !claimLinkedStaffAccess && availableTransitions.length > 0 && canActAsDesk(activeRole, request.currentDesk);
+    !claimLinkedStaffAccess && availableTransitions.length > 0 && canActAsDesk(activeRole, request.currentDesk) &&
+    (!assignedToAnotherRo || adminOverride);
+  const latestHotForward = request.decisions.find((decision) =>
+    decision.reason?.startsWith("HOT forwarded Training Approval Request to Reimbursement Officer"),
+  );
+  const canReassignRo = !claimLinkedStaffAccess && request.currentDesk === "REIMBURSEMENT_OFFICER" &&
+    request.status === "IN_REVIEW" && currentRoWorkItem?.status === "OPEN" &&
+    (adminOverride || latestHotForward?.actorId === session?.user?.id);
+  const roOfficers = (request.currentDesk === "HEAD_OF_TRAINING" && canRoute) || canReassignRo
+    ? await listAssignableTrainingPlanReimbursementOfficers(request.company.organization.workspaceId, request.company.areaOfficeId)
+    : [];
   const hasApprovedMonitoring = request.monitoringRecords.some(
     (record) => record.status === "APPROVED" && record.decisionOutcome === "ACCEPTED",
   );
@@ -1107,6 +1130,16 @@ export default async function TrainingRequestDetailPage({
               className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2"
             >
               <h2 className="text-xl font-semibold tracking-tight">Workflow action</h2>
+              {request.currentDesk === "HEAD_OF_TRAINING" ? (
+                <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
+                  Reimbursement Officer for “Forward to Reimbursement Officer”
+                  <select name="assigneeUserId" defaultValue={roOfficers.length === 1 ? roOfficers[0].id : ""} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm">
+                    <option value="">Select an officer</option>
+                    {roOfficers.map((officer) => <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>)}
+                  </select>
+                  {!roOfficers.length ? <span className="text-red-800">No active Reimbursement Officer is configured for this Area Office.</span> : null}
+                </label>
+              ) : null}
               <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
                 Decision/review reason
                 <textarea
@@ -1133,6 +1166,32 @@ export default async function TrainingRequestDetailPage({
                   </button>
                 ))}
               </div>
+              <FormActionProgress />
+            </form>
+          ) : null}
+
+          {request.currentDesk === "REIMBURSEMENT_OFFICER" && currentRoWorkItem?.status === "OPEN" && currentRoWorkItem.assignedUser ? (
+            <p className="rounded-lg border border-zinc-200 bg-white p-4 text-sm lg:col-span-2">
+              Assigned Reimbursement Officer: <strong>{currentRoWorkItem.assignedUser.name}</strong> ({currentRoWorkItem.assignedUser.email}).
+              {assignedToAnotherRo && !adminOverride ? " You may view this request, but only that officer can act on it." : ""}
+            </p>
+          ) : null}
+          {canReassignRo ? (
+            <form action={reassignTrainingRequestReimbursementOfficerAction.bind(null, request.id)} className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-span-2">
+              <h2 className="text-lg font-semibold">Reassign Reimbursement Officer</h2>
+              <p className="mt-1 text-sm text-zinc-600">The HOT who forwarded this request can move it to another officer while it awaits a decision.</p>
+              <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <label className="grid gap-2 text-sm font-medium">New officer
+                  <select name="assigneeUserId" required defaultValue="" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3">
+                    <option value="" disabled>Select another officer</option>
+                    {roOfficers.filter((officer) => officer.id !== currentRoWorkItem?.assignedUserId).map((officer) => <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>)}
+                  </select>
+                </label>
+                <label className="grid gap-2 text-sm font-medium">Reason for reassignment
+                  <input name="reason" required className="min-h-10 rounded-md border border-zinc-200 bg-white px-3" />
+                </label>
+              </div>
+              <button className="mt-4 min-h-10 rounded-md border border-zinc-200 px-4 text-sm font-semibold">Reassign request</button>
               <FormActionProgress />
             </form>
           ) : null}

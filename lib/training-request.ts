@@ -5,6 +5,7 @@ import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 import { parseTrainingParticipantWorkbook } from "@/lib/training-participant-import";
+import { listAssignableTrainingPlanReimbursementOfficers } from "@/lib/training-plan";
 
 const trainingRequestEvidenceKinds = [
   "TRAINING_SYNOPSIS",
@@ -90,7 +91,16 @@ export type RouteTrainingRequestInput = {
   requesterRole: Role;
   transition: TrainingRequestTransition;
   note?: string;
+  assigneeUserId?: string;
 };
+
+export function resolveTrainingRequestRoAssignment(officers: readonly { id: string }[], requestedId?: string) {
+  if (!officers.length) throw new Error("No active Reimbursement Officer is assigned to this Area Office.");
+  if (!requestedId && officers.length > 1) throw new Error("Select the Reimbursement Officer who will receive this Training Approval Request.");
+  const officer = officers.find((candidate) => candidate.id === (requestedId ?? officers[0].id));
+  if (!officer) throw new Error("The selected Reimbursement Officer is not active in this Area Office.");
+  return officer.id;
+}
 
 export type UploadTrainingRequestEvidenceInput = {
   requestId: string;
@@ -698,6 +708,7 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
       startsAt: true,
       endsAt: true,
       decisionOutcome: true,
+      currentDesk: true,
       company: {
         select: {
           areaOfficeId: true,
@@ -730,7 +741,36 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
     throw new Error("You do not have access to this Area Office Training Approval Request.");
   }
 
+  const roWorkItemKey = `training-request:${request.id}:reimbursement_officer`;
+  let assignedRoWorkItemId: string | null = null;
+  if (request.currentDesk === "REIMBURSEMENT_OFFICER" && input.requesterRole !== "SYSTEM_ADMIN" && input.requesterRole !== "WORKSPACE_APP_ADMIN") {
+    const currentWorkItem = await db.workItem.findUnique({
+      where: { sourceKey: roWorkItemKey },
+      select: { id: true, status: true, assignedUserId: true },
+    });
+    if (currentWorkItem?.status === "OPEN" && currentWorkItem.assignedUserId && currentWorkItem.assignedUserId !== actor.id) {
+      throw new Error("This Training Approval Request is assigned to another Reimbursement Officer.");
+    }
+    if (currentWorkItem?.status === "OPEN" && currentWorkItem.assignedUserId) assignedRoWorkItemId = currentWorkItem.id;
+  }
+  const assignedRoId = input.transition === "hot_to_ro"
+    ? resolveTrainingRequestRoAssignment(
+        await listAssignableTrainingPlanReimbursementOfficers(
+          request.company.organization.workspaceId,
+          request.company.areaOfficeId,
+        ),
+        input.assigneeUserId,
+      )
+    : null;
+
   return db.$transaction(async (tx) => {
+    if (assignedRoWorkItemId) {
+      const claimed = await tx.workItem.updateMany({
+        where: { id: assignedRoWorkItemId, assignedUserId: actor.id, status: "OPEN" },
+        data: { status: "RESOLVED", resolvedAt: new Date() },
+      });
+      if (claimed.count !== 1) throw new Error("This Training Approval Request was reassigned or routed by someone else. Reload and try again.");
+    }
     if (transition.requiresOutcome && !request.decisionOutcome) {
       throw new Error("The Reimbursement Officer must record an approval or rejection first.");
     }
@@ -790,6 +830,7 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
         workspaceId: request.company.organization.workspaceId,
         areaOfficeId: request.company.areaOfficeId,
         assignedRole: transition.assignedRole,
+        assignedUserId: assignedRoId,
         title: transition.workItemTitle,
         summary: `${request.company.legalName} ${transition.workItemSummary}`,
         sourceSuffix: transition.to.toLowerCase(),
@@ -880,6 +921,62 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
   });
 }
 
+export async function reassignTrainingRequestReimbursementOfficer(input: {
+  requestId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  assigneeUserId: string;
+  reason: string;
+}) {
+  const reason = input.reason.trim();
+  if (!reason) throw new Error("Record a reason for reassigning this Training Approval Request.");
+  const db = getDb();
+  const request = await db.trainingRequest.findFirst({
+    where: { id: input.requestId, recordTier: "HOT", status: "IN_REVIEW", currentDesk: "REIMBURSEMENT_OFFICER" },
+    select: { id: true, companyId: true, company: { select: { areaOfficeId: true, organization: { select: { workspaceId: true } } } } },
+  });
+  if (!request) throw new Error("An open Reimbursement Officer Training Approval Request was not found.");
+  const actor = await getWorkflowActor(input.requesterEmail);
+  const forwardingDecision = await db.decision.findFirst({
+    where: { trainingRequestId: request.id, recordTier: "HOT", reason: { startsWith: "HOT forwarded Training Approval Request to Reimbursement Officer" } },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    select: { actorId: true },
+  });
+  const adminOverride = input.requesterRole === "SYSTEM_ADMIN" || input.requesterRole === "WORKSPACE_APP_ADMIN";
+  if (forwardingDecision?.actorId !== actor.id && !adminOverride) {
+    throw new Error("Only the HOT who forwarded this request may reassign it.");
+  }
+  if (adminOverride) {
+    const adminMembership = await db.membership.findFirst({
+      where: { userId: actor.id, workspaceId: request.company.organization.workspaceId, role: input.requesterRole, isActive: true },
+      select: { id: true },
+    });
+    if (!adminMembership) throw new Error("You do not have administrative authority in this workspace.");
+  }
+  const officers = await listAssignableTrainingPlanReimbursementOfficers(request.company.organization.workspaceId, request.company.areaOfficeId);
+  const assigneeId = resolveTrainingRequestRoAssignment(officers, input.assigneeUserId);
+  const assignee = officers.find((officer) => officer.id === assigneeId)!;
+  const workItem = await db.workItem.findUnique({
+    where: { sourceKey: `training-request:${request.id}:reimbursement_officer` },
+    select: { id: true, status: true, assignedUserId: true },
+  });
+  if (workItem?.status !== "OPEN") throw new Error("The Reimbursement Officer assignment is no longer open.");
+  if (workItem.assignedUserId === assigneeId) throw new Error("Select a different Reimbursement Officer.");
+  await db.$transaction(async (tx) => {
+    const result = await tx.workItem.updateMany({
+      where: { id: workItem.id, status: "OPEN", assignedUserId: workItem.assignedUserId },
+      data: { assignedUserId: assigneeId, emailNotifiedAt: null },
+    });
+    if (result.count !== 1) throw new Error("This request was reassigned by someone else. Reload and try again.");
+    await tx.decision.create({
+      data: {
+        actorId: actor.id, companyId: request.companyId, trainingRequestId: request.id,
+        action: "FORWARD", reason: `Reassigned Training Approval Request to ${assignee.name} (${assignee.email}). Reason: ${reason}`,
+      },
+    });
+  });
+}
+
 export async function uploadTrainingRequestEvidence(input: UploadTrainingRequestEvidenceInput) {
   if (!can(input.requesterRole, "training:submit") && !can(input.requesterRole, "training:approve")) {
     throw new Error("You do not have permission to upload Training Approval evidence.");
@@ -900,6 +997,7 @@ export async function uploadTrainingRequestEvidence(input: UploadTrainingRequest
     select: {
       id: true,
       companyId: true,
+      currentDesk: true,
       company: {
         select: {
           organizationId: true,
@@ -919,6 +1017,16 @@ export async function uploadTrainingRequestEvidence(input: UploadTrainingRequest
 
   if (!hasOrganizationAccess) {
     throw new Error("You do not have access to upload evidence for this request.");
+  }
+
+  if (request.currentDesk === "REIMBURSEMENT_OFFICER" && input.requesterRole === "REIMBURSEMENT_OFFICER") {
+    const assignment = await db.workItem.findUnique({
+      where: { sourceKey: `training-request:${request.id}:reimbursement_officer` },
+      select: { status: true, assignedUserId: true },
+    });
+    if (assignment?.status === "OPEN" && assignment.assignedUserId && assignment.assignedUserId !== actor.id) {
+      throw new Error("This Training Approval Request is assigned to another Reimbursement Officer.");
+    }
   }
 
   const buffer = Buffer.from(await input.file.arrayBuffer());
@@ -1153,6 +1261,7 @@ async function createTrainingRequestWorkItem(
     workspaceId: string;
     areaOfficeId: string | null;
     assignedRole: Role;
+    assignedUserId?: string | null;
     title: string;
     summary: string;
     sourceSuffix: string;
@@ -1168,6 +1277,7 @@ async function createTrainingRequestWorkItem(
       areaOfficeId: input.areaOfficeId,
       companyId: input.companyId,
       assignedRole: input.assignedRole,
+      assignedUserId: input.assignedUserId,
       app: "REIMBURSEMENT",
       kind: "TRAINING_REQUEST_REVIEW",
       status: "OPEN",
@@ -1182,6 +1292,7 @@ async function createTrainingRequestWorkItem(
       resolvedAt: null,
       emailNotifiedAt: null,
       assignedRole: input.assignedRole,
+      assignedUserId: input.assignedUserId,
       title: input.title,
       summary: input.summary,
       targetHref: `/training-requests/${input.requestId}`,
