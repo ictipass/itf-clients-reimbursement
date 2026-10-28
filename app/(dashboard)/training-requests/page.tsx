@@ -122,7 +122,7 @@ export default async function TrainingRequestsPage({
       <section className="mt-8 rounded-lg border border-zinc-200 bg-white">
         {requests.length === 0 ? (
           <p className="p-5 text-sm leading-6 text-zinc-600">
-            No Training Approval Requests have been created yet.
+            No Training Approval Requests are available to you.
           </p>
         ) : (
           <div className="overflow-x-auto">

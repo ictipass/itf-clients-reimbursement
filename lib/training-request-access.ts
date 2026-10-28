@@ -36,6 +36,41 @@ export async function getVisibleTrainingRequestWhere(input: {
       : { ...base, companyId: "__no_access__" };
   }
 
+  if (input.role === "HEAD_OF_TRAINING") {
+    const sender = await getDb().user.findFirst({
+      where: { email: input.email, isActive: true },
+      select: {
+        id: true,
+        memberships: {
+          where: { isActive: true, role: "HEAD_OF_TRAINING", areaOfficeId: { not: null } },
+          select: { areaOfficeId: true },
+        },
+      },
+    });
+    const areaOfficeIds = sender?.memberships
+      .map((membership) => membership.areaOfficeId)
+      .filter((id): id is string => Boolean(id)) ?? [];
+    if (!sender || areaOfficeIds.length === 0) return { ...base, companyId: "__no_access__" };
+
+    return {
+      ...base,
+      submittedAt: { not: null },
+      company: { areaOfficeId: { in: areaOfficeIds } },
+      OR: [
+        { currentDesk: "HEAD_OF_TRAINING" },
+        {
+          currentDesk: "REIMBURSEMENT_OFFICER",
+          status: "IN_REVIEW",
+          decisions: { some: {
+            actorId: sender.id,
+            recordTier: "HOT",
+            reason: { startsWith: "HOT forwarded Training Approval Request to Reimbursement Officer" },
+          } },
+        },
+      ],
+    };
+  }
+
   const desk = deskByRole[input.role];
   return desk
     ? { ...base, submittedAt: { not: null }, currentDesk: desk as "AREA_MANAGER" | "HEAD_OF_TRAINING" | "REIMBURSEMENT_OFFICER" }
