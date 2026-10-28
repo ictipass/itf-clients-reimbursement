@@ -555,6 +555,7 @@ function buildAssigneeScope(
   return [
     {
       assignedUserId: requester.id,
+      assignedRole: requesterRole,
     },
     ...(isHeadquartersRole(requesterRole)
       ? [

@@ -123,6 +123,10 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
   }
 
   const db = getDb();
+  if (isItfRole(input.requesterRole) && !await db.membership.findFirst({
+    where: { user: { email: input.requesterEmail, isActive: true }, isActive: true, role: input.requesterRole },
+    select: { id: true },
+  })) return null;
   const areaOfficeRole = getAreaOfficeOfficerRoles().some((role) => role === input.requesterRole);
   const allowedAreaOfficeIds = areaOfficeRole
     ? (await db.membership.findMany({

@@ -16,7 +16,11 @@ const globalTrainingPlanRoles: Role[] = [
 
 export async function getItfTrainingPlanCompanyWhere(email: string, role: Role) {
   if (globalTrainingPlanRoles.includes(role)) {
-    return {};
+    const membership = await getDb().membership.findFirst({
+      where: { user: { email: email.toLowerCase(), isActive: true }, isActive: true, role },
+      select: { id: true },
+    });
+    return membership ? {} : { id: "__no_company_scope__" };
   }
 
   const memberships = await getDb().membership.findMany({
