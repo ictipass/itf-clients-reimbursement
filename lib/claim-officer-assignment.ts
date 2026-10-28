@@ -110,6 +110,12 @@ export async function reassignClaimOfficer(input: {
     });
     if (!admin) throw new Error("You do not have administrative authority in this claim's workspace.");
   }
+  if (senderId === input.requesterId && !["SYSTEM_ADMIN", "WORKSPACE_APP_ADMIN"].includes(input.requesterRole) &&
+    claim.currentDesk === "REIMBURSEMENT_OFFICER" &&
+    !await db.membership.findFirst({
+      where: { userId: input.requesterId, isActive: true, role: "HEAD_OF_TRAINING", areaOfficeId: claim.company.areaOfficeId ?? "__no_office__" },
+      select: { id: true },
+    })) throw new Error("You no longer have access to this claim's Area Office.");
   const workItem = await db.workItem.findFirst({
     where: { reimbursementClaimId: claim.id, assignedRole: claim.currentDesk, app: "REIMBURSEMENT", recordTier: "HOT", status: "OPEN" },
     select: { id: true, assignedUserId: true },

@@ -458,10 +458,15 @@ function buildScopedWorkItemWhere(
   } | null,
 ) {
   const claimDesk = getClaimDeskForRole(requesterRole);
+  const areaOfficeRole = ["AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER", "HORIC", "REVENUE_ACCOUNTANT"].includes(requesterRole);
+  const activeOfficeIds = uniqueDefined(requester?.memberships
+    .filter((membership) => membership.role === requesterRole)
+    .map((membership) => membership.areaOfficeId) ?? []);
 
   return {
     ...baseWhere,
     AND: [
+      ...(areaOfficeRole ? [{ assignedRole: requesterRole, areaOfficeId: { in: activeOfficeIds } }] : []),
       {
         OR: buildAssigneeScope(requesterRole, requester),
       },
@@ -543,12 +548,9 @@ function buildAssigneeScope(
     ];
   }
 
-  const organizationIds = uniqueDefined(
-    requester.memberships.map((membership) => membership.organizationId),
-  );
-  const areaOfficeIds = uniqueDefined(
-    requester.memberships.map((membership) => membership.areaOfficeId),
-  );
+  const roleMemberships = requester.memberships.filter((membership) => membership.role === requesterRole);
+  const organizationIds = uniqueDefined(roleMemberships.map((membership) => membership.organizationId));
+  const areaOfficeIds = uniqueDefined(roleMemberships.map((membership) => membership.areaOfficeId));
 
   return [
     {

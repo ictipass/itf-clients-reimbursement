@@ -907,6 +907,7 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
         where: { isActive: true },
         select: {
           areaOfficeId: true,
+          role: true,
         },
       },
     },
@@ -1072,6 +1073,10 @@ export async function reassignTrainingPlanReimbursementOfficer(input: {
   if (forwardingDecision?.actorId !== actor.id && !adminOverride) {
     throw new Error("Only the HOT who forwarded this Training Plan may reassign it.");
   }
+  if (!adminOverride && !await db.membership.findFirst({
+    where: { userId: actor.id, isActive: true, role: "HEAD_OF_TRAINING", areaOfficeId: submission.company.areaOfficeId ?? "__no_office__" },
+    select: { id: true },
+  })) throw new Error("You no longer have access to this Training Plan's Area Office.");
   if (adminOverride) {
     const adminMembership = await db.membership.findFirst({
       where: { userId: actor.id, workspaceId: submission.company.organization.workspaceId, role: input.requesterRole, isActive: true },
@@ -1231,7 +1236,7 @@ function hasTrainingPlanRoutingRole(requesterRole: Role, allowedRoles: readonly 
 function hasAreaOfficeTrainingPlanAccess(input: {
   requesterRole: Role;
   areaOfficeId: string | null;
-  memberships: { areaOfficeId: string | null }[];
+  memberships: { areaOfficeId: string | null; role: Role }[];
 }) {
   if (input.requesterRole === "SYSTEM_ADMIN" || input.requesterRole === "WORKSPACE_APP_ADMIN") {
     return true;
@@ -1241,7 +1246,8 @@ function hasAreaOfficeTrainingPlanAccess(input: {
     return false;
   }
 
-  return input.memberships.some((membership) => membership.areaOfficeId === input.areaOfficeId);
+  return input.memberships.some((membership) =>
+    membership.role === input.requesterRole && membership.areaOfficeId === input.areaOfficeId);
 }
 
 function getTrainingPlanDueDate(year: number) {

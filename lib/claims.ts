@@ -984,6 +984,7 @@ async function moveClaimThroughIntake(
         select: {
           organizationId: true,
           areaOfficeId: true,
+          role: true,
         },
       },
     },
@@ -1315,6 +1316,7 @@ function assertClaimRoutingScope(input: {
   actorMemberships: {
     organizationId: string | null;
     areaOfficeId: string | null;
+    role: Role;
   }[];
   requesterRole: Role;
   transition: ClaimRoutingTransition;
@@ -1342,7 +1344,7 @@ function assertClaimRoutingScope(input: {
   const hasAreaOfficeAccess =
     Boolean(input.areaOfficeId) &&
     input.actorMemberships.some(
-      (membership) => membership.areaOfficeId === input.areaOfficeId,
+      (membership) => membership.role === input.requesterRole && membership.areaOfficeId === input.areaOfficeId,
     );
 
   const areaOfficeScopedDesks: ClaimDesk[] = [

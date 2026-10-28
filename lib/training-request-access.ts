@@ -72,7 +72,13 @@ export async function getVisibleTrainingRequestWhere(input: {
   }
 
   const desk = deskByRole[input.role];
-  return desk
-    ? { ...base, submittedAt: { not: null }, currentDesk: desk as "AREA_MANAGER" | "HEAD_OF_TRAINING" | "REIMBURSEMENT_OFFICER" }
+  if (!desk) return { ...base, companyId: "__no_access__" };
+  const memberships = await getDb().membership.findMany({
+    where: { user: { email: input.email, isActive: true }, isActive: true, role: input.role, areaOfficeId: { not: null } },
+    select: { areaOfficeId: true },
+  });
+  const areaOfficeIds = memberships.map((membership) => membership.areaOfficeId).filter((id): id is string => Boolean(id));
+  return areaOfficeIds.length
+    ? { ...base, submittedAt: { not: null }, currentDesk: desk as "AREA_MANAGER" | "REIMBURSEMENT_OFFICER", company: { areaOfficeId: { in: areaOfficeIds } } }
     : { ...base, companyId: "__no_access__" };
 }

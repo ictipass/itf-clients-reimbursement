@@ -7,6 +7,7 @@ import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 import { openObject, uploadObject } from "@/lib/storage";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
+import { getAreaOfficeOfficerRoles } from "@/lib/area-office-management";
 
 const companyEvidenceKinds = [
   "CAC_CERTIFICATE",
@@ -122,6 +123,18 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
   }
 
   const db = getDb();
+  const areaOfficeRole = getAreaOfficeOfficerRoles().some((role) => role === input.requesterRole);
+  const allowedAreaOfficeIds = areaOfficeRole
+    ? (await db.membership.findMany({
+        where: {
+          user: { email: input.requesterEmail, isActive: true },
+          isActive: true,
+          role: input.requesterRole,
+          areaOfficeId: { not: null },
+        },
+        select: { areaOfficeId: true },
+      })).map((membership) => membership.areaOfficeId).filter((id): id is string => Boolean(id))
+    : [];
   const document = await db.document.findFirst({
     where: {
       id: input.documentId,
@@ -133,6 +146,7 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
         id: input.companyId,
         recordTier: "HOT",
         isActive: true,
+        ...(areaOfficeRole ? { areaOfficeId: { in: allowedAreaOfficeIds } } : {}),
       },
     },
     select: {

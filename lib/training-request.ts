@@ -944,6 +944,9 @@ export async function reassignTrainingRequestReimbursementOfficer(input: {
   if (forwardingDecision?.actorId !== actor.id && !adminOverride) {
     throw new Error("Only the HOT who forwarded this request may reassign it.");
   }
+  if (!adminOverride && !hasAreaOfficeAccess({
+    requesterRole: "HEAD_OF_TRAINING", areaOfficeId: request.company.areaOfficeId, memberships: actor.memberships,
+  })) throw new Error("You no longer have access to this request's Area Office.");
   if (adminOverride) {
     const adminMembership = await db.membership.findFirst({
       where: { userId: actor.id, workspaceId: request.company.organization.workspaceId, role: input.requesterRole, isActive: true },
@@ -999,6 +1002,7 @@ export async function uploadTrainingRequestEvidence(input: UploadTrainingRequest
       company: {
         select: {
           organizationId: true,
+          areaOfficeId: true,
         },
       },
     },
@@ -1009,6 +1013,10 @@ export async function uploadTrainingRequestEvidence(input: UploadTrainingRequest
   }
 
   const actor = await getWorkflowActor(input.uploadedByEmail);
+  if (["AREA_MANAGER", "HEAD_OF_TRAINING", "REIMBURSEMENT_OFFICER"].includes(input.requesterRole) &&
+    !hasAreaOfficeAccess({ requesterRole: input.requesterRole, areaOfficeId: request.company.areaOfficeId, memberships: actor.memberships })) {
+    throw new Error("You do not have access to this Area Office Training Approval Request.");
+  }
   const hasOrganizationAccess =
     isItfRole(input.requesterRole) ||
     actor.memberships.some((membership) => membership.organizationId === request.company.organizationId);
@@ -1169,6 +1177,7 @@ async function getWorkflowActor(email: string) {
         select: {
           organizationId: true,
           areaOfficeId: true,
+          role: true,
         },
       },
     },
@@ -1412,11 +1421,12 @@ function hasTrainingRequestRoutingRole(requesterRole: Role, allowedRoles: readon
 function hasAreaOfficeAccess(input: {
   requesterRole: Role;
   areaOfficeId: string | null;
-  memberships: { areaOfficeId: string | null }[];
+  memberships: { areaOfficeId: string | null; role: Role }[];
 }) {
   if (input.requesterRole === "SYSTEM_ADMIN" || input.requesterRole === "WORKSPACE_APP_ADMIN") {
     return true;
   }
 
-  return input.memberships.some((membership) => membership.areaOfficeId === input.areaOfficeId);
+  return Boolean(input.areaOfficeId) && input.memberships.some((membership) =>
+    membership.role === input.requesterRole && membership.areaOfficeId === input.areaOfficeId);
 }
