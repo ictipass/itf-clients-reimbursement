@@ -142,7 +142,7 @@ export default async function TrainingPlanDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ submissionId: string }>;
-  searchParams: Promise<{ importError?: string | string[]; routeError?: string | string[] }>;
+  searchParams: Promise<{ importError?: string | string[]; routeError?: string | string[]; rowsPage?: string | string[] }>;
 }>) {
   const { submissionId } = await params;
   const query = await searchParams;
@@ -212,23 +212,7 @@ export default async function TrainingPlanDetailPage({
           createdAt: "desc",
         },
       },
-      lineItems: {
-        select: {
-          id: true,
-          staffName: true,
-          department: true,
-          gapIdentified: true,
-          trainingTitle: true,
-          estimatedCost: true,
-          plannedDate: true,
-          location: true,
-          trainer: true,
-          rowNumber: true,
-        },
-        orderBy: {
-          rowNumber: "asc",
-        },
-      },
+      _count: { select: { lineItems: true } },
       decisions: {
         where: {
           recordTier: "HOT",
@@ -260,6 +244,25 @@ export default async function TrainingPlanDetailPage({
   if (!submission) {
     notFound();
   }
+
+  const rowsPerPage = 10;
+  const totalRows = submission._count.lineItems;
+  const totalRowPages = Math.max(Math.ceil(totalRows / rowsPerPage), 1);
+  const requestedRowsPage = Number(Array.isArray(query.rowsPage) ? query.rowsPage[0] : query.rowsPage);
+  const rowsPage = Number.isSafeInteger(requestedRowsPage) && requestedRowsPage > 0
+    ? Math.min(requestedRowsPage, totalRowPages)
+    : 1;
+  const lineItems = await getDb().trainingPlanLineItem.findMany({
+    where: { trainingPlanSubmissionId: submission.id },
+    select: {
+      id: true, staffName: true, department: true, gapIdentified: true,
+      trainingTitle: true, estimatedCost: true, plannedDate: true,
+      location: true, trainer: true,
+    },
+    orderBy: [{ rowNumber: "asc" }, { id: "asc" }],
+    skip: (rowsPage - 1) * rowsPerPage,
+    take: rowsPerPage,
+  });
 
   const submittedDocumentKinds = new Set(submission.documents.map((document) => document.kind));
   const missingRequiredEvidence = [
@@ -433,9 +436,9 @@ export default async function TrainingPlanDetailPage({
         </div>
 
         <div className="contents">
-          <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-6 lg:col-span-2">
+          <div id="structured-rows" className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-6 lg:col-span-2">
             <h2 className="text-xl font-semibold tracking-tight">Structured training plan rows</h2>
-            {submission.lineItems.length === 0 ? (
+            {totalRows === 0 ? (
               <p className="mt-3 text-sm leading-6 text-zinc-600">
                 No structured training plan rows have been imported yet.
               </p>
@@ -455,7 +458,7 @@ export default async function TrainingPlanDetailPage({
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-zinc-100">
-                    {submission.lineItems.slice(0, 10).map((item) => (
+                    {lineItems.map((item) => (
                       <tr key={item.id}>
                         <td className="px-3 py-3">
                           <p className="font-semibold text-zinc-950">{item.staffName}</p>
@@ -487,6 +490,13 @@ export default async function TrainingPlanDetailPage({
                 </table>
               </div>
             )}
+            {totalRows > 0 ? <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-zinc-100 pt-4 text-sm">
+              <p className="text-zinc-600">Showing {(rowsPage - 1) * rowsPerPage + 1}–{Math.min(rowsPage * rowsPerPage, totalRows)} of {totalRows} rows · Page {rowsPage} of {totalRowPages}</p>
+              {totalRowPages > 1 ? <nav aria-label="Training plan rows pages" className="flex gap-2 font-semibold">
+                {rowsPage > 1 ? <Link href={`/training-plans/${submission.id}?rowsPage=${rowsPage - 1}#structured-rows`} className="rounded-md border border-zinc-200 px-3 py-2 text-[#800020]">Previous</Link> : null}
+                {rowsPage < totalRowPages ? <Link href={`/training-plans/${submission.id}?rowsPage=${rowsPage + 1}#structured-rows`} className="rounded-md border border-zinc-200 px-3 py-2 text-[#800020]">Next</Link> : null}
+              </nav> : null}
+            </div> : null}
           </div>
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:order-2">
