@@ -42,6 +42,12 @@ export default async function SettingsPage() {
       visible: can(role, "workspace:manage"),
     },
     {
+      href: "/settings/assignment-recovery",
+      title: "Stranded assignments",
+      description: "Find and reassign open jobs whose named officer no longer has the required access.",
+      visible: role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN",
+    },
+    {
       href: "/settings/staff-directory",
       title: "Departments and job titles",
       description: "Maintain approved staff directory values and download reference lists.",

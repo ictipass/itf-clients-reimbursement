@@ -24,6 +24,11 @@ const settingAreas = [
     description: "Manage workspace users, roles, and administrative access.",
   },
   {
+    href: "/settings/assignment-recovery",
+    title: "Stranded assignments",
+    description: "Locate and reassign jobs whose named officer no longer has access.",
+  },
+  {
     href: "/settings/offices",
     title: "Offices and organization",
     description: "Configure Headquarters, Area Offices, and staff assignments.",
