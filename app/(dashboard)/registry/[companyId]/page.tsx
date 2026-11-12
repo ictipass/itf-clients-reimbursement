@@ -964,9 +964,6 @@ export default async function CompanyDetailPage({
             <span className="font-semibold text-zinc-950">
               {formatRevenueWorkflowMode(revenueWorkflowMode)}
             </span>
-            . Registration contribution invoices, Remita payments, and revenue-accountant payment
-            review actions are hidden; reimbursement eligibility should be verified from claim-side
-            contribution/payment evidence.
           </div>
         ) : null}
       </section>
