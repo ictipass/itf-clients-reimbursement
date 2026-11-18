@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { assertEmployerSubmissionAcknowledged } from "@/lib/submission-acknowledgement";
 import { isManualVoucherSignoffKind, recordVoucherSignoff } from "@/lib/reimbursement-voucher-signoffs";
 import { assertClaimActionAssignee, reassignClaimOfficer } from "@/lib/claim-officer-assignment";
 import { readUploadedFile } from "@/lib/storage/staged-upload";
@@ -173,6 +174,8 @@ export async function submitClaimToAreaManagerAction(claimId: string, formData: 
   if (!session?.user?.email) {
     throw new Error("Authentication is required.");
   }
+
+  assertEmployerSubmissionAcknowledged(formData);
 
   try {
     await submitClaimToAreaManager({

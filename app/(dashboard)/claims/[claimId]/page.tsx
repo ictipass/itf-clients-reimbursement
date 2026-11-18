@@ -1,4 +1,5 @@
 import { FormActionProgress } from "@/components/form-action-progress";
+import { EmployerSubmissionConfirm } from "@/components/employer-submission-confirm";
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
 import { ClaimBankFields } from "@/components/claim-bank-fields";
@@ -771,9 +772,7 @@ export default async function ClaimDetailPage({
                 placeholder="Optional submission note"
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
               />
-              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                Submit to Area Manager
-              </button>
+              <EmployerSubmissionConfirm label="Submit to Area Manager" subject="claim" className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white" />
               <FormActionProgress />
             </form>
           ) : null}

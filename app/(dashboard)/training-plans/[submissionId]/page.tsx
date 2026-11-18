@@ -1,4 +1,5 @@
 import { FormActionProgress } from "@/components/form-action-progress";
+import { EmployerSubmissionConfirm } from "@/components/employer-submission-confirm";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
@@ -526,7 +527,7 @@ export default async function TrainingPlanDetailPage({
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
                 />
               </label>
-              <PendingActionButton label="Submit Training Plan package" className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white" />
+              <EmployerSubmissionConfirm label="Submit Training Plan package" subject="Training Plan package" className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white" />
               <FormActionProgress />
             </form>
           ) : null}

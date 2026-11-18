@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { assertEmployerSubmissionAcknowledged } from "@/lib/submission-acknowledgement";
 import {
   createTrainingPlanSubmission,
   getTrainingPlanDeskTransitions,
@@ -215,6 +216,8 @@ export async function submitTrainingPlanSubmissionAction(
   if (!session?.user?.email) {
     throw new Error("Authentication is required.");
   }
+
+  assertEmployerSubmissionAcknowledged(formData);
 
   await submitTrainingPlanSubmission({
     companyId,

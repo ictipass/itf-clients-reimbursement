@@ -1,4 +1,5 @@
 import { FormActionProgress } from "@/components/form-action-progress";
+import { EmployerSubmissionConfirm } from "@/components/employer-submission-confirm";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
@@ -1113,12 +1114,12 @@ export default async function TrainingRequestDetailPage({
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
                 />
               </label>
-              <button
+              <EmployerSubmissionConfirm
                 disabled={missingRequirements.length > 0}
                 className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:bg-zinc-300"
-              >
-                Submit Form 4A
-              </button>
+                label="Submit Form 4A"
+                subject="Form 4A"
+              />
               <FormActionProgress />
             </form>
           ) : null}

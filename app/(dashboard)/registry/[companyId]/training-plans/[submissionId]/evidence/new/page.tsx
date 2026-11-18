@@ -1,7 +1,7 @@
-import { FormActionProgress } from "@/components/form-action-progress";
 import Link from "next/link";
-import { HostedFileInput } from "@/components/hosted-file-input";
 import { notFound } from "next/navigation";
+
+import { TrainingPlanEvidenceUploadForm } from "./training-plan-evidence-upload-form";
 
 import {
   getTrainingPlanSubmissionForUpload,
@@ -67,44 +67,8 @@ export default async function NewTrainingPlanEvidencePage({
         </div>
       ) : null}
 
-      <form
-        id="training-plan-evidence-form"
-        action={`/registry/${companyId}/training-plans/${submissionId}/evidence/upload`}
-        method="post"
-        encType="multipart/form-data"
-        className="mt-6 grid gap-5 rounded-lg border border-zinc-200 bg-white p-6"
-      >
-        <label className="grid gap-2 text-sm font-medium">
-          Annual training plan CSV or Excel (.xlsx) (also imports its rows)
-          <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
-            name="trainingPlanCsv"
-            accept=".csv,.xlsx,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            className="min-h-11 rounded-md border border-zinc-300 px-3 py-2 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-semibold"
-          />
-        </label>
-        <label className="grid gap-2 text-sm font-medium">
-          L&amp;D personnel CV and highest qualification certificate (one PDF is accepted)
-          <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
-            name="personnelCv"
-            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
-            className="min-h-11 rounded-md border border-zinc-300 px-3 py-2 file:mr-4 file:rounded-md file:border-0 file:bg-zinc-100 file:px-3 file:py-2 file:text-sm file:font-semibold"
-          />
-        </label>
-        <p className="text-xs text-zinc-600">Select either or both files, then upload once. Each file must be 10 MB or smaller.</p>
-
-        <div className="flex flex-wrap justify-end gap-3 border-t border-zinc-100 pt-5">
-          <Link
-            href={`/training-plans/${submissionId}`}
-            className="inline-flex min-h-11 items-center rounded-md border border-zinc-300 bg-white px-4 text-sm font-semibold"
-          >
-            Cancel
-          </Link>
-          <button className="min-h-11 rounded-md bg-[#800020] px-5 text-sm font-semibold text-white">
-            Upload selected files
-          </button>
-        </div>
-        <FormActionProgress />
-      </form>
+      <TrainingPlanEvidenceUploadForm companyId={companyId} submissionId={submissionId}
+        hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)} />
     </div>
   );
 }

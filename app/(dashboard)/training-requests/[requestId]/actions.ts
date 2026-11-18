@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { assertEmployerSubmissionAcknowledged } from "@/lib/submission-acknowledgement";
 import { readUploadedFile } from "@/lib/storage/staged-upload";
 import {
   addTrainingParticipant,
@@ -52,6 +53,8 @@ export async function submitTrainingRequestAction(requestId: string, formData: F
   if (!session?.user?.email) {
     throw new Error("Authentication is required.");
   }
+
+  assertEmployerSubmissionAcknowledged(formData);
 
   await submitTrainingRequest({
     requestId,
