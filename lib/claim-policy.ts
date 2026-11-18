@@ -29,6 +29,14 @@ export function isLateClaimSubmission(trainingYear: number, now = new Date()) {
   return now.getTime() > getClaimSubmissionDeadline(trainingYear).getTime();
 }
 
+export function getClaimYearFilingError(trainingYear: number, filingYear: number) {
+  if (trainingYear === filingYear - 1) return null;
+  if (trainingYear >= filingYear) {
+    return `Training held in ${trainingYear} can first be claimed in ${trainingYear + 1}.`;
+  }
+  return `Only training held in ${filingYear - 1} can be claimed in ${filingYear}. The late-submission setting does not reopen earlier training years.`;
+}
+
 export async function listClaimPolicyWorkspaces(input: { requesterRole: Role }) {
   if (!canManageClaimPolicy(input.requesterRole)) {
     throw new Error("You do not have permission to manage claim submission settings.");

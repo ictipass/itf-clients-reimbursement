@@ -78,6 +78,9 @@ export default async function ClaimSettingsPage() {
                       />
                       Allow submissions after 30 June
                     </label>
+                    <p className="text-xs leading-5 text-zinc-600">
+                      Applies only to training held in the immediately preceding year. Earlier years remain closed.
+                    </p>
                   </div>
                 </div>
                 <button className="mt-4 min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">

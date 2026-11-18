@@ -1,6 +1,6 @@
 # Claim test clock
 
-Claims for training held in a year are first filed the following year. To test the 2026 claim workflow before 2027, set `CLAIM_TEST_AS_OF=2027-01-15` in **local development** or the Vercel **Preview** environment. Use a separate staging database with test companies and claims.
+Claims for training held in a year can be filed only in the immediately following year. Allowing late submissions extends that year's 30 June deadline but never reopens earlier training years. To test the 2026 claim workflow before 2027, set `CLAIM_TEST_AS_OF=2027-01-15` in **local development** or the Vercel **Preview** environment. Use a separate staging database with test companies and claims.
 
 In Command Prompt, for a single local session:
 
