@@ -26,10 +26,13 @@ const evidenceLabels: Record<ComplianceEvidenceKind, string> = {
 
 export default async function NewComplianceEvidencePage({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ companyId: string; complianceYearId: string }>;
+  searchParams: Promise<{ error?: string }>;
 }>) {
   const { companyId, complianceYearId } = await params;
+  const { error } = await searchParams;
   const complianceYear = await getComplianceYearForUpload(companyId, complianceYearId);
 
   if (!complianceYear) {
@@ -47,6 +50,7 @@ export default async function NewComplianceEvidencePage({
       </Link>
 
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">Upload compliance evidence</h1>
+      {error ? <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">{error}</p> : null}
       <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
         Add evidence for {complianceYear.company.legalName} for compliance year{" "}
         {complianceYear.year}. This upload flow accepts PDF, JPEG, and PNG files up to 10MB.
@@ -96,6 +100,10 @@ export default async function NewComplianceEvidencePage({
             label: evidenceLabels[kind],
           }))}
         />
+
+        <p className="text-sm text-zinc-600">For a contribution receipt, provide both the issuer and receipt number.</p>
+        <label className="grid gap-1 text-sm font-medium">Receipt issuer (required for receipts)<input name="receiptIssuer" maxLength={160} className="min-h-10 rounded-md border border-zinc-300 px-3" /></label>
+        <label className="grid gap-1 text-sm font-medium">Receipt number (required for receipts)<input name="receiptNumber" maxLength={100} className="min-h-10 rounded-md border border-zinc-300 px-3" /></label>
 
         <label className="grid gap-2 text-sm font-medium">
           Evidence file

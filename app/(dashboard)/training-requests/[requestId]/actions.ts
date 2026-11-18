@@ -188,15 +188,21 @@ export async function uploadTrainingRequestEvidenceAction(requestId: string, for
     throw new Error("Authentication is required.");
   }
 
-  const file = await readUploadedFile(formData, "evidence", session.user.id);
-
-  await uploadTrainingRequestEvidence({
-    requestId,
-    uploadedByEmail: session.user.email,
-    requesterRole: session.user.role,
-    kind: readEvidenceKind(formData),
-    file,
-  });
+  try {
+    const file = await readUploadedFile(formData, "evidence", session.user.id);
+    await uploadTrainingRequestEvidence({
+      requestId,
+      uploadedByEmail: session.user.email,
+      requesterRole: session.user.role,
+      kind: readEvidenceKind(formData),
+      receiptIssuer: readOptionalString(formData, "receiptIssuer"),
+      receiptNumber: readOptionalString(formData, "receiptNumber"),
+      file,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Evidence could not be uploaded.";
+    redirect(`/training-requests/${requestId}/evidence/new?error=${encodeURIComponent(message.slice(0, 280))}`);
+  }
 
   revalidatePath(`/training-requests/${requestId}`);
   redirect(`/training-requests/${requestId}`);

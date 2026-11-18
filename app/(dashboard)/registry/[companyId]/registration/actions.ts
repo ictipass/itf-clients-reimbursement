@@ -310,12 +310,19 @@ export async function uploadRegistrationContributionReceiptAction(
     throw new Error("Authentication is required.");
   }
 
-  await uploadRegistrationContributionReceipt({
-    companyId,
-    uploadedByEmail: session.user.email,
-    requesterRole: session.user.role,
-    file: await readUploadedFile(formData, "receipt", session.user.id),
-  });
+  try {
+    await uploadRegistrationContributionReceipt({
+      companyId,
+      uploadedByEmail: session.user.email,
+      requesterRole: session.user.role,
+      file: await readUploadedFile(formData, "receipt", session.user.id),
+      receiptIssuer: String(formData.get("receiptIssuer") ?? ""),
+      receiptNumber: String(formData.get("receiptNumber") ?? ""),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Receipt could not be uploaded.";
+    redirect(`/registry/${companyId}?receiptError=${encodeURIComponent(message.slice(0, 280))}`);
+  }
 
   revalidatePath(`/registry/${companyId}`);
   redirect(`/registry/${companyId}`);

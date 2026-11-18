@@ -3,6 +3,7 @@ import { buildHqComputationTableSummary, isCurrentHqComputationTable } from "@/l
 import { requiredVoucherSignoffForHandoff } from "@/lib/reimbursement-voucher-signoffs";
 import { isIndividuallyAssignedClaimRole, listAssignableClaimOfficers, resolveClaimOfficerAssignment } from "@/lib/claim-officer-assignment";
 import { nairaInWords } from "@/lib/naira-in-words";
+import { hasVerifiedClaimBankAccount, resolvePaystackAccount, validateNigerianAccountNumber } from "@/lib/paystack-account";
 import { applyAreaOfficeVerifiedCounts, getAreaOfficeCalculationBaseline, type AreaOfficeVerifiedCounts } from "@/lib/area-office-claim-calculation";
 import { verifyAnnualEligibility } from "@/lib/annual-eligibility";
 import {
@@ -15,7 +16,8 @@ import {
 } from "@/lib/claim-verification";
 import { getClaimYearFilingError, isLateClaimSubmission } from "@/lib/claim-policy";
 import { getClaimFilingClock } from "@/lib/claim-test-clock";
-import { assertUploadRateLimit } from "@/lib/rate-limit";
+import { assertRateLimit, assertUploadRateLimit } from "@/lib/rate-limit";
+import { requireReceiptMetadata } from "@/lib/receipt-metadata";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import {
   isReimbursementAuditReviewStatus,
@@ -68,9 +70,7 @@ export type UpdateClaimFormInput = {
   claimId: string;
   requesterEmail: string;
   requesterRole: Role;
-  claimYear?: number;
   trainingContributionDue?: number;
-  trainingContributionPaid?: number;
   itfReceiptNumber?: string;
   bankId?: string;
   accountNumber?: string;
@@ -80,11 +80,26 @@ export type UpdateClaimFormInput = {
   chiefExecutiveName?: string;
 };
 
+async function verifiedClaimContributionPaid(companyId: string, claimYear: number | null) {
+  if (!claimYear) throw new Error("The claim training year is missing.");
+  const check = await getDb().annualEligibilityCheck.findUnique({
+    where: { companyId_year: { companyId, year: claimYear } },
+    select: { status: true, contributionPaid: true },
+  });
+  const amount = Number(check?.contributionPaid ?? 0);
+  if (check?.status !== "ELIGIBLE" || !Number.isFinite(amount) || amount <= 0) {
+    throw new Error(`Verified contribution payment for ${claimYear} is unavailable. Recheck annual payment before saving.`);
+  }
+  return amount;
+}
+
 export type UploadClaimEvidenceInput = {
   claimId: string;
   uploadedByEmail: string;
   requesterRole: Role;
   kind: ClaimEvidenceKind;
+  receiptIssuer?: string;
+  receiptNumber?: string;
   file: File;
 };
 
@@ -150,7 +165,11 @@ export type UpdateEmployerClaimCalculationInput = {
   claimId: string;
   requesterEmail: string;
   requesterRole: Role;
-  calculation: ReimbursementCalculationInput;
+  calculation: ReimbursementCalculationInput extends infer Variant
+    ? Variant extends { trainingContributionPaid: number }
+      ? Omit<Variant, "trainingContributionPaid">
+      : never
+    : never;
 };
 
 export type UpdateClaimStaffEntriesInput = {
@@ -436,8 +455,8 @@ export async function createClaim(input: CreateClaimInput) {
       companyId: requests[0].companyId,
       reference: buildClaimReference(referenceDate),
       claimYear,
+      trainingContributionPaid: eligibility.contributionPaid,
       policyEdition: requests[0].company.organization.workspace.activeReimbursementEdition,
-      itfReceiptNumber: requests[0].company.itfEmployerNumber,
       claimedAmount,
       status: "DRAFT",
       trainingRequests: {
@@ -1008,6 +1027,11 @@ async function moveClaimThroughIntake(
       status: true,
       currentDesk: true,
       claimYear: true,
+      trainingContributionPaid: true,
+      bankName: true,
+      accountNumber: true,
+      accountName: true,
+      accountVerifiedAt: true,
       paymentHandoffStatus: true,
       voucherSignoffRequired: true,
       computationRequired: true,
@@ -1060,6 +1084,9 @@ async function moveClaimThroughIntake(
   if (transition.from === "COMPANY" && claim.status !== "DRAFT") {
     throw new Error("Only draft claims can be submitted to Area Manager.");
   }
+  if (transition.from === "COMPANY" && !hasVerifiedClaimBankAccount(claim)) {
+    throw new Error("Save Form 1 with a verified 10-digit bank account before submitting this claim.");
+  }
 
   if (transition.from !== "COMPANY" && claim.status !== "SUBMITTED") {
     throw new Error("Only submitted claims can be forwarded through Area Office intake.");
@@ -1105,6 +1132,9 @@ async function moveClaimThroughIntake(
     const eligibility = await verifyAnnualEligibility(claim.companyId, claim.claimYear ?? 0);
     if (eligibility.status !== "ELIGIBLE") {
       throw new Error(`Annual payment must be confirmed before claim processing: ${eligibility.message}`);
+    }
+    if (transition.from === "COMPANY" && Number(claim.trainingContributionPaid ?? 0) !== eligibility.contributionPaid) {
+      throw new Error("Verified contribution payment changed. Recalculate the employer claim using the current amount before submitting.");
     }
   }
 
@@ -1785,10 +1815,10 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
       where: { id: claim.id },
       select: {
         reference: true, claimYear: true, claimRecommendedAmount: true, claimRecommendedInWords: true, paymentScheduleReference: true,
-        paymentWithholdingTax: true, paymentTaxOffset: true, bankName: true, accountNumber: true,
+        paymentWithholdingTax: true, paymentTaxOffset: true, bankName: true, accountNumber: true, accountName: true,
         company: { select: { legalName: true, businessAddress: true, areaOffice: { select: { name: true } } } },
         voucherSignoffs: { orderBy: { signedAt: "asc" }, select: { kind: true, actorRole: true, amount: true, remark: true, signedAt: true, actor: { select: { name: true } } } },
-        documents: { where: { isActive: true, recordTier: "HOT" }, orderBy: { createdAt: "asc" }, select: { id: true, kind: true, fileName: true, createdAt: true } },
+        documents: { where: { isActive: true, recordTier: "HOT" }, orderBy: { createdAt: "asc" }, select: { id: true, kind: true, fileName: true, receiptIssuer: true, receiptNumber: true, createdAt: true } },
         trainingRequests: { select: { trainingRequest: { select: { id: true, title: true, approvalReference: true } } } },
         computationTables: { where: { recordTier: "HOT" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: {
           amountRecommended: true, recommendedContributionPercent: true, confirmedByName: true,
@@ -1809,6 +1839,7 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
       taxOffset: archiveSource.paymentTaxOffset?.toString() ?? null,
       bankName: archiveSource.bankName,
       accountNumber: archiveSource.accountNumber,
+      accountName: archiveSource.accountName,
       accountNumberLast4: archiveSource.accountNumber?.slice(-4) ?? null,
       paymentReference: input.paymentSystemReference?.trim() ?? null,
       voucherRaised: archiveSource.decisions.find((decision) => decision.reason?.startsWith("Updated reimbursement payment handoff status to PV RAISED"))?.createdAt.toISOString() ?? null,
@@ -1817,7 +1848,7 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
         ...archiveSource.voucherSignoffs.map((signoff) => ({ kind: signoff.kind, officer: signoff.actor.name, role: signoff.actorRole, amount: signoff.amount.toString(), remark: signoff.remark, signedAt: signoff.signedAt.toISOString() })),
         { kind: "PAYMENT_RECORDED", officer: actor.name, role: input.requesterRole, amount: archiveSource.claimRecommendedAmount?.toString() ?? "0", remark: note ?? null, signedAt: now.toISOString() },
       ],
-      evidence: archiveSource.documents.map((document) => ({ id: document.id, kind: document.kind, fileName: document.fileName, uploadedAt: document.createdAt.toISOString() })),
+      evidence: archiveSource.documents.map((document) => ({ id: document.id, kind: document.kind, fileName: document.fileName, receiptIssuer: document.receiptIssuer, receiptNumber: document.receiptNumber, uploadedAt: document.createdAt.toISOString() })),
       trainings: archiveSource.trainingRequests.map(({ trainingRequest }) => ({ id: trainingRequest.id, title: trainingRequest.title, approvalReference: trainingRequest.approvalReference })),
       hqComputation: archiveSource.computationTables[0] ? {
         amountRecommended: archiveSource.computationTables[0].amountRecommended.toString(),
@@ -2307,6 +2338,13 @@ export async function updateClaimForm(input: UpdateClaimFormInput) {
     },
     select: {
       id: true,
+      companyId: true,
+      claimYear: true,
+      bankName: true,
+      sortCode: true,
+      accountNumber: true,
+      accountName: true,
+      accountVerifiedAt: true,
       company: {
         select: {
           organizationId: true,
@@ -2348,25 +2386,34 @@ export async function updateClaimForm(input: UpdateClaimFormInput) {
     throw new Error("You do not have access to update this claim.");
   }
 
-  const bank = input.bankId
-    ? await db.bankDirectoryEntry.findFirst({
-        where: { id: input.bankId, workspaceId: claim.company.organization.workspaceId, isActive: true },
-        select: { name: true, sortCode: true },
-      })
-    : null;
-  if (input.bankId && !bank) throw new Error("Select an active bank from the accepted bank list.");
+  const contributionPaid = await verifiedClaimContributionPaid(claim.companyId, claim.claimYear);
+
+  if (!input.bankId) throw new Error("Select an accepted bank.");
+  const bank = await db.bankDirectoryEntry.findFirst({
+    where: { id: input.bankId, workspaceId: claim.company.organization.workspaceId, isActive: true },
+    select: { name: true, sortCode: true, paystackCode: true },
+  });
+  if (!bank) throw new Error("Select an active bank from the accepted bank list.");
+  const accountNumber = validateNigerianAccountNumber(input.accountNumber ?? "");
+  const stillVerified = claim.bankName === bank.name && claim.sortCode === bank.sortCode &&
+    claim.accountNumber === accountNumber && Boolean(claim.accountName) && Boolean(claim.accountVerifiedAt);
+  if (!stillVerified) await assertRateLimit({ key: `account-resolve:${input.requesterEmail.toLowerCase()}`, limit: 10, windowMs: 10 * 60 * 1000 });
+  const accountName = stillVerified ? claim.accountName! : await resolvePaystackAccount(accountNumber, bank.paystackCode);
 
   return db.reimbursementClaim.update({
     where: {
       id: claim.id,
     },
     data: {
-      claimYear: input.claimYear,
+      claimYear: claim.claimYear,
       trainingContributionDue: input.trainingContributionDue,
-      trainingContributionPaid: input.trainingContributionPaid,
+      trainingContributionPaid: contributionPaid,
       itfReceiptNumber: input.itfReceiptNumber,
-      ...(bank ? { bankName: bank.name, sortCode: bank.sortCode } : {}),
-      accountNumber: input.accountNumber,
+      bankName: bank.name,
+      sortCode: bank.sortCode,
+      accountNumber,
+      accountName,
+      accountVerifiedAt: stillVerified ? claim.accountVerifiedAt : new Date(),
       claimedAmount: input.claimedAmount,
       employerOfficerName: input.employerOfficerName,
       employerOfficerRank: input.employerOfficerRank,
@@ -2383,6 +2430,10 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
   if (!can(input.requesterRole, "claims:submit") && !can(input.requesterRole, "claims:review")) {
     throw new Error("You do not have permission to upload claim evidence.");
   }
+
+  const receiptMetadata = input.kind === "PAYMENT_RECEIPT"
+    ? requireReceiptMetadata(input.receiptIssuer, input.receiptNumber)
+    : {};
 
   await assertUploadRateLimit(input.uploadedByEmail);
 
@@ -2470,6 +2521,7 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
       reimbursementClaimId: claim.id,
       uploadedById: actor.id,
       kind: input.kind,
+      ...receiptMetadata,
       fileName: safeFileName,
       storageProvider: stored.storageProvider,
       scanStatus: stored.scanStatus,
@@ -3029,6 +3081,8 @@ export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimC
     },
     select: {
       id: true,
+      companyId: true,
+      claimYear: true,
       policyEdition: true,
       company: {
         select: {
@@ -3068,15 +3122,18 @@ export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimC
     throw new Error("You do not have access to update this claim calculation.");
   }
 
+  const contributionPaid = await verifiedClaimContributionPaid(claim.companyId, claim.claimYear);
+  const verifiedCalculation = { ...input.calculation, trainingContributionPaid: contributionPaid } as ReimbursementCalculationInput;
+
   const result = calculateReimbursementAward({
-    ...input.calculation,
+    ...verifiedCalculation,
     policyEdition: claim.policyEdition,
   });
   const lines = result.lines.map((line) =>
     buildEmployerCalculationLine(
       line,
-      input.calculation.trainingContributionPaid,
-      input.calculation,
+      contributionPaid,
+      verifiedCalculation,
     ),
   );
 
@@ -3094,7 +3151,7 @@ export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimC
       },
       data: {
         employerScale: input.calculation.employerScale,
-        trainingContributionPaid: input.calculation.trainingContributionPaid,
+        trainingContributionPaid: contributionPaid,
         claimedAmount: result.totalAmountAwarded,
         uncappedAwardPercent: result.uncappedTotalAwardPercent,
         cappedAwardPercent: result.cappedTotalAwardPercent,
@@ -3115,7 +3172,7 @@ export async function updateEmployerClaimCalculation(input: UpdateEmployerClaimC
         policyEdition: claim.policyEdition,
         employerScale: input.calculation.employerScale,
         calculatedByEmail: input.requesterEmail,
-        calculationInput: input.calculation,
+        calculationInput: verifiedCalculation,
         calculationResult: result,
         uncappedAwardPercent: result.uncappedTotalAwardPercent,
         cappedAwardPercent: result.cappedTotalAwardPercent,

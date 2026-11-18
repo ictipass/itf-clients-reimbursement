@@ -46,6 +46,7 @@ export async function GET(
       itfReceiptNumber: true,
       bankName: true,
       accountNumber: true,
+      accountName: true,
       sortCode: true,
       paymentAccountType: true,
       paymentWithholdingTax: true,

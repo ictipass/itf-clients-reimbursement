@@ -14,9 +14,9 @@ test("bank template imports text sort codes with leading zeroes", async () => {
   await workbook.xlsx.load(await bankWorkbookTemplate() as unknown as Parameters<typeof workbook.xlsx.load>[0]);
   const sheet = workbook.getWorksheet("Banks");
   assert.ok(sheet);
-  sheet.addRow(["Example Bank", "001234"]);
+  sheet.addRow(["Example Bank", "001234", "001"]);
   const rows = await parseBankWorkbook(workbookFile(Buffer.from(await workbook.xlsx.writeBuffer())));
-  assert.deepEqual(rows, [{ name: "Example Bank", nameKey: "example bank", sortCode: "001234" }]);
+  assert.deepEqual(rows, [{ name: "Example Bank", nameKey: "example bank", sortCode: "001234", paystackCode: "001" }]);
 });
 
 test("bank import rejects duplicate names and numeric sort codes", async () => {
@@ -29,4 +29,14 @@ test("bank import rejects duplicate names and numeric sort codes", async () => {
   sheet.spliceRows(3, 1);
   sheet.getRow(2).getCell(2).value = 1234;
   await assert.rejects(parseBankWorkbook(workbookFile(Buffer.from(await workbook.xlsx.writeBuffer()))), /must be text/);
+});
+
+test("old two-column bank workbooks remain importable without inventing a Paystack code", async () => {
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Banks");
+  sheet.addRow(["bank name", "sort code"]);
+  sheet.addRow(["Legacy Bank", "001234"]);
+  assert.deepEqual(await parseBankWorkbook(workbookFile(Buffer.from(await workbook.xlsx.writeBuffer()))), [
+    { name: "Legacy Bank", nameKey: "legacy bank", sortCode: "001234", paystackCode: null },
+  ]);
 });

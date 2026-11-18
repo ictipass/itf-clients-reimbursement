@@ -6,6 +6,7 @@ import {
   generateComplianceCertificatePdf,
 } from "@/lib/certificates";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
+import { requireReceiptMetadata } from "@/lib/receipt-metadata";
 import { can, canManageAnnualCompliance, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -60,6 +61,8 @@ export type UploadComplianceEvidenceInput = {
   uploadedByEmail: string;
   requesterRole: Role;
   kind: ComplianceEvidenceKind;
+  receiptIssuer?: string;
+  receiptNumber?: string;
   documentName?: string;
   file: File;
 };
@@ -420,6 +423,8 @@ export async function attachExistingPaymentEvidence(
       uploadedById: true,
       kind: true,
       documentName: true,
+      receiptIssuer: true,
+      receiptNumber: true,
       fileName: true,
       storageProvider: true,
       bucket: true,
@@ -495,6 +500,9 @@ export async function uploadComplianceEvidence(input: UploadComplianceEvidenceIn
   }
 
   const documentName = normalizeEvidenceDocumentName(input.kind, input.documentName);
+  const receiptMetadata = input.kind === "CONTRIBUTION_RECEIPT"
+    ? requireReceiptMetadata(input.receiptIssuer, input.receiptNumber)
+    : {};
 
   await assertUploadRateLimit(input.uploadedByEmail);
 
@@ -578,6 +586,7 @@ export async function uploadComplianceEvidence(input: UploadComplianceEvidenceIn
       complianceYearId: complianceYear.id,
       uploadedById: user.id,
       kind: input.kind,
+      ...receiptMetadata,
       documentName,
       fileName: safeFileName,
       storageProvider: stored.storageProvider,

@@ -47,6 +47,7 @@ export type ReimbursementPaymentScheduleClaim = {
   itfReceiptNumber: string | null;
   bankName: string | null;
   accountNumber: string | null;
+  accountName?: string | null;
   sortCode: string | null;
   paymentAccountType: string | null;
   paymentWithholdingTax: { toString(): string } | null;
@@ -138,7 +139,7 @@ export async function buildReimbursementPaymentScheduleWorkbook(claim: Reimburse
     amounts.payable,
     `ITF reimbursement ${claim.reference}`,
     `ITF reimbursement claim ${claim.reference}; training year ${claim.claimYear ?? "not recorded"}; schedule ${claim.paymentScheduleReference ?? buildReimbursementPaymentScheduleReference(claim)}`,
-    claim.company.legalName,
+    claim.accountName || claim.company.legalName,
     claim.bankName,
     claim.company.telephone,
     claim.company.email,

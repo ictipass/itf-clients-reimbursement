@@ -273,6 +273,8 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
               kind: true,
               documentName: true,
               fileName: true,
+              receiptIssuer: true,
+              receiptNumber: true,
               createdAt: true,
             },
             orderBy: {
@@ -354,6 +356,8 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
           kind: true,
           documentName: true,
           fileName: true,
+          receiptIssuer: true,
+          receiptNumber: true,
           createdAt: true,
         },
         orderBy: {
@@ -461,6 +465,8 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
               kind: true,
               documentName: true,
               fileName: true,
+              receiptIssuer: true,
+              receiptNumber: true,
               createdAt: true,
             },
             orderBy: {

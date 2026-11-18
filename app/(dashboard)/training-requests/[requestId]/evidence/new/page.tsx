@@ -12,10 +12,13 @@ import { authOptions } from "@/lib/auth";
 
 export default async function NewTrainingRequestEvidencePage({
   params,
+  searchParams,
 }: Readonly<{
   params: Promise<{ requestId: string }>;
+  searchParams: Promise<{ error?: string }>;
 }>) {
   const { requestId } = await params;
+  const { error } = await searchParams;
   const session = await getServerSession(authOptions);
   const visibleWhere = await getVisibleTrainingRequestWhere({
     email: session?.user?.email,
@@ -52,6 +55,7 @@ export default async function NewTrainingRequestEvidencePage({
       <p className="mt-3 text-sm leading-6 text-zinc-600">
         Attach evidence for {request.title} by {request.company.legalName}.
       </p>
+      {error ? <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">{error}</p> : null}
 
       <form
         action={uploadTrainingRequestEvidenceAction.bind(null, request.id)}
@@ -71,6 +75,9 @@ export default async function NewTrainingRequestEvidencePage({
             ))}
           </select>
         </label>
+        <p className="text-xs text-zinc-600">For payment receipts, enter the issuer and receipt number.</p>
+        <label className="grid gap-1 text-sm font-medium">Receipt issuer (required for receipts)<input name="receiptIssuer" maxLength={160} className="min-h-10 rounded-md border border-zinc-300 px-3" /></label>
+        <label className="grid gap-1 text-sm font-medium">Receipt number (required for receipts)<input name="receiptNumber" maxLength={100} className="min-h-10 rounded-md border border-zinc-300 px-3" /></label>
         <label className="grid gap-2 text-sm font-medium text-zinc-700">
           Evidence file
           <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}

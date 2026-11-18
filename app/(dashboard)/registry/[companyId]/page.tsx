@@ -557,6 +557,7 @@ export default async function CompanyDetailPage({
     trainingPage?: string | string[];
     trainingStatus?: string | string[];
     trainingYear?: string | string[];
+    receiptError?: string;
   }>;
 }>) {
   const { companyId } = await params;
@@ -1891,6 +1892,7 @@ export default async function CompanyDetailPage({
             description="Upload proof of payment after the Area Manager releases the contribution recommendation."
             isAdminOverride={adminOverride}
           >
+          {query.receiptError ? <p role="alert" className="rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">{query.receiptError}</p> : null}
           <form
             action={uploadRegistrationContributionReceiptAction.bind(null, company.id)}
             className="grid gap-3"
@@ -1904,6 +1906,8 @@ export default async function CompanyDetailPage({
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2"
               />
             </label>
+            <label className="grid gap-1 text-sm font-medium">Receipt issuer<input name="receiptIssuer" required maxLength={160} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+            <label className="grid gap-1 text-sm font-medium">Receipt number<input name="receiptNumber" required maxLength={100} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
             <div>
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Upload payment receipt
@@ -2348,6 +2352,7 @@ export default async function CompanyDetailPage({
                         {document.documentName ? ` · ${document.fileName}` : ""} ·{" "}
                         {formatDate(document.createdAt)}
                       </span>
+                      {document.receiptNumber ? <span className="mt-1 block text-xs text-zinc-700">Receipt: {document.receiptIssuer} · {document.receiptNumber}</span> : null}
                     </span>
                     <span className="text-xs font-semibold text-[#800020] group-open:hidden">
                       Expand

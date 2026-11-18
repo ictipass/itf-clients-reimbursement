@@ -308,6 +308,8 @@ export default async function TrainingRequestDetailPage({
           id: true,
           kind: true,
           fileName: true,
+          receiptIssuer: true,
+          receiptNumber: true,
           createdAt: true,
         },
         orderBy: {
@@ -972,6 +974,7 @@ export default async function TrainingRequestDetailPage({
                     <p className="mt-1 text-xs text-zinc-500">
                       {document.kind.replaceAll("_", " ")} · {formatDate(document.createdAt)}
                     </p>
+                    {document.receiptNumber ? <p className="mt-1 text-xs text-zinc-700">Receipt: {document.receiptIssuer} · {document.receiptNumber}</p> : null}
                     <Link
                       href={`/registry/${request.company.id}/evidence/${document.id}?disposition=inline`}
                       target="_blank"

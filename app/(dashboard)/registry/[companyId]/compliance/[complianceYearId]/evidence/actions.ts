@@ -45,15 +45,22 @@ export async function uploadComplianceEvidenceAction(
     throw new Error("Authentication is required.");
   }
 
-  await uploadComplianceEvidence({
-    companyId,
-    complianceYearId,
-    uploadedByEmail: session.user.email,
-    requesterRole: session.user.role,
-    kind: readEvidenceKind(formData),
-    documentName: formData.get("documentName")?.toString(),
-    file: await readUploadedFile(formData, "file", session.user.id),
-  });
+  try {
+    await uploadComplianceEvidence({
+      companyId,
+      complianceYearId,
+      uploadedByEmail: session.user.email,
+      requesterRole: session.user.role,
+      kind: readEvidenceKind(formData),
+      receiptIssuer: formData.get("receiptIssuer")?.toString(),
+      receiptNumber: formData.get("receiptNumber")?.toString(),
+      documentName: formData.get("documentName")?.toString(),
+      file: await readUploadedFile(formData, "file", session.user.id),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Evidence could not be uploaded.";
+    redirect(`/registry/${companyId}/compliance/${complianceYearId}/evidence/new?error=${encodeURIComponent(message.slice(0, 280))}`);
+  }
 
   revalidatePath(`/registry/${companyId}`);
   redirect(`/registry/${companyId}`);

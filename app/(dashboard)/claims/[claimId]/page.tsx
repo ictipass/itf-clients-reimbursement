@@ -30,6 +30,7 @@ import {
   recordVoucherSignoffAction,
   resumeClaimFromKivAction,
   submitClaimToAreaManagerAction,
+  importClaimStaffEntriesAction,
   updateClaimStaffEntriesAction,
   updateClaimAuditReviewAction,
   updatePaymentFileAuditAction,
@@ -157,7 +158,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; assignmentError?: string; reassigned?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; calculationError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; computationError?: string; computationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string; signoffError?: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; assignmentError?: string; reassigned?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; calculationError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; computationError?: string; computationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string; signoffError?: string; staffImportError?: string; staffImported?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -207,6 +208,7 @@ export default async function ClaimDetailPage({
       paidAt: true,
       bankName: true,
       accountNumber: true,
+      accountName: true,
       sortCode: true,
       claimedAmount: true,
       eligibleAmount: true,
@@ -280,6 +282,8 @@ export default async function ClaimDetailPage({
           id: true,
           kind: true,
           fileName: true,
+          receiptIssuer: true,
+          receiptNumber: true,
           createdAt: true,
         },
         orderBy: {
@@ -430,9 +434,12 @@ export default async function ClaimDetailPage({
   const annualPaymentCheck = claim.claimYear && claim.company.id
     ? await getDb().annualEligibilityCheck.findUnique({
         where: { companyId_year: { companyId: claim.company.id, year: claim.claimYear } },
-        select: { status: true, message: true, checkedAt: true },
+        select: { status: true, contributionPaid: true, message: true, checkedAt: true },
       })
     : null;
+  const displayedContributionPaid = annualPaymentCheck
+    ? annualPaymentCheck.status === "ELIGIBLE" ? annualPaymentCheck.contributionPaid : null
+    : claim.trainingContributionPaid;
 
   const canManageClaimTrainings = canSubmitClaim && claim.status === "DRAFT";
   const areaOfficeBaseline = getAreaOfficeCalculationBaseline(claim);
@@ -930,13 +937,7 @@ export default async function ClaimDetailPage({
             action={updateClaimFormAction.bind(null, claim.id)}
             className="mt-5 grid gap-4 md:grid-cols-2"
           >
-            <label className="grid gap-1 text-sm">Claim year<input
-              name="claimYear"
-              type="number"
-              defaultValue={claim.claimYear ?? ""}
-              placeholder="Claim year"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            /></label>
+            <p className="grid gap-1 text-sm">Claim year <span className="min-h-10 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">{claim.claimYear ?? "Not recorded"}</span></p>
             <label className="grid gap-1 text-sm">Claimed amount<input
               name="claimedAmount"
               type="number"
@@ -954,21 +955,14 @@ export default async function ClaimDetailPage({
               placeholder="Training contribution due"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
             /></label>
-            <label className="grid gap-1 text-sm">Training contribution paid<input
-              name="trainingContributionPaid"
-              type="number"
-              step="0.01"
-              defaultValue={decimalInput(claim.trainingContributionPaid)}
-              placeholder="Training contribution paid"
-              className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
-            /></label>
+            <p className="grid gap-1 text-sm">Verified training contribution paid <span className="min-h-10 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2">{formatMoney(displayedContributionPaid)}</span></p>
             <label className="grid gap-1 text-sm">ITF receipt number<input
               name="itfReceiptNumber"
               defaultValue={claim.itfReceiptNumber ?? ""}
               placeholder="ITF receipt number"
               className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
             /></label>
-            <ClaimBankFields banks={bankOptions} currentBankName={claim.bankName} currentSortCode={claim.sortCode} currentAccountNumber={claim.accountNumber} />
+            <ClaimBankFields banks={bankOptions} claimId={claim.id} currentBankName={claim.bankName} currentSortCode={claim.sortCode} currentAccountNumber={claim.accountNumber} currentAccountName={claim.accountName} />
             <label className="grid gap-1 text-sm">Employer officer name<input
               name="employerOfficerName"
               defaultValue={claim.employerOfficerName ?? ""}
@@ -1003,6 +997,7 @@ export default async function ClaimDetailPage({
             <p>Receipt: {claim.itfReceiptNumber ?? "Not provided"}</p>
             <p>Bank: {claim.bankName ?? "Not provided"}</p>
             <p>Account: {claim.accountNumber ?? "Not provided"}</p>
+            <p>Account name: {claim.accountName ?? "Not verified"}</p>
             <p>Sort code: {claim.sortCode ?? "Not provided"}</p>
           </div>
         )}
@@ -1021,6 +1016,7 @@ export default async function ClaimDetailPage({
             <div><dt className="font-medium">ITF receipt number</dt><dd>{claim.itfReceiptNumber ?? "Not recorded"}</dd></div>
             <div><dt className="font-medium">Sort code</dt><dd>{claim.sortCode ?? "Not recorded"}</dd></div>
             <div><dt className="font-medium">Account number</dt><dd>{claim.accountNumber ?? "Not recorded"}</dd></div>
+            <div><dt className="font-medium">Verified account name</dt><dd>{claim.accountName ?? "Not recorded"}</dd></div>
           </dl>
           <div className="mt-5 overflow-x-auto">
             <table className="min-w-full border-collapse text-left text-sm">
@@ -1468,15 +1464,7 @@ export default async function ClaimDetailPage({
               <h3 className="font-semibold text-zinc-950">Medium/Large employer schedule</h3>
               <ClaimEmphasisRankGroup>
               <div className="grid gap-3 md:grid-cols-4">
-                <label className="grid gap-1 text-sm">Training contribution paid<input
-                  name="trainingContributionPaid"
-                  type="number"
-                  step="0.01"
-                  required
-                  defaultValue={decimalInput(claim.trainingContributionPaid)}
-                  placeholder="Contribution paid"
-                  className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-                /></label>
+                <p className="grid gap-1 text-sm">Verified training contribution paid <span className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2">{formatMoney(displayedContributionPaid)}</span></p>
                 {[
                   ["management", "Management"],
                   ["supervisory", "Supervisory"],
@@ -1533,7 +1521,7 @@ export default async function ClaimDetailPage({
               <input type="hidden" name="employerScale" value="SMALL" />
               <h3 className="font-semibold text-zinc-950">Small Scale employer schedule</h3>
               <div className="grid gap-3 md:grid-cols-4">
-                <label className="grid gap-1 text-sm">Training contribution paid<input name="trainingContributionPaid" type="number" step="0.01" required defaultValue={decimalInput(claim.trainingContributionPaid)} placeholder="Contribution paid" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" /></label>
+                <p className="grid gap-1 text-sm">Verified training contribution paid <span className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 py-2">{formatMoney(displayedContributionPaid)}</span></p>
                 <label className="grid gap-1 text-sm">Total staff<input name="smallTotalStaff" type="number" min="0" required placeholder="Total staff" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" /></label>
                 <label className="grid gap-1 text-sm">Total staff trained<input name="smallTotalTrained" type="number" min="0" required placeholder="Total trained" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" /></label>
                 <label className="grid gap-1 text-sm">SIWES students accepted<input name="siwesStudentsAccepted" type="number" min="0" placeholder="SIWES students" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" /></label>
@@ -1716,6 +1704,7 @@ export default async function ClaimDetailPage({
                     document.createdAt,
                   )}
                 </p>
+                {document.receiptNumber ? <p className="mt-1 text-xs text-zinc-700">Receipt: {document.receiptIssuer} · {document.receiptNumber}</p> : null}
                 <Link
                   href={`/registry/${claim.company.id}/evidence/${document.id}?disposition=inline`}
                   target="_blank"
@@ -1744,6 +1733,7 @@ export default async function ClaimDetailPage({
                 </option>
               ))}
             </select>
+            <div className="grid gap-2 text-sm md:col-span-2"><p className="text-xs text-zinc-600">For payment receipts, record both the issuer and receipt number.</p><label className="grid gap-1">Receipt issuer (required for receipts)<input name="receiptIssuer" maxLength={160} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label><label className="grid gap-1">Receipt number (required for receipts)<input name="receiptNumber" maxLength={100} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label></div>
             <HostedFileInput hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)}
               name="evidence"
               accept=".pdf,.jpg,.jpeg,.png,.csv"
@@ -1760,7 +1750,7 @@ export default async function ClaimDetailPage({
       </CollapsibleClaimSection>
 
       <CollapsibleClaimSection title="Claim staff entries">
-      <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
+      <section id="claim-staff" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Claim staff entries</h2>
         <p className="mt-2 text-sm leading-6 text-zinc-600">
           Enter Staff/Employee IDs used for Management, Supervisory, and Occupational claim
@@ -1768,7 +1758,9 @@ export default async function ClaimDetailPage({
           <span className="ml-1 font-mono text-xs">EMP-001, Ada Lovelace</span>.
         </p>
 
-        {duplicateStaffEntries.length > 0 ? (
+        {query.staffImportError ? <p role="alert" className="mt-4 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">{query.staffImportError}</p> : null}
+        {query.staffImported ? <p className="mt-4 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Staff workbook imported.</p> : null}
+        {isItfRole(activeRole) && duplicateStaffEntries.length > 0 ? (
           <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm leading-6 text-amber-950">
             <p className="font-semibold">Duplicate Staff/Employee IDs detected</p>
             <p className="mt-1">
@@ -1802,7 +1794,7 @@ export default async function ClaimDetailPage({
               ))}
             </div>
           </div>
-        ) : claim.staffEntries.length > 0 ? (
+        ) : isItfRole(activeRole) && claim.staffEntries.length > 0 ? (
           <p className="mt-4 rounded-md bg-emerald-50 px-3 py-2 text-sm text-emerald-800">
             No duplicate Staff/Employee IDs detected.
           </p>
@@ -1825,7 +1817,7 @@ export default async function ClaimDetailPage({
                     <p
                       key={entry.id}
                       className={`text-xs leading-5 ${
-                        entry.duplicateGroupKey ? "font-semibold text-amber-800" : "text-zinc-600"
+                        isItfRole(activeRole) && entry.duplicateGroupKey ? "font-semibold text-amber-800" : "text-zinc-600"
                       }`}
                     >
                       {entry.employeeId}
@@ -1837,6 +1829,20 @@ export default async function ClaimDetailPage({
             </div>
           ))}
         </div>
+
+        {canSubmitClaim && claim.status === "DRAFT" ? (
+          <div className="mt-5 border-t border-zinc-100 pt-5">
+            <h3 className="font-semibold">Import staff list from Excel</h3>
+            <p className="mt-1 text-sm text-zinc-600">Uploading a workbook replaces all current staff entries on this draft claim. Keep a copy of the list first.</p>
+            <p className="mt-1 text-xs font-semibold text-amber-900">You are responsible for the accuracy and legibility of uploaded staff records.</p>
+            <Link href="/claims/staff/template" prefetch={false} className="mt-3 inline-flex min-h-10 items-center rounded-md border border-zinc-300 px-3 text-sm font-semibold">Download Excel template</Link>
+            <form action={importClaimStaffEntriesAction.bind(null, claim.id)} className="mt-3 flex flex-wrap items-end gap-3">
+              <label className="grid gap-1 text-sm font-medium">Completed staff workbook<input name="file" type="file" required accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="min-h-10 rounded-md border border-zinc-300 bg-white px-3 py-2" /></label>
+              <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Import staff list</button>
+              <FormActionProgress />
+            </form>
+          </div>
+        ) : null}
 
         {canSubmitClaim && claim.status === "DRAFT" ? (
           <form

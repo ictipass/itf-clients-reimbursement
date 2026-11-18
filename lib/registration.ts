@@ -4,6 +4,7 @@ import {
   issueContributionInvoice,
 } from "@/lib/contribution-invoices";
 import { sendContributionRecommendationEmail } from "@/lib/email";
+import { requireReceiptMetadata } from "@/lib/receipt-metadata";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -70,6 +71,8 @@ export type UploadRegistrationContributionReceiptInput = {
   uploadedByEmail: string;
   requesterRole: Role;
   file: File;
+  receiptIssuer: string;
+  receiptNumber: string;
 };
 
 const registrationReceiptReviewActions = ["accept", "request_changes"] as const;
@@ -1292,6 +1295,8 @@ export async function uploadRegistrationContributionReceipt(
     throw new Error("You do not have permission to upload registration payment receipts.");
   }
 
+  const receiptMetadata = requireReceiptMetadata(input.receiptIssuer, input.receiptNumber);
+
   const db = getDb();
   const registrationApplication = await db.registrationApplication.findFirst({
     where: {
@@ -1387,6 +1392,7 @@ export async function uploadRegistrationContributionReceipt(
         registrationApplicationId: registrationApplication.id,
         uploadedById: uploader.id,
         kind: "CONTRIBUTION_RECEIPT",
+        ...receiptMetadata,
         fileName: safeFileName,
         storageProvider: stored.storageProvider,
         scanStatus: stored.scanStatus,

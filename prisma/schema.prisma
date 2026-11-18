@@ -470,6 +470,7 @@ model BankDirectoryEntry {
   name        String
   nameKey     String
   sortCode    String
+  paystackCode String?
   isActive    Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
@@ -1315,6 +1316,8 @@ model ReimbursementClaim {
   paidAt                         DateTime?
   bankName                       String?
   accountNumber                  String?
+  accountName                    String?
+  accountVerifiedAt              DateTime?
   sortCode                       String?
   claimedAmount                  Decimal                           @db.Decimal(14, 2)
   eligibleAmount                 Decimal?                          @db.Decimal(14, 2)
@@ -1574,6 +1577,8 @@ model Document {
   uploadedById               String
   kind                       DocumentKind
   documentName               String?
+  receiptIssuer              String?
+  receiptNumber              String?
   fileName                   String
   storageProvider            StorageProvider
   bucket                     String?

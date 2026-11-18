@@ -67,6 +67,10 @@ The current local HTTP development API remains restricted to `NODE_ENV=developme
       contract; hosted adapters alone do not bypass Vercel's 4.5 MB function payload limit.
 - [ ] Configure Upstash Redis credentials for shared rate limiting and verify behaviour across
       multiple Vercel instances.
+- [ ] Set a server-only `PAYSTACK_SECRET_KEY` in Preview and Production, with different test/live
+      credentials as appropriate. Populate each accepted bank's separate Paystack bank code
+      (do not assume its sort code matches), then test 10-digit account resolution, invalid
+      accounts, provider outages, and the displayed account name before claim submission.
 
 ### Business and integration gates
 
@@ -79,6 +83,9 @@ The current local HTTP development API remains restricted to `NODE_ENV=developme
 - [ ] Ensure `ELIGIBILITY_PROVIDER=TEST_RECORDS` is **not** set in Production. Validate annual
       year matching, payment settlement/amount, certificate issuance, pending retries, and
       approval/payment gates end to end against the real provider.
+- [ ] After deploying claim data migrations, confirm receipt metadata is recorded, staff-list
+      imports retain leading zeroes, duplicate flags are visible only to officers, and the
+      Form 1/Form 2 contribution comes from the annual eligibility record.
 - [ ] If Integrated mode is used, provision and test Remita credentials, callback/status flows,
       number registries, certificate templates/signatures, and BPP verification integration.
       Do not assume these are production-ready merely because local workflows exist.

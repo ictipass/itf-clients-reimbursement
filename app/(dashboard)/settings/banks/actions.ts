@@ -21,6 +21,7 @@ export async function saveBankDirectoryEntryAction(formData: FormData) {
       workspaceId: String(formData.get("workspaceId") ?? ""),
       name: String(formData.get("name") ?? ""),
       sortCode: String(formData.get("sortCode") ?? ""),
+      paystackCode: String(formData.get("paystackCode") ?? ""),
     });
   } catch (error) {
     finish(error instanceof Error ? error.message : "Bank could not be saved.");

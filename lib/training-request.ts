@@ -1,6 +1,7 @@
 import { getDb } from "@/lib/db";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
+import { requireReceiptMetadata } from "@/lib/receipt-metadata";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
@@ -106,6 +107,8 @@ export type UploadTrainingRequestEvidenceInput = {
   uploadedByEmail: string;
   requesterRole: Role;
   kind: TrainingRequestEvidenceKind;
+  receiptIssuer?: string;
+  receiptNumber?: string;
   file: File;
 };
 
@@ -983,6 +986,10 @@ export async function uploadTrainingRequestEvidence(input: UploadTrainingRequest
     throw new Error("You do not have permission to upload Training Approval evidence.");
   }
 
+  const receiptMetadata = input.kind === "PAYMENT_RECEIPT"
+    ? requireReceiptMetadata(input.receiptIssuer, input.receiptNumber)
+    : {};
+
   await assertUploadRateLimit(input.uploadedByEmail);
 
   const db = getDb();
@@ -1053,6 +1060,7 @@ export async function uploadTrainingRequestEvidence(input: UploadTrainingRequest
       trainingRequestId: request.id,
       uploadedById: actor.id,
       kind: input.kind,
+      ...receiptMetadata,
       fileName: safeFileName,
       storageProvider: stored.storageProvider,
       scanStatus: stored.scanStatus,

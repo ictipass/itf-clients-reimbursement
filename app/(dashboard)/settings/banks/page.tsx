@@ -17,7 +17,7 @@ export default async function BankSettingsPage({ searchParams }: Readonly<{ sear
   return <div className="mx-auto max-w-5xl px-6 py-8 lg:px-8">
     <Link href="/settings" className="text-sm font-semibold text-[#800020]">Back to settings</Link>
     <h1 className="mt-3 text-3xl font-semibold">Accepted banks</h1>
-    <p className="mt-2 text-sm text-zinc-600">Employers select an active bank. Its sort code is filled from this catalogue and cannot be entered manually. Verify each code before adding it.</p>
+    <p className="mt-2 text-sm text-zinc-600">Employers select an active bank. Its sort code is filled from this catalogue. Enter the separate Paystack bank code to enable account-name verification; a sort code is not necessarily the Paystack code.</p>
     {message ? <p className="mt-4 rounded-md bg-zinc-100 p-3 text-sm">{message}</p> : null}
     {error ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-800">{error}</p> : null}
     {workspaces.map((workspace) => <section key={workspace.id} className="mt-6 rounded-lg border border-zinc-200 bg-white p-5">
@@ -34,17 +34,18 @@ export default async function BankSettingsPage({ searchParams }: Readonly<{ sear
         </form>
       </div>
       <h3 className="mt-5 font-semibold">Add or update one bank</h3>
-      <form action={saveBankDirectoryEntryAction} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]">
+      <form action={saveBankDirectoryEntryAction} className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto]">
         <input type="hidden" name="workspaceId" value={workspace.id} />
         <label className="grid gap-1 text-sm font-medium">Bank name<input name="name" required maxLength={100} className="min-h-10 rounded-md border px-3" /></label>
         <label className="grid gap-1 text-sm font-medium">Sort code<input name="sortCode" required inputMode="numeric" pattern="[0-9]{3,12}" className="min-h-10 rounded-md border px-3" /></label>
+        <label className="grid gap-1 text-sm font-medium">Paystack bank code<input name="paystackCode" inputMode="numeric" pattern="[0-9]{3,12}" className="min-h-10 rounded-md border px-3" /></label>
         <button className="min-h-10 self-end rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Add or update</button>
         <FormActionProgress />
       </form>
       <div className="mt-5 grid gap-2">
         {workspace.bankDirectoryEntries.length === 0 ? <p className="text-sm text-zinc-500">No banks configured yet.</p> : null}
         {workspace.bankDirectoryEntries.map((bank) => <div key={bank.id} className="flex flex-wrap items-center justify-between gap-3 rounded-md bg-zinc-50 p-3 text-sm">
-          <span><strong>{bank.name}</strong> · Sort code {bank.sortCode}{!bank.isActive ? " · Inactive" : ""}</span>
+          <span><strong>{bank.name}</strong> · Sort code {bank.sortCode} · Paystack code {bank.paystackCode ?? "not configured"}{!bank.isActive ? " · Inactive" : ""}</span>
           <form action={setBankDirectoryEntryStatusAction}>
             <input type="hidden" name="id" value={bank.id} />
             <input type="hidden" name="isActive" value={String(!bank.isActive)} />

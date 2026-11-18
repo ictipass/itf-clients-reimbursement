@@ -44,10 +44,12 @@ import {
   uploadClaimEvidence,
   type ClaimDesk,
   type ClaimEvidenceKind,
+  type UpdateEmployerClaimCalculationInput,
 } from "@/lib/claims";
 import type { ReimbursementAuditReviewStatus } from "@/lib/reimbursement-audit-review";
 import type { ReimbursementPaymentHandoffStatus } from "@/lib/reimbursement-payment-schedule";
 import { parseClaimStaffEntryLines } from "@/lib/reimbursement-staff";
+import { parseClaimStaffWorkbook } from "@/lib/claim-staff-import";
 
 function readOptionalString(formData: FormData, name: string) {
   const value = formData.get(name);
@@ -147,9 +149,7 @@ export async function updateClaimFormAction(claimId: string, formData: FormData)
       claimId,
       requesterEmail: session.user.email,
       requesterRole: session.user.role,
-      claimYear: readOptionalNumber(formData, "claimYear"),
       trainingContributionDue: readOptionalNumber(formData, "trainingContributionDue"),
-      trainingContributionPaid: readOptionalNumber(formData, "trainingContributionPaid"),
       itfReceiptNumber: readOptionalString(formData, "itfReceiptNumber"),
       bankId: readOptionalString(formData, "bankId"),
       accountNumber: readOptionalString(formData, "accountNumber"),
@@ -649,6 +649,8 @@ export async function uploadClaimEvidenceAction(claimId: string, formData: FormD
       uploadedByEmail: session.user.email,
       requesterRole: session.user.role,
       kind: readEvidenceKind(formData),
+      receiptIssuer: readOptionalString(formData, "receiptIssuer"),
+      receiptNumber: readOptionalString(formData, "receiptNumber"),
       file,
     });
   } catch (error) {
@@ -834,21 +836,16 @@ export async function updateEmployerClaimCalculationAction(
   }
 
   const employerScale = readOptionalString(formData, "employerScale");
-  const trainingContributionPaid = readRequiredPositiveNumber(
-    formData,
-    "trainingContributionPaid",
-  );
   const siwesStudentsAccepted = readOptionalNumber(formData, "siwesStudentsAccepted");
   const trainingPlanSubmittedPromptly = formData.get("trainingPlanSubmittedPromptly") === "on";
 
   if (employerScale === "SMALL") {
-    await updateEmployerClaimCalculation({
+    await saveEmployerCalculation({
       claimId,
       requesterEmail: session.user.email,
       requesterRole: session.user.role,
       calculation: {
         employerScale,
-        trainingContributionPaid,
         smallScaleTraining: {
           totalStaff: readRequiredPositiveNumber(formData, "smallTotalStaff"),
           totalTrained: readRequiredPositiveNumber(formData, "smallTotalTrained"),
@@ -866,13 +863,12 @@ export async function updateEmployerClaimCalculationAction(
     if (new Set(Object.values(emphasisRanks)).size !== 3) {
       redirect(`/claims/${claimId}?calculationError=${encodeURIComponent("Management, Supervisory, and Occupational must each have a different emphasis rank.")}#calculations`);
     }
-    await updateEmployerClaimCalculation({
+    await saveEmployerCalculation({
       claimId,
       requesterEmail: session.user.email,
       requesterRole: session.user.role,
       calculation: {
         employerScale,
-        trainingContributionPaid,
         emphasisRanks,
         trainingAreas: {
           MANAGEMENT: {
@@ -917,6 +913,15 @@ export async function updateEmployerClaimCalculationAction(
   redirect(`/claims/${claimId}`);
 }
 
+async function saveEmployerCalculation(input: UpdateEmployerClaimCalculationInput) {
+  try {
+    await updateEmployerClaimCalculation(input);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Claim calculation could not be saved.";
+    redirect(`/claims/${input.claimId}?calculationError=${encodeURIComponent(message.slice(0, 280))}#calculations`);
+  }
+}
+
 export async function updateClaimStaffEntriesAction(claimId: string, formData: FormData) {
   const session = await getServerSession(authOptions);
 
@@ -946,6 +951,27 @@ export async function updateClaimStaffEntriesAction(claimId: string, formData: F
 
   revalidatePath(`/claims/${claimId}`);
   redirect(`/claims/${claimId}`);
+}
+
+export async function importClaimStaffEntriesAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  try {
+    const file = formData.get("file");
+    if (!(file instanceof File)) throw new Error("Select a staff workbook.");
+    const entries = await parseClaimStaffWorkbook(file);
+    await updateClaimStaffEntries({
+      claimId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      entries,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Staff workbook could not be imported.";
+    redirect(`/claims/${claimId}?staffImportError=${encodeURIComponent(message.slice(0, 280))}#claim-staff`);
+  }
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?staffImported=1#claim-staff`);
 }
 
 function readClaimLineInput(claimId: string, formData: FormData) {
