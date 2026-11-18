@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { isSubmittedArtifactEditable } from "@/lib/employer-correction";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { requireReceiptMetadata } from "@/lib/receipt-metadata";
@@ -1006,6 +1007,7 @@ export async function uploadTrainingRequestEvidence(input: UploadTrainingRequest
       id: true,
       companyId: true,
       currentDesk: true,
+      status: true,
       company: {
         select: {
           organizationId: true,
@@ -1017,6 +1019,10 @@ export async function uploadTrainingRequestEvidence(input: UploadTrainingRequest
 
   if (!request) {
     throw new Error("Training Approval Request was not found.");
+  }
+
+  if (!isItfRole(input.requesterRole) && !isSubmittedArtifactEditable(request.status, request.currentDesk)) {
+    throw new Error("Submitted Training Approval evidence is locked. Employer correction requests are limited to company details.");
   }
 
   const actor = await getWorkflowActor(input.uploadedByEmail);
@@ -1211,7 +1217,7 @@ async function findEditableTrainingRequestForEmployer(input: {
       id: input.requestId,
       recordTier: "HOT",
       status: {
-        in: ["DRAFT", "CHANGES_REQUESTED"],
+        in: ["DRAFT"],
       },
       currentDesk: "COMPANY",
       company: {

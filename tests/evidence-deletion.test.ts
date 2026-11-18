@@ -6,7 +6,7 @@ import { isEvidenceWorkflowEditable } from "../lib/evidence-deletion";
 test("unsubmitted evidence remains editable", () => {
   assert.equal(isEvidenceWorkflowEditable([]), true);
   assert.equal(isEvidenceWorkflowEditable(["DRAFT"]), true);
-  assert.equal(isEvidenceWorkflowEditable(["CHANGES_REQUESTED"]), true);
+  assert.equal(isEvidenceWorkflowEditable(["CHANGES_REQUESTED"]), false);
 });
 
 test("submitted evidence is permanently locked", () => {

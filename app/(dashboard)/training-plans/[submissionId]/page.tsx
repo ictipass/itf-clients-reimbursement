@@ -26,9 +26,9 @@ const trainingPlanTransitionLabels = {
   hot_to_ro: "Forward to Reimbursement Officer",
   ro_to_hot: "Return to HOT",
   hot_to_am: "Return to AM",
-  am_to_company: "Request employer correction",
-  hot_to_company: "Request employer correction",
-  ro_to_company: "Request employer correction",
+  am_to_company: "Request company-detail correction",
+  hot_to_company: "Request company-detail correction",
+  ro_to_company: "Request company-detail correction",
   am_approve: "Approve package",
 } as const;
 
@@ -297,7 +297,7 @@ export default async function TrainingPlanDetailPage({
     missingRequiredEvidence.length === 0 &&
     (isEmployerRole(activeRole) || adminOverride);
   const canImportLineItems =
-    (submission.status === "DRAFT" || submission.status === "CHANGES_REQUESTED") &&
+    submission.status === "DRAFT" &&
     (isEmployerRole(activeRole) || adminOverride);
   const importError = Array.isArray(query.importError) ? query.importError[0] : query.importError;
   const routeError = Array.isArray(query.routeError) ? query.routeError[0] : query.routeError;
@@ -331,6 +331,11 @@ export default async function TrainingPlanDetailPage({
         <TrainingPlanStatusBadge status={submission.status} />
       </div>
       {routeError ? <p className="mt-4 rounded-md bg-red-50 px-4 py-3 text-sm text-red-900">{routeError}</p> : null}
+      {submission.status === "CHANGES_REQUESTED" && !isItfRole(activeRole) ? (
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">
+          Correct the requested organizational details on the <Link href={`/registry/${submission.company.id}`} className="font-semibold underline">company profile</Link>, then resubmit this unchanged package. Files and plan rows are locked.
+        </p>
+      ) : null}
 
       <section className="mt-8 grid gap-4 md:grid-cols-4">
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -569,9 +574,7 @@ export default async function TrainingPlanDetailPage({
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
                 />
               </label>
-              {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? (
-                <p className="mt-2 text-xs text-zinc-600">A remark is required for rejection or employer correction; it is optional for approval.</p>
-              ) : null}
+              <p className="mt-2 text-xs text-zinc-600">For employer correction, describe only organizational details to change. Submitted files and plan rows stay locked.</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {availableTrainingPlanTransitions.map((transition) => (
                   <PendingActionButton

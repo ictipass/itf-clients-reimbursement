@@ -21,6 +21,7 @@ export type CompanyEvidenceKind = (typeof companyEvidenceKinds)[number];
 export type UploadCompanyEvidenceInput = {
   companyId: string;
   uploadedByEmail: string;
+  requesterRole: Role;
   kind: CompanyEvidenceKind;
   documentName?: string;
   file: File;
@@ -45,6 +46,9 @@ export function getCompanyEvidenceKinds() {
 }
 
 export async function uploadCompanyEvidence(input: UploadCompanyEvidenceInput) {
+  if (isItfRole(input.requesterRole) || !can(input.requesterRole, "registry:submit")) {
+    throw new Error("Only an employer submitter can upload company evidence.");
+  }
   const documentName = normalizeEvidenceDocumentName(input.kind, input.documentName);
 
   await assertUploadRateLimit(input.uploadedByEmail);
@@ -58,11 +62,22 @@ export async function uploadCompanyEvidence(input: UploadCompanyEvidenceInput) {
     select: {
       id: true,
       organizationId: true,
+      isActive: true,
+      registrationApplication: { select: { status: true } },
+      complianceYears: { where: { status: { not: "DRAFT" } }, select: { id: true }, take: 1 },
+      trainingPlanSubmissions: { where: { status: { not: "DRAFT" } }, select: { id: true }, take: 1 },
+      trainingRequests: { where: { status: { not: "DRAFT" } }, select: { id: true }, take: 1 },
+      reimbursementClaims: { where: { status: { not: "DRAFT" } }, select: { id: true }, take: 1 },
     },
   });
 
   if (!company) {
     throw new Error("Company was not found.");
+  }
+
+  if (!company.isActive || !isEvidenceWorkflowEditable([company.registrationApplication?.status]) ||
+    company.complianceYears.length || company.trainingPlanSubmissions.length || company.trainingRequests.length || company.reimbursementClaims.length) {
+    throw new Error("Submitted company evidence is locked. Employer correction requests are limited to company details.");
   }
 
   const user = await db.user.findUnique({
@@ -71,11 +86,16 @@ export async function uploadCompanyEvidence(input: UploadCompanyEvidenceInput) {
     },
     select: {
       id: true,
+      memberships: { where: { isActive: true, role: input.requesterRole }, select: { organizationId: true } },
     },
   });
 
   if (!user) {
     throw new Error("Upload user was not found. Run the foundation seed first.");
+  }
+
+  if (!user.memberships.some((membership) => membership.organizationId === company.organizationId)) {
+    throw new Error("You do not have access to upload evidence for this company.");
   }
 
   const buffer = Buffer.from(await input.file.arrayBuffer());
@@ -282,6 +302,10 @@ export async function deleteCompanyEvidence(input: DeleteCompanyEvidenceInput) {
           registrationApplication: {
             select: { status: true },
           },
+          complianceYears: { where: { status: { not: "DRAFT" } }, select: { id: true }, take: 1 },
+          trainingPlanSubmissions: { where: { status: { not: "DRAFT" } }, select: { id: true }, take: 1 },
+          trainingRequests: { where: { status: { not: "DRAFT" } }, select: { id: true }, take: 1 },
+          reimbursementClaims: { where: { status: { not: "DRAFT" } }, select: { id: true }, take: 1 },
         },
       },
       registrationApplication: {
@@ -328,7 +352,9 @@ export async function deleteCompanyEvidence(input: DeleteCompanyEvidenceInput) {
       document.trainingRequest?.status,
       document.trainingMonitoringRecord?.status,
       document.reimbursementClaim?.status,
-    ])
+    ]) || (!document.registrationApplication && !document.complianceYear && !document.trainingPlanSubmission &&
+      !document.trainingRequest && !document.trainingMonitoringRecord && !document.reimbursementClaim &&
+      Boolean(document.company?.complianceYears.length || document.company?.trainingPlanSubmissions.length || document.company?.trainingRequests.length || document.company?.reimbursementClaims.length))
   ) {
     throw new Error("Submitted evidence is permanently locked and cannot be removed.");
   }

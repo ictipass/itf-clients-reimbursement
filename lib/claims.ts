@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { isSubmittedArtifactEditable } from "@/lib/employer-correction";
 import { buildHqComputationTableSummary, isCurrentHqComputationTable } from "@/lib/hq-computation-table";
 import { requiredVoucherSignoffForHandoff } from "@/lib/reimbursement-voucher-signoffs";
 import { isIndividuallyAssignedClaimRole, listAssignableClaimOfficers, resolveClaimOfficerAssignment } from "@/lib/claim-officer-assignment";
@@ -2465,6 +2466,10 @@ export async function uploadClaimEvidence(input: UploadClaimEvidenceInput) {
   }
 
   if (claim.status === "ARCHIVED") throw new Error("Archived claims cannot accept new evidence.");
+
+  if (!isItfRole(input.requesterRole) && !isSubmittedArtifactEditable(claim.status, claim.currentDesk)) {
+    throw new Error("Submitted claim evidence is locked. Employer correction requests are limited to company details.");
+  }
 
   if (input.requesterRole === "PAYMENT_INITIATOR" &&
     (claim.currentDesk !== "PAYMENT_INITIATOR" || input.kind !== "PAYMENT_RECEIPT")) {

@@ -5,7 +5,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
-import { createCompany } from "@/lib/registry";
+import { createCompany, correctCompanyDetails } from "@/lib/registry";
 
 function readOptionalString(formData: FormData, name: string) {
   const value = formData.get(name);
@@ -60,4 +60,33 @@ export async function createCompanyAction(formData: FormData) {
 
   revalidatePath("/registry");
   redirect("/registry");
+}
+
+export async function correctCompanyDetailsAction(companyId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+
+  try {
+    await correctCompanyDetails({
+      companyId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      legalName: readRequiredString(formData, "legalName"),
+      claimedItfEmployerNumber: readOptionalString(formData, "claimedItfEmployerNumber"),
+      rcNumber: readOptionalString(formData, "rcNumber"),
+      taxId: readOptionalString(formData, "taxId"),
+      businessAddress: readOptionalString(formData, "businessAddress"),
+      postalAddress: readOptionalString(formData, "postalAddress"),
+      email: readOptionalString(formData, "email"),
+      telephone: readOptionalString(formData, "telephone"),
+      natureOfBusiness: readOptionalString(formData, "natureOfBusiness"),
+      establishedAt: readOptionalDate(formData, "establishedAt"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Company details could not be saved.";
+    redirect(`/registry/${companyId}?correctionError=${encodeURIComponent(message.slice(0, 280))}#company-correction`);
+  }
+  revalidatePath(`/registry/${companyId}`);
+  revalidatePath("/dashboard");
+  redirect(`/registry/${companyId}?correctionSaved=1#company-correction`);
 }

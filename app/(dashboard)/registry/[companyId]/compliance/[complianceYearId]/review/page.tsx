@@ -16,7 +16,7 @@ import { getEmployerCompany } from "@/lib/registry";
 const transitionLabels = {
   start_review: "Mark in review",
   approve: "Approve",
-  request_changes: "Request correction",
+  request_changes: "Request company-detail correction",
   reject: "Reject",
 } as const;
 
@@ -95,6 +95,9 @@ export default async function ComplianceReviewPage({
       <Link href={`/registry/${company.id}`} className="text-sm font-semibold text-[#800020]">
         Back to company
       </Link>
+      {complianceYear.status === "CHANGES_REQUESTED" ? (
+        <p className="mt-4 rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-950">Only organizational details may be corrected on the company profile. Submitted compliance evidence remains locked; resubmit the unchanged return after saving the requested details.</p>
+      ) : null}
 
       <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
         <div>
@@ -218,6 +221,7 @@ export default async function ComplianceReviewPage({
                   className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
                 />
               </label>
+              <p className="mt-2 text-xs text-zinc-600">If requesting correction, specify organizational details only. Submitted evidence stays locked.</p>
               <div className="mt-4 flex flex-wrap gap-2">
                 {availableTransitions.map((transition) => (
                   <button

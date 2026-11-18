@@ -1718,7 +1718,7 @@ export default async function ClaimDetailPage({
           </div>
         )}
 
-        {canUploadClaimEvidence && claim.status !== "ARCHIVED" ? (
+        {canUploadClaimEvidence && (isItfRole(activeRole) ? claim.status !== "ARCHIVED" : claim.status === "DRAFT" && claim.currentDesk === "COMPANY") ? (
           <form
             action={uploadClaimEvidenceAction.bind(null, claim.id)}
             className="mt-5 grid gap-3 border-t border-zinc-100 pt-5 md:grid-cols-[240px_1fr_auto]"

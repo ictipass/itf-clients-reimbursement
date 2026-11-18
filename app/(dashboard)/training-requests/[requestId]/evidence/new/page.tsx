@@ -9,6 +9,7 @@ import { getTrainingRequestEvidenceKinds } from "@/lib/training-request";
 import { getVisibleTrainingRequestWhere } from "@/lib/training-request-access";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import { isItfRole } from "@/lib/rbac";
 
 export default async function NewTrainingRequestEvidencePage({
   params,
@@ -32,6 +33,8 @@ export default async function NewTrainingRequestEvidencePage({
     select: {
       id: true,
       title: true,
+      status: true,
+      currentDesk: true,
       company: {
         select: {
           legalName: true,
@@ -49,6 +52,10 @@ export default async function NewTrainingRequestEvidencePage({
       <Link href={`/training-requests/${request.id}`} className="text-sm font-semibold text-[#800020]">
         Back to request
       </Link>
+      {!isItfRole(session?.user?.role ?? "EMPLOYER_VIEWER") &&
+        (request.status !== "DRAFT" || request.currentDesk !== "COMPANY") ? (
+        <p className="mt-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-950">Submitted Form 4A evidence is locked. A correction request permits company-detail changes only.</p>
+      ) : <>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">
         Upload Training Approval evidence
       </h1>
@@ -92,6 +99,7 @@ export default async function NewTrainingRequestEvidencePage({
         </button>
         <FormActionProgress />
       </form>
+      </>}
     </div>
   );
 }

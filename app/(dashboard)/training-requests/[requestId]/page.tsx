@@ -428,7 +428,7 @@ export default async function TrainingRequestDetailPage({
     });
   const canSubmit =
     request.currentDesk === "COMPANY" &&
-    (request.status === "DRAFT" || request.status === "CHANGES_REQUESTED") &&
+    request.status === "DRAFT" &&
     (isEmployerRole(activeRole) || adminOverride);
   const approvedPlanRows = canSubmit && session?.user?.email
     ? await listApprovedTrainingPlanRows({

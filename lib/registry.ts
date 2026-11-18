@@ -4,6 +4,7 @@ import { getDb } from "@/lib/db";
 import { getActiveEmployerOrganization } from "@/lib/organization-context";
 import { listCachedActiveAreaOffices } from "@/lib/reference-data";
 import { isItfRole, type Role } from "@/lib/rbac";
+import { isCompanyDetailCorrectionOpen } from "@/lib/employer-correction";
 
 export type CreateCompanyInput = {
   requesterEmail: string;
@@ -11,6 +12,22 @@ export type CreateCompanyInput = {
   areaOfficeId: string;
   legalName: string;
   itfEmployerNumber?: string;
+  rcNumber?: string;
+  taxId?: string;
+  businessAddress?: string;
+  postalAddress?: string;
+  email?: string;
+  telephone?: string;
+  natureOfBusiness?: string;
+  establishedAt?: Date;
+};
+
+export type CorrectCompanyDetailsInput = {
+  companyId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  legalName: string;
+  claimedItfEmployerNumber?: string;
   rcNumber?: string;
   taxId?: string;
   businessAddress?: string;
@@ -209,6 +226,12 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
       isActive: true,
       createdAt: true,
       updatedAt: true,
+      decisions: {
+        where: { recordTier: "HOT", action: "REOPEN", reason: { startsWith: "Employer corrected organizational details:" } },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: { id: true, reason: true, createdAt: true, actor: { select: { name: true } } },
+      },
       organization: {
         select: {
           workspaceId: true,
@@ -498,12 +521,100 @@ export async function getEmployerCompany(companyId: string, input: RegistryReque
           year: "desc",
         },
       },
+      trainingRequests: { where: { status: { not: "DRAFT" } }, select: { id: true }, take: 1 },
+      reimbursementClaims: { where: { status: { not: "DRAFT" } }, select: { id: true }, take: 1 },
     },
   });
 }
 
 export async function listAreaOffices() {
   return listCachedActiveAreaOffices();
+}
+
+export async function correctCompanyDetails(input: CorrectCompanyDetailsInput) {
+  if (input.requesterRole !== "EMPLOYER_ADMIN") {
+    throw new Error("Only an employer administrator can correct company details.");
+  }
+  const legalName = input.legalName.trim();
+  if (legalName.length < 2 || legalName.length > 200) throw new Error("Company name must be 2 to 200 characters.");
+  if (input.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.email)) throw new Error("Enter a valid company email address.");
+  if (input.establishedAt && (Number.isNaN(input.establishedAt.getTime()) || input.establishedAt > new Date())) {
+    throw new Error("Enter a valid establishment date.");
+  }
+  const fields = ["rcNumber", "taxId", "businessAddress", "postalAddress", "email", "telephone", "natureOfBusiness"] as const;
+  for (const field of fields) {
+    if (input[field] && input[field].length > 500) throw new Error(`${field} is too long.`);
+  }
+
+  const db = getDb();
+  const [actor, company] = await Promise.all([
+    db.user.findUnique({
+      where: { email: input.requesterEmail.toLowerCase() },
+      select: { id: true, memberships: { where: { isActive: true, role: "EMPLOYER_ADMIN" }, select: { organizationId: true } } },
+    }),
+    db.company.findFirst({
+      where: { id: input.companyId, recordTier: "HOT", isActive: true },
+      select: {
+        organizationId: true, legalName: true, rcNumber: true, taxId: true, businessAddress: true,
+        postalAddress: true, email: true, telephone: true, natureOfBusiness: true, establishedAt: true,
+        registrationApplication: { select: { id: true, status: true, currentDesk: true, registrationKind: true, claimedItfEmployerNumber: true } },
+        trainingPlanSubmissions: { where: { recordTier: "HOT", status: "CHANGES_REQUESTED", currentDesk: "COMPANY" }, select: { status: true, currentDesk: true } },
+        complianceYears: { where: { recordTier: "HOT", status: "CHANGES_REQUESTED" }, select: { status: true } },
+      },
+    }),
+  ]);
+  if (!actor?.memberships.some((membership) => membership.organizationId === company?.organizationId)) {
+    throw new Error("You do not have access to correct this company.");
+  }
+  if (!company || !isCompanyDetailCorrectionOpen({
+    registration: company.registrationApplication,
+    trainingPlans: company.trainingPlanSubmissions,
+    complianceYears: company.complianceYears,
+  })) throw new Error("There is no open company-details correction request.");
+
+  const next = {
+    legalName,
+    rcNumber: input.rcNumber?.trim() || null,
+    taxId: input.taxId?.trim() || null,
+    businessAddress: input.businessAddress?.trim() || null,
+    postalAddress: input.postalAddress?.trim() || null,
+    email: input.email?.trim() || null,
+    telephone: input.telephone?.trim() || null,
+    natureOfBusiness: input.natureOfBusiness?.trim() || null,
+    establishedAt: input.establishedAt ?? null,
+  };
+  const changed: string[] = (Object.keys(next) as Array<keyof typeof next>).filter((field) =>
+    field === "establishedAt"
+      ? next.establishedAt?.getTime() !== company.establishedAt?.getTime()
+      : next[field] !== company[field]);
+  const correctedItfNumber = input.claimedItfEmployerNumber?.trim() || null;
+  if (correctedItfNumber && correctedItfNumber.length > 100) throw new Error("ITF registration number is too long.");
+  const itfNumberChanged = company.registrationApplication?.registrationKind === "LEGACY_EMPLOYER" &&
+    company.registrationApplication.status === "CHANGES_REQUESTED" &&
+    correctedItfNumber !== company.registrationApplication.claimedItfEmployerNumber;
+  if (itfNumberChanged && !correctedItfNumber) throw new Error("Enter the corrected ITF registration number.");
+  if (itfNumberChanged && await db.company.findFirst({
+    where: { id: { not: input.companyId }, itfEmployerNumber: correctedItfNumber },
+    select: { id: true },
+  })) throw new Error("This ITF registration number is already recorded for another company.");
+  if (itfNumberChanged) changed.push("claimedItfEmployerNumber");
+  if (changed.length === 0) throw new Error("Change at least one company detail before saving.");
+  const describe = (value: string | Date | null | undefined) =>
+    value instanceof Date ? value.toISOString().slice(0, 10) : value ?? "(empty)";
+  const changes = changed.map((field) => field === "claimedItfEmployerNumber"
+    ? `${field}: ${describe(company.registrationApplication?.claimedItfEmployerNumber)} → ${describe(correctedItfNumber)}`
+    : `${field}: ${describe(company[field as keyof typeof next])} → ${describe(next[field as keyof typeof next])}`);
+
+  await db.$transaction([
+    db.company.update({ where: { id: input.companyId }, data: next }),
+    ...(itfNumberChanged && company.registrationApplication ? [db.registrationApplication.update({
+      where: { id: company.registrationApplication.id }, data: { claimedItfEmployerNumber: correctedItfNumber },
+    })] : []),
+    db.decision.create({ data: {
+      actorId: actor.id, companyId: input.companyId, action: "REOPEN",
+      reason: `Employer corrected organizational details: ${changes.join("; ")}. Submitted forms and evidence were not changed.`,
+    } }),
+  ]);
 }
 
 export async function createCompany(input: CreateCompanyInput) {

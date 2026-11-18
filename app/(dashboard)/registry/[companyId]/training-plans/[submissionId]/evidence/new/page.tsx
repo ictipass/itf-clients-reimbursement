@@ -30,6 +30,10 @@ export default async function NewTrainingPlanEvidencePage({
         Back to training plan
       </Link>
 
+      {submission.status !== "DRAFT" ? (
+        <p className="mt-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-950">Submitted training-plan files and rows are locked. A correction request permits company-detail changes only.</p>
+      ) : <>
+
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">
         Upload Training Plan evidence
       </h1>
@@ -69,6 +73,7 @@ export default async function NewTrainingPlanEvidencePage({
 
       <TrainingPlanEvidenceUploadForm companyId={companyId} submissionId={submissionId}
         hosted={process.env.STORAGE_PROVIDER !== "local" && Boolean(process.env.STORAGE_PROVIDER)} />
+      </>}
     </div>
   );
 }

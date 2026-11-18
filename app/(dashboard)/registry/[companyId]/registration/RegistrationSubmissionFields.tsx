@@ -7,9 +7,11 @@ type RegistrationKind = "NEW_EMPLOYER" | "LEGACY_EMPLOYER";
 export function RegistrationSubmissionFields({
   initialRegistrationKind,
   initialClaimedItfEmployerNumber,
+  locked = false,
 }: Readonly<{
   initialRegistrationKind: RegistrationKind;
   initialClaimedItfEmployerNumber: string;
+  locked?: boolean;
 }>) {
   const [registrationKind, setRegistrationKind] =
     useState<RegistrationKind>(initialRegistrationKind);
@@ -23,6 +25,7 @@ export function RegistrationSubmissionFields({
         <select
           name="registrationKind"
           value={registrationKind}
+          disabled={locked}
           required
           onChange={(event) => setRegistrationKind(event.target.value as RegistrationKind)}
           className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
@@ -30,6 +33,7 @@ export function RegistrationSubmissionFields({
           <option value="NEW_EMPLOYER">New employer registration</option>
           <option value="LEGACY_EMPLOYER">Already registered with ITF</option>
         </select>
+        {locked ? <input type="hidden" name="registrationKind" value={registrationKind} /> : null}
       </label>
       <label className="grid gap-2 text-sm font-medium text-zinc-700">
         <span>Existing ITF registration number {isLegacyEmployer ? <span className="font-bold text-red-700" aria-hidden="true">*</span> : null}</span>
@@ -37,6 +41,7 @@ export function RegistrationSubmissionFields({
           name="claimedItfEmployerNumber"
           defaultValue={initialClaimedItfEmployerNumber}
           disabled={!isLegacyEmployer}
+          readOnly={locked}
           required={isLegacyEmployer}
           aria-disabled={!isLegacyEmployer}
           className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 disabled:cursor-not-allowed disabled:bg-zinc-100 disabled:text-zinc-400"

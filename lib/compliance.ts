@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { assertCompanyDetailsCorrectedAfterReturn } from "@/lib/company-correction-requirement";
 import { normalizeEvidenceDocumentName } from "@/lib/evidence-metadata";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import {
@@ -354,9 +355,7 @@ export async function attachExistingPaymentEvidence(
       id: input.complianceYearId,
       companyId: input.companyId,
       recordTier: "HOT",
-      status: {
-        in: ["DRAFT", "CHANGES_REQUESTED"],
-      },
+      status: "DRAFT",
       company: {
         id: input.companyId,
         recordTier: "HOT",
@@ -366,6 +365,7 @@ export async function attachExistingPaymentEvidence(
     select: {
       id: true,
       companyId: true,
+      status: true,
       company: {
         select: {
           organizationId: true,
@@ -521,6 +521,7 @@ export async function uploadComplianceEvidence(input: UploadComplianceEvidenceIn
     select: {
       id: true,
       companyId: true,
+      status: true,
       company: {
         select: {
           organizationId: true,
@@ -538,6 +539,10 @@ export async function uploadComplianceEvidence(input: UploadComplianceEvidenceIn
 
   if (!complianceYear) {
     throw new Error("Compliance year was not found.");
+  }
+
+  if (complianceYear.status !== "DRAFT") {
+    throw new Error("Submitted compliance evidence is locked. Employer correction requests are limited to company details.");
   }
 
   const user = await db.user.findUnique({
@@ -657,6 +662,9 @@ function resolveTransition(transition: ComplianceTransition) {
 
 export async function updateComplianceYearStatus(input: UpdateComplianceYearStatusInput) {
   const transition = resolveTransition(input.transition);
+  if (input.transition === "request_changes" && !input.reason?.trim()) {
+    throw new Error("Describe the organizational details to correct before returning compliance to the employer.");
+  }
 
   if (
     transition.permission === "compliance:review" &&
@@ -745,6 +753,10 @@ export async function updateComplianceYearStatus(input: UpdateComplianceYearStat
     throw new Error("You do not have access to this compliance return.");
   }
 
+  if (input.transition === "submit" && complianceYear.status === "CHANGES_REQUESTED") {
+    await assertCompanyDetailsCorrectedAfterReturn(complianceYear.companyId, { complianceYearId: complianceYear.id });
+  }
+
   const decidedAt = new Date();
 
   return db.$transaction(async (tx) => {
@@ -766,7 +778,9 @@ export async function updateComplianceYearStatus(input: UpdateComplianceYearStat
         companyId: complianceYear.companyId,
         complianceYearId: complianceYear.id,
         action: transition.action,
-        reason: input.reason,
+        reason: input.transition === "request_changes"
+          ? `Organizational-detail correction only; submitted compliance evidence remains locked: ${input.reason}`
+          : input.reason,
       },
     });
 

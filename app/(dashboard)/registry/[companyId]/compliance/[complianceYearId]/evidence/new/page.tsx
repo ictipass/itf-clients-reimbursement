@@ -49,6 +49,10 @@ export default async function NewComplianceEvidencePage({
         Back to company
       </Link>
 
+      {complianceYear.status !== "DRAFT" ? (
+        <p className="mt-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-950">Submitted compliance evidence is locked. A correction request permits company-detail changes only.</p>
+      ) : <>
+
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">Upload compliance evidence</h1>
       {error ? <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">{error}</p> : null}
       <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
@@ -128,6 +132,7 @@ export default async function NewComplianceEvidencePage({
         </div>
         <FormActionProgress />
       </form>
+      </>}
     </div>
   );
 }

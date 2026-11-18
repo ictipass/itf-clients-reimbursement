@@ -1,4 +1,5 @@
 import { FormActionProgress } from "@/components/form-action-progress";
+import { correctCompanyDetailsAction } from "@/app/(dashboard)/registry/actions";
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
 import { getServerSession } from "next-auth";
@@ -35,6 +36,7 @@ import {
 import { RegistrationSubmissionFields } from "@/app/(dashboard)/registry/[companyId]/registration/RegistrationSubmissionFields";
 import { authOptions } from "@/lib/auth";
 import { isEvidenceWorkflowEditable } from "@/lib/evidence-deletion";
+import { isCompanyDetailCorrectionOpen } from "@/lib/employer-correction";
 import { listAvailableManagedNumbers } from "@/lib/managed-numbers";
 import { isRemitaConfigured } from "@/lib/remita";
 import { canManageAnnualCompliance, type Role } from "@/lib/rbac";
@@ -254,7 +256,7 @@ const transitionLabels = {
   submit: "Submit for review",
   start_review: "Mark in review",
   approve: "Approve",
-  request_changes: "Request correction",
+  request_changes: "Request company-detail correction",
   reject: "Reject",
 } as const;
 
@@ -263,9 +265,9 @@ const registrationTransitionLabels = {
   horic_to_ra: "Forward to RA",
   horic_to_ra_for_correction: "Return recommendation to RA",
   ra_to_horic: "Return to HORIC",
-  ra_to_company: "Request employer correction",
+  ra_to_company: "Request company-detail correction",
   horic_to_am: "Return to AM",
-  am_to_company: "Send to company",
+  am_to_company: "Request company-detail correction",
 } as const;
 
 const trainingPlanTransitionLabels = {
@@ -273,9 +275,9 @@ const trainingPlanTransitionLabels = {
   hot_to_ro: "Forward to Reimbursement Officer",
   ro_to_hot: "Return to HOT",
   hot_to_am: "Return to AM",
-  am_to_company: "Request employer correction",
-  hot_to_company: "Request employer correction",
-  ro_to_company: "Request employer correction",
+  am_to_company: "Request company-detail correction",
+  hot_to_company: "Request company-detail correction",
+  ro_to_company: "Request company-detail correction",
   am_approve: "Approve package",
 } as const;
 
@@ -558,6 +560,8 @@ export default async function CompanyDetailPage({
     trainingStatus?: string | string[];
     trainingYear?: string | string[];
     receiptError?: string;
+    correctionError?: string;
+    correctionSaved?: string;
   }>;
 }>) {
   const { companyId } = await params;
@@ -587,6 +591,15 @@ export default async function CompanyDetailPage({
   const registrationEvidenceEditable = isEvidenceWorkflowEditable([
     company.registrationApplication?.status,
   ]);
+  const companyEvidenceEditable = registrationEvidenceEditable &&
+    !company.complianceYears.some((year) => year.status !== "DRAFT") &&
+    !company.trainingPlanSubmissions.some((submission) => submission.status !== "DRAFT") &&
+    company.trainingRequests.length === 0 && company.reimbursementClaims.length === 0;
+  const canCorrectCompanyDetails = activeRole === "EMPLOYER_ADMIN" && isCompanyDetailCorrectionOpen({
+    registration: company.registrationApplication,
+    trainingPlans: company.trainingPlanSubmissions,
+    complianceYears: company.complianceYears,
+  });
   const currentYear = new Date().getFullYear();
   const evidenceKind = readFilter(query.evidenceKind);
   const evidenceSearch = readFilter(query.evidenceQ);
@@ -984,6 +997,45 @@ export default async function CompanyDetailPage({
         <DetailItem label="Postal address" value={company.postalAddress ?? "Not provided"} />
         <DetailItem label="Last updated" value={formatDate(company.updatedAt)} />
       </section>
+      {company.decisions.length > 0 ? (
+        <details className="mt-4 rounded-lg border border-zinc-200 bg-white p-4">
+          <summary className="cursor-pointer text-sm font-semibold">Company-detail correction history</summary>
+          <div className="mt-3 grid gap-2">
+            {company.decisions.map((decision) => (
+              <p key={decision.id} className="rounded-md bg-zinc-50 px-3 py-2 text-xs text-zinc-700">
+                {formatDate(decision.createdAt)} · {decision.actor.name} · {decision.reason}
+              </p>
+            ))}
+          </div>
+        </details>
+      ) : null}
+
+      {canCorrectCompanyDetails ? (
+        <details id="company-correction" className="mt-6 rounded-lg border border-amber-300 bg-amber-50 p-5" open>
+          <summary className="cursor-pointer text-lg font-semibold text-amber-950">Correct organizational details</summary>
+          <p className="mt-2 text-sm leading-6 text-amber-900">
+            Only company profile details may be corrected. Submitted training plans, approval requests, claims, receipts, and other evidence remain locked; do not upload correction documents. After saving, resubmit the returned item to its reviewing desk.
+          </p>
+          {query.correctionError ? <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 p-3 text-sm font-semibold text-red-900">{query.correctionError}</p> : null}
+          {query.correctionSaved ? <p role="status" className="mt-3 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-950">Company details saved. Resubmit the returned item to its reviewing desk.</p> : null}
+          <form action={correctCompanyDetailsAction.bind(null, company.id)} className="mt-4 grid gap-3 md:grid-cols-2">
+            <label className="grid gap-1 text-sm font-medium">Name of establishment<input name="legalName" required maxLength={200} defaultValue={company.legalName} className="min-h-10 rounded-md border border-amber-300 bg-white px-3" /></label>
+            {company.registrationApplication?.registrationKind === "LEGACY_EMPLOYER" && company.registrationApplication.status === "CHANGES_REQUESTED" ? (
+              <label className="grid gap-1 text-sm font-medium">Claimed ITF registration number<input name="claimedItfEmployerNumber" required defaultValue={company.registrationApplication.claimedItfEmployerNumber ?? ""} className="min-h-10 rounded-md border border-amber-300 bg-white px-3" /></label>
+            ) : null}
+            <label className="grid gap-1 text-sm font-medium">Date established<input name="establishedAt" type="date" defaultValue={company.establishedAt?.toISOString().slice(0, 10) ?? ""} className="min-h-10 rounded-md border border-amber-300 bg-white px-3" /></label>
+            <label className="grid gap-1 text-sm font-medium">RC number<input name="rcNumber" defaultValue={company.rcNumber ?? ""} className="min-h-10 rounded-md border border-amber-300 bg-white px-3" /></label>
+            <label className="grid gap-1 text-sm font-medium">Tax ID<input name="taxId" defaultValue={company.taxId ?? ""} className="min-h-10 rounded-md border border-amber-300 bg-white px-3" /></label>
+            <label className="grid gap-1 text-sm font-medium">Email address<input name="email" type="email" defaultValue={company.email ?? ""} className="min-h-10 rounded-md border border-amber-300 bg-white px-3" /></label>
+            <label className="grid gap-1 text-sm font-medium">Telephone number<input name="telephone" defaultValue={company.telephone ?? ""} className="min-h-10 rounded-md border border-amber-300 bg-white px-3" /></label>
+            <label className="grid gap-1 text-sm font-medium md:col-span-2">Nature of business<input name="natureOfBusiness" defaultValue={company.natureOfBusiness ?? ""} className="min-h-10 rounded-md border border-amber-300 bg-white px-3" /></label>
+            <label className="grid gap-1 text-sm font-medium md:col-span-2">Business address<textarea name="businessAddress" rows={2} defaultValue={company.businessAddress ?? ""} className="rounded-md border border-amber-300 bg-white px-3 py-2" /></label>
+            <label className="grid gap-1 text-sm font-medium md:col-span-2">Postal address<textarea name="postalAddress" rows={2} defaultValue={company.postalAddress ?? ""} className="rounded-md border border-amber-300 bg-white px-3 py-2" /></label>
+            <div className="md:col-span-2"><button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Save corrected company details</button></div>
+            <FormActionProgress />
+          </form>
+        </details>
+      ) : null}
 
       {usesInAppRevenue && (!company.itfEmployerNumber ? (
         <section className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
@@ -1518,6 +1570,7 @@ export default async function CompanyDetailPage({
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"
               />
             </label>
+            <p className="text-xs text-zinc-600">If returning to the employer, specify organizational details only. Submitted files stay locked.</p>
             <div className="flex flex-wrap gap-2">
               {availableRegistrationTransitions.map((transition) => (
                 <button
@@ -1879,7 +1932,7 @@ export default async function CompanyDetailPage({
                 value="ra_to_company"
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-4 text-sm font-semibold text-zinc-900"
               >
-                Request employer correction instead
+                Request company-detail correction instead
               </button>
             </div>
             <FormActionProgress />
@@ -2111,7 +2164,7 @@ export default async function CompanyDetailPage({
                       >
                         View detail
                       </Link>
-                    {isEmployerRole(activeRole) && missingRequiredEvidence.length > 0 ? (
+                    {isEmployerRole(activeRole) && submission.status === "DRAFT" && missingRequiredEvidence.length > 0 ? (
                       <Link
                         href={`/registry/${company.id}/training-plans/${submission.id}/evidence/new`}
                         className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
@@ -2173,7 +2226,7 @@ export default async function CompanyDetailPage({
                         />
                       </label>
                       {submission.currentDesk === "REIMBURSEMENT_OFFICER" ? (
-                        <p className="text-xs text-zinc-600">A remark is required for rejection or employer correction; it is optional for approval.</p>
+                        <p className="text-xs text-zinc-600">For employer correction, specify organizational details only. Submitted files and plan rows remain locked.</p>
                       ) : null}
                       <div className="flex flex-wrap gap-2">
                         {availableTrainingPlanTransitions.map((transition) => (
@@ -2286,12 +2339,9 @@ export default async function CompanyDetailPage({
                 ? "Supporting files uploaded for this company profile."
                 : "Supporting files for this company and its reimbursement submissions."}
             </p>
-            <Link
-              href={`/registry/${company.id}/evidence/new`}
-              className="inline-flex min-h-10 items-center rounded-md bg-[#800020] px-3 text-sm font-semibold text-white"
-            >
-              Upload evidence
-            </Link>
+            {isEmployerRole(activeRole) && companyEvidenceEditable ? (
+              <Link href={`/registry/${company.id}/evidence/new`} className="inline-flex min-h-10 items-center rounded-md bg-[#800020] px-3 text-sm font-semibold text-white">Upload evidence</Link>
+            ) : <span className="text-xs font-semibold text-zinc-500">Submitted evidence locked</span>}
           </div>
           <form className="mt-4 grid min-w-0 gap-3 rounded-md bg-zinc-50 p-3 md:grid-cols-[minmax(0,1fr)_minmax(0,220px)_auto]">
             <HiddenQueryInputs
@@ -2365,8 +2415,8 @@ export default async function CompanyDetailPage({
                     <EvidenceActions
                       companyId={company.id}
                       documentId={document.id}
-                      canDelete={canDeleteEvidence && registrationEvidenceEditable}
-                      showLocked={canDeleteEvidence && !registrationEvidenceEditable}
+                      canDelete={canDeleteEvidence && companyEvidenceEditable}
+                      showLocked={canDeleteEvidence && !companyEvidenceEditable}
                     />
                   </div>
                 </details>
@@ -2690,12 +2740,9 @@ export default async function CompanyDetailPage({
                       >
                         Review year
                       </Link>
-                      <Link
-                        href={`/registry/${company.id}/compliance/${complianceYear.id}/evidence/new`}
-                        className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"
-                      >
-                        Upload evidence
-                      </Link>
+                      {complianceYear.status === "DRAFT" && isEmployerRole(activeRole) ? (
+                        <Link href={`/registry/${company.id}/compliance/${complianceYear.id}/evidence/new`} className="inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800">Upload evidence</Link>
+                      ) : null}
                     </div>
                   </div>
                   {getRoleAvailableComplianceTransitions(
@@ -2857,8 +2904,9 @@ export default async function CompanyDetailPage({
             <div>
               <h2 className="text-xl font-semibold tracking-tight">Registration submission</h2>
               <p className="mt-2 text-sm leading-6 text-zinc-600">
-                Submit the employer registration package after confirming evidence and compliance
-                context.
+                {company.registrationApplication?.status === "CHANGES_REQUESTED"
+                  ? "After saving the requested organizational details above, return the unchanged registration package to its reviewing desk. Submitted evidence remains locked."
+                  : "Submit the employer registration package after confirming evidence and compliance context."}
               </p>
             </div>
             {adminOverride ? (
@@ -2872,6 +2920,7 @@ export default async function CompanyDetailPage({
             className="mt-4 grid gap-4 border-t border-zinc-100 pt-4"
           >
             <RegistrationSubmissionFields
+              locked={company.registrationApplication?.status === "CHANGES_REQUESTED"}
               initialRegistrationKind={
                 company.registrationApplication?.registrationKind ?? "NEW_EMPLOYER"
               }

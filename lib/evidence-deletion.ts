@@ -1,4 +1,4 @@
-const editableWorkflowStatuses = ["DRAFT", "CHANGES_REQUESTED"] as const;
+import { isSubmittedArtifactEditable } from "@/lib/employer-correction";
 
 export function isEvidenceWorkflowEditable(
   statuses: Array<string | null | undefined>,
@@ -9,10 +9,6 @@ export function isEvidenceWorkflowEditable(
 
   return (
     linkedStatuses.length === 0 ||
-    linkedStatuses.every((status) =>
-      editableWorkflowStatuses.includes(
-        status as (typeof editableWorkflowStatuses)[number],
-      ),
-    )
+    linkedStatuses.every((status) => isSubmittedArtifactEditable(status))
   );
 }

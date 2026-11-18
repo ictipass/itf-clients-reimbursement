@@ -42,6 +42,7 @@ export async function uploadCompanyEvidenceAction(formData: FormData) {
   await uploadCompanyEvidence({
     companyId,
     uploadedByEmail: session.user.email,
+    requesterRole: session.user.role,
     kind: readEvidenceKind(formData),
     documentName: formData.get("documentName")?.toString(),
     file: await readUploadedFile(formData, "file", session.user.id),

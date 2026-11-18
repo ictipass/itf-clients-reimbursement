@@ -1,6 +1,7 @@
 import ExcelJS from "exceljs";
 
 import { getDb } from "@/lib/db";
+import { assertCompanyDetailsCorrectedAfterReturn } from "@/lib/company-correction-requirement";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
@@ -422,7 +423,7 @@ export async function importTrainingPlanCsv(input: ImportTrainingPlanCsvInput) {
       companyId: input.companyId,
       recordTier: "HOT",
       status: {
-        in: ["DRAFT", "CHANGES_REQUESTED"],
+        in: ["DRAFT"],
       },
       company: {
         id: input.companyId,
@@ -557,7 +558,7 @@ export async function uploadTrainingPlanEvidenceBatch(input: Omit<UploadTraining
       id: input.submissionId,
       companyId: input.companyId,
       recordTier: "HOT",
-      status: { in: ["DRAFT", "CHANGES_REQUESTED"] },
+      status: "DRAFT",
       company: {
         id: input.companyId,
         recordTier: "HOT",
@@ -702,6 +703,7 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
       year: true,
       companyId: true,
       dueDate: true,
+      status: true,
       correctionReturnDesk: true,
       correctionReturnStatus: true,
       documents: {
@@ -767,7 +769,12 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
   }
 
 
+  if (submission.status === "CHANGES_REQUESTED") {
+    await assertCompanyDetailsCorrectedAfterReturn(submission.companyId, { trainingPlanSubmissionId: submission.id });
+  }
+
   const submittedAt = new Date();
+  // A profile-only correction must not rewrite the original timeliness score.
   const promptSubmissionScore = submittedAt <= submission.dueDate ? "1.00" : "0.00";
 
   return db.$transaction(async (tx) => {
@@ -786,8 +793,8 @@ export async function submitTrainingPlanSubmission(input: SubmitTrainingPlanSubm
         currentDesk: targetDesk,
         correctionReturnDesk: null,
         correctionReturnStatus: null,
-        submittedAt,
-        promptSubmissionScore,
+        submittedAt: submission.status === "CHANGES_REQUESTED" ? undefined : submittedAt,
+        promptSubmissionScore: submission.status === "CHANGES_REQUESTED" ? undefined : promptSubmissionScore,
       },
       select: {
         id: true,
@@ -955,8 +962,8 @@ export async function routeTrainingPlanSubmission(input: RouteTrainingPlanSubmis
   if (input.transition === "ro_to_hot" && input.recommendation === "REJECT" && !input.note?.trim()) {
     throw new Error("Enter a rejection remark before returning this Training Plan to HOT.");
   }
-  if (input.transition === "ro_to_company" && !input.note?.trim()) {
-    throw new Error("Enter a correction remark before requesting employer correction.");
+  if (["am_to_company", "hot_to_company", "ro_to_company"].includes(input.transition) && !input.note?.trim()) {
+    throw new Error("Describe the organizational details to correct before returning this package to the employer.");
   }
 
   return db.$transaction(async (tx) => {
@@ -1176,7 +1183,7 @@ function resolveTrainingPlanTransition(transition: TrainingPlanDeskTransition) {
       nextStatus: "CHANGES_REQUESTED",
       assignedRole: null,
       action: "REQUEST_CHANGES",
-      reason: "AM requested correction on Training Plan and L&D submission",
+      reason: "AM requested organizational-detail correction; submitted Training Plan and L&D evidence remains locked",
       workItemTitle: "",
       workItemSummary: "",
       priority: "HIGH",
@@ -1189,7 +1196,7 @@ function resolveTrainingPlanTransition(transition: TrainingPlanDeskTransition) {
       nextStatus: "CHANGES_REQUESTED",
       assignedRole: null,
       action: "REQUEST_CHANGES",
-      reason: "HOT requested correction on Training Plan and L&D submission",
+      reason: "HOT requested organizational-detail correction; submitted Training Plan and L&D evidence remains locked",
       workItemTitle: "",
       workItemSummary: "",
       priority: "HIGH",
@@ -1202,7 +1209,7 @@ function resolveTrainingPlanTransition(transition: TrainingPlanDeskTransition) {
       nextStatus: "CHANGES_REQUESTED",
       assignedRole: null,
       action: "REQUEST_CHANGES",
-      reason: "Reimbursement Officer requested correction on Training Plan and L&D submission",
+      reason: "Reimbursement Officer requested organizational-detail correction; submitted Training Plan and L&D evidence remains locked",
       workItemTitle: "",
       workItemSummary: "",
       priority: "HIGH",

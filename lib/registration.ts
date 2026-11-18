@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { assertCompanyDetailsCorrectedAfterReturn } from "@/lib/company-correction-requirement";
 import {
   generateContributionInvoicePdf,
   issueContributionInvoice,
@@ -222,6 +223,7 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
           id: true,
           status: true,
           registrationKind: true,
+          claimedItfEmployerNumber: true,
           correctionReturnDesk: true,
         },
       },
@@ -270,6 +272,11 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
   ) {
     throw new Error("This company registration has already been submitted.");
   }
+  if (company.registrationApplication?.status === "CHANGES_REQUESTED" &&
+    (input.registrationKind !== company.registrationApplication.registrationKind ||
+      (claimedItfEmployerNumber || null) !== company.registrationApplication.claimedItfEmployerNumber)) {
+    throw new Error("Only organizational details can be corrected. Registration type and submitted ITF number are locked.");
+  }
 
   const requester = await db.user.findUnique({
     where: {
@@ -296,6 +303,10 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
 
   if (!hasOrganizationAccess) {
     throw new Error("You do not have access to this company's registration.");
+  }
+
+  if (company.registrationApplication?.status === "CHANGES_REQUESTED") {
+    await assertCompanyDetailsCorrectedAfterReturn(company.id, { registrationApplicationId: company.registrationApplication.id });
   }
 
   return db.$transaction(async (tx) => {
@@ -333,7 +344,7 @@ export async function submitRegistrationApplication(input: SubmitRegistrationApp
             status: "SUBMITTED",
             currentDesk: targetDesk,
             correctionReturnDesk: null,
-            submittedAt: new Date(),
+            submittedAt: company.registrationApplication.status === "CHANGES_REQUESTED" ? undefined : new Date(),
           },
           select: {
             id: true,
@@ -454,7 +465,7 @@ function resolveDeskTransition(transition: RegistrationDeskTransition) {
       from: "REVENUE_ACCOUNTANT" as const,
       to: "COMPANY" as const,
       allowedRoles: ["REVENUE_ACCOUNTANT"] as const,
-      label: "Returned from RA to company for correction",
+      label: "Returned from RA for organizational-detail correction; submitted evidence remains locked",
       workItemTitle: "",
       workItemSummary: "",
     };
@@ -475,7 +486,7 @@ function resolveDeskTransition(transition: RegistrationDeskTransition) {
     from: "AREA_MANAGER" as const,
     to: "COMPANY" as const,
     allowedRoles: ["AREA_MANAGER"] as const,
-    label: "Forwarded from AM to company",
+    label: "Returned from AM for organizational-detail correction; submitted evidence remains locked",
     workItemTitle: "",
     workItemSummary: "",
   };
@@ -590,6 +601,9 @@ export async function routeRegistrationApplication(input: RouteRegistrationAppli
 
   if (input.transition === "horic_to_ra_for_correction" && !input.reason?.trim()) {
     throw new Error("HORIC must provide a correction note when returning a recommendation to RA.");
+  }
+  if (["ra_to_company", "am_to_company"].includes(input.transition) && !input.reason?.trim()) {
+    throw new Error("Describe the organizational details to correct before returning registration to the employer.");
   }
 
   if (

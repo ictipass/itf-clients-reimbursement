@@ -8,6 +8,7 @@ import { EvidenceTypeField } from "@/app/(dashboard)/registry/[companyId]/eviden
 import { authOptions } from "@/lib/auth";
 import { getCompanyEvidenceKinds } from "@/lib/evidence";
 import { getEmployerCompany } from "@/lib/registry";
+import { isEvidenceWorkflowEditable } from "@/lib/evidence-deletion";
 import { notFound } from "next/navigation";
 
 const evidenceLabels: Record<string, string> = {
@@ -34,11 +35,20 @@ export default async function NewEvidencePage({
     notFound();
   }
 
+  const canUpload = ["EMPLOYER_ADMIN", "EMPLOYER_SUBMITTER"].includes(session.user.role) &&
+    isEvidenceWorkflowEditable([company.registrationApplication?.status]) &&
+    !company.complianceYears.some((year) => year.status !== "DRAFT") &&
+    !company.trainingPlanSubmissions.some((submission) => submission.status !== "DRAFT") &&
+    company.trainingRequests.length === 0 && company.reimbursementClaims.length === 0;
+
   return (
     <div className="mx-auto max-w-3xl px-6 py-8 lg:px-8">
       <Link href={`/registry/${company.id}`} className="text-sm font-semibold text-[#800020]">
         Back to company
       </Link>
+      {!canUpload ? (
+        <p className="mt-6 rounded-md border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-950">Submitted company evidence is locked. A correction request permits company-detail changes only.</p>
+      ) : <>
       <h1 className="mt-3 text-3xl font-semibold tracking-tight">Upload evidence</h1>
       <p className="mt-3 text-sm leading-6 text-zinc-600">
         Add registration evidence for {company.legalName}. This first upload slice accepts
@@ -86,6 +96,7 @@ export default async function NewEvidencePage({
         </div>
         <FormActionProgress />
       </form>
+      </>}
     </div>
   );
 }
