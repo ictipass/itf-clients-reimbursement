@@ -813,7 +813,7 @@ function readRequiredPositiveNumber(formData: FormData, name: string) {
   return number;
 }
 
-function readTrainingEmphasisRank(formData: FormData, name: string) {
+function readTrainingEmphasisRank(formData: FormData, name: string): 1 | 2 | 3 {
   const rank = readRequiredNumber(formData, name);
 
   if (rank !== 1 && rank !== 2 && rank !== 3) {
@@ -858,6 +858,14 @@ export async function updateEmployerClaimCalculationAction(
       },
     });
   } else if (employerScale === "MEDIUM_LARGE") {
+    const emphasisRanks = {
+      MANAGEMENT: readTrainingEmphasisRank(formData, "managementEmphasisRank"),
+      SUPERVISORY: readTrainingEmphasisRank(formData, "supervisoryEmphasisRank"),
+      OCCUPATIONAL: readTrainingEmphasisRank(formData, "occupationalEmphasisRank"),
+    };
+    if (new Set(Object.values(emphasisRanks)).size !== 3) {
+      redirect(`/claims/${claimId}?calculationError=${encodeURIComponent("Management, Supervisory, and Occupational must each have a different emphasis rank.")}#calculations`);
+    }
     await updateEmployerClaimCalculation({
       claimId,
       requesterEmail: session.user.email,
@@ -865,11 +873,7 @@ export async function updateEmployerClaimCalculationAction(
       calculation: {
         employerScale,
         trainingContributionPaid,
-        emphasisRanks: {
-          MANAGEMENT: readTrainingEmphasisRank(formData, "managementEmphasisRank"),
-          SUPERVISORY: readTrainingEmphasisRank(formData, "supervisoryEmphasisRank"),
-          OCCUPATIONAL: readTrainingEmphasisRank(formData, "occupationalEmphasisRank"),
-        },
+        emphasisRanks,
         trainingAreas: {
           MANAGEMENT: {
             totalStaff: readRequiredPositiveNumber(formData, "managementTotalStaff"),

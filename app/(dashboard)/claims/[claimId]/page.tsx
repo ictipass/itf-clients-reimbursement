@@ -3,6 +3,7 @@ import { EmployerSubmissionConfirm } from "@/components/employer-submission-conf
 import Link from "next/link";
 import { HostedFileInput } from "@/components/hosted-file-input";
 import { ClaimBankFields } from "@/components/claim-bank-fields";
+import { ClaimEmphasisRankGroup, ClaimEmphasisRankSelect } from "@/components/claim-emphasis-ranks";
 import { ClaimTestClockNotice } from "@/components/claim-test-clock-notice";
 import { getServerSession } from "next-auth";
 import { notFound } from "next/navigation";
@@ -156,7 +157,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; assignmentError?: string; reassigned?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; computationError?: string; computationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string; signoffError?: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; assignmentError?: string; reassigned?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; calculationError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; computationError?: string; computationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string; signoffError?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -1288,6 +1289,7 @@ export default async function ClaimDetailPage({
       <CollapsibleClaimSection title="Form 2A/2B calculations">
       <section id="calculations" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Form 2A/2B calculations</h2>
+        {query.calculationError ? <p role="alert" className="mt-3 rounded-md border border-red-300 bg-red-50 px-4 py-3 text-sm font-semibold text-red-950">{query.calculationError}</p> : null}
         <p className="mt-2 text-sm leading-6 text-zinc-600">
           {canEditCalculations
             ? "Enter the employer claim schedule and use Calculate to estimate the claim. Calculated rows are read-only; Save row updates only a manually added adjustment row."
@@ -1464,6 +1466,7 @@ export default async function ClaimDetailPage({
             >
               <input type="hidden" name="employerScale" value="MEDIUM_LARGE" />
               <h3 className="font-semibold text-zinc-950">Medium/Large employer schedule</h3>
+              <ClaimEmphasisRankGroup>
               <div className="grid gap-3 md:grid-cols-4">
                 <label className="grid gap-1 text-sm">Training contribution paid<input
                   name="trainingContributionPaid"
@@ -1497,16 +1500,7 @@ export default async function ClaimDetailPage({
                       placeholder="Trained"
                       className="min-h-10 rounded-md border border-zinc-200 px-3 text-sm"
                     /></label>
-                    <label className="grid gap-1 text-sm">Emphasis rank<select
-                      name={`${key}EmphasisRank`}
-                      required
-                      className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-                    >
-                      <option value="">Emphasis rank</option>
-                      <option value="1">1st emphasis</option>
-                      <option value="2">2nd emphasis</option>
-                      <option value="3">3rd emphasis</option>
-                    </select></label>
+                    <ClaimEmphasisRankSelect area={key as "management" | "supervisory" | "occupational"} />
                   </div>
                 ))}
                 <div className="grid gap-2 rounded-md bg-white p-3 ring-1 ring-zinc-200">
@@ -1525,6 +1519,7 @@ export default async function ClaimDetailPage({
                   Training plan submitted by 31 March
                 </label>
               </div>
+              </ClaimEmphasisRankGroup>
               <button className="min-h-10 w-fit rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
                 Calculate Medium/Large claim
               </button>

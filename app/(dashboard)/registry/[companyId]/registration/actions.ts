@@ -79,7 +79,10 @@ function readDeskTransition(formData: FormData): RegistrationDeskTransition {
 }
 
 function readRegistrationApplicationKind(formData: FormData): RegistrationApplicationKind {
-  const value = readOptionalString(formData, "registrationKind") ?? "NEW_EMPLOYER";
+  const value = readOptionalString(formData, "registrationKind");
+  if (!value) {
+    throw new Error("Registration type is required.");
+  }
   const kinds = getRegistrationApplicationKinds();
 
   if (!kinds.includes(value as RegistrationApplicationKind)) {

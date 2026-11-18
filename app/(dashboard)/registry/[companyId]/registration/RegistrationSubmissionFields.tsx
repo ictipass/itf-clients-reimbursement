@@ -17,8 +17,9 @@ export function RegistrationSubmissionFields({
 
   return (
     <div className="grid gap-3 md:grid-cols-2">
+      <p className="text-xs text-zinc-600 md:col-span-2"><span className="font-bold text-red-700">*</span> Required field</p>
       <label className="grid gap-2 text-sm font-medium text-zinc-700">
-        Registration type
+        <span>Registration type <span className="font-bold text-red-700" aria-hidden="true">*</span></span>
         <select
           name="registrationKind"
           value={registrationKind}
@@ -31,7 +32,7 @@ export function RegistrationSubmissionFields({
         </select>
       </label>
       <label className="grid gap-2 text-sm font-medium text-zinc-700">
-        Existing ITF registration number
+        <span>Existing ITF registration number {isLegacyEmployer ? <span className="font-bold text-red-700" aria-hidden="true">*</span> : null}</span>
         <input
           name="claimedItfEmployerNumber"
           defaultValue={initialClaimedItfEmployerNumber}

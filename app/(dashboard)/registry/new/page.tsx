@@ -29,14 +29,15 @@ export default async function NewCompanyPage() {
       </div>
 
       <form action={createCompanyAction} className="grid gap-6 rounded-lg border border-zinc-200 bg-white p-6">
+        <p className="text-sm text-zinc-700"><span className="font-bold text-red-700">*</span> Required field</p>
         {!integrated ? (
           <label className="grid gap-2 text-sm font-medium">
-            Existing ITF registration number
+            <span>Existing ITF registration number <span className="font-bold text-red-700" aria-hidden="true">*</span></span>
             <input name="itfEmployerNumber" required maxLength={80} className="min-h-11 rounded-md border border-zinc-300 px-3" />
           </label>
         ) : null}
         <label className="grid gap-2 text-sm font-medium">
-          Area office of choice
+          <span>Area office of choice <span className="font-bold text-red-700" aria-hidden="true">*</span></span>
           <select
             name="areaOfficeId"
             required
@@ -53,7 +54,7 @@ export default async function NewCompanyPage() {
 
         <div className="grid gap-4 md:grid-cols-2">
           <label className="grid gap-2 text-sm font-medium">
-            Name of establishment
+            <span>Name of establishment <span className="font-bold text-red-700" aria-hidden="true">*</span></span>
             <input
               name="legalName"
               required
