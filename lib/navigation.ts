@@ -1,4 +1,5 @@
 import { can, isItfRole, type Role } from "@/lib/rbac";
+import { isMonitoringHeadquartersRole } from "@/lib/monitoring-routing";
 import type { RevenueWorkflowMode } from "@/lib/revenue-workflow";
 
 export type NavItem = {
@@ -80,7 +81,7 @@ export const navGroups: NavGroup[] = [
         href: "/training-monitoring",
         label: "Monitoring",
         module: "training-monitoring",
-        isVisible: canUseTrainingPlans,
+        isVisible: (role) => canUseTrainingPlans(role) || isMonitoringHeadquartersRole(role),
       },
     ],
   },

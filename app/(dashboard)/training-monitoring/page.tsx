@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
+import { isMonitoringHeadquartersRole, monitoringVisibilityWhere } from "@/lib/monitoring-routing";
 import { isItfRole } from "@/lib/rbac";
 
 const calendarTimeZone = "Africa/Lagos";
@@ -91,8 +92,10 @@ export default async function TrainingMonitoringPage({
   const requestedMonth = parseMonthKey(typeof query.month === "string" ? query.month : undefined);
   const monthKey = requestedDate?.slice(0, 7) ?? requestedMonth ?? getCurrentMonthKey();
   const [calendarYear, calendarMonth] = monthKey.split("-").map(Number);
+  const monthStart = new Date(Date.UTC(calendarYear, calendarMonth - 1, 1, -1));
+  const nextMonthStart = new Date(Date.UTC(calendarYear, calendarMonth, 1, -1));
   const session = await getServerSession(authOptions);
-  const role = session?.user?.role ?? "SYSTEM_ADMIN";
+  const role = session?.user?.role ?? "EMPLOYER_VIEWER";
   const showOfficerCalendar = isItfRole(role);
   const db = getDb();
   const requester = session?.user?.email
@@ -108,43 +111,17 @@ export default async function TrainingMonitoringPage({
             select: {
               organizationId: true,
               areaOfficeId: true,
+              role: true,
             },
           },
         },
       })
     : null;
-  const organizationIds = requester?.memberships
-    .map((membership) => membership.organizationId)
-    .filter((id): id is string => Boolean(id)) ?? [];
-  const areaOfficeIds = requester?.memberships
-    .map((membership) => membership.areaOfficeId)
-    .filter((id): id is string => Boolean(id)) ?? [];
-  const isAdmin = role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
   const records = await db.trainingMonitoringRecord.findMany({
     where: {
       recordTier: "HOT",
-      ...(!isAdmin && isItfRole(role)
-        ? {
-            trainingRequest: {
-              company: {
-                areaOfficeId: {
-                  in: areaOfficeIds,
-                },
-              },
-            },
-          }
-        : {}),
-      ...(!isAdmin && !isItfRole(role)
-        ? {
-            trainingRequest: {
-              company: {
-                organizationId: {
-                  in: organizationIds,
-                },
-              },
-            },
-          }
-        : {}),
+      ...monitoringVisibilityWhere(role, requester?.memberships ?? []),
+      ...(showOfficerCalendar ? { monitoringDate: { gte: monthStart, lt: nextMonthStart } } : {}),
     },
     select: {
       id: true,
@@ -173,7 +150,7 @@ export default async function TrainingMonitoringPage({
       },
     },
     orderBy: [{ monitoringDate: "asc" }, { updatedAt: "desc" }],
-    take: 200,
+    take: showOfficerCalendar ? undefined : 200,
   });
 
   const recordsByDate = new Map<string, typeof records>();
@@ -276,7 +253,11 @@ export default async function TrainingMonitoringPage({
             Training monitoring
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            {showOfficerCalendar ? "Area Office Monitoring Calendar" : "Training Monitoring"}
+            {isMonitoringHeadquartersRole(role)
+              ? "Headquarters Virtual Monitoring Calendar"
+              : role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN"
+                ? "Training Monitoring Calendar"
+                : showOfficerCalendar ? "Area Office Monitoring Calendar" : "Training Monitoring"}
           </h1>
           <p className="mt-3 max-w-3xl text-sm leading-6 text-zinc-600">
             Approved trainings scheduled for monitoring, review, and employer feedback.

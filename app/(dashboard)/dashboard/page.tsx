@@ -482,6 +482,7 @@ export default async function DashboardPage() {
         }),
         getDb().trainingMonitoringRecord.count({
           where: {
+            mode: "LOCAL_PHYSICAL",
             trainingRequest: {
               company: {
                 areaOfficeId: {
@@ -505,6 +506,7 @@ export default async function DashboardPage() {
     const scheduledMonitoring = await getDb().trainingMonitoringRecord.findMany({
       where: {
         recordTier: "HOT",
+        mode: "LOCAL_PHYSICAL",
         monitoringDate: { gte: todayStart, lt: nextWeekEnd },
         trainingRequest: {
           company: { areaOfficeId: { in: areaOfficeIds } },

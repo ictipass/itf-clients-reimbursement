@@ -201,6 +201,7 @@ export default async function TrainingRequestDetailPage({
     error?: string | string[];
     workflowError?: string | string[];
     claimId?: string | string[];
+    monitoringId?: string | string[];
   }>;
 }>) {
   const { requestId } = await params;
@@ -210,6 +211,7 @@ export default async function TrainingRequestDetailPage({
   const importError = readFilter(query.error);
   const workflowError = readFilter(query.workflowError);
   const claimId = readFilter(query.claimId);
+  const monitoringId = readFilter(query.monitoringId);
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
   const adminOverride = isAdminRole(activeRole);
@@ -218,6 +220,23 @@ export default async function TrainingRequestDetailPage({
     role: activeRole,
   });
   let claimLinkedStaffAccess = false;
+  let monitoringLinkedStaffAccess = false;
+  if (
+    monitoringId && session?.user?.email &&
+    (activeRole === "HQ_REIMBURSEMENT_OFFICER" || activeRole === "HEAD_OF_DIVISION" || activeRole === "DIRECTOR_FSD")
+  ) {
+    const [linkedMonitoring, hqMembership] = await Promise.all([
+      getDb().trainingMonitoringRecord.findFirst({
+        where: { id: monitoringId, trainingRequestId: requestId, recordTier: "HOT", mode: "LOCAL_VIRTUAL" },
+        select: { id: true },
+      }),
+      getDb().membership.findFirst({
+        where: { user: { email: session.user.email, isActive: true }, role: activeRole, isActive: true, areaOfficeId: null },
+        select: { id: true },
+      }),
+    ]);
+    monitoringLinkedStaffAccess = Boolean(linkedMonitoring && hqMembership);
+  }
   if (
     claimId && session?.user?.email && isItfRole(activeRole) &&
     (can(activeRole, "claims:review") || can(activeRole, "claims:approve"))
@@ -247,7 +266,7 @@ export default async function TrainingRequestDetailPage({
     }
   }
   const request = await getDb().trainingRequest.findFirst({
-    where: claimLinkedStaffAccess ? {
+    where: claimLinkedStaffAccess || monitoringLinkedStaffAccess ? {
       id: requestId,
       OR: [
         visibleWhere,
@@ -422,6 +441,7 @@ export default async function TrainingRequestDetailPage({
   const participantHref = (overrides: Record<string, string | number | undefined>) =>
     buildTrainingRequestHref(request.id, {
       claimId: claimLinkedStaffAccess ? claimId : undefined,
+      monitoringId: monitoringLinkedStaffAccess ? monitoringId : undefined,
       participantQ: participantSearch,
       participantPage: participantPage > 1 ? participantPage : undefined,
       ...overrides,
@@ -452,12 +472,12 @@ export default async function TrainingRequestDetailPage({
   const assignedToAnotherRo = request.currentDesk === "REIMBURSEMENT_OFFICER" && currentRoWorkItem?.status === "OPEN" &&
     Boolean(currentRoWorkItem.assignedUserId && currentRoWorkItem.assignedUserId !== session?.user?.id);
   const canRoute =
-    !claimLinkedStaffAccess && availableTransitions.length > 0 && canActAsDesk(activeRole, request.currentDesk) &&
+    !claimLinkedStaffAccess && !monitoringLinkedStaffAccess && availableTransitions.length > 0 && canActAsDesk(activeRole, request.currentDesk) &&
     (!assignedToAnotherRo || adminOverride);
   const latestHotForward = request.decisions.find((decision) =>
     decision.reason?.startsWith("HOT forwarded Training Approval Request to Reimbursement Officer"),
   );
-  const canReassignRo = !claimLinkedStaffAccess && request.currentDesk === "REIMBURSEMENT_OFFICER" &&
+  const canReassignRo = !claimLinkedStaffAccess && !monitoringLinkedStaffAccess && request.currentDesk === "REIMBURSEMENT_OFFICER" &&
     request.status === "IN_REVIEW" && currentRoWorkItem?.status === "OPEN" &&
     (adminOverride || latestHotForward?.actorId === session?.user?.id);
   const roOfficers = (request.currentDesk === "HEAD_OF_TRAINING" && canRoute) || canReassignRo
@@ -480,8 +500,8 @@ export default async function TrainingRequestDetailPage({
         <EmployerFeedbackViewed target="request" targetId={request.id} />
       ) : null}
       <div className="flex flex-wrap gap-3">
-        <Link href={claimLinkedStaffAccess ? `/claims/${claimId}` : "/training-requests"} className="text-sm font-semibold text-[#800020]">
-          {claimLinkedStaffAccess ? "Back to Claim" : "Back to Training Requests"}
+        <Link href={claimLinkedStaffAccess ? `/claims/${claimId}` : monitoringLinkedStaffAccess ? `/training-monitoring/${monitoringId}` : "/training-requests"} className="text-sm font-semibold text-[#800020]">
+          {claimLinkedStaffAccess ? "Back to Claim" : monitoringLinkedStaffAccess ? "Back to Monitoring" : "Back to Training Requests"}
         </Link>
         <Link href={`/registry/${request.company.id}`} className="text-sm font-semibold text-zinc-700">
           Open company
@@ -954,7 +974,7 @@ export default async function TrainingRequestDetailPage({
 
           <div className="rounded-lg border border-zinc-200 bg-white p-5 lg:col-start-1 lg:row-span-2 lg:row-start-5">
             <h2 className="text-xl font-semibold tracking-tight">Evidence</h2>
-            {!claimLinkedStaffAccess ? (
+            {!claimLinkedStaffAccess && !monitoringLinkedStaffAccess ? (
               <Link
                 href={`/training-requests/${request.id}/evidence/new`}
                 className="mt-4 inline-flex min-h-9 items-center rounded-md border border-zinc-200 px-3 text-xs font-semibold text-zinc-800"

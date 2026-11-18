@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { isMonitoringAreaRole, isMonitoringHeadquartersRole } from "@/lib/monitoring-routing";
 import { isItfRole } from "@/lib/rbac";
 
 function icsText(value: string) {
@@ -29,20 +30,32 @@ export async function GET(
   const organizationIds = user.memberships.map((item) => item.organizationId).filter((value): value is string => Boolean(value));
   const areaOfficeIds = user.memberships.map((item) => item.areaOfficeId).filter((value): value is string => Boolean(value));
   const hasNationalScope = user.memberships.some((item) => isItfRole(item.role) && !item.areaOfficeId);
+  const hqMonitoringFeed = user.memberships.some((item) => isMonitoringHeadquartersRole(item.role) && !item.areaOfficeId);
+  const areaMonitoringFeed = !hqMonitoringFeed && user.memberships.some((item) => isMonitoringAreaRole(item.role) && item.areaOfficeId);
   const companyScope = hasNationalScope
     ? {}
-    : organizationIds.length > 0
-      ? { organizationId: { in: organizationIds } }
-      : { areaOfficeId: { in: areaOfficeIds } };
+    : areaMonitoringFeed
+      ? { areaOfficeId: { in: areaOfficeIds } }
+      : organizationIds.length > 0
+        ? { organizationId: { in: organizationIds } }
+        : { areaOfficeId: { in: areaOfficeIds } };
 
   const [requests, monitoring] = await Promise.all([
     getDb().trainingRequest.findMany({
-      where: { recordTier: "HOT", company: companyScope, startsAt: { gte: new Date(Date.now() - 31 * 86_400_000) } },
+      where: {
+        recordTier: "HOT", company: companyScope,
+        ...(hqMonitoringFeed ? { deliveryMode: "LOCAL_ONLINE" as const } : areaMonitoringFeed ? { deliveryMode: "LOCAL_PHYSICAL" as const } : {}),
+        ...(hqMonitoringFeed || areaMonitoringFeed ? { status: "APPROVED" as const, decisionOutcome: "ACCEPTED" as const } : {}),
+        startsAt: { gte: new Date(Date.now() - 31 * 86_400_000) },
+      },
       select: { id: true, title: true, startsAt: true, endsAt: true, venue: true, onlineUrl: true, company: { select: { legalName: true } } },
       take: 500,
     }),
     getDb().trainingMonitoringRecord.findMany({
-      where: { recordTier: "HOT", monitoringDate: { not: null }, trainingRequest: { company: companyScope } },
+      where: {
+        recordTier: "HOT", monitoringDate: { not: null }, trainingRequest: { company: companyScope },
+        ...(hqMonitoringFeed ? { mode: "LOCAL_VIRTUAL" as const } : areaMonitoringFeed ? { mode: "LOCAL_PHYSICAL" as const } : {}),
+      },
       select: { id: true, monitoringDate: true, startsAt: true, endsAt: true, trainingRequest: { select: { title: true, company: { select: { legalName: true } } } } },
       take: 500,
     }),

@@ -1,4 +1,6 @@
 import { getDb } from "@/lib/db";
+import type { TrainingMonitoringMode } from "@/lib/generated/prisma/client";
+import { canMonitorAtDesk, isMonitoringHeadquartersRole } from "@/lib/monitoring-routing";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, type Role } from "@/lib/rbac";
 import { uploadObject } from "@/lib/storage";
@@ -17,6 +19,12 @@ const trainingMonitoringTransitions = [
   "hot_to_ro",
   "am_release",
   "am_to_hot",
+  "hq_ro_submit",
+  "hod_accept",
+  "hod_reject",
+  "hod_to_hq_ro",
+  "dfsd_release",
+  "dfsd_to_hod",
 ] as const;
 
 export type TrainingMonitoringEvidenceKind = (typeof trainingMonitoringEvidenceKinds)[number];
@@ -72,10 +80,15 @@ export function getTrainingMonitoringTransitions() {
   return trainingMonitoringTransitions;
 }
 
+export function isMonitoringTransitionForMode(transition: TrainingMonitoringTransition, mode: TrainingMonitoringMode) {
+  const virtual = transition.startsWith("hq_") || transition.startsWith("hod_") || transition.startsWith("dfsd_");
+  return (mode === "LOCAL_VIRTUAL") === virtual;
+}
+
 export async function uploadTrainingMonitoringEvidence(
   input: UploadTrainingMonitoringEvidenceInput,
 ) {
-  if (!can(input.requesterRole, "training:approve")) {
+  if (!can(input.requesterRole, "training:approve") && !isMonitoringHeadquartersRole(input.requesterRole) && input.requesterRole !== "WORKSPACE_APP_ADMIN") {
     throw new Error("You do not have permission to upload Training Monitoring evidence.");
   }
 
@@ -89,6 +102,7 @@ export async function uploadTrainingMonitoringEvidence(
   const actor = await assertTrainingMonitoringAccess({
     requesterEmail: input.uploadedByEmail,
     requesterRole: input.requesterRole,
+    mode: record.mode,
     areaOfficeId: record.trainingRequest.company.areaOfficeId,
   });
 
@@ -136,7 +150,7 @@ export async function uploadTrainingMonitoringEvidence(
 export async function addTrainingMonitoringEvaluation(
   input: AddTrainingMonitoringEvaluationInput,
 ) {
-  if (!can(input.requesterRole, "training:approve")) {
+  if (!can(input.requesterRole, "training:approve") && !isMonitoringHeadquartersRole(input.requesterRole) && input.requesterRole !== "WORKSPACE_APP_ADMIN") {
     throw new Error("You do not have permission to evaluate Training Monitoring records.");
   }
 
@@ -151,6 +165,7 @@ export async function addTrainingMonitoringEvaluation(
   await assertTrainingMonitoringAccess({
     requesterEmail: input.requesterEmail,
     requesterRole: input.requesterRole,
+    mode: record.mode,
     areaOfficeId: record.trainingRequest.company.areaOfficeId,
   });
 
@@ -171,7 +186,7 @@ export async function addTrainingMonitoringEvaluation(
 export async function updateTrainingMonitoringRecord(
   input: UpdateTrainingMonitoringRecordInput,
 ) {
-  if (!can(input.requesterRole, "training:approve")) {
+  if (!can(input.requesterRole, "training:approve") && !isMonitoringHeadquartersRole(input.requesterRole) && input.requesterRole !== "WORKSPACE_APP_ADMIN") {
     throw new Error("You do not have permission to update Training Monitoring records.");
   }
 
@@ -182,6 +197,7 @@ export async function updateTrainingMonitoringRecord(
   await assertTrainingMonitoringAccess({
     requesterEmail: input.requesterEmail,
     requesterRole: input.requesterRole,
+    mode: record.mode,
     areaOfficeId: record.trainingRequest.company.areaOfficeId,
   });
 
@@ -210,23 +226,14 @@ export async function updateTrainingMonitoringRecord(
 export async function routeTrainingMonitoringRecord(
   input: RouteTrainingMonitoringRecordInput,
 ) {
-  if (!can(input.requesterRole, "training:approve")) {
+  if (!can(input.requesterRole, "training:approve") && !isMonitoringHeadquartersRole(input.requesterRole) && input.requesterRole !== "WORKSPACE_APP_ADMIN") {
     throw new Error("You do not have permission to route Training Monitoring records.");
-  }
-
-  const transition = resolveTrainingMonitoringTransition(input.transition);
-  if (transition.outcome && !input.note?.trim()) {
-    throw new Error("A reason is required for the Head of Training's implementation decision.");
   }
 
   const record = await getDb().trainingMonitoringRecord.findFirst({
     where: {
       id: input.recordId,
       recordTier: "HOT",
-      status: {
-        in: [...transition.from],
-      },
-      currentDesk: transition.fromDesk,
       trainingRequest: {
         recordTier: "HOT",
         company: {
@@ -237,6 +244,9 @@ export async function routeTrainingMonitoringRecord(
     },
     select: {
       id: true,
+      mode: true,
+      status: true,
+      currentDesk: true,
       trainingRequestId: true,
       decisionOutcome: true,
       trainingRequest: {
@@ -263,13 +273,22 @@ export async function routeTrainingMonitoringRecord(
     throw new Error("Training Monitoring record was not found for this workflow action.");
   }
 
+  const transition = resolveTrainingMonitoringTransition(input.transition, record.mode);
+  if (record.currentDesk !== transition.fromDesk || !(transition.from as readonly string[]).includes(record.status)) {
+    throw new Error("Training Monitoring record is no longer at this workflow desk.");
+  }
+  if (transition.outcome && !input.note?.trim()) {
+    throw new Error("A reason is required for the monitoring implementation decision.");
+  }
+
   const actor = await assertTrainingMonitoringAccess({
     requesterEmail: input.requesterEmail,
     requesterRole: input.requesterRole,
+    mode: record.mode,
     areaOfficeId: record.trainingRequest.company.areaOfficeId,
   });
 
-  if (!hasMonitoringRoutingRole(input.requesterRole, transition.allowedRoles)) {
+  if (!canMonitorAtDesk(input.requesterRole, record.mode, record.currentDesk) || !hasMonitoringRoutingRole(input.requesterRole, transition.allowedRoles)) {
     throw new Error(`Only ${transition.allowedRoles.join(" or ")} can perform this action.`);
   }
 
@@ -285,9 +304,11 @@ export async function routeTrainingMonitoringRecord(
         : "REJECTED"
       : transition.toStatus;
     const now = new Date();
-    const updated = await tx.trainingMonitoringRecord.update({
+    const updated = await tx.trainingMonitoringRecord.updateMany({
       where: {
         id: record.id,
+        currentDesk: transition.fromDesk,
+        status: { in: [...transition.from] },
       },
       data: {
         status: nextStatus,
@@ -298,10 +319,8 @@ export async function routeTrainingMonitoringRecord(
         decidedAt: transition.outcome ? now : undefined,
         feedbackReleasedAt: transition.release ? now : undefined,
       },
-      select: {
-        id: true,
-      },
     });
+    if (updated.count !== 1) throw new Error("This monitoring record has already moved to another desk.");
 
     await tx.workItem.updateMany({
       where: {
@@ -322,7 +341,7 @@ export async function routeTrainingMonitoringRecord(
         create: {
           workspaceId: record.trainingRequest.company.organization.workspaceId,
           organizationId: record.trainingRequest.company.organizationId,
-          areaOfficeId: record.trainingRequest.company.areaOfficeId,
+          areaOfficeId: record.mode === "LOCAL_VIRTUAL" ? null : record.trainingRequest.company.areaOfficeId,
           companyId: record.trainingRequest.companyId,
           trainingMonitoringRecordId: record.id,
           assignedRole: transition.assignedRole,
@@ -340,6 +359,7 @@ export async function routeTrainingMonitoringRecord(
           resolvedAt: null,
           emailNotifiedAt: null,
           assignedRole: transition.assignedRole,
+          areaOfficeId: record.mode === "LOCAL_VIRTUAL" ? null : record.trainingRequest.company.areaOfficeId,
           title: transition.workItemTitle,
           summary: `${record.trainingRequest.company.legalName} ${transition.workItemSummary}`,
           targetHref: `/training-monitoring/${record.id}`,
@@ -392,11 +412,11 @@ export async function routeTrainingMonitoringRecord(
       });
     }
 
-    return updated;
+    return { id: record.id };
   });
 }
 
-function resolveTrainingMonitoringTransition(transition: TrainingMonitoringTransition) {
+function resolveTrainingMonitoringTransition(transition: TrainingMonitoringTransition, mode: TrainingMonitoringMode) {
   const transitions = {
     ro_submit: {
       from: ["DRAFT", "CHANGES_REQUESTED"],
@@ -500,8 +520,112 @@ function resolveTrainingMonitoringTransition(transition: TrainingMonitoringTrans
       workItemTitle: "Reconsider training implementation outcome",
       workItemSummary: "has a monitoring decision returned by the Area Manager.",
     },
+    hq_ro_submit: {
+      from: ["DRAFT", "CHANGES_REQUESTED"],
+      fromDesk: "HQ_REIMBURSEMENT_OFFICER",
+      toStatus: "SUBMITTED",
+      toDesk: "HEAD_OF_DIVISION",
+      allowedRoles: ["HQ_REIMBURSEMENT_OFFICER"],
+      outcome: null,
+      clearOutcome: true,
+      requiresOutcome: false,
+      submitted: true,
+      release: false,
+      assignedRole: "HEAD_OF_DIVISION",
+      action: "SUBMIT",
+      reason: "HQ Reimbursement Officer submitted the virtual monitoring report",
+      workItemTitle: "Decide virtual training implementation outcome",
+      workItemSummary: "has a virtual monitoring report awaiting Head of Reimbursement Division decision.",
+    },
+    hod_accept: {
+      from: ["SUBMITTED"],
+      fromDesk: "HEAD_OF_DIVISION",
+      toStatus: "IN_REVIEW",
+      toDesk: "DIRECTOR_FSD",
+      allowedRoles: ["HEAD_OF_DIVISION"],
+      outcome: "ACCEPTED",
+      clearOutcome: false,
+      requiresOutcome: false,
+      submitted: false,
+      release: false,
+      assignedRole: "DIRECTOR_FSD",
+      action: "APPROVE",
+      reason: "Head of Reimbursement Division accepted the virtual training implementation",
+      workItemTitle: "Release accepted virtual training implementation",
+      workItemSummary: "was accepted by the Head of Reimbursement Division and awaits DFSD release.",
+    },
+    hod_reject: {
+      from: ["SUBMITTED"],
+      fromDesk: "HEAD_OF_DIVISION",
+      toStatus: "IN_REVIEW",
+      toDesk: "DIRECTOR_FSD",
+      allowedRoles: ["HEAD_OF_DIVISION"],
+      outcome: "REJECTED",
+      clearOutcome: false,
+      requiresOutcome: false,
+      submitted: false,
+      release: false,
+      assignedRole: "DIRECTOR_FSD",
+      action: "REJECT",
+      reason: "Head of Reimbursement Division rejected the virtual training implementation",
+      workItemTitle: "Release rejected virtual training implementation",
+      workItemSummary: "was rejected by the Head of Reimbursement Division and awaits DFSD release.",
+    },
+    hod_to_hq_ro: {
+      from: ["SUBMITTED"],
+      fromDesk: "HEAD_OF_DIVISION",
+      toStatus: "CHANGES_REQUESTED",
+      toDesk: "HQ_REIMBURSEMENT_OFFICER",
+      allowedRoles: ["HEAD_OF_DIVISION"],
+      outcome: null,
+      clearOutcome: true,
+      requiresOutcome: false,
+      submitted: false,
+      release: false,
+      assignedRole: "HQ_REIMBURSEMENT_OFFICER",
+      action: "REQUEST_CHANGES",
+      reason: "Head of Reimbursement Division returned the virtual monitoring report for correction",
+      workItemTitle: "Correct virtual training monitoring report",
+      workItemSummary: "has monitoring corrections requested by the Head of Reimbursement Division.",
+    },
+    dfsd_release: {
+      from: ["IN_REVIEW"],
+      fromDesk: "DIRECTOR_FSD",
+      toStatus: "IN_REVIEW",
+      toDesk: "COMPANY",
+      allowedRoles: ["DIRECTOR_FSD"],
+      outcome: null,
+      clearOutcome: false,
+      requiresOutcome: true,
+      submitted: false,
+      release: true,
+      assignedRole: null,
+      action: "FORWARD",
+      reason: "DFSD released the virtual monitoring decision to the employer",
+      workItemTitle: "",
+      workItemSummary: "",
+    },
+    dfsd_to_hod: {
+      from: ["IN_REVIEW"],
+      fromDesk: "DIRECTOR_FSD",
+      toStatus: "SUBMITTED",
+      toDesk: "HEAD_OF_DIVISION",
+      allowedRoles: ["DIRECTOR_FSD"],
+      outcome: null,
+      clearOutcome: true,
+      requiresOutcome: false,
+      submitted: false,
+      release: false,
+      assignedRole: "HEAD_OF_DIVISION",
+      action: "REQUEST_CHANGES",
+      reason: "DFSD returned the virtual monitoring decision to Head of Reimbursement Division",
+      workItemTitle: "Reconsider virtual training implementation outcome",
+      workItemSummary: "has a monitoring decision returned by DFSD.",
+    },
   } as const;
-
+  if (!isMonitoringTransitionForMode(transition, mode)) {
+    throw new Error("This workflow action does not belong to the monitoring mode.");
+  }
   return transitions[transition];
 }
 
@@ -513,7 +637,7 @@ async function findEditableMonitoringRecord(recordId: string) {
       status: {
         in: ["DRAFT", "IN_REVIEW", "SUBMITTED", "CHANGES_REQUESTED"],
       },
-      currentDesk: "REIMBURSEMENT_OFFICER",
+      currentDesk: { in: ["REIMBURSEMENT_OFFICER", "HQ_REIMBURSEMENT_OFFICER"] },
       trainingRequest: {
         recordTier: "HOT",
         company: {
@@ -524,6 +648,8 @@ async function findEditableMonitoringRecord(recordId: string) {
     },
     select: {
       id: true,
+      mode: true,
+      currentDesk: true,
       trainingRequestId: true,
       trainingRequest: {
         select: {
@@ -543,6 +669,10 @@ async function findEditableMonitoringRecord(recordId: string) {
     throw new Error("Editable Training Monitoring record was not found.");
   }
 
+  if (record.mode === "LOCAL_VIRTUAL" ? record.currentDesk !== "HQ_REIMBURSEMENT_OFFICER" : record.currentDesk !== "REIMBURSEMENT_OFFICER") {
+    throw new Error("Monitoring record is not at the appropriate officer desk.");
+  }
+
   return record;
 }
 
@@ -551,6 +681,7 @@ function assertMonitoringEditorRole(requesterRole: Role) {
     requesterRole !== "SYSTEM_ADMIN" &&
     requesterRole !== "WORKSPACE_APP_ADMIN" &&
     requesterRole !== "REIMBURSEMENT_OFFICER"
+    && requesterRole !== "HQ_REIMBURSEMENT_OFFICER"
   ) {
     throw new Error("Only the Reimbursement Officer can record monitoring findings.");
   }
@@ -567,6 +698,7 @@ function hasMonitoringRoutingRole(requesterRole: Role, allowedRoles: readonly Ro
 async function assertTrainingMonitoringAccess(input: {
   requesterEmail: string;
   requesterRole: Role;
+  mode: TrainingMonitoringMode;
   areaOfficeId: string | null;
 }) {
   const actor = await getDb().user.findUnique({
@@ -579,6 +711,7 @@ async function assertTrainingMonitoringAccess(input: {
         where: { isActive: true },
         select: {
           areaOfficeId: true,
+          role: true,
         },
       },
     },
@@ -591,7 +724,10 @@ async function assertTrainingMonitoringAccess(input: {
   const hasAreaOfficeAccess =
     input.requesterRole === "SYSTEM_ADMIN" ||
     input.requesterRole === "WORKSPACE_APP_ADMIN" ||
-    actor.memberships.some((membership) => membership.areaOfficeId === input.areaOfficeId);
+    actor.memberships.some((membership) => membership.role === input.requesterRole &&
+      (input.mode === "LOCAL_VIRTUAL"
+        ? isMonitoringHeadquartersRole(input.requesterRole) && !membership.areaOfficeId
+        : membership.areaOfficeId !== null && membership.areaOfficeId === input.areaOfficeId));
 
   if (!hasAreaOfficeAccess) {
     throw new Error("You do not have access to this Area Office monitoring record.");

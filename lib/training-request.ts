@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { isSubmittedArtifactEditable } from "@/lib/employer-correction";
+import { getMonitoringInitialAssignment } from "@/lib/monitoring-routing";
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { requireReceiptMetadata } from "@/lib/receipt-metadata";
@@ -881,17 +882,16 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
       });
 
       if (!existingMonitoringRecord) {
+        const monitoringAssignment = getMonitoringInitialAssignment(request.deliveryMode);
         const monitoringRecord = await tx.trainingMonitoringRecord.create({
           data: {
             trainingRequestId: request.id,
-            mode: request.deliveryMode === "LOCAL_ONLINE"
-              ? "LOCAL_VIRTUAL"
-              : "LOCAL_PHYSICAL",
+            mode: monitoringAssignment.mode,
             monitoringDate: request.startsAt,
             startsAt: request.startsAt,
             endsAt: request.endsAt,
             status: "DRAFT",
-            currentDesk: "REIMBURSEMENT_OFFICER",
+            currentDesk: monitoringAssignment.desk,
           },
           select: {
             id: true,
@@ -902,10 +902,10 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
           data: {
             workspaceId: request.company.organization.workspaceId,
             organizationId: request.company.organizationId,
-            areaOfficeId: request.company.areaOfficeId,
+            areaOfficeId: monitoringAssignment.mode === "LOCAL_VIRTUAL" ? null : request.company.areaOfficeId,
             companyId: request.companyId,
             trainingMonitoringRecordId: monitoringRecord.id,
-            assignedRole: "REIMBURSEMENT_OFFICER",
+            assignedRole: monitoringAssignment.role,
             app: "REIMBURSEMENT",
             kind: "TRAINING_MONITORING_REVIEW",
             status: "OPEN",
@@ -913,7 +913,7 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
             title: "Monitor approved training",
             summary: `${request.company.legalName}'s approved training is scheduled for monitoring.`,
             targetHref: `/training-monitoring/${monitoringRecord.id}`,
-            sourceKey: `training-monitoring:${monitoringRecord.id}:reimbursement-officer`,
+            sourceKey: `training-monitoring:${monitoringRecord.id}:${monitoringAssignment.sourceSuffix}`,
           },
         });
       }

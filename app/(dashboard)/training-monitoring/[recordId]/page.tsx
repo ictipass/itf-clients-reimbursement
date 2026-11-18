@@ -13,7 +13,7 @@ import {
 } from "@/app/(dashboard)/training-monitoring/[recordId]/actions";
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { type Role } from "@/lib/rbac";
+import { canMonitorAtDesk, monitoringVisibilityWhere } from "@/lib/monitoring-routing";
 import { getTrainingMonitoringEvidenceKinds } from "@/lib/training-monitoring";
 
 function formatDate(date: Date | null) {
@@ -51,22 +51,21 @@ const transitionLabels = {
   hot_to_ro: "Return report to Reimbursement Officer",
   am_release: "Release decision to employer",
   am_to_hot: "Return decision to HOT",
+  hq_ro_submit: "Submit monitoring report to Head of Reimbursement Division",
+  hod_accept: "Accept training implementation",
+  hod_reject: "Reject training implementation",
+  hod_to_hq_ro: "Return report to HQ Reimbursement Officer",
+  dfsd_release: "Release decision to employer",
+  dfsd_to_hod: "Return decision to Head of Reimbursement Division",
 } as const;
 
-function isAdminRole(role: Role) {
-  return role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN";
-}
-
-function canActAsMonitoringDesk(role: Role, desk: string) {
-  return (
-    isAdminRole(role) ||
-    (desk === "REIMBURSEMENT_OFFICER" && role === "REIMBURSEMENT_OFFICER") ||
-    (desk === "HEAD_OF_TRAINING" && role === "HEAD_OF_TRAINING") ||
-    (desk === "AREA_MANAGER" && role === "AREA_MANAGER")
-  );
-}
-
-function getMonitoringTransitions(status: string, desk: string) {
+function getMonitoringTransitions(mode: string, status: string, desk: string) {
+  if (mode === "LOCAL_VIRTUAL") {
+    if (desk === "HQ_REIMBURSEMENT_OFFICER" && (status === "DRAFT" || status === "CHANGES_REQUESTED")) return ["hq_ro_submit"] as const;
+    if (desk === "HEAD_OF_DIVISION" && status === "SUBMITTED") return ["hod_accept", "hod_reject", "hod_to_hq_ro"] as const;
+    if (desk === "DIRECTOR_FSD" && status === "IN_REVIEW") return ["dfsd_release", "dfsd_to_hod"] as const;
+    return [] as const;
+  }
   if (
     desk === "REIMBURSEMENT_OFFICER" &&
     (status === "DRAFT" || status === "CHANGES_REQUESTED")
@@ -96,12 +95,19 @@ export default async function TrainingMonitoringDetailPage({
   const query = await searchParams;
   const uploadError = Array.isArray(query.uploadError) ? query.uploadError[0] : query.uploadError;
   const session = await getServerSession(authOptions);
-  const activeRole = session?.user?.role ?? "SYSTEM_ADMIN";
+  const activeRole = session?.user?.role ?? "EMPLOYER_VIEWER";
   const evidenceKinds = getTrainingMonitoringEvidenceKinds();
+  const requester = session?.user?.email
+    ? await getDb().user.findUnique({
+        where: { email: session.user.email },
+        select: { memberships: { where: { isActive: true }, select: { role: true, areaOfficeId: true, organizationId: true } } },
+      })
+    : null;
   const record = await getDb().trainingMonitoringRecord.findFirst({
     where: {
       id: recordId,
       recordTier: "HOT",
+      ...monitoringVisibilityWhere(activeRole, requester?.memberships ?? []),
     },
     select: {
       id: true,
@@ -196,12 +202,12 @@ export default async function TrainingMonitoringDetailPage({
     notFound();
   }
 
-  const availableTransitions = getMonitoringTransitions(record.status, record.currentDesk);
+  const availableTransitions = getMonitoringTransitions(record.mode, record.status, record.currentDesk);
   const canRouteMonitoring =
-    availableTransitions.length > 0 && canActAsMonitoringDesk(activeRole, record.currentDesk);
+    availableTransitions.length > 0 && canMonitorAtDesk(activeRole, record.mode, record.currentDesk);
   const canEditMonitoring =
-    (isAdminRole(activeRole) || activeRole === "REIMBURSEMENT_OFFICER") &&
-    record.currentDesk === "REIMBURSEMENT_OFFICER" &&
+    canMonitorAtDesk(activeRole, record.mode, record.currentDesk) &&
+    (record.currentDesk === "REIMBURSEMENT_OFFICER" || record.currentDesk === "HQ_REIMBURSEMENT_OFFICER") &&
     (record.status === "DRAFT" || record.status === "CHANGES_REQUESTED");
 
   return (
@@ -215,7 +221,7 @@ export default async function TrainingMonitoringDetailPage({
           Back to Monitoring
         </Link>
         <Link
-          href={`/training-requests/${record.trainingRequest.id}`}
+          href={`/training-requests/${record.trainingRequest.id}${record.mode === "LOCAL_VIRTUAL" && !activeRole.startsWith("EMPLOYER_") ? `?monitoringId=${record.id}` : ""}`}
           className="text-sm font-semibold text-zinc-700"
         >
           Open Form 4A
@@ -379,14 +385,15 @@ export default async function TrainingMonitoringDetailPage({
         >
           <h2 className="text-xl font-semibold tracking-tight">Monitoring workflow</h2>
           <p className="mt-2 text-sm leading-6 text-zinc-600">
-            Route the monitoring report through Reimbursement Officer, Head of Training, Area
-            Manager, and employer feedback.
+            {record.mode === "LOCAL_VIRTUAL"
+              ? "Route this virtual monitoring report through HQ Reimbursement Officer, Head of Reimbursement Division, DFSD, and employer feedback."
+              : "Route this physical monitoring report through Reimbursement Officer, Head of Training, Area Manager, and employer feedback."}
           </p>
           <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">
             Decision/review reason
             <input
               name="note"
-              required={record.currentDesk === "HEAD_OF_TRAINING"}
+              required={record.currentDesk === "HEAD_OF_TRAINING" || record.currentDesk === "HEAD_OF_DIVISION"}
               className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
             />
           </label>

@@ -297,6 +297,9 @@ enum TrainingMonitoringDesk {
   REIMBURSEMENT_OFFICER
   HEAD_OF_TRAINING
   AREA_MANAGER
+  HQ_REIMBURSEMENT_OFFICER
+  HEAD_OF_DIVISION
+  DIRECTOR_FSD
   COMPANY
 }
 
@@ -1265,6 +1268,7 @@ model TrainingMonitoringRecord {
   @@index([trainingRequestId, status, recordTier])
   @@index([currentDesk, status, recordTier])
   @@index([mode, status, recordTier])
+  @@index([mode, monitoringDate, recordTier])
 }
 
 model TrainingMonitoringEvaluation {
