@@ -48,3 +48,46 @@ test("archived packet PDF includes its voucher and linked evidence index", async
   assert.ok(bytes.length > voucher.length);
   assert.equal(parseArchivedPaymentPacket({ version: 1 }), null);
 });
+
+test("archived packet renders the complete HQ computation on a landscape page", async () => {
+  const packet = parseArchivedPaymentPacket({
+    version: 1, archivedAt: "2026-10-25T12:00:00Z", reference: "CLM-002", claimYear: 2025,
+    companyName: "Ada Training Ltd", areaOffice: "Abuja", approvedAmount: "50000",
+    amountInWords: "Fifty thousand naira", companyAddress: "Abuja", scheduleReference: null,
+    withholdingTax: null, taxOffset: null, bankName: null, accountNumber: null,
+    accountNumberLast4: null, paymentReference: null, voucherRaised: null, voucherPreparedBy: null,
+    signoffs: [], evidence: [], decisions: [],
+    hqComputation: {
+      companyName: "Ada Training Ltd", itfEmployerNumber: "ITF-123", claimYear: 2025,
+      contributionPaid: "200000", receiptNumber: "R-001", fiftyPercentOfContribution: "100000",
+      areaOfficeName: "Abuja", amountRecommended: "50000", amountRecommendedInWords: "Fifty thousand naira",
+      recommendedContributionPercent: "25", preparedBy: "HQ Officer", preparedAt: "2026-10-24T10:00:00Z",
+      confirmedBy: "Head of Division", confirmedAt: "2026-10-25T10:00:00Z",
+      rows: [{
+        emphasis: 1, area: "Management", totalEmployees: 100, numberTrained: 25,
+        percentTrained: "25", maxPercentClaimable: "15", percentTrainingContributionAwarded: "15",
+        equivalentContribution: "30000", expenditureClaimed: "20000", awarded: "20000",
+        remarks: "Verified supporting evidence and training expenditure for this area.",
+      }, {
+        emphasis: 2, area: "Supervisory", totalEmployees: 75, numberTrained: 30,
+        percentTrained: "40", maxPercentClaimable: "13", percentTrainingContributionAwarded: "13",
+        equivalentContribution: "26000", expenditureClaimed: "30000", awarded: "26000",
+        remarks: "Long reviewer note ".repeat(25),
+      }],
+    },
+  });
+  assert.ok(packet);
+  const bytes = await buildArchivedPaymentPacketPdf(packet, "https://example.test/registry/company-1/evidence");
+  const pdf = await PDFDocument.load(bytes);
+  assert.equal(pdf.getPageCount(), 2);
+  assert.ok(pdf.getPages()[1].getWidth() > pdf.getPages()[1].getHeight());
+
+  // Existing snapshots contain only A/B/C. They remain downloadable without inventing missing values.
+  const legacy = parseArchivedPaymentPacket({ ...packet, hqComputation: {
+    amountRecommended: "50000", recommendedContributionPercent: "25", confirmedBy: null,
+    rows: [{ area: "Management", equivalentContribution: "30000", expenditureClaimed: "20000", awarded: "20000", remarks: null }],
+  } });
+  assert.ok(legacy);
+  const oldPdf = await PDFDocument.load(await buildArchivedPaymentPacketPdf(legacy, "https://example.test/registry/company-1/evidence"));
+  assert.equal(oldPdf.getPageCount(), 2);
+});
