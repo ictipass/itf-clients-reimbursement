@@ -10,6 +10,7 @@ import { getDb } from "@/lib/db";
 import { getRecoveryAdmin, hasValidAssignment, recoveryTarget } from "@/lib/assignment-recovery";
 import { reassignTrainingPlanReimbursementOfficer } from "@/lib/training-plan";
 import { reassignTrainingRequestReimbursementOfficer } from "@/lib/training-request";
+import { assignVirtualMonitoringOfficer } from "@/lib/training-monitoring";
 
 export async function recoverAssignmentAction(formData: FormData) {
   const session = await getServerSession(authOptions);
@@ -26,7 +27,7 @@ export async function recoverAssignmentAction(formData: FormData) {
       where: { id: workItemId, app: "REIMBURSEMENT", recordTier: "HOT", status: "OPEN", assignedUserId: { not: null }, workspaceId: { in: admin.memberships.map((membership) => membership.workspaceId) } },
       select: {
         id: true, assignedRole: true, assignedUserId: true, workspaceId: true, organizationId: true, areaOfficeId: true,
-        trainingPlanSubmissionId: true, reimbursementClaimId: true, sourceKey: true,
+        trainingPlanSubmissionId: true, trainingMonitoringRecordId: true, reimbursementClaimId: true, sourceKey: true,
         assignedUser: { select: { isActive: true, memberships: { select: { isActive: true, role: true, workspaceId: true, organizationId: true, areaOfficeId: true } } } },
       },
     });
@@ -41,6 +42,8 @@ export async function recoverAssignmentAction(formData: FormData) {
       await reassignClaimOfficer({ claimId: target.id, requesterId: admin.id, requesterRole: session.user.role, assigneeUserId, reason });
     } else if (target.kind === "plan") {
       await reassignTrainingPlanReimbursementOfficer({ submissionId: target.id, requesterEmail: session.user.email, requesterRole: session.user.role, assigneeUserId, reason });
+    } else if (target.kind === "monitoring") {
+      await assignVirtualMonitoringOfficer({ recordId: target.id, requesterEmail: session.user.email, requesterRole: session.user.role, assigneeUserId, reason });
     } else {
       await reassignTrainingRequestReimbursementOfficer({ requestId: target.id, requesterEmail: session.user.email, requesterRole: session.user.role, assigneeUserId, reason });
     }

@@ -8,6 +8,7 @@ import { authOptions } from "@/lib/auth";
 import { readUploadedFile } from "@/lib/storage/staged-upload";
 import {
   addTrainingMonitoringEvaluation,
+  assignVirtualMonitoringOfficer,
   getTrainingMonitoringEvidenceKinds,
   getTrainingMonitoringTransitions,
   routeTrainingMonitoringRecord,
@@ -181,15 +182,41 @@ export async function routeTrainingMonitoringRecordAction(
     throw new Error("Authentication is required.");
   }
 
-  await routeTrainingMonitoringRecord({
-    recordId,
-    requesterEmail: session.user.email,
-    requesterRole: session.user.role,
-    transition: readMonitoringTransition(formData),
-    note: readOptionalString(formData, "note"),
-  });
+  try {
+    await routeTrainingMonitoringRecord({
+      recordId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      transition: readMonitoringTransition(formData),
+      note: readOptionalString(formData, "note"),
+      assigneeUserId: readOptionalString(formData, "assigneeUserId"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The monitoring workflow action could not be completed.";
+    redirect(`/training-monitoring/${recordId}?workflowError=${encodeURIComponent(message.slice(0, 220))}#monitoring-workflow`);
+  }
 
   revalidatePath(`/training-monitoring`);
+  revalidatePath(`/training-monitoring/${recordId}`);
+  redirect(`/training-monitoring/${recordId}`);
+}
+
+export async function assignVirtualMonitoringOfficerAction(recordId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  try {
+    await assignVirtualMonitoringOfficer({
+      recordId,
+      requesterEmail: session.user.email,
+      requesterRole: session.user.role,
+      assigneeUserId: readRequiredString(formData, "assigneeUserId"),
+      reason: readOptionalString(formData, "reason"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The HQ monitoring assignment could not be saved.";
+    redirect(`/training-monitoring/${recordId}?assignmentError=${encodeURIComponent(message.slice(0, 220))}#hq-monitoring-assignment`);
+  }
+  revalidatePath("/training-monitoring");
   revalidatePath(`/training-monitoring/${recordId}`);
   redirect(`/training-monitoring/${recordId}`);
 }

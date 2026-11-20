@@ -21,7 +21,7 @@ export async function GET(
       id: true,
       memberships: {
         where: { isActive: true },
-        select: { role: true, organizationId: true, areaOfficeId: true },
+        select: { role: true, workspaceId: true, organizationId: true, areaOfficeId: true },
       },
     },
   });
@@ -31,6 +31,18 @@ export async function GET(
   const areaOfficeIds = user.memberships.map((item) => item.areaOfficeId).filter((value): value is string => Boolean(value));
   const hasNationalScope = user.memberships.some((item) => isItfRole(item.role) && !item.areaOfficeId);
   const hqMonitoringFeed = user.memberships.some((item) => isMonitoringHeadquartersRole(item.role) && !item.areaOfficeId);
+  const hqOfficerOnly = hqMonitoringFeed &&
+    user.memberships.some((item) => item.role === "HQ_REIMBURSEMENT_OFFICER" && !item.areaOfficeId) &&
+    !user.memberships.some((item) => (item.role === "HEAD_OF_DIVISION" || item.role === "DIRECTOR_FSD") && !item.areaOfficeId);
+  const hqWorkspaceIds = [...new Set(user.memberships
+    .filter((item) => isMonitoringHeadquartersRole(item.role) && !item.areaOfficeId)
+    .map((item) => item.workspaceId))];
+  const hqOfficerRecordScope = {
+    OR: [
+      { currentDesk: "HQ_REIMBURSEMENT_OFFICER" as const, workItems: { some: { status: "OPEN" as const, assignedRole: "HQ_REIMBURSEMENT_OFFICER" as const, assignedUserId: user.id } } },
+      { currentDesk: { not: "HQ_REIMBURSEMENT_OFFICER" as const }, workItems: { some: { assignedRole: "HQ_REIMBURSEMENT_OFFICER" as const, assignedUserId: user.id } } },
+    ],
+  };
   const areaMonitoringFeed = !hqMonitoringFeed && user.memberships.some((item) => isMonitoringAreaRole(item.role) && item.areaOfficeId);
   const companyScope = hasNationalScope
     ? {}
@@ -43,9 +55,10 @@ export async function GET(
   const [requests, monitoring] = await Promise.all([
     getDb().trainingRequest.findMany({
       where: {
-        recordTier: "HOT", company: companyScope,
+        recordTier: "HOT", company: { ...companyScope, ...(hqMonitoringFeed ? { organization: { workspaceId: { in: hqWorkspaceIds } } } : {}) },
         ...(hqMonitoringFeed ? { deliveryMode: "LOCAL_ONLINE" as const } : areaMonitoringFeed ? { deliveryMode: "LOCAL_PHYSICAL" as const } : {}),
         ...(hqMonitoringFeed || areaMonitoringFeed ? { status: "APPROVED" as const, decisionOutcome: "ACCEPTED" as const } : {}),
+        ...(hqOfficerOnly ? { monitoringRecords: { some: hqOfficerRecordScope } } : {}),
         startsAt: { gte: new Date(Date.now() - 31 * 86_400_000) },
       },
       select: { id: true, title: true, startsAt: true, endsAt: true, venue: true, onlineUrl: true, company: { select: { legalName: true } } },
@@ -53,8 +66,9 @@ export async function GET(
     }),
     getDb().trainingMonitoringRecord.findMany({
       where: {
-        recordTier: "HOT", monitoringDate: { not: null }, trainingRequest: { company: companyScope },
+        recordTier: "HOT", monitoringDate: { not: null }, trainingRequest: { company: { ...companyScope, ...(hqMonitoringFeed ? { organization: { workspaceId: { in: hqWorkspaceIds } } } : {}) } },
         ...(hqMonitoringFeed ? { mode: "LOCAL_VIRTUAL" as const } : areaMonitoringFeed ? { mode: "LOCAL_PHYSICAL" as const } : {}),
+        ...(hqOfficerOnly ? hqOfficerRecordScope : {}),
       },
       select: { id: true, monitoringDate: true, startsAt: true, endsAt: true, trainingRequest: { select: { title: true, company: { select: { legalName: true } } } } },
       take: 500,

@@ -7,6 +7,7 @@ import { notFound } from "next/navigation";
 
 import {
   addTrainingMonitoringEvaluationAction,
+  assignVirtualMonitoringOfficerAction,
   routeTrainingMonitoringRecordAction,
   updateTrainingMonitoringRecordAction,
   uploadTrainingMonitoringEvidenceAction,
@@ -14,7 +15,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { canMonitorAtDesk, monitoringVisibilityWhere } from "@/lib/monitoring-routing";
-import { getTrainingMonitoringEvidenceKinds } from "@/lib/training-monitoring";
+import { getTrainingMonitoringEvidenceKinds, listAssignableVirtualMonitoringOfficers } from "@/lib/training-monitoring";
 
 function formatDate(date: Date | null) {
   if (!date) {
@@ -89,25 +90,27 @@ export default async function TrainingMonitoringDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ recordId: string }>;
-  searchParams: Promise<{ uploadError?: string | string[] }>;
+  searchParams: Promise<{ uploadError?: string | string[]; assignmentError?: string | string[]; workflowError?: string | string[] }>;
 }>) {
   const { recordId } = await params;
   const query = await searchParams;
   const uploadError = Array.isArray(query.uploadError) ? query.uploadError[0] : query.uploadError;
+  const assignmentError = Array.isArray(query.assignmentError) ? query.assignmentError[0] : query.assignmentError;
+  const workflowError = Array.isArray(query.workflowError) ? query.workflowError[0] : query.workflowError;
   const session = await getServerSession(authOptions);
   const activeRole = session?.user?.role ?? "EMPLOYER_VIEWER";
   const evidenceKinds = getTrainingMonitoringEvidenceKinds();
   const requester = session?.user?.email
     ? await getDb().user.findUnique({
         where: { email: session.user.email },
-        select: { memberships: { where: { isActive: true }, select: { role: true, areaOfficeId: true, organizationId: true } } },
+        select: { id: true, memberships: { where: { isActive: true }, select: { role: true, workspaceId: true, areaOfficeId: true, organizationId: true } } },
       })
     : null;
   const record = await getDb().trainingMonitoringRecord.findFirst({
     where: {
       id: recordId,
       recordTier: "HOT",
-      ...monitoringVisibilityWhere(activeRole, requester?.memberships ?? []),
+      ...monitoringVisibilityWhere(activeRole, requester?.memberships ?? [], requester?.id),
     },
     select: {
       id: true,
@@ -127,6 +130,10 @@ export default async function TrainingMonitoringDetailPage({
       decisionOutcome: true,
       decisionReason: true,
       feedbackReleasedAt: true,
+      workItems: {
+        where: { app: "REIMBURSEMENT", recordTier: "HOT", status: "OPEN", kind: "TRAINING_MONITORING_REVIEW" },
+        select: { id: true, assignedRole: true, assignedUserId: true, assignedUser: { select: { name: true, email: true } } },
+      },
       documents: {
         where: {
           isActive: true,
@@ -186,6 +193,7 @@ export default async function TrainingMonitoringDetailPage({
               id: true,
               legalName: true,
               itfEmployerNumber: true,
+              organization: { select: { workspaceId: true } },
               areaOffice: {
                 select: {
                   name: true,
@@ -202,11 +210,22 @@ export default async function TrainingMonitoringDetailPage({
     notFound();
   }
 
+  const currentWorkItem = record.workItems.find((item) =>
+    item.assignedRole === "HQ_REIMBURSEMENT_OFFICER" || item.assignedRole === "HEAD_OF_DIVISION");
+  const canAssignVirtualMonitoring = record.mode === "LOCAL_VIRTUAL" &&
+    record.currentDesk === "HQ_REIMBURSEMENT_OFFICER" &&
+    (record.status === "DRAFT" || record.status === "CHANGES_REQUESTED") &&
+    (activeRole === "HEAD_OF_DIVISION" || activeRole === "SYSTEM_ADMIN" || activeRole === "WORKSPACE_APP_ADMIN");
+  const hqOfficers = (canAssignVirtualMonitoring || (record.mode === "LOCAL_VIRTUAL" && activeRole === "HEAD_OF_DIVISION" && record.currentDesk === "HEAD_OF_DIVISION"))
+    ? await listAssignableVirtualMonitoringOfficers(record.trainingRequest.company.organization.workspaceId)
+    : [];
+  const assignedHQOfficer = record.mode !== "LOCAL_VIRTUAL" || record.currentDesk !== "HQ_REIMBURSEMENT_OFFICER" ||
+    activeRole !== "HQ_REIMBURSEMENT_OFFICER" || currentWorkItem?.assignedUserId === requester?.id;
   const availableTransitions = getMonitoringTransitions(record.mode, record.status, record.currentDesk);
   const canRouteMonitoring =
-    availableTransitions.length > 0 && canMonitorAtDesk(activeRole, record.mode, record.currentDesk);
+    availableTransitions.length > 0 && canMonitorAtDesk(activeRole, record.mode, record.currentDesk) && assignedHQOfficer;
   const canEditMonitoring =
-    canMonitorAtDesk(activeRole, record.mode, record.currentDesk) &&
+    canMonitorAtDesk(activeRole, record.mode, record.currentDesk) && assignedHQOfficer &&
     (record.currentDesk === "REIMBURSEMENT_OFFICER" || record.currentDesk === "HQ_REIMBURSEMENT_OFFICER") &&
     (record.status === "DRAFT" || record.status === "CHANGES_REQUESTED");
 
@@ -340,6 +359,9 @@ export default async function TrainingMonitoringDetailPage({
           <p className="mt-2 text-sm font-semibold text-zinc-950">
             {record.currentDesk.replaceAll("_", " ")}
           </p>
+          {record.mode === "LOCAL_VIRTUAL" && record.currentDesk === "HQ_REIMBURSEMENT_OFFICER" ? (
+            <p className="mt-1 text-xs text-zinc-600">{currentWorkItem?.assignedUser?.name ?? "Awaiting named HQ RO assignment"}</p>
+          ) : null}
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
           <p className="text-xs font-semibold uppercase tracking-[0.14em] text-zinc-500">
@@ -378,12 +400,43 @@ export default async function TrainingMonitoringDetailPage({
         )}
       </section>
 
+      {canAssignVirtualMonitoring ? (
+        <section id="hq-monitoring-assignment" className="order-3 mt-8 rounded-lg border border-blue-200 bg-blue-50 p-5">
+          <h2 className="text-xl font-semibold tracking-tight text-blue-950">HQ monitoring officer assignment</h2>
+          {assignmentError ? <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{assignmentError}</p> : null}
+          <p className="mt-2 text-sm text-blue-900">
+            {currentWorkItem?.assignedUser
+              ? `Currently assigned to ${currentWorkItem.assignedUser.name} (${currentWorkItem.assignedUser.email}). Reassignment takes effect immediately.`
+              : "Select the HQ Reimbursement Officer who will monitor this virtual training. The record cannot be edited or submitted until assigned."}
+          </p>
+          <form action={assignVirtualMonitoringOfficerAction.bind(null, record.id)} className="mt-4 grid gap-3 md:grid-cols-[1fr_auto]">
+            <label className="grid gap-1 text-sm font-medium text-blue-950">HQ Reimbursement Officer
+              <select name="assigneeUserId" required defaultValue="" className="min-h-10 rounded-md border border-blue-200 bg-white px-3">
+                <option value="" disabled>Select an officer</option>
+                {hqOfficers.filter((officer) => officer.id !== currentWorkItem?.assignedUserId).map((officer) => (
+                  <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>
+                ))}
+              </select>
+            </label>
+            <label className="grid gap-1 text-sm font-medium text-blue-950 md:col-span-2">{currentWorkItem?.assignedUserId ? "Reason for reassignment" : "Assignment note (optional)"}
+              <input name="reason" required={Boolean(currentWorkItem?.assignedUserId)} className="min-h-10 rounded-md border border-blue-200 bg-white px-3" />
+            </label>
+            <button disabled={hqOfficers.filter((officer) => officer.id !== currentWorkItem?.assignedUserId).length === 0} className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white disabled:opacity-50">
+              {currentWorkItem?.assignedUserId ? "Reassign officer" : "Assign officer"}
+            </button>
+            <FormActionProgress />
+          </form>
+        </section>
+      ) : null}
+
       {canRouteMonitoring ? (
         <form
+          id="monitoring-workflow"
           action={routeTrainingMonitoringRecordAction.bind(null, record.id)}
           className="order-4 mt-8 rounded-lg border border-zinc-200 bg-white p-5"
         >
           <h2 className="text-xl font-semibold tracking-tight">Monitoring workflow</h2>
+          {workflowError ? <p role="alert" className="mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-900">{workflowError}</p> : null}
           <p className="mt-2 text-sm leading-6 text-zinc-600">
             {record.mode === "LOCAL_VIRTUAL"
               ? "Route this virtual monitoring report through HQ Reimbursement Officer, Head of Reimbursement Division, DFSD, and employer feedback."
@@ -397,6 +450,15 @@ export default async function TrainingMonitoringDetailPage({
               className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
             />
           </label>
+          {record.mode === "LOCAL_VIRTUAL" && record.currentDesk === "HEAD_OF_DIVISION" ? (
+            <label className="mt-4 grid gap-2 text-sm font-medium text-zinc-700">HQ RO for a returned report
+              <select name="assigneeUserId" defaultValue="" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm">
+                <option value="">{hqOfficers.length === 1 ? "Only available officer (automatic)" : "Select officer when returning to HQ RO"}</option>
+                {hqOfficers.map((officer) => <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>)}
+              </select>
+              <span className="text-xs font-normal text-zinc-500">Required when more than one HQ RO is available; ignored for other decisions.</span>
+            </label>
+          ) : null}
           <div className="mt-4 flex flex-wrap gap-2">
             {availableTransitions.map((transition) => (
               <button
@@ -471,22 +533,22 @@ export default async function TrainingMonitoringDetailPage({
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
               />
             </label>
-            <label className="grid gap-2 text-sm font-medium text-zinc-700">
-              Monitoring officer
-              <input
-                name="monitoringOfficerName"
-                defaultValue={record.monitoringOfficerName ?? ""}
-                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-              />
-            </label>
-            <label className="grid gap-2 text-sm font-medium text-zinc-700">
-              Officer designation
-              <input
-                name="monitoringOfficerTitle"
-                defaultValue={record.monitoringOfficerTitle ?? ""}
-                className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
-              />
-            </label>
+            {record.mode === "LOCAL_VIRTUAL" ? (
+              <p className="rounded-md border border-blue-100 bg-blue-50 px-3 py-2 text-sm text-blue-950 md:col-span-2">
+                Monitoring officer: {record.monitoringOfficerName ?? "Not assigned"}. The Head of Division controls the named HQ assignment.
+              </p>
+            ) : (
+              <>
+                <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                  Monitoring officer
+                  <input name="monitoringOfficerName" defaultValue={record.monitoringOfficerName ?? ""} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
+                </label>
+                <label className="grid gap-2 text-sm font-medium text-zinc-700">
+                  Officer designation
+                  <input name="monitoringOfficerTitle" defaultValue={record.monitoringOfficerTitle ?? ""} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm" />
+                </label>
+              </>
+            )}
             <label className="grid gap-2 text-sm font-medium text-zinc-700">
               Head of Division
               <input

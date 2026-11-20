@@ -25,8 +25,8 @@ export function getMonitoringInitialAssignment(deliveryMode: TrainingDeliveryMod
     ? {
         mode: "LOCAL_VIRTUAL" as const,
         desk: "HQ_REIMBURSEMENT_OFFICER" as const,
-        role: "HQ_REIMBURSEMENT_OFFICER" as const,
-        sourceSuffix: "hq-reimbursement-officer",
+        role: "HEAD_OF_DIVISION" as const,
+        sourceSuffix: "hq-assignment",
       }
     : {
         mode: "LOCAL_PHYSICAL" as const,
@@ -54,14 +54,38 @@ export function canMonitorAtDesk(role: Role, mode: TrainingMonitoringMode, desk:
 
 export function monitoringVisibilityWhere(
   role: Role,
-  memberships: readonly { role: Role; organizationId: string | null; areaOfficeId: string | null }[],
+  memberships: readonly { role: Role; workspaceId: string; organizationId: string | null; areaOfficeId: string | null }[],
+  requesterId?: string | null,
 ): Prisma.TrainingMonitoringRecordWhereInput {
   if (role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN") return {};
   const active = memberships.filter((membership) => membership.role === role);
   if (isMonitoringHeadquartersRole(role)) {
-    return active.some((membership) => !membership.areaOfficeId)
-      ? { mode: "LOCAL_VIRTUAL" }
-      : { id: "__no_monitoring_access__" };
+    const workspaceIds = active.filter((membership) => !membership.areaOfficeId).map((membership) => membership.workspaceId);
+    if (!workspaceIds.length || (role === "HQ_REIMBURSEMENT_OFFICER" && !requesterId)) {
+      return { id: "__no_monitoring_access__" };
+    }
+    return {
+      mode: "LOCAL_VIRTUAL",
+      trainingRequest: { company: { organization: { workspaceId: { in: workspaceIds } } } },
+      ...(role === "HQ_REIMBURSEMENT_OFFICER" ? {
+        OR: [
+          {
+            currentDesk: "HQ_REIMBURSEMENT_OFFICER",
+            workItems: { some: {
+              app: "REIMBURSEMENT", recordTier: "HOT", status: "OPEN",
+              assignedRole: "HQ_REIMBURSEMENT_OFFICER", assignedUserId: requesterId,
+            } },
+          },
+          {
+            currentDesk: { not: "HQ_REIMBURSEMENT_OFFICER" },
+            workItems: { some: {
+              app: "REIMBURSEMENT", recordTier: "HOT",
+              assignedRole: "HQ_REIMBURSEMENT_OFFICER", assignedUserId: requesterId,
+            } },
+          },
+        ],
+      } : {}),
+    };
   }
   if (isMonitoringAreaRole(role)) {
     const ids = active.map((membership) => membership.areaOfficeId).filter((id): id is string => Boolean(id));

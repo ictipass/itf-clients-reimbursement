@@ -18,7 +18,8 @@ export function hasValidAssignment(input: {
     membership.isActive && membership.role === input.role && membership.workspaceId === input.workspaceId &&
     (areaRoles.has(input.role!) ? Boolean(input.areaOfficeId) && membership.areaOfficeId === input.areaOfficeId
       : input.role.startsWith("EMPLOYER_") ? Boolean(input.organizationId) && membership.organizationId === input.organizationId
-        : true));
+        : input.role === "HQ_REIMBURSEMENT_OFFICER" ? membership.areaOfficeId === null
+          : true));
 }
 
 export async function getRecoveryAdmin(email: string, role: Role) {
@@ -48,6 +49,8 @@ export async function listStrandedAssignments(workspaceIds: string[], requestedP
             THEN w."areaOfficeId" IS NOT NULL AND m."areaOfficeId" = w."areaOfficeId"
           WHEN left(w."assignedRole"::text, 9) = 'EMPLOYER_'
             THEN w."organizationId" IS NOT NULL AND m."organizationId" = w."organizationId"
+          WHEN w."assignedRole" = 'HQ_REIMBURSEMENT_OFFICER'
+            THEN m."areaOfficeId" IS NULL
           ELSE true
         END
     ))`;
@@ -63,7 +66,7 @@ export async function listStrandedAssignments(workspaceIds: string[], requestedP
     select: {
       id: true, title: true, targetHref: true, sourceKey: true, assignedRole: true,
       workspaceId: true, organizationId: true, areaOfficeId: true, assignedUserId: true,
-      trainingPlanSubmissionId: true, reimbursementClaimId: true, createdAt: true,
+      trainingPlanSubmissionId: true, trainingMonitoringRecordId: true, reimbursementClaimId: true, createdAt: true,
       areaOffice: { select: { name: true } }, company: { select: { legalName: true } },
       assignedUser: { select: { name: true, email: true, isActive: true } },
     },
@@ -72,8 +75,9 @@ export async function listStrandedAssignments(workspaceIds: string[], requestedP
   return { items: rows.flatMap((row) => byId.get(row.id) ? [byId.get(row.id)!] : []), total, page, pageSize };
 }
 
-export function recoveryTarget(item: { assignedRole: Role | null; trainingPlanSubmissionId: string | null; reimbursementClaimId: string | null; sourceKey: string }) {
+export function recoveryTarget(item: { assignedRole: Role | null; trainingPlanSubmissionId: string | null; trainingMonitoringRecordId: string | null; reimbursementClaimId: string | null; sourceKey: string }) {
   if (item.trainingPlanSubmissionId && item.assignedRole === "REIMBURSEMENT_OFFICER") return { kind: "plan" as const, id: item.trainingPlanSubmissionId };
+  if (item.trainingMonitoringRecordId && item.assignedRole === "HQ_REIMBURSEMENT_OFFICER") return { kind: "monitoring" as const, id: item.trainingMonitoringRecordId };
   if (item.reimbursementClaimId && item.assignedRole && isIndividuallyAssignedClaimRole(item.assignedRole)) return { kind: "claim" as const, id: item.reimbursementClaimId };
   const match = /^training-request:([^:]+):reimbursement_officer$/.exec(item.sourceKey);
   if (match && item.assignedRole === "REIMBURSEMENT_OFFICER") return { kind: "request" as const, id: match[1] };

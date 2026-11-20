@@ -26,10 +26,12 @@ test("HQ named assignments require an active matching role in the same workspace
   };
   assert.equal(hasValidAssignment(input), true);
   assert.equal(hasValidAssignment({ ...input, memberships: [membership("REIMBURSEMENT_OFFICER", "employer-office")] }), false);
+  assert.equal(hasValidAssignment({ ...input, memberships: [membership("HQ_REIMBURSEMENT_OFFICER", "new-office")] }), false);
 });
 
-test("recovery recognizes the three named workflows", () => {
-  assert.deepEqual(recoveryTarget({ assignedRole: "REIMBURSEMENT_OFFICER", trainingPlanSubmissionId: "plan", reimbursementClaimId: null, sourceKey: "plan:1" }), { kind: "plan", id: "plan" });
-  assert.deepEqual(recoveryTarget({ assignedRole: "REIMBURSEMENT_OFFICER", trainingPlanSubmissionId: null, reimbursementClaimId: null, sourceKey: "training-request:req:reimbursement_officer" }), { kind: "request", id: "req" });
-  assert.deepEqual(recoveryTarget({ assignedRole: "HQ_REIMBURSEMENT_OFFICER", trainingPlanSubmissionId: null, reimbursementClaimId: "claim", sourceKey: "claim:1" }), { kind: "claim", id: "claim" });
+test("recovery recognizes all four named workflows", () => {
+  assert.deepEqual(recoveryTarget({ assignedRole: "REIMBURSEMENT_OFFICER", trainingPlanSubmissionId: "plan", trainingMonitoringRecordId: null, reimbursementClaimId: null, sourceKey: "plan:1" }), { kind: "plan", id: "plan" });
+  assert.deepEqual(recoveryTarget({ assignedRole: "REIMBURSEMENT_OFFICER", trainingPlanSubmissionId: null, trainingMonitoringRecordId: null, reimbursementClaimId: null, sourceKey: "training-request:req:reimbursement_officer" }), { kind: "request", id: "req" });
+  assert.deepEqual(recoveryTarget({ assignedRole: "HQ_REIMBURSEMENT_OFFICER", trainingPlanSubmissionId: null, trainingMonitoringRecordId: null, reimbursementClaimId: "claim", sourceKey: "claim:1" }), { kind: "claim", id: "claim" });
+  assert.deepEqual(recoveryTarget({ assignedRole: "HQ_REIMBURSEMENT_OFFICER", trainingPlanSubmissionId: null, trainingMonitoringRecordId: "monitoring", reimbursementClaimId: null, sourceKey: "training-monitoring:monitoring:hq_reimbursement_officer" }), { kind: "monitoring", id: "monitoring" });
 });

@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import type { TrainingMonitoringMode } from "@/lib/generated/prisma/client";
+import type { Prisma, TrainingMonitoringMode } from "@/lib/generated/prisma/client";
 import { canMonitorAtDesk, isMonitoringHeadquartersRole } from "@/lib/monitoring-routing";
 import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { can, type Role } from "@/lib/rbac";
@@ -70,7 +70,132 @@ export type RouteTrainingMonitoringRecordInput = {
   requesterRole: Role;
   transition: TrainingMonitoringTransition;
   note?: string;
+  assigneeUserId?: string;
 };
+
+export async function listAssignableVirtualMonitoringOfficers(workspaceId: string) {
+  return getDb().user.findMany({
+    where: {
+      isActive: true,
+      memberships: { some: {
+        isActive: true,
+        role: "HQ_REIMBURSEMENT_OFFICER",
+        workspaceId,
+        areaOfficeId: null,
+      } },
+    },
+    select: { id: true, name: true, email: true },
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+  });
+}
+
+export function selectVirtualMonitoringOfficer(
+  officers: readonly { id: string; name: string; email: string }[],
+  requestedId?: string,
+) {
+  if (!officers.length) throw new Error("No active HQ Reimbursement Officer is available in this workspace.");
+  if (!requestedId && officers.length > 1) throw new Error("Select the HQ Reimbursement Officer who will receive this monitoring record.");
+  const assignee = officers.find((officer) => officer.id === (requestedId ?? officers[0].id));
+  if (!assignee) throw new Error("The selected HQ Reimbursement Officer is no longer available.");
+  return assignee;
+}
+
+async function resolveVirtualMonitoringAssignee(workspaceId: string, requestedId?: string) {
+  return selectVirtualMonitoringOfficer(await listAssignableVirtualMonitoringOfficers(workspaceId), requestedId);
+}
+
+export async function assignVirtualMonitoringOfficer(input: {
+  recordId: string;
+  requesterEmail: string;
+  requesterRole: Role;
+  assigneeUserId: string;
+  reason?: string;
+}) {
+  const db = getDb();
+  const record = await db.trainingMonitoringRecord.findFirst({
+    where: {
+      id: input.recordId,
+      recordTier: "HOT",
+      mode: "LOCAL_VIRTUAL",
+      currentDesk: "HQ_REIMBURSEMENT_OFFICER",
+      status: { in: ["DRAFT", "CHANGES_REQUESTED"] },
+    },
+    select: {
+      id: true,
+      trainingRequestId: true,
+      trainingRequest: { select: { companyId: true, company: { select: { organization: { select: { workspaceId: true } } } } } },
+    },
+  });
+  if (!record) throw new Error("This virtual monitoring record is no longer awaiting an HQ officer.");
+  const workspaceId = record.trainingRequest.company.organization.workspaceId;
+  const actor = await db.user.findFirst({
+    where: {
+      email: input.requesterEmail,
+      isActive: true,
+      memberships: { some: {
+        isActive: true,
+        workspaceId,
+        ...(input.requesterRole === "HEAD_OF_DIVISION"
+          ? { role: "HEAD_OF_DIVISION", areaOfficeId: null }
+          : { role: input.requesterRole }),
+      } },
+    },
+    select: { id: true },
+  });
+  if (!actor || !["HEAD_OF_DIVISION", "SYSTEM_ADMIN", "WORKSPACE_APP_ADMIN"].includes(input.requesterRole)) {
+    throw new Error("Only the Head of Reimbursement Division or a workspace administrator may assign this HQ monitoring record.");
+  }
+  const officers = await listAssignableVirtualMonitoringOfficers(workspaceId);
+  const assignee = officers.find((officer) => officer.id === input.assigneeUserId);
+  if (!assignee) throw new Error("Select an active HQ Reimbursement Officer in this workspace.");
+  const workItem = await db.workItem.findFirst({
+    where: {
+      trainingMonitoringRecordId: record.id,
+      app: "REIMBURSEMENT",
+      recordTier: "HOT",
+      status: "OPEN",
+      kind: "TRAINING_MONITORING_REVIEW",
+      assignedRole: { in: ["HEAD_OF_DIVISION", "HQ_REIMBURSEMENT_OFFICER"] },
+    },
+    select: { id: true, assignedRole: true, assignedUserId: true },
+  });
+  if (!workItem) throw new Error("The monitoring assignment is no longer open.");
+  if (workItem.assignedUserId === assignee.id) throw new Error("This officer already holds the monitoring record.");
+  const reason = input.reason?.trim();
+  if (workItem.assignedUserId && !reason) throw new Error("Record a reason for reassigning this monitoring record.");
+
+  await db.$transaction(async (tx) => {
+    const current = await tx.trainingMonitoringRecord.updateMany({
+      where: { id: record.id, currentDesk: "HQ_REIMBURSEMENT_OFFICER", status: { in: ["DRAFT", "CHANGES_REQUESTED"] } },
+      data: { monitoringOfficerName: assignee.name, monitoringOfficerTitle: "HQ Reimbursement Officer" },
+    });
+    if (current.count !== 1) throw new Error("This monitoring record has already moved to another desk.");
+    const updated = await tx.workItem.updateMany({
+      where: {
+        id: workItem.id,
+        status: "OPEN",
+        assignedRole: workItem.assignedRole,
+        assignedUserId: workItem.assignedUserId,
+      },
+      data: {
+        assignedRole: "HQ_REIMBURSEMENT_OFFICER",
+        assignedUserId: assignee.id,
+        emailNotifiedAt: null,
+      },
+    });
+    if (updated.count !== 1) throw new Error("The monitoring assignment changed. Reload and try again.");
+    await tx.decision.create({
+      data: {
+        actorId: actor.id,
+        companyId: record.trainingRequest.companyId,
+        trainingRequestId: record.trainingRequestId,
+        trainingMonitoringRecordId: record.id,
+        action: "FORWARD",
+        reason: `${workItem.assignedUserId ? "Reassigned" : "Assigned"} virtual monitoring to ${assignee.name} (${assignee.email})${reason ? `. Reason: ${reason}` : ""}`,
+      },
+    });
+  });
+}
 
 export function getTrainingMonitoringEvidenceKinds() {
   return trainingMonitoringEvidenceKinds;
@@ -104,7 +229,9 @@ export async function uploadTrainingMonitoringEvidence(
     requesterRole: input.requesterRole,
     mode: record.mode,
     areaOfficeId: record.trainingRequest.company.areaOfficeId,
+    workspaceId: record.trainingRequest.company.organization.workspaceId,
   });
+  await assertVirtualMonitoringAssignee(record.id, actor.id, input.requesterRole, record.mode);
 
   const buffer = Buffer.from(await input.file.arrayBuffer());
   const safeFileName = sanitizeFileName(input.file.name);
@@ -116,34 +243,36 @@ export async function uploadTrainingMonitoringEvidence(
     mimeType: validated.mimeType,
     namespace: "training-monitoring",
   });
+  await assertVirtualMonitoringAssignee(record.id, actor.id, input.requesterRole, record.mode);
 
-  return db.document.create({
-    data: {
-      organizationId: record.trainingRequest.company.organizationId,
-      companyId: record.trainingRequest.companyId,
-      trainingRequestId: record.trainingRequestId,
-      trainingMonitoringRecordId: record.id,
-      uploadedById: actor.id,
-      kind: input.kind,
-      fileName: safeFileName,
-      storageProvider: stored.storageProvider,
-      scanStatus: stored.scanStatus,
-      scannedAt: stored.scannedAt,
-      scanReason: stored.scanReason,
-      bucket: stored.bucket,
-      objectKey: stored.objectKey,
-      url: stored.url,
-      etag: stored.etag,
-      versionId: stored.versionId,
-      checksum: stored.checksum,
-      mimeType: stored.mimeType,
-      fileSize: stored.fileSize,
-      access: "PRIVATE",
-      classification: "OFFICIAL",
-    },
-    select: {
-      id: true,
-    },
+  return db.$transaction(async (tx) => {
+    await lockVirtualMonitoringAssignee(tx, record.id, actor.id, input.requesterRole, record.mode);
+    return tx.document.create({
+      data: {
+        organizationId: record.trainingRequest.company.organizationId,
+        companyId: record.trainingRequest.companyId,
+        trainingRequestId: record.trainingRequestId,
+        trainingMonitoringRecordId: record.id,
+        uploadedById: actor.id,
+        kind: input.kind,
+        fileName: safeFileName,
+        storageProvider: stored.storageProvider,
+        scanStatus: stored.scanStatus,
+        scannedAt: stored.scannedAt,
+        scanReason: stored.scanReason,
+        bucket: stored.bucket,
+        objectKey: stored.objectKey,
+        url: stored.url,
+        etag: stored.etag,
+        versionId: stored.versionId,
+        checksum: stored.checksum,
+        mimeType: stored.mimeType,
+        fileSize: stored.fileSize,
+        access: "PRIVATE",
+        classification: "OFFICIAL",
+      },
+      select: { id: true },
+    });
   });
 }
 
@@ -162,24 +291,27 @@ export async function addTrainingMonitoringEvaluation(
 
   const record = await findEditableMonitoringRecord(input.recordId);
 
-  await assertTrainingMonitoringAccess({
+  const actor = await assertTrainingMonitoringAccess({
     requesterEmail: input.requesterEmail,
     requesterRole: input.requesterRole,
     mode: record.mode,
     areaOfficeId: record.trainingRequest.company.areaOfficeId,
+    workspaceId: record.trainingRequest.company.organization.workspaceId,
   });
+  await assertVirtualMonitoringAssignee(record.id, actor.id, input.requesterRole, record.mode);
 
-  return getDb().trainingMonitoringEvaluation.create({
-    data: {
-      trainingMonitoringRecordId: record.id,
-      section: input.section,
-      ratingArea: input.ratingArea,
-      score: input.score,
-      note: input.note,
-    },
-    select: {
-      id: true,
-    },
+  return getDb().$transaction(async (tx) => {
+    await lockVirtualMonitoringAssignee(tx, record.id, actor.id, input.requesterRole, record.mode);
+    return tx.trainingMonitoringEvaluation.create({
+      data: {
+        trainingMonitoringRecordId: record.id,
+        section: input.section,
+        ratingArea: input.ratingArea,
+        score: input.score,
+        note: input.note,
+      },
+      select: { id: true },
+    });
   });
 }
 
@@ -194,16 +326,26 @@ export async function updateTrainingMonitoringRecord(
 
   const record = await findEditableMonitoringRecord(input.recordId);
 
-  await assertTrainingMonitoringAccess({
+  const actor = await assertTrainingMonitoringAccess({
     requesterEmail: input.requesterEmail,
     requesterRole: input.requesterRole,
     mode: record.mode,
     areaOfficeId: record.trainingRequest.company.areaOfficeId,
+    workspaceId: record.trainingRequest.company.organization.workspaceId,
   });
+  await assertVirtualMonitoringAssignee(record.id, actor.id, input.requesterRole, record.mode);
 
-  return getDb().trainingMonitoringRecord.update({
+  const updated = await getDb().trainingMonitoringRecord.updateMany({
     where: {
       id: record.id,
+      currentDesk: record.currentDesk,
+      status: { in: ["DRAFT", "CHANGES_REQUESTED"] },
+      ...(record.mode === "LOCAL_VIRTUAL" && input.requesterRole === "HQ_REIMBURSEMENT_OFFICER" ? {
+        workItems: { some: {
+          app: "REIMBURSEMENT", recordTier: "HOT", status: "OPEN",
+          assignedRole: "HQ_REIMBURSEMENT_OFFICER", assignedUserId: actor.id,
+        } },
+      } : {}),
     },
     data: {
       monitoringDate: input.monitoringDate,
@@ -212,15 +354,14 @@ export async function updateTrainingMonitoringRecord(
       meetingId: input.meetingId,
       passcode: input.passcode,
       virtualLink: input.virtualLink,
-      monitoringOfficerName: input.monitoringOfficerName,
-      monitoringOfficerTitle: input.monitoringOfficerTitle,
+      monitoringOfficerName: record.mode === "LOCAL_VIRTUAL" ? undefined : input.monitoringOfficerName,
+      monitoringOfficerTitle: record.mode === "LOCAL_VIRTUAL" ? undefined : input.monitoringOfficerTitle,
       headOfDivisionName: input.headOfDivisionName,
       directorName: input.directorName,
     },
-    select: {
-      id: true,
-    },
   });
+  if (updated.count !== 1) throw new Error("This monitoring assignment changed. Reload the record before editing.");
+  return { id: record.id };
 }
 
 export async function routeTrainingMonitoringRecord(
@@ -286,11 +427,16 @@ export async function routeTrainingMonitoringRecord(
     requesterRole: input.requesterRole,
     mode: record.mode,
     areaOfficeId: record.trainingRequest.company.areaOfficeId,
+    workspaceId: record.trainingRequest.company.organization.workspaceId,
   });
 
   if (!canMonitorAtDesk(input.requesterRole, record.mode, record.currentDesk) || !hasMonitoringRoutingRole(input.requesterRole, transition.allowedRoles)) {
     throw new Error(`Only ${transition.allowedRoles.join(" or ")} can perform this action.`);
   }
+
+  const hqAssignee = transition.toDesk === "HQ_REIMBURSEMENT_OFFICER"
+    ? await resolveVirtualMonitoringAssignee(record.trainingRequest.company.organization.workspaceId, input.assigneeUserId)
+    : null;
 
   return getDb().$transaction(async (tx) => {
     if (transition.requiresOutcome && !record.decisionOutcome) {
@@ -315,12 +461,29 @@ export async function routeTrainingMonitoringRecord(
         currentDesk: transition.toDesk,
         decisionOutcome,
         decisionReason: transition.outcome ? input.note : transition.clearOutcome ? null : undefined,
+        monitoringOfficerName: hqAssignee?.name,
+        monitoringOfficerTitle: hqAssignee ? "HQ Reimbursement Officer" : undefined,
         submittedAt: transition.submitted ? now : undefined,
         decidedAt: transition.outcome ? now : undefined,
         feedbackReleasedAt: transition.release ? now : undefined,
       },
     });
     if (updated.count !== 1) throw new Error("This monitoring record has already moved to another desk.");
+
+    if (transition.fromDesk === "HQ_REIMBURSEMENT_OFFICER" && input.requesterRole === "HQ_REIMBURSEMENT_OFFICER") {
+      const assigned = await tx.workItem.updateMany({
+        where: {
+          trainingMonitoringRecordId: record.id,
+          app: "REIMBURSEMENT",
+          recordTier: "HOT",
+          status: "OPEN",
+          assignedRole: "HQ_REIMBURSEMENT_OFFICER",
+          assignedUserId: actor.id,
+        },
+        data: { status: "RESOLVED", resolvedAt: now },
+      });
+      if (assigned.count !== 1) throw new Error("Only the assigned HQ Reimbursement Officer may submit this monitoring report.");
+    }
 
     await tx.workItem.updateMany({
       where: {
@@ -345,6 +508,7 @@ export async function routeTrainingMonitoringRecord(
           companyId: record.trainingRequest.companyId,
           trainingMonitoringRecordId: record.id,
           assignedRole: transition.assignedRole,
+          assignedUserId: hqAssignee?.id ?? null,
           app: "REIMBURSEMENT",
           kind: "TRAINING_MONITORING_REVIEW",
           status: "OPEN",
@@ -359,6 +523,7 @@ export async function routeTrainingMonitoringRecord(
           resolvedAt: null,
           emailNotifiedAt: null,
           assignedRole: transition.assignedRole,
+          assignedUserId: hqAssignee?.id ?? null,
           areaOfficeId: record.mode === "LOCAL_VIRTUAL" ? null : record.trainingRequest.company.areaOfficeId,
           title: transition.workItemTitle,
           summary: `${record.trainingRequest.company.legalName} ${transition.workItemSummary}`,
@@ -658,6 +823,7 @@ async function findEditableMonitoringRecord(recordId: string) {
             select: {
               organizationId: true,
               areaOfficeId: true,
+              organization: { select: { workspaceId: true } },
             },
           },
         },
@@ -700,10 +866,12 @@ async function assertTrainingMonitoringAccess(input: {
   requesterRole: Role;
   mode: TrainingMonitoringMode;
   areaOfficeId: string | null;
+  workspaceId: string;
 }) {
   const actor = await getDb().user.findUnique({
     where: {
       email: input.requesterEmail,
+      isActive: true,
     },
     select: {
       id: true,
@@ -712,6 +880,7 @@ async function assertTrainingMonitoringAccess(input: {
         select: {
           areaOfficeId: true,
           role: true,
+          workspaceId: true,
         },
       },
     },
@@ -724,7 +893,7 @@ async function assertTrainingMonitoringAccess(input: {
   const hasAreaOfficeAccess =
     input.requesterRole === "SYSTEM_ADMIN" ||
     input.requesterRole === "WORKSPACE_APP_ADMIN" ||
-    actor.memberships.some((membership) => membership.role === input.requesterRole &&
+    actor.memberships.some((membership) => membership.role === input.requesterRole && membership.workspaceId === input.workspaceId &&
       (input.mode === "LOCAL_VIRTUAL"
         ? isMonitoringHeadquartersRole(input.requesterRole) && !membership.areaOfficeId
         : membership.areaOfficeId !== null && membership.areaOfficeId === input.areaOfficeId));
@@ -734,4 +903,43 @@ async function assertTrainingMonitoringAccess(input: {
   }
 
   return actor;
+}
+
+async function assertVirtualMonitoringAssignee(recordId: string, actorId: string, role: Role, mode: TrainingMonitoringMode) {
+  if (mode !== "LOCAL_VIRTUAL" || role === "SYSTEM_ADMIN" || role === "WORKSPACE_APP_ADMIN") return;
+  const assignment = await getDb().workItem.findFirst({
+    where: {
+      trainingMonitoringRecordId: recordId,
+      app: "REIMBURSEMENT",
+      recordTier: "HOT",
+      status: "OPEN",
+      assignedRole: "HQ_REIMBURSEMENT_OFFICER",
+      assignedUserId: actorId,
+    },
+    select: { id: true },
+  });
+  if (!assignment) throw new Error("Only the assigned HQ Reimbursement Officer may edit this monitoring record.");
+}
+
+async function lockVirtualMonitoringAssignee(
+  tx: Prisma.TransactionClient,
+  recordId: string,
+  actorId: string,
+  role: Role,
+  mode: TrainingMonitoringMode,
+) {
+  if (mode !== "LOCAL_VIRTUAL" || role !== "HQ_REIMBURSEMENT_OFFICER") return;
+  const current = await tx.trainingMonitoringRecord.updateMany({
+    where: {
+      id: recordId,
+      currentDesk: "HQ_REIMBURSEMENT_OFFICER",
+      status: { in: ["DRAFT", "CHANGES_REQUESTED"] },
+      workItems: { some: {
+        app: "REIMBURSEMENT", recordTier: "HOT", status: "OPEN",
+        assignedRole: "HQ_REIMBURSEMENT_OFFICER", assignedUserId: actorId,
+      } },
+    },
+    data: { updatedAt: new Date() },
+  });
+  if (current.count !== 1) throw new Error("This monitoring assignment changed. Reload the record before saving.");
 }

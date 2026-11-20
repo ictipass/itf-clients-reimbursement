@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getTrainingMonitoringTransitions, isMonitoringTransitionForMode } from "../lib/training-monitoring";
+import { getTrainingMonitoringTransitions, isMonitoringTransitionForMode, selectVirtualMonitoringOfficer } from "../lib/training-monitoring";
 import { getTrainingRequestEvidenceKinds, getTrainingRequestTransitions } from "../lib/training-request";
 
 test("Form 4A evidence accepts a training synopsis", () => {
@@ -50,4 +50,15 @@ test("virtual monitoring only accepts the HQ route and physical monitoring only 
   assert.equal(isMonitoringTransitionForMode("am_release", "LOCAL_VIRTUAL"), false);
   assert.equal(isMonitoringTransitionForMode("ro_submit", "LOCAL_PHYSICAL"), true);
   assert.equal(isMonitoringTransitionForMode("hq_ro_submit", "LOCAL_PHYSICAL"), false);
+});
+
+test("virtual monitoring requires a named HQ RO when multiple officers are available", () => {
+  const officers = [
+    { id: "ro-1", name: "First Officer", email: "first@example.test" },
+    { id: "ro-2", name: "Second Officer", email: "second@example.test" },
+  ];
+  assert.throws(() => selectVirtualMonitoringOfficer(officers), /Select the HQ Reimbursement Officer/);
+  assert.deepEqual(selectVirtualMonitoringOfficer(officers, "ro-2"), officers[1]);
+  assert.throws(() => selectVirtualMonitoringOfficer(officers, "former-ro"), /no longer available/);
+  assert.deepEqual(selectVirtualMonitoringOfficer([officers[0]]), officers[0]);
 });

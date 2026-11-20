@@ -104,11 +104,13 @@ export default async function TrainingMonitoringPage({
           email: session.user.email,
         },
         select: {
+          id: true,
           memberships: {
             where: {
               isActive: true,
             },
             select: {
+              workspaceId: true,
               organizationId: true,
               areaOfficeId: true,
               role: true,
@@ -120,7 +122,7 @@ export default async function TrainingMonitoringPage({
   const records = await db.trainingMonitoringRecord.findMany({
     where: {
       recordTier: "HOT",
-      ...monitoringVisibilityWhere(role, requester?.memberships ?? []),
+      ...monitoringVisibilityWhere(role, requester?.memberships ?? [], requester?.id),
       ...(showOfficerCalendar ? { monitoringDate: { gte: monthStart, lt: nextMonthStart } } : {}),
     },
     select: {
@@ -152,6 +154,31 @@ export default async function TrainingMonitoringPage({
     orderBy: [{ monitoringDate: "asc" }, { updatedAt: "desc" }],
     take: showOfficerCalendar ? undefined : 200,
   });
+
+  const unassignedVirtualRecords = role === "HEAD_OF_DIVISION"
+    ? await db.trainingMonitoringRecord.findMany({
+        where: {
+          recordTier: "HOT",
+          mode: "LOCAL_VIRTUAL",
+          currentDesk: "HQ_REIMBURSEMENT_OFFICER",
+          status: { in: ["DRAFT", "CHANGES_REQUESTED"] },
+          ...monitoringVisibilityWhere(role, requester?.memberships ?? [], requester?.id),
+          workItems: { some: {
+            app: "REIMBURSEMENT",
+            recordTier: "HOT",
+            status: "OPEN",
+            assignedUserId: null,
+            assignedRole: { in: ["HEAD_OF_DIVISION", "HQ_REIMBURSEMENT_OFFICER"] },
+          } },
+        },
+        select: {
+          id: true,
+          trainingRequest: { select: { title: true, company: { select: { legalName: true } } } },
+        },
+        orderBy: { createdAt: "asc" },
+        take: 50,
+      })
+    : [];
 
   const recordsByDate = new Map<string, typeof records>();
 
@@ -267,6 +294,20 @@ export default async function TrainingMonitoringPage({
           {records.length} shown
         </span>
       </div>
+
+      {unassignedVirtualRecords.length > 0 ? (
+        <section className="mt-8 rounded-xl border border-amber-300 bg-amber-50 p-5">
+          <h2 className="text-lg font-semibold text-amber-950">Virtual monitoring awaiting HQ RO assignment</h2>
+          <p className="mt-1 text-sm text-amber-900">Assign a named officer before monitoring work can begin. This list includes records outside the displayed calendar month.</p>
+          <div className="mt-4 grid gap-2">
+            {unassignedVirtualRecords.map((record) => (
+              <Link key={record.id} href={`/training-monitoring/${record.id}`} className="rounded-md border border-amber-200 bg-white px-3 py-2 text-sm font-medium text-amber-950 hover:bg-amber-100">
+                {record.trainingRequest.company.legalName} — {record.trainingRequest.title}
+              </Link>
+            ))}
+          </div>
+        </section>
+      ) : null}
 
       {showOfficerCalendar ? (
         <>

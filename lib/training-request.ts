@@ -910,8 +910,10 @@ export async function routeTrainingRequest(input: RouteTrainingRequestInput) {
             kind: "TRAINING_MONITORING_REVIEW",
             status: "OPEN",
             priority: "NORMAL",
-            title: "Monitor approved training",
-            summary: `${request.company.legalName}'s approved training is scheduled for monitoring.`,
+            title: monitoringAssignment.mode === "LOCAL_VIRTUAL" ? "Assign virtual training monitoring" : "Monitor approved training",
+            summary: monitoringAssignment.mode === "LOCAL_VIRTUAL"
+              ? `${request.company.legalName}'s approved virtual training needs a named HQ Reimbursement Officer.`
+              : `${request.company.legalName}'s approved training is scheduled for monitoring.`,
             targetHref: `/training-monitoring/${monitoringRecord.id}`,
             sourceKey: `training-monitoring:${monitoringRecord.id}:${monitoringAssignment.sourceSuffix}`,
           },
