@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import { connection } from "next/server";
 
 import { getDb } from "@/lib/db";
 import { getAppNameForMode } from "@/lib/domain";
@@ -32,6 +33,9 @@ const statutoryWorkflows = [
 ];
 
 export default async function Home() {
+  // The operating mode is configured in the database and can change after deployment.
+  // Wait for a request instead of querying the database during the build.
+  await connection();
   const workspace = await getDb().workspace.findFirst({
     where: {
       isActive: true,
