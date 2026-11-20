@@ -1,5 +1,6 @@
 import { getDb } from "@/lib/db";
 import { isSubmittedArtifactEditable } from "@/lib/employer-correction";
+import { auditVarianceAmount, hasAuditVariance, reviewedClaimAmount } from "@/lib/claim-audit-reconciliation";
 import { buildHqComputationTableSummary, isCurrentHqComputationTable } from "@/lib/hq-computation-table";
 import { requiredVoucherSignoffForHandoff } from "@/lib/reimbursement-voucher-signoffs";
 import { isIndividuallyAssignedClaimRole, listAssignableClaimOfficers, resolveClaimOfficerAssignment } from "@/lib/claim-officer-assignment";
@@ -132,6 +133,8 @@ export type SaveHqComputationTableInput = {
   requesterRole: Role;
   rows: { lineId: string; expenditureClaimed: number; remarks: string }[];
 };
+
+export type PrepareAuditReconciliationInput = SaveHqComputationTableInput & { note: string };
 
 export type UpdateClaimContributionVerificationInput = {
   claimId: string;
@@ -611,6 +614,24 @@ export function getClaimPostIntakeTransitions() {
     },
     {
       from: "HEAD_REIMBURSEMENT_AUDIT",
+      to: "HEAD_OF_DIVISION",
+      assignedRole: "HEAD_OF_DIVISION",
+      action: "FORWARD",
+      reason: "Head Reimbursement Audit requested FSD reconciliation of a differing audit calculation.",
+      workItemTitle: "Reconcile audit and FSD reimbursement amounts",
+      workItemSummary: "has a differing audit calculation awaiting Head of Reimbursement Division reconciliation.",
+    },
+    {
+      from: "HEAD_OF_DIVISION",
+      to: "HEAD_REIMBURSEMENT_AUDIT",
+      assignedRole: "HEAD_REIMBURSEMENT_AUDIT",
+      action: "RECOMMEND",
+      reason: "Head of Reimbursement Division returned a confirmed revised computation table to Head Reimbursement Audit.",
+      workItemTitle: "Verify reconciled reimbursement claim audit",
+      workItemSummary: "has a reconciled FSD computation table awaiting Audit verification.",
+    },
+    {
+      from: "HEAD_REIMBURSEMENT_AUDIT",
       to: "DIRECTOR_AUDIT",
       assignedRole: "DIRECTOR_AUDIT",
       action: "FORWARD",
@@ -814,6 +835,7 @@ export function getLatestClaimRoutingReason(decisions: readonly { reason: string
 const claimCorrectionReturns = [
   { from: "HEAD_OF_DIVISION", to: "HQ_REIMBURSEMENT_OFFICER", arrived: "HQ RO returned reimbursement claim" },
   { from: "HEAD_REIMBURSEMENT_AUDIT", to: "REIMBURSEMENT_SCHEDULE_AUDITOR", arrived: "Reimbursement Schedule Auditor returned audit result" },
+  { from: "HEAD_REIMBURSEMENT_AUDIT", to: "HEAD_OF_DIVISION", arrived: "Head of Reimbursement Division returned a confirmed revised computation table" },
   { from: "HEAD_BUDGET", to: "BUDGET_OFFICER", arrived: "Budget Officer returned reimbursement budget clearance" },
   { from: "HEAD_PRE_AUDIT", to: "PRE_AUDIT_OFFICER", arrived: "Pre-Audit Officer returned reimbursement payment audit result" },
 ] as const satisfies readonly { from: ClaimDesk; to: ClaimDesk; arrived: string }[];
@@ -880,6 +902,14 @@ export async function returnClaimForCorrection(input: ClaimRoutingInput) {
     if (target === "REIMBURSEMENT_SCHEDULE_AUDITOR") {
       await tx.reimbursementAuditReview.updateMany({ where: { reimbursementClaimId: claim.id }, data: {
         status: "DRAFT", auditedAmount: null, varianceAmount: null, preparedById: null, preparedAt: null,
+        verifiedById: null, verifiedAt: null, reconciliationTableId: null,
+        reconciliationAuditSnapshotId: null, reconciliationNote: null, reconciledById: null, reconciledAt: null,
+      } });
+    }
+    if (target === "HEAD_OF_DIVISION") {
+      await tx.reimbursementAuditReview.updateMany({ where: { reimbursementClaimId: claim.id }, data: {
+        status: "SUBMITTED", reconciliationTableId: null, reconciliationAuditSnapshotId: null,
+        reconciliationNote: null, reconciledById: null, reconciledAt: null,
         verifiedById: null, verifiedAt: null,
       } });
     }
@@ -902,6 +932,8 @@ export async function returnClaimForCorrection(input: ClaimRoutingInput) {
 
 export function requiredAuditForClaimHandoff(from: ClaimDesk, to: ClaimDesk) {
   if (from === "REIMBURSEMENT_SCHEDULE_AUDITOR" && to === "HEAD_REIMBURSEMENT_AUDIT") return { kind: "CLAIM", status: "SUBMITTED" } as const;
+  if (from === "HEAD_REIMBURSEMENT_AUDIT" && to === "HEAD_OF_DIVISION") return { kind: "CLAIM", status: "SUBMITTED" } as const;
+  if (from === "HEAD_OF_DIVISION" && to === "HEAD_REIMBURSEMENT_AUDIT") return { kind: "CLAIM", status: "SUBMITTED" } as const;
   if (from === "HEAD_REIMBURSEMENT_AUDIT" && to === "DIRECTOR_AUDIT") return { kind: "CLAIM", status: "VERIFIED" } as const;
   if (from === "DIRECTOR_AUDIT" && to === "DIRECTOR_GENERAL") return { kind: "CLAIM", status: "CLEARED" } as const;
   if (from === "PRE_AUDIT_OFFICER" && to === "HEAD_PRE_AUDIT") return { kind: "PAYMENT_FILE", status: "SUBMITTED" } as const;
@@ -917,14 +949,25 @@ export function isClaimPostIntakeTransitionAvailable(input: {
   preAuditReturned: boolean;
   paymentReturned: boolean;
   scheduleCreated: boolean;
+  auditVariance?: boolean;
+  reconciliationPrepared?: boolean;
+  reconciliationConfirmed?: boolean;
 }) {
-  const { from, to, lastRoutingReason: reason, paymentVoucherRaised, preAuditReturned, paymentReturned, scheduleCreated } = input;
+  const { from, to, lastRoutingReason: reason, paymentVoucherRaised, preAuditReturned, paymentReturned, scheduleCreated,
+    auditVariance = false, reconciliationPrepared = false, reconciliationConfirmed = false } = input;
   const arrivedFrom = (prefix: string) => reason.startsWith(prefix);
   if (from === "HEAD_OF_TRAINING" && to === "AREA_MANAGER") return arrivedFrom("A/O Reimbursement Officer forwarded");
   if (from === "AREA_MANAGER" && to === "DIRECTOR_FSD") return arrivedFrom("HOT reviewed the Area Office");
-  if (from === "HEAD_OF_DIVISION") return to === (arrivedFrom("HQ RO returned") ? "DIRECTOR_FSD" : "HQ_REIMBURSEMENT_OFFICER");
+  if (from === "HEAD_OF_DIVISION") {
+    if (arrivedFrom("Head Reimbursement Audit requested FSD reconciliation") || arrivedFrom("Head of Reimbursement Division returned a confirmed revised computation table")) return to === "HEAD_REIMBURSEMENT_AUDIT" && reconciliationPrepared;
+    return to === (arrivedFrom("HQ RO returned") ? "DIRECTOR_FSD" : "HQ_REIMBURSEMENT_OFFICER");
+  }
   if (from === "DIRECTOR_FSD") return to === (arrivedFrom("Head Reimbursement Division forwarded verified") ? "DIRECTOR_AUDIT" : "HEAD_OF_DIVISION");
-  if (from === "HEAD_REIMBURSEMENT_AUDIT") return to === (arrivedFrom("Reimbursement Schedule Auditor returned") ? "DIRECTOR_AUDIT" : "REIMBURSEMENT_SCHEDULE_AUDITOR");
+  if (from === "HEAD_REIMBURSEMENT_AUDIT") {
+    if (arrivedFrom("Reimbursement Schedule Auditor returned")) return to === (auditVariance ? "HEAD_OF_DIVISION" : "DIRECTOR_AUDIT");
+    if (arrivedFrom("Head of Reimbursement Division returned a confirmed revised")) return to === "DIRECTOR_AUDIT" && reconciliationConfirmed;
+    return to === "REIMBURSEMENT_SCHEDULE_AUDITOR";
+  }
   if (from === "DIRECTOR_AUDIT") {
     if (arrivedFrom("Head Budget forwarded budget-cleared")) return to === "HEAD_PRE_AUDIT";
     return to === (arrivedFrom("Head Reimbursement Audit forwarded verified") ? "DIRECTOR_GENERAL" : "HEAD_REIMBURSEMENT_AUDIT");
@@ -1037,6 +1080,7 @@ async function moveClaimThroughIntake(
       voucherSignoffRequired: true,
       computationRequired: true,
       claimRecommendedAmount: true,
+      auditReview: { select: { status: true, varianceAmount: true, reconciliationTableId: true, reconciliationAuditSnapshotId: true } },
       voucherSignoffs: { select: { kind: true } },
       paymentScheduleExportedAt: true,
       decisions: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 60, select: { reason: true, createdAt: true } },
@@ -1066,6 +1110,18 @@ async function moveClaimThroughIntake(
   }
 
   const lastRoutingReason = getLatestClaimRoutingReason(claim.decisions);
+  const auditVariance = hasAuditVariance(claim.auditReview?.varianceAmount);
+  const reconciliationTable = claim.auditReview?.reconciliationTableId ? await db.reimbursementComputationTable.findFirst({
+    where: { id: claim.auditReview.reconciliationTableId, reimbursementClaimId: claim.id, source: "AUDIT_RECONCILIATION", recordTier: "HOT" },
+    select: { id: true, status: true },
+  }) : null;
+  const latestAuditSnapshot = auditVariance ? await db.reimbursementCalculationSnapshot.findFirst({
+    where: { reimbursementClaimId: claim.id, stage: "AUDIT", recordTier: "HOT" },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { id: true },
+  }) : null;
+  const reconciliationCurrent = Boolean(reconciliationTable && latestAuditSnapshot?.id === claim.auditReview?.reconciliationAuditSnapshotId);
+  const reconciliationPrepared = reconciliationCurrent && reconciliationTable?.status === "PREPARED";
+  const reconciliationConfirmed = reconciliationCurrent && reconciliationTable?.status === "CONFIRMED";
   const preAuditReturned = claim.decisions.some((decision) => decision.reason?.startsWith("Pre-Audit Officer returned reimbursement payment audit result"));
   const paymentReturned = claim.decisions.some((decision) => decision.reason?.startsWith("Initiator returned payment packet"));
   const paymentVoucherRaised = claim.paymentHandoffStatus === "PV_RAISED" ||
@@ -1078,6 +1134,9 @@ async function moveClaimThroughIntake(
       preAuditReturned,
       paymentReturned,
       scheduleCreated: Boolean(claim.paymentScheduleExportedAt),
+      auditVariance,
+      reconciliationPrepared,
+      reconciliationConfirmed,
     })) {
     throw new Error("This claim routing step is not available at the current review stage.");
   }
@@ -1189,6 +1248,13 @@ async function moveClaimThroughIntake(
     });
     if (review?.status !== requiredAudit.status) throw new Error(`Claim audit must be ${requiredAudit.status.toLowerCase()} before this handoff.`);
   }
+  if ((transition.from === "HEAD_REIMBURSEMENT_AUDIT" && transition.to === "HEAD_OF_DIVISION") ||
+    (transition.from === "HEAD_OF_DIVISION" && transition.to === "HEAD_REIMBURSEMENT_AUDIT")) {
+    if (!input.note?.trim()) throw new Error("Record the audit/FSD reconciliation reason or review note before routing this claim.");
+  }
+  if (transition.from === "HEAD_REIMBURSEMENT_AUDIT" && transition.to === "DIRECTOR_AUDIT" && auditVariance && !reconciliationConfirmed) {
+    throw new Error("A differing audit calculation cannot reach Director Audit before FSD reconciliation is confirmed.");
+  }
 
   if (requiredAudit?.kind === "PAYMENT_FILE") {
     const review = await db.reimbursementPaymentFileAudit.findUnique({
@@ -1259,6 +1325,18 @@ async function moveClaimThroughIntake(
         where: { id: computationToConfirmId, status: "PREPARED" },
         data: { status: "CONFIRMED", confirmedById: actor.id, confirmedByName: actor.name, confirmedAt: now },
         select: { id: true },
+      });
+    }
+    if (transition.from === "HEAD_OF_DIVISION" && transition.to === "HEAD_REIMBURSEMENT_AUDIT") {
+      if (!reconciliationPrepared || !reconciliationTable) throw new Error("Prepare the revised computation table before returning the claim to Audit.");
+      await tx.reimbursementComputationTable.update({
+        where: { id: reconciliationTable.id, status: "PREPARED", source: "AUDIT_RECONCILIATION" },
+        data: { status: "CONFIRMED", confirmedById: actor.id, confirmedByName: actor.name, confirmedAt: now },
+        select: { id: true },
+      });
+      await tx.reimbursementAuditReview.update({
+        where: { reimbursementClaimId: claim.id, status: "SUBMITTED", reconciliationTableId: reconciliationTable.id },
+        data: { reconciledById: actor.id, reconciledAt: now }, select: { id: true },
       });
     }
 
@@ -1994,13 +2072,13 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
       companyId: true,
       currentDesk: true,
       computationRequired: true,
-      computationTables: { where: { recordTier: "HOT" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { amountRecommended: true, status: true } },
+      computationTables: { where: { recordTier: "HOT", source: "HQ_REVIEW" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { amountRecommended: true, status: true } },
       decisions: { where: { reason: { startsWith: "Head Reimbursement Audit returned the claim to" } }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { createdAt: true } },
-      auditReview: { select: { status: true } },
+      auditReview: { select: { status: true, varianceAmount: true, reconciliationTableId: true, reconciliationAuditSnapshotId: true } },
       calculationSnapshots: {
         where: { stage: { in: ["AUDIT", "HEADQUARTERS"] }, recordTier: "HOT" },
         orderBy: [{ createdAt: "desc" }, { id: "desc" }],
-        select: { stage: true, totalAmountAwarded: true, createdAt: true },
+        select: { id: true, stage: true, totalAmountAwarded: true, createdAt: true },
       },
       company: { select: { organization: { select: { workspaceId: true } } } },
     },
@@ -2018,9 +2096,22 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
     : claim.calculationSnapshots.find((snapshot) => snapshot.stage === "HEADQUARTERS")?.totalAmountAwarded;
   if (!headquartersAmount) throw new Error("The HQ reviewed calculation is required before claim audit.");
   const lastAuditReturnAt = claim.decisions[0]?.createdAt;
-  const auditAmount = claim.calculationSnapshots.find((snapshot) => snapshot.stage === "AUDIT" && (!lastAuditReturnAt || snapshot.createdAt > lastAuditReturnAt))?.totalAmountAwarded;
-  const determinedAmount = auditAmount ?? headquartersAmount;
-  const varianceAmount = Math.round((Number(determinedAmount.toString()) - Number(headquartersAmount.toString())) * 100) / 100;
+  const auditSnapshot = claim.calculationSnapshots.find((snapshot) => snapshot.stage === "AUDIT" && (!lastAuditReturnAt || snapshot.createdAt > lastAuditReturnAt));
+  const auditAmount = auditSnapshot?.totalAmountAwarded;
+  const submittedAuditAmount = Number((auditAmount ?? headquartersAmount).toString());
+  const varianceAmount = auditVarianceAmount(Number(headquartersAmount.toString()), submittedAuditAmount);
+  const reconciliationTable = claim.auditReview?.reconciliationTableId ? await db.reimbursementComputationTable.findFirst({
+    where: { id: claim.auditReview.reconciliationTableId, reimbursementClaimId: claim.id, source: "AUDIT_RECONCILIATION", recordTier: "HOT" },
+    select: { amountRecommended: true, status: true },
+  }) : null;
+  const reconciliationConfirmed = reconciliationTable?.status === "CONFIRMED" &&
+    auditSnapshot?.id === claim.auditReview?.reconciliationAuditSnapshotId;
+  const determinedAmount = input.status === "SUBMITTED" || input.status === "DRAFT" ? submittedAuditAmount : reviewedClaimAmount({
+    hqRecommendation: Number(headquartersAmount.toString()),
+    auditVariance: Number(claim.auditReview?.varianceAmount?.toString() ?? varianceAmount),
+    reconciledRecommendation: reconciliationTable ? Number(reconciliationTable.amountRecommended.toString()) : null,
+    reconciliationConfirmed,
+  });
   if (input.status === "SUBMITTED" && !input.observations?.trim()) throw new Error("The Schedule Auditor must record audit observations.");
   if ((input.status === "VERIFIED" || input.status === "CLEARED") && !input.note?.trim()) throw new Error("Record a review decision note.");
 
@@ -2036,8 +2127,13 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
         status: input.status,
         observations: input.observations,
         recommendation: input.recommendation,
-        auditedAmount: input.status === "SUBMITTED" ? determinedAmount : undefined,
+        auditedAmount: input.status === "SUBMITTED" ? submittedAuditAmount : undefined,
         varianceAmount: input.status === "SUBMITTED" ? varianceAmount : undefined,
+        reconciliationTableId: input.status === "SUBMITTED" ? null : undefined,
+        reconciliationAuditSnapshotId: input.status === "SUBMITTED" ? null : undefined,
+        reconciliationNote: input.status === "SUBMITTED" ? null : undefined,
+        reconciledById: input.status === "SUBMITTED" ? null : undefined,
+        reconciledAt: input.status === "SUBMITTED" ? null : undefined,
         preparedById: input.status === "SUBMITTED" ? actor.id : undefined,
         preparedAt: input.status === "SUBMITTED" ? now : undefined,
         verifiedById: input.status === "VERIFIED" ? actor.id : undefined,
@@ -2047,8 +2143,13 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
         status: input.status,
         observations: input.status === "DRAFT" || input.status === "SUBMITTED" ? input.observations : undefined,
         recommendation: input.status === "DRAFT" || input.status === "SUBMITTED" ? input.recommendation : undefined,
-        auditedAmount: input.status === "SUBMITTED" ? determinedAmount : undefined,
+        auditedAmount: input.status === "SUBMITTED" ? submittedAuditAmount : undefined,
         varianceAmount: input.status === "SUBMITTED" ? varianceAmount : undefined,
+        reconciliationTableId: input.status === "SUBMITTED" ? null : undefined,
+        reconciliationAuditSnapshotId: input.status === "SUBMITTED" ? null : undefined,
+        reconciliationNote: input.status === "SUBMITTED" ? null : undefined,
+        reconciledById: input.status === "SUBMITTED" ? null : undefined,
+        reconciledAt: input.status === "SUBMITTED" ? null : undefined,
         preparedById: input.status === "SUBMITTED" ? actor.id : undefined,
         preparedAt: input.status === "SUBMITTED" ? now : undefined,
         verifiedById: input.status === "VERIFIED" ? actor.id : undefined,
@@ -2075,8 +2176,8 @@ export async function updateClaimAuditReview(input: UpdateClaimAuditReviewInput)
         action: getAuditReviewDecisionAction(input.status),
         reason: [
           `Claim audit ${input.status.toLowerCase()}.`,
-          input.status === "SUBMITTED" ? `Audited amount: NGN ${Number(determinedAmount.toString()).toFixed(2)}.` : undefined,
-          input.status === "SUBMITTED" && auditAmount ? "Independent Schedule Auditor recalculation used." : undefined,
+          input.status === "SUBMITTED" ? `Audited calculation: NGN ${submittedAuditAmount.toFixed(2)}. FSD variance: NGN ${varianceAmount.toFixed(2)}.` : undefined,
+          input.status === "SUBMITTED" && auditAmount && varianceAmount !== 0 ? "FSD reconciliation required before Director Audit clearance." : undefined,
           input.status === "SUBMITTED" ? input.observations : input.note,
         ]
           .filter(Boolean)
@@ -2844,6 +2945,7 @@ export async function saveHqComputationTable(input: SaveHqComputationTableInput)
     await tx.reimbursementComputationTable.create({
       data: {
         reimbursementClaimId: claim.id, companyName: claim.company.legalName,
+        source: "HQ_REVIEW",
         itfEmployerNumber: claim.company.itfEmployerNumber, claimYear: claim.claimYear,
         contributionPaid, receiptNumber: claim.itfReceiptNumber,
         fiftyPercentOfContribution: summary.fiftyPercentOfContribution,
@@ -2867,6 +2969,105 @@ export async function saveHqComputationTable(input: SaveHqComputationTableInput)
     await tx.decision.create({ data: {
       actorId: actor.id, companyId: claim.companyId, reimbursementClaimId: claim.id,
       action: "RECOMMEND", reason: `HQ RO prepared the computation table with verified expenditure. Recommended NGN ${summary.amountRecommended.toFixed(2)}.`,
+    } });
+  });
+  return summary;
+}
+
+export async function prepareAuditReconciliationTable(input: PrepareAuditReconciliationInput) {
+  if (input.requesterRole !== "HEAD_OF_DIVISION" && !isAdminRole(input.requesterRole)) {
+    throw new Error("Only the Head of Reimbursement Division may prepare an audit-reconciled computation table.");
+  }
+  const note = input.note.trim();
+  if (note.length < 10 || note.length > 2000) throw new Error("Record a reconciliation review note of 10 to 2,000 characters.");
+  const db = getDb();
+  const claim = await db.reimbursementClaim.findFirst({
+    where: { id: input.claimId, recordTier: "HOT", status: "SUBMITTED", currentDesk: "HEAD_OF_DIVISION",
+      company: { isActive: true, recordTier: "HOT" } },
+    select: {
+      id: true, companyId: true, claimYear: true, trainingContributionPaid: true, itfReceiptNumber: true,
+      auditReview: { select: { status: true, varianceAmount: true } },
+      decisions: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 20, select: { reason: true } },
+      calculationSnapshots: { where: { stage: "AUDIT", recordTier: "HOT" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: { id: true, totalAmountAwarded: true } },
+      lines: { where: { stage: "AUDIT" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: {
+        id: true, awardArea: true, trainingArea: true, emphasisNumber: true, totalWorkforce: true,
+        totalTrained: true, percentTrained: true, percentAwarded: true,
+      } },
+      company: { select: { legalName: true, itfEmployerNumber: true,
+        areaOffice: { select: { name: true } }, organization: { select: { workspaceId: true } } } },
+    },
+  });
+  if (!claim || claim.auditReview?.status !== "SUBMITTED" || !hasAuditVariance(claim.auditReview.varianceAmount) ||
+    !["Head Reimbursement Audit requested FSD reconciliation", "Head of Reimbursement Division returned a confirmed revised computation table"].some((reason) => getLatestClaimRoutingReason(claim.decisions).startsWith(reason))) {
+    throw new Error("A differing submitted audit calculation must be routed to the Head of Reimbursement Division first.");
+  }
+  const auditSnapshot = claim.calculationSnapshots[0];
+  if (!auditSnapshot || !claim.trainingContributionPaid || !claim.lines.length) {
+    throw new Error("An independent Schedule Auditor calculation and verified contribution are required.");
+  }
+  const actor = await db.user.findFirst({
+    where: { email: input.requesterEmail, isActive: true,
+      memberships: { some: { isActive: true, role: input.requesterRole, workspaceId: claim.company.organization.workspaceId } } },
+    select: { id: true, name: true },
+  });
+  if (!actor) throw new Error("You do not have access to reconcile this claim.");
+  if (input.rows.length !== claim.lines.length || new Set(input.rows.map((row) => row.lineId)).size !== claim.lines.length) {
+    throw new Error("Verify expenditure for every current audit calculation row.");
+  }
+  const supplied = new Map(input.rows.map((row) => [row.lineId, row]));
+  const summary = buildHqComputationTableSummary({
+    contributionPaid: Number(claim.trainingContributionPaid.toString()),
+    rows: claim.lines.map((line) => {
+      const row = supplied.get(line.id);
+      if (!row) throw new Error("The audit calculation changed. Reload the claim before reconciling it.");
+      return {
+        emphasis: line.emphasisNumber ?? undefined, areaOfTraining: line.trainingArea,
+        totalEmployees: line.totalWorkforce ?? undefined, numberTrained: line.totalTrained ?? undefined,
+        percentTrained: line.percentTrained ? Number(line.percentTrained.toString()) : undefined,
+        maxPercentClaimable: getClaimMaxPercentClaimable(line.awardArea, line.emphasisNumber),
+        percentTrainingContributionAwarded: line.percentAwarded ? Number(line.percentAwarded.toString()) : 0,
+        expenditureClaimed: row.expenditureClaimed, remarks: row.remarks.trim() || undefined,
+      };
+    }),
+  });
+  await db.$transaction(async (tx) => {
+    await tx.reimbursementClaim.update({ where: { id: claim.id, currentDesk: "HEAD_OF_DIVISION", status: "SUBMITTED" },
+      data: { updatedAt: new Date() }, select: { id: true } });
+    const latest = await tx.reimbursementCalculationSnapshot.findFirst({
+      where: { reimbursementClaimId: claim.id, stage: "AUDIT", recordTier: "HOT" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { id: true },
+    });
+    if (latest?.id !== auditSnapshot.id) throw new Error("The audit calculation changed. Reload before preparing a revised table.");
+    const table = await tx.reimbursementComputationTable.create({ data: {
+      reimbursementClaimId: claim.id, source: "AUDIT_RECONCILIATION",
+      companyName: claim.company.legalName, itfEmployerNumber: claim.company.itfEmployerNumber,
+      claimYear: claim.claimYear, contributionPaid: claim.trainingContributionPaid!,
+      receiptNumber: claim.itfReceiptNumber, fiftyPercentOfContribution: summary.fiftyPercentOfContribution,
+      areaOfficeName: claim.company.areaOffice?.name ?? null,
+      amountRecommended: summary.amountRecommended,
+      amountRecommendedInWords: nairaInWords(summary.amountRecommended),
+      recommendedContributionPercent: summary.recommendedContributionPercent,
+      preparedById: actor.id, preparedByName: actor.name, preparedAt: new Date(), status: "PREPARED",
+      rows: { create: summary.rows.map((row) => ({
+        sortOrder: row.sortOrder, emphasis: row.emphasis, areaOfTraining: row.areaOfTraining,
+        totalEmployees: row.totalEmployees, numberTrained: row.numberTrained,
+        percentTrained: row.percentTrained, maxPercentClaimable: row.maxPercentClaimable,
+        percentTrainingContributionAwarded: row.percentTrainingContributionAwarded,
+        equivalentAmountOfContribution: row.equivalentAmountOfContribution,
+        expenditureClaimed: row.expenditureClaimed,
+        amountAwardedLowerOfContributionOrClaim: row.amountAwardedLowerOfContributionOrClaim,
+        remarks: row.remarks,
+      })) },
+    }, select: { id: true } });
+    await tx.reimbursementAuditReview.update({
+      where: { reimbursementClaimId: claim.id, status: "SUBMITTED" },
+      data: { reconciliationTableId: table.id, reconciliationAuditSnapshotId: auditSnapshot.id,
+        reconciliationNote: note, reconciledById: null, reconciledAt: null }, select: { id: true },
+    });
+    await tx.decision.create({ data: { actorId: actor.id, companyId: claim.companyId,
+      reimbursementClaimId: claim.id, action: "RECOMMEND",
+      reason: `Head of Reimbursement Division prepared revised audit/FSD computation table at NGN ${summary.amountRecommended.toFixed(2)} against audit calculation NGN ${Number(auditSnapshot.totalAmountAwarded).toFixed(2)}. ${note}`,
     } });
   });
   return summary;

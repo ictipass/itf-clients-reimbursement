@@ -27,6 +27,7 @@ import {
   forwardClaimToHeadOfTraining,
   getClaimEvidenceKinds,
   markClaimKiv,
+  prepareAuditReconciliationTable,
   recheckClaimAnnualPayment,
   saveHqComputationTable,
   returnClaimForCorrection,
@@ -326,6 +327,29 @@ export async function saveHqComputationTableAction(claimId: string, formData: Fo
   }
   revalidatePath(`/claims/${claimId}`);
   redirect(`/claims/${claimId}?computationSaved=1#computation-table`);
+}
+
+export async function prepareAuditReconciliationAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email) throw new Error("Authentication is required.");
+  await requireAssignedClaimOfficer(claimId, session.user.id);
+  try {
+    const lineIds = formData.getAll("auditLineId").map(String);
+    await prepareAuditReconciliationTable({
+      claimId, requesterEmail: session.user.email, requesterRole: session.user.role,
+      note: readRequiredString(formData, "reconciliationNote"),
+      rows: lineIds.map((lineId) => ({
+        lineId,
+        expenditureClaimed: readRequiredNumber(formData, `expenditure_${lineId}`),
+        remarks: readOptionalString(formData, `remarks_${lineId}`) ?? "",
+      })),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The audit/FSD computation table could not be prepared.";
+    redirect(`/claims/${claimId}?reconciliationError=${encodeURIComponent(message.slice(0, 280))}#computation-table`);
+  }
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?reconciliationSaved=1#computation-table`);
 }
 
 export async function reassignClaimOfficerAction(claimId: string, formData: FormData) {

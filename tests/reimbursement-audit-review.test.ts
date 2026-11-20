@@ -31,6 +31,8 @@ test("payment-file pre-audit is a separate two-desk review", () => {
 
 test("routing gates use the correct review and decision stage", () => {
   assert.deepEqual(requiredAuditForClaimHandoff("REIMBURSEMENT_SCHEDULE_AUDITOR", "HEAD_REIMBURSEMENT_AUDIT"), { kind: "CLAIM", status: "SUBMITTED" });
+  assert.deepEqual(requiredAuditForClaimHandoff("HEAD_REIMBURSEMENT_AUDIT", "HEAD_OF_DIVISION"), { kind: "CLAIM", status: "SUBMITTED" });
+  assert.deepEqual(requiredAuditForClaimHandoff("HEAD_OF_DIVISION", "HEAD_REIMBURSEMENT_AUDIT"), { kind: "CLAIM", status: "SUBMITTED" });
   assert.deepEqual(requiredAuditForClaimHandoff("HEAD_REIMBURSEMENT_AUDIT", "DIRECTOR_AUDIT"), { kind: "CLAIM", status: "VERIFIED" });
   assert.deepEqual(requiredAuditForClaimHandoff("DIRECTOR_AUDIT", "DIRECTOR_GENERAL"), { kind: "CLAIM", status: "CLEARED" });
   assert.deepEqual(requiredAuditForClaimHandoff("PRE_AUDIT_OFFICER", "HEAD_PRE_AUDIT"), { kind: "PAYMENT_FILE", status: "SUBMITTED" });

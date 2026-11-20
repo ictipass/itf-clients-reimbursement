@@ -103,6 +103,8 @@ test("routes processed reimbursement claims through HQ, audit, and finance desks
         "HEAD_REIMBURSEMENT_AUDIT",
         "HEAD_REIMBURSEMENT_AUDIT",
       ],
+      ["HEAD_REIMBURSEMENT_AUDIT", "HEAD_OF_DIVISION", "HEAD_OF_DIVISION"],
+      ["HEAD_OF_DIVISION", "HEAD_REIMBURSEMENT_AUDIT", "HEAD_REIMBURSEMENT_AUDIT"],
       ["HEAD_REIMBURSEMENT_AUDIT", "DIRECTOR_AUDIT", "DIRECTOR_AUDIT"],
       ["DIRECTOR_AUDIT", "DIRECTOR_GENERAL", "DIRECTOR_GENERAL"],
       ["DIRECTOR_GENERAL", "DIRECTOR_FINANCE", "DIRECTOR_FINANCE"],
@@ -146,6 +148,22 @@ test("repeated finance desks expose only the next valid handoff", () => {
   assert.equal(getLatestClaimRoutingReason([{ reason: "Updated reimbursement payment handoff status to PV RAISED." }, { reason: "Head of Accounts forwarded claim to Head of Reimbursement Account." }]), "Head of Accounts forwarded claim to Head of Reimbursement Account.");
 });
 
+test("a differing Audit calculation must be reconciled by FSD before Director Audit", () => {
+  const available = (from: Parameters<typeof isClaimPostIntakeTransitionAvailable>[0]["from"], to: Parameters<typeof isClaimPostIntakeTransitionAvailable>[0]["to"], reason: string, options: Partial<Parameters<typeof isClaimPostIntakeTransitionAvailable>[0]> = {}) =>
+    isClaimPostIntakeTransitionAvailable({ from, to, lastRoutingReason: reason, paymentVoucherRaised: false, preAuditReturned: false, paymentReturned: false, scheduleCreated: false, ...options });
+  const auditorReturn = "Reimbursement Schedule Auditor returned audit result to Head Reimbursement Audit.";
+  const reconciliationRequest = "Head Reimbursement Audit requested FSD reconciliation of a differing audit calculation.";
+  const reconciliationReturn = "Head of Reimbursement Division returned a confirmed revised computation table to Head Reimbursement Audit.";
+  assert.equal(available("HEAD_REIMBURSEMENT_AUDIT", "DIRECTOR_AUDIT", auditorReturn, { auditVariance: true }), false);
+  assert.equal(available("HEAD_REIMBURSEMENT_AUDIT", "HEAD_OF_DIVISION", auditorReturn, { auditVariance: true }), true);
+  assert.equal(available("HEAD_REIMBURSEMENT_AUDIT", "DIRECTOR_AUDIT", auditorReturn), true);
+  assert.equal(available("HEAD_OF_DIVISION", "HEAD_REIMBURSEMENT_AUDIT", reconciliationRequest), false);
+  assert.equal(available("HEAD_OF_DIVISION", "HEAD_REIMBURSEMENT_AUDIT", reconciliationRequest, { reconciliationPrepared: true }), true);
+  assert.equal(available("HEAD_OF_DIVISION", "HEAD_REIMBURSEMENT_AUDIT", reconciliationReturn, { reconciliationPrepared: true }), true);
+  assert.equal(available("HEAD_REIMBURSEMENT_AUDIT", "DIRECTOR_AUDIT", reconciliationReturn, { auditVariance: true }), false);
+  assert.equal(available("HEAD_REIMBURSEMENT_AUDIT", "DIRECTOR_AUDIT", reconciliationReturn, { auditVariance: true, reconciliationConfirmed: true }), true);
+});
+
 test("only the current desk role can route a reimbursement claim", () => {
   assert.equal(canRouteClaimFromDesk("DIRECTOR_AUDIT", "DIRECTOR_AUDIT"), true);
   assert.equal(canRouteClaimFromDesk("DIRECTOR_FINANCE", "DIRECTOR_AUDIT"), false);
@@ -160,6 +178,7 @@ test("HQ correction returns are available only after the subordinate sent the pa
   assert.equal(getClaimCorrectionReturnTarget("HEAD_OF_DIVISION", "HQ RO returned reimbursement claim to Head Reimbursement Division."), "HQ_REIMBURSEMENT_OFFICER");
   assert.equal(getClaimCorrectionReturnTarget("HEAD_OF_DIVISION", "Director FSD forwarded reimbursement claim to Head Reimbursement Division."), null);
   assert.equal(getClaimCorrectionReturnTarget("HEAD_REIMBURSEMENT_AUDIT", "Reimbursement Schedule Auditor returned audit result to Head Reimbursement Audit."), "REIMBURSEMENT_SCHEDULE_AUDITOR");
+  assert.equal(getClaimCorrectionReturnTarget("HEAD_REIMBURSEMENT_AUDIT", "Head of Reimbursement Division returned a confirmed revised computation table to Head Reimbursement Audit."), "HEAD_OF_DIVISION");
   assert.equal(getClaimCorrectionReturnTarget("HEAD_BUDGET", "Budget Officer returned reimbursement budget clearance to Head Budget."), "BUDGET_OFFICER");
   assert.equal(getClaimCorrectionReturnTarget("HEAD_PRE_AUDIT", "Pre-Audit Officer returned reimbursement payment audit result to Head Pre-Audit."), "PRE_AUDIT_OFFICER");
 });

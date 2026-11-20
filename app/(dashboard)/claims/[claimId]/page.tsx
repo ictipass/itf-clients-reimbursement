@@ -26,6 +26,7 @@ import {
   reassignClaimOfficerAction,
   recheckClaimAnnualPaymentAction,
   saveHqComputationTableAction,
+  prepareAuditReconciliationAction,
   returnClaimForCorrectionAction,
   recordVoucherSignoffAction,
   resumeClaimFromKivAction,
@@ -43,6 +44,7 @@ import {
 } from "@/app/(dashboard)/claims/[claimId]/actions";
 import { authOptions } from "@/lib/auth";
 import { getAreaOfficeCalculationBaseline } from "@/lib/area-office-claim-calculation";
+import { hasAuditVariance } from "@/lib/claim-audit-reconciliation";
 import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
 import { getClaimAssignmentSenderId, isClaimAssignedToAnotherOfficer, isIndividuallyAssignedClaimRole, listAssignableClaimOfficers } from "@/lib/claim-officer-assignment";
 import { nairaInWords } from "@/lib/naira-in-words";
@@ -158,7 +160,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; assignmentError?: string; reassigned?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; calculationError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; computationError?: string; computationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string; signoffError?: string; staffImportError?: string; staffImported?: string }>;
+  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; assignmentError?: string; reassigned?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; calculationError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; computationError?: string; computationSaved?: string; reconciliationError?: string; reconciliationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string; signoffError?: string; staffImportError?: string; staffImported?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -234,6 +236,10 @@ export default async function ClaimDetailPage({
           recommendation: true,
           auditedAmount: true,
           varianceAmount: true,
+          reconciliationTableId: true,
+          reconciliationAuditSnapshotId: true,
+          reconciliationNote: true,
+          reconciledAt: true,
           preparedAt: true,
           verifiedAt: true,
           preparedBy: {
@@ -320,8 +326,8 @@ export default async function ClaimDetailPage({
           totalAmountAwarded: true,
         },
       },
-      computationTables: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: {
-        id: true, status: true, createdAt: true, amountRecommended: true, amountRecommendedInWords: true,
+      computationTables: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: {
+        id: true, source: true, status: true, createdAt: true, amountRecommended: true, amountRecommendedInWords: true,
         recommendedContributionPercent: true, preparedByName: true, preparedAt: true, confirmedByName: true, confirmedAt: true,
         rows: { orderBy: { sortOrder: "asc" }, select: {
           id: true, sortOrder: true, emphasis: true, areaOfTraining: true, totalEmployees: true, numberTrained: true,
@@ -449,14 +455,22 @@ export default async function ClaimDetailPage({
   const latestAreaCalculation = areaCalculations[0];
   const latestHeadquartersCalculation = headquartersCalculations[0];
   const latestAuditCalculation = auditCalculations[0];
-  const latestComputationTable = claim.computationTables[0];
+  const latestHqComputationTable = claim.computationTables.find((table) => table.source === "HQ_REVIEW");
+  const latestReconciliationTable = claim.computationTables.find((table) => table.source === "AUDIT_RECONCILIATION");
   const lastHqCorrectionAt = claim.decisions.find((decision) => decision.reason?.startsWith("Head of Reimbursement Division returned the claim to"))?.createdAt;
-  const currentComputationTable = latestComputationTable && isCurrentHqComputationTable({
-    tableCreatedAt: latestComputationTable.createdAt,
+  const currentHqComputationTable = latestHqComputationTable && isCurrentHqComputationTable({
+    tableCreatedAt: latestHqComputationTable.createdAt,
     calculationCreatedAt: latestHeadquartersCalculation?.createdAt ?? null,
     lastCorrectionAt: lastHqCorrectionAt,
   })
-    ? latestComputationTable : null;
+    ? latestHqComputationTable : null;
+  const auditVariance = hasAuditVariance(claim.auditReview?.varianceAmount);
+  const currentReconciliationTable = latestReconciliationTable?.id === claim.auditReview?.reconciliationTableId &&
+    latestAuditCalculation?.id === claim.auditReview?.reconciliationAuditSnapshotId
+    ? latestReconciliationTable : null;
+  const reconciliationPrepared = currentReconciliationTable?.status === "PREPARED";
+  const reconciliationConfirmed = currentReconciliationTable?.status === "CONFIRMED";
+  const currentComputationTable = currentReconciliationTable ?? currentHqComputationTable;
   const computationCapAdjustment = currentComputationTable
     ? Math.round((Number(currentComputationTable.amountRecommended.toString()) - currentComputationTable.rows.reduce((total, row) => total + Number(row.amountAwardedLowerOfContributionOrClaim?.toString() ?? 0), 0)) * 100) / 100
     : 0;
@@ -507,7 +521,8 @@ export default async function ClaimDetailPage({
     activeRole === "WORKSPACE_APP_ADMIN") &&
     (activeRole === claim.currentDesk || activeRole === "SYSTEM_ADMIN" || activeRole === "WORKSPACE_APP_ADMIN");
   const availableAuditStatuses = (["DRAFT", "SUBMITTED", "VERIFIED", "CLEARED"] as const).filter((nextStatus) =>
-    canSetClaimAuditStatus({ role: activeRole, desk: claim.currentDesk, currentStatus: claim.auditReview?.status, nextStatus }));
+    canSetClaimAuditStatus({ role: activeRole, desk: claim.currentDesk, currentStatus: claim.auditReview?.status, nextStatus }) &&
+    (!auditVariance || nextStatus === "DRAFT" || nextStatus === "SUBMITTED" || reconciliationConfirmed));
   const canUpdateAuditReview = claim.status === "SUBMITTED" && availableAuditStatuses.length > 0;
   const canViewAuditReview = isItfRole(activeRole) && (canUpdateAuditReview || Boolean(claim.auditReview));
   const availablePreAuditStatuses = (["DRAFT", "SUBMITTED", "VERIFIED"] as const).filter((nextStatus) =>
@@ -530,6 +545,9 @@ export default async function ClaimDetailPage({
     if (claim.computationRequired && transition.from === "HQ_REIMBURSEMENT_OFFICER" && transition.to === "HEAD_OF_DIVISION" && currentComputationTable?.status !== "PREPARED") return false;
     if (claim.computationRequired && transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD" && currentComputationTable?.status !== "PREPARED") return false;
     if (claim.computationRequired && transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT" && currentComputationTable?.status !== "CONFIRMED") return false;
+    if (transition.from === "HEAD_REIMBURSEMENT_AUDIT" && transition.to === "DIRECTOR_AUDIT" && claim.auditReview?.status !== "VERIFIED") return false;
+    if (transition.from === "DIRECTOR_AUDIT" && transition.to === "DIRECTOR_GENERAL" && claim.auditReview?.status !== "CLEARED") return false;
+    if (transition.from === "HEAD_REIMBURSEMENT_AUDIT" && transition.to === "HEAD_OF_DIVISION" && claim.auditReview?.status !== "SUBMITTED") return false;
 
     return isClaimPostIntakeTransitionAvailable({
       from: transition.from,
@@ -539,6 +557,9 @@ export default async function ClaimDetailPage({
       preAuditReturned,
       paymentReturned,
       scheduleCreated: Boolean(claim.paymentScheduleExportedAt),
+      auditVariance,
+      reconciliationPrepared,
+      reconciliationConfirmed,
     });
   });
   const currentWorkItem = claim.workItems.find((item) => item.status === "OPEN" && item.assignedRole === claim.currentDesk);
@@ -831,12 +852,12 @@ export default async function ClaimDetailPage({
               {isIndividuallyAssignedClaimRole(transition.to) ? <label className="grid gap-1 text-sm font-medium md:col-span-2">Assign {formatClaimDesk(transition.to)}<select name="assigneeUserId" required defaultValue={assignmentOptions.get(transition.to)?.length === 1 ? assignmentOptions.get(transition.to)?.[0].id : ""} className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"><option value="" disabled>Select officer</option>{(assignmentOptions.get(transition.to) ?? []).map((officer) => <option key={officer.id} value={officer.id}>{officer.name} ({officer.email})</option>)}</select>{!assignmentOptions.get(transition.to)?.length ? <span className="text-red-800">No active officer is configured for this role.</span> : null}</label> : null}
               <input
                 name="note"
-                required={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") || (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT")}
-                placeholder={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") || (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT") ? "Required review / approval note" : `Optional ${formatClaimDesk(transition.from)} note`}
+                required={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") || (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT") || (transition.from === "HEAD_REIMBURSEMENT_AUDIT" && transition.to === "HEAD_OF_DIVISION") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "HEAD_REIMBURSEMENT_AUDIT")}
+                placeholder={(transition.from === "HEAD_OF_TRAINING" && transition.to === "AREA_MANAGER") || (transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "DIRECTOR_FSD") || (transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT") || (transition.from === "HEAD_REIMBURSEMENT_AUDIT" && transition.to === "HEAD_OF_DIVISION") || (transition.from === "HEAD_OF_DIVISION" && transition.to === "HEAD_REIMBURSEMENT_AUDIT") ? "Required review / approval note" : `Optional ${formatClaimDesk(transition.from)} note`}
                 className="min-h-10 rounded-md border border-zinc-200 bg-white px-3 text-sm"
               />
               <button className="min-h-10 rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">
-                {transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD" ? "Approve and forward to Director FSD" : transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT" ? "Approve HQ recommendation and forward to Director Audit" : transition.from === "DIRECTOR_GENERAL" ? "Approve for payment and forward to DFAD" : `Forward to ${formatClaimDesk(transition.to)}`}
+                {transition.from === "HEAD_REIMBURSEMENT_AUDIT" && transition.to === "HEAD_OF_DIVISION" ? "Request FSD reconciliation" : transition.from === "HEAD_OF_DIVISION" && transition.to === "HEAD_REIMBURSEMENT_AUDIT" ? "Confirm revised table and return to Audit" : transition.from === "AREA_MANAGER" && transition.to === "DIRECTOR_FSD" ? "Approve and forward to Director FSD" : transition.from === "DIRECTOR_FSD" && transition.to === "DIRECTOR_AUDIT" ? "Approve HQ recommendation and forward to Director Audit" : transition.from === "DIRECTOR_GENERAL" ? "Approve for payment and forward to DFAD" : `Forward to ${formatClaimDesk(transition.to)}`}
               </button>
               <FormActionProgress />
             </form>
@@ -1037,9 +1058,11 @@ export default async function ClaimDetailPage({
       {isItfRole(activeRole) ? <CollapsibleClaimSection title="Computation table">
       <section id="computation-table" className="mt-8 rounded-lg border border-zinc-200 bg-white p-5">
         <h2 className="text-xl font-semibold tracking-tight">Computation of employer reimbursement</h2>
-        <p className="mt-2 text-sm text-zinc-600">HQ RO computation for training year {claim.claimYear ?? "not recorded"}. The officer verifies expenditure for each area; the awarded amount is the lower of equivalent contribution (A) and verified expenditure (B). A later independent audit calculation takes priority.</p>
+        <p className="mt-2 text-sm text-zinc-600">HQ RO computation for training year {claim.claimYear ?? "not recorded"}. The officer verifies expenditure for each area; the awarded amount is the lower of equivalent contribution (A) and verified expenditure (B). A differing audit calculation requires Head of Division reconciliation before it can affect the recommendation.</p>
         {query.computationError ? <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.computationError}</p> : null}
         {query.computationSaved ? <p className="mt-3 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">HQ computation table prepared.</p> : null}
+        {query.reconciliationError ? <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.reconciliationError}</p> : null}
+        {query.reconciliationSaved ? <p className="mt-3 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Revised audit/FSD table prepared. Confirm it by returning the packet to Head Reimbursement Audit.</p> : null}
         <dl className="mt-4 grid gap-3 text-sm md:grid-cols-3">
           <div><dt className="font-medium">Company</dt><dd>{claim.company.legalName}</dd></div>
           <div><dt className="font-medium">ITF registration number</dt><dd>{claim.company.itfEmployerNumber ?? "Not recorded"}</dd></div>
@@ -1049,12 +1072,14 @@ export default async function ClaimDetailPage({
           <div><dt className="font-medium">50% of contribution</dt><dd>{halfContribution === null ? "Not recorded" : formatMoney({ toString: () => String(halfContribution) })}</dd></div>
         </dl>
         {currentComputationTable ? <>
+          <p className="mt-4 rounded-md bg-zinc-50 p-3 text-sm font-semibold text-zinc-800">{currentComputationTable.source === "AUDIT_RECONCILIATION" ? "Revised audit/FSD computation" : "Original HQ RO computation"} · {currentComputationTable.status === "CONFIRMED" ? "Confirmed" : "Awaiting Head of Division confirmation"}</p>
           <p id="computation-table-scroll-hint" className="mt-5 rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-950">This table has 11 columns. Scroll sideways to see expenditure claimed (B), amount awarded (C: the lower of A or B), and remarks.</p>
           <div className="mt-2 overflow-x-auto rounded-md border border-zinc-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-[#800020]" role="region" aria-label="Full HQ reimbursement computation table" aria-describedby="computation-table-scroll-hint" tabIndex={0}><table className="min-w-[1250px] border-collapse text-left text-xs">
             <thead><tr className="bg-zinc-50"><th className="border border-zinc-200 p-2">Emphasis</th><th className="border border-zinc-200 p-2">Area of training</th><th className="border border-zinc-200 p-2">Total employees</th><th className="border border-zinc-200 p-2">No. trained</th><th className="border border-zinc-200 p-2">% trained</th><th className="border border-zinc-200 p-2">Max % claimable</th><th className="border border-zinc-200 p-2">% contribution awarded</th><th className="border border-zinc-200 p-2">(A) Equivalent contribution</th><th className="border border-zinc-200 p-2">(B) Expenditure claimed</th><th className="border border-zinc-200 p-2">(C) Amount awarded</th><th className="border border-zinc-200 p-2">Remarks</th></tr></thead>
-            <tbody>{currentComputationTable.rows.map((row) => <tr key={row.id}><td className="border border-zinc-200 p-2">{row.emphasis ?? "—"}</td><td className="border border-zinc-200 p-2">{row.areaOfTraining}</td><td className="border border-zinc-200 p-2">{row.totalEmployees ?? "—"}</td><td className="border border-zinc-200 p-2">{row.numberTrained ?? "—"}</td><td className="border border-zinc-200 p-2">{formatPercent(row.percentTrained)}</td><td className="border border-zinc-200 p-2">{formatPercent(row.maxPercentClaimable)}</td><td className="border border-zinc-200 p-2">{formatPercent(row.percentTrainingContributionAwarded)}</td><td className="border border-zinc-200 p-2">{formatMoney(row.equivalentAmountOfContribution)}</td><td className="border border-zinc-200 p-2">{formatMoney(row.expenditureClaimed)}</td><td className="border border-zinc-200 p-2">{formatMoney(row.amountAwardedLowerOfContributionOrClaim)}</td><td className="border border-zinc-200 p-2">{row.remarks ?? "—"}</td></tr>)}{computationCapAdjustment < 0 ? <tr><td className="border border-zinc-200 p-2" colSpan={9}>8th edition 50% contribution cap adjustment</td><td className="border border-zinc-200 p-2">{formatMoney({ toString: () => String(computationCapAdjustment) })}</td><td className="border border-zinc-200 p-2" /></tr> : null}<tr className="font-semibold"><td className="border border-zinc-200 p-2" colSpan={9}>Total HQ recommended amount</td><td className="border border-zinc-200 p-2">{formatMoney(currentComputationTable.amountRecommended)}</td><td className="border border-zinc-200 p-2" /></tr></tbody>
+            <tbody>{currentComputationTable.rows.map((row) => <tr key={row.id}><td className="border border-zinc-200 p-2">{row.emphasis ?? "—"}</td><td className="border border-zinc-200 p-2">{row.areaOfTraining}</td><td className="border border-zinc-200 p-2">{row.totalEmployees ?? "—"}</td><td className="border border-zinc-200 p-2">{row.numberTrained ?? "—"}</td><td className="border border-zinc-200 p-2">{formatPercent(row.percentTrained)}</td><td className="border border-zinc-200 p-2">{formatPercent(row.maxPercentClaimable)}</td><td className="border border-zinc-200 p-2">{formatPercent(row.percentTrainingContributionAwarded)}</td><td className="border border-zinc-200 p-2">{formatMoney(row.equivalentAmountOfContribution)}</td><td className="border border-zinc-200 p-2">{formatMoney(row.expenditureClaimed)}</td><td className="border border-zinc-200 p-2">{formatMoney(row.amountAwardedLowerOfContributionOrClaim)}</td><td className="border border-zinc-200 p-2">{row.remarks ?? "—"}</td></tr>)}{computationCapAdjustment < 0 ? <tr><td className="border border-zinc-200 p-2" colSpan={9}>8th edition 50% contribution cap adjustment</td><td className="border border-zinc-200 p-2">{formatMoney({ toString: () => String(computationCapAdjustment) })}</td><td className="border border-zinc-200 p-2" /></tr> : null}<tr className="font-semibold"><td className="border border-zinc-200 p-2" colSpan={9}>Total {currentComputationTable.source === "AUDIT_RECONCILIATION" ? "reconciled" : "HQ"} recommended amount</td><td className="border border-zinc-200 p-2">{formatMoney(currentComputationTable.amountRecommended)}</td><td className="border border-zinc-200 p-2" /></tr></tbody>
           </table></div>
-          <div className="mt-4 grid gap-3 text-sm md:grid-cols-2"><p><strong>Amount recommended in words:</strong> {currentComputationTable.amountRecommendedInWords}</p><p><strong>Percentage of contribution recommended:</strong> {formatPercent(currentComputationTable.recommendedContributionPercent)} ({formatMoney(currentComputationTable.amountRecommended)})</p><p><strong>Prepared by HQ RO:</strong> {currentComputationTable.preparedByName} · {formatDate(currentComputationTable.preparedAt)}</p><p><strong>Head of Division confirmation:</strong> {currentComputationTable.confirmedByName ?? "Pending"} {currentComputationTable.confirmedAt ? `· ${formatDate(currentComputationTable.confirmedAt)}` : ""}</p></div>
+          <div className="mt-4 grid gap-3 text-sm md:grid-cols-2"><p><strong>Amount recommended in words:</strong> {currentComputationTable.amountRecommendedInWords}</p><p><strong>Percentage of contribution recommended:</strong> {formatPercent(currentComputationTable.recommendedContributionPercent)} ({formatMoney(currentComputationTable.amountRecommended)})</p><p><strong>Prepared by:</strong> {currentComputationTable.preparedByName} · {formatDate(currentComputationTable.preparedAt)}</p><p><strong>Head of Division confirmation:</strong> {currentComputationTable.confirmedByName ?? "Pending"} {currentComputationTable.confirmedAt ? `· ${formatDate(currentComputationTable.confirmedAt)}` : ""}</p></div>
+          {currentComputationTable.source === "AUDIT_RECONCILIATION" && currentHqComputationTable ? <p className="mt-3 text-sm text-zinc-600">Original HQ RO table: {formatMoney(currentHqComputationTable.amountRecommended)} · prepared {formatDate(currentHqComputationTable.preparedAt)}. It remains in the packet history.</p> : null}
         </> : <p className="mt-5 text-sm text-zinc-600">{latestHeadquartersCalculation ? "The HQ computation table has not been prepared for the latest Form 1B calculation." : "The HQ RO has not saved a reviewed calculation yet."}</p>}
         {canCalculateHeadquarters && latestHeadquartersCalculation ? <form action={saveHqComputationTableAction.bind(null, claim.id)} className="mt-5 grid gap-4 border-t border-zinc-200 pt-5">
           <h3 className="font-semibold">Verify expenditure claimed by training area</h3>
@@ -1063,10 +1088,23 @@ export default async function ClaimDetailPage({
             <input type="hidden" name="hqLineId" value={line.id} />
             <p className="text-sm font-semibold md:col-span-2">{line.trainingArea} · {formatPercent(line.percentAwarded)} awarded</p>
             <p className="text-xs text-zinc-600 md:col-span-2">Employer&apos;s corresponding claim: {formatMoney(employerLines.find((item) => item.awardArea === line.awardArea)?.employerClaimAmount ?? null)}. Verify expenditure from the attached evidence before entering column B.</p>
-            <label className="grid gap-1 text-sm">Verified expenditure claimed (NGN)<input name={`expenditure_${line.id}`} type="number" min="0" step="0.01" required defaultValue={currentComputationTable?.rows[index]?.expenditureClaimed?.toString() ?? ""} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
-            <label className="grid gap-1 text-sm">Remarks<input name={`remarks_${line.id}`} maxLength={500} defaultValue={currentComputationTable?.rows[index]?.remarks ?? ""} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+            <label className="grid gap-1 text-sm">Verified expenditure claimed (NGN)<input name={`expenditure_${line.id}`} type="number" min="0" step="0.01" required defaultValue={currentHqComputationTable?.rows[index]?.expenditureClaimed?.toString() ?? ""} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+            <label className="grid gap-1 text-sm">Remarks<input name={`remarks_${line.id}`} maxLength={500} defaultValue={currentHqComputationTable?.rows[index]?.remarks ?? ""} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
           </div>)}
           <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Prepare HQ computation table</button>
+          <FormActionProgress />
+        </form> : null}
+        {claim.status === "SUBMITTED" && claim.currentDesk === "HEAD_OF_DIVISION" && (activeRole === "HEAD_OF_DIVISION" || activeRole === "SYSTEM_ADMIN" || activeRole === "WORKSPACE_APP_ADMIN") && (latestRoutingReason.startsWith("Head Reimbursement Audit requested FSD reconciliation") || latestRoutingReason.startsWith("Head of Reimbursement Division returned a confirmed revised computation table")) && claim.auditReview?.status === "SUBMITTED" && auditVariance && latestAuditCalculation ? <form action={prepareAuditReconciliationAction.bind(null, claim.id)} className="mt-5 grid gap-4 border-t border-amber-200 pt-5">
+          <h3 className="font-semibold">Review Audit variance and prepare a revised computation table</h3>
+          <p className="text-sm text-zinc-600">The auditor calculated {formatMoney(latestAuditCalculation.totalAmountAwarded)} versus the original HQ recommendation of {formatMoney(currentHqComputationTable?.amountRecommended ?? null)}. Confirm the verified expenditure for every audited training area. Column C and the capped total are calculated from these values. The revised table only takes effect after you confirm and return it to Head Reimbursement Audit.</p>
+          {auditRows.map((line) => <div key={line.id} className="grid gap-3 rounded-md border border-zinc-200 p-3 md:grid-cols-2">
+            <input type="hidden" name="auditLineId" value={line.id} />
+            <p className="text-sm font-semibold md:col-span-2">{line.trainingArea} · Audit award {formatPercent(line.percentAwarded)} · {formatMoney(line.amountAwarded)}</p>
+            <label className="grid gap-1 text-sm">Verified expenditure claimed (NGN)<input name={`expenditure_${line.id}`} type="number" min="0" step="0.01" required defaultValue={currentReconciliationTable?.rows.find((row) => row.areaOfTraining === line.trainingArea)?.expenditureClaimed?.toString() ?? currentHqComputationTable?.rows.find((row) => row.areaOfTraining === line.trainingArea)?.expenditureClaimed?.toString() ?? ""} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+            <label className="grid gap-1 text-sm">Remarks<input name={`remarks_${line.id}`} maxLength={500} defaultValue={currentReconciliationTable?.rows.find((row) => row.areaOfTraining === line.trainingArea)?.remarks ?? ""} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+          </div>)}
+          <label className="grid gap-1 text-sm font-medium">Reconciliation review and evidence basis<textarea name="reconciliationNote" required minLength={10} maxLength={2000} defaultValue={claim.auditReview.reconciliationNote ?? ""} className="min-h-24 rounded-md border border-zinc-200 p-3" /></label>
+          <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Prepare revised audit/FSD table</button>
           <FormActionProgress />
         </form> : null}
       </section>
@@ -1092,9 +1130,12 @@ export default async function ClaimDetailPage({
           {query.auditError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.auditError}</p> : null}
           {query.auditCalculationError ? <p className="mt-4 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.auditCalculationError}</p> : null}
           {query.auditSaved || query.auditCalculationSaved ? <p className="mt-4 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Claim audit saved.</p> : null}
+          {auditVariance && !reconciliationConfirmed ? <p className="mt-4 rounded-md border border-amber-300 bg-amber-50 p-3 text-sm font-semibold text-amber-950">Audit and the original HQ recommendation differ. Head Reimbursement Audit must send this claim to Head of Reimbursement Division. Director Audit cannot receive it until a revised computation table is confirmed and Audit verifies the reconciliation.</p> : null}
+          {auditVariance && reconciliationConfirmed ? <p className="mt-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Head of Reimbursement Division confirmed a revised computation table. Head Reimbursement Audit can now verify the reconciled recommendation.</p> : null}
 
           <div className="mt-5 grid gap-3 text-sm leading-6 text-zinc-600 md:grid-cols-2">
-            <p>HQ recommendation: {formatMoney(currentComputationTable?.amountRecommended ?? latestHeadquartersCalculation?.totalAmountAwarded ?? null)}</p>
+            <p>Original HQ recommendation: {formatMoney(currentHqComputationTable?.amountRecommended ?? latestHeadquartersCalculation?.totalAmountAwarded ?? null)}</p>
+            {auditVariance ? <p>Reconciled FSD recommendation: {formatMoney(currentReconciliationTable?.amountRecommended ?? null)} ({reconciliationConfirmed ? "confirmed" : reconciliationPrepared ? "awaiting confirmation" : "pending"})</p> : null}
             <p>Audited amount: {formatMoney(claim.auditReview?.auditedAmount ?? null)}</p>
             <p>Variance amount: {formatMoney(claim.auditReview?.varianceAmount ?? null)}</p>
             <p>Independent recalculation: {latestAuditCalculation ? `Yes — ${formatMoney(latestAuditCalculation.totalAmountAwarded)}` : "Not required"}</p>
@@ -1102,6 +1143,7 @@ export default async function ClaimDetailPage({
             <p>Prepared at: {formatDate(claim.auditReview?.preparedAt ?? null)}</p>
             <p>Verified by: {claim.auditReview?.verifiedBy?.name ?? "Not recorded"}</p>
             <p>Verified at: {formatDate(claim.auditReview?.verifiedAt ?? null)}</p>
+            {auditVariance ? <p className="md:col-span-2">FSD reconciliation review: {claim.auditReview?.reconciliationNote ?? "Pending"} {claim.auditReview?.reconciledAt ? `· Confirmed by ${currentReconciliationTable?.confirmedByName ?? "Head of Reimbursement Division"} on ${formatDate(claim.auditReview.reconciledAt)}` : ""}</p> : null}
             <p className="md:col-span-2">
               Recommendation: {claim.auditReview?.recommendation ?? "No recommendation recorded"}
             </p>
