@@ -22,6 +22,29 @@ export type CreateCompanyInput = {
   establishedAt?: Date;
 };
 
+type CompanyCreationMembership = {
+  id: string;
+  workspaceId: string;
+  organizationId: string | null;
+  workspace: { revenueWorkflowMode: "EXTERNAL_VERIFICATION" | "IN_APP_REVENUE" };
+};
+
+export function resolveCompanyCreationMembership(
+  activeOrganization: { active: { id: string } | null; requiresSelection: boolean },
+  memberships: CompanyCreationMembership[],
+) {
+  if (activeOrganization.requiresSelection) {
+    throw new Error("Select an active organization before creating another company.");
+  }
+  const membership = activeOrganization.active
+    ? memberships.find((item) => item.organizationId === activeOrganization.active?.id)
+    : memberships.find((item) => item.organizationId === null);
+  if (!membership) {
+    throw new Error("Your employer account is not ready to create a company in the selected organization.");
+  }
+  return membership;
+}
+
 export type CorrectCompanyDetailsInput = {
   companyId: string;
   requesterEmail: string;
@@ -619,89 +642,81 @@ export async function correctCompanyDetails(input: CorrectCompanyDetailsInput) {
 
 export async function createCompany(input: CreateCompanyInput) {
   const db = getDb();
-
   if (input.requesterRole !== "EMPLOYER_ADMIN") {
     throw new Error("Only an employer administrator can create a company.");
   }
-
-  // This helper uses the regular Prisma client. Resolve it before opening an
-  // interactive transaction so it cannot wait on the transaction's only
-  // pooled connection (DATABASE_POOL_MAX=1 on Vercel).
+  const startedAt = performance.now();
   const activeOrganization = await getActiveEmployerOrganization(input.requesterEmail);
-  if (activeOrganization.requiresSelection) {
-    throw new Error("Select an active organization before creating another company.");
+  const user = await db.user.findUnique({
+    where: { email: input.requesterEmail.toLowerCase() },
+    select: {
+      isActive: true,
+      memberships: {
+        where: { role: "EMPLOYER_ADMIN", isActive: true },
+        select: {
+          id: true,
+          workspaceId: true,
+          organizationId: true,
+          workspace: { select: { revenueWorkflowMode: true } },
+        },
+      },
+    },
+  });
+  if (!user?.isActive) throw new Error("Your employer account is not ready for company registration.");
+  const membership = resolveCompanyCreationMembership(activeOrganization, user.memberships);
+  const reimbursementOnly = membership.workspace.revenueWorkflowMode === "EXTERNAL_VERIFICATION";
+  const itfEmployerNumber = input.itfEmployerNumber?.trim();
+  if (reimbursementOnly && !itfEmployerNumber) {
+    throw new Error("An existing ITF registration number is required in Reimbursement mode.");
+  }
+  if (!reimbursementOnly && itfEmployerNumber) {
+    throw new Error("ITF registration numbers are issued by the registration workflow in Integrated mode.");
   }
 
-  return db.$transaction(async (tx) => {
-    const user = await tx.user.findUnique({
-      where: { email: input.requesterEmail.toLowerCase() },
-      select: {
-        id: true,
-        memberships: {
-          where: { role: "EMPLOYER_ADMIN", isActive: true },
-          select: { id: true, workspaceId: true, organizationId: true },
-        },
-      },
+  const writeStartedAt = performance.now();
+  const companyDetails = {
+    areaOffice: { connect: { id: input.areaOfficeId } },
+    legalName: input.legalName,
+    itfEmployerNumber: reimbursementOnly ? itfEmployerNumber : undefined,
+    rcNumber: input.rcNumber,
+    taxId: input.taxId,
+    businessAddress: input.businessAddress,
+    postalAddress: input.postalAddress,
+    email: input.email,
+    telephone: input.telephone,
+    natureOfBusiness: input.natureOfBusiness,
+    establishedAt: input.establishedAt,
+    status: reimbursementOnly ? "ACTIVE" as const : "DRAFT" as const,
+  };
+
+  let created: { id: string };
+  if (activeOrganization.active) {
+    created = await db.company.create({
+      data: { ...companyDetails, organization: { connect: { id: activeOrganization.active.id } } },
+      select: { id: true },
     });
-
-    if (!user?.memberships[0]) {
-      throw new Error("Your employer account is not ready for company registration.");
-    }
-
-    const workspace = await tx.workspace.findUnique({
-      where: { id: user.memberships[0].workspaceId },
-      select: { revenueWorkflowMode: true },
-    });
-    const reimbursementOnly = workspace?.revenueWorkflowMode === "EXTERNAL_VERIFICATION";
-    const itfEmployerNumber = input.itfEmployerNumber?.trim();
-    if (reimbursementOnly && !itfEmployerNumber) {
-      throw new Error("An existing ITF registration number is required in Reimbursement mode.");
-    }
-    if (!reimbursementOnly && itfEmployerNumber) {
-      throw new Error("ITF registration numbers are issued by the registration workflow in Integrated mode.");
-    }
-
-    let organizationId = activeOrganization.active?.id;
-
-    if (!organizationId) {
-      const workspaceId = user.memberships[0].workspaceId;
-      const baseSlug = slugify(input.legalName) || "employer";
-      const organization = await tx.organization.create({
-        data: {
-          workspaceId,
-          name: input.legalName,
-          slug: `${baseSlug}-${randomUUID().slice(0, 8)}`,
-          organizationType: "EMPLOYER",
-        },
-        select: { id: true },
-      });
-      organizationId = organization.id;
-
-      await tx.membership.update({
-        where: { id: user.memberships[0].id },
-        data: { organizationId },
-      });
-    }
-
-    return tx.company.create({
+  } else {
+    // One nested write atomically creates the first company and links the
+    // employer's existing membership, without holding an interactive
+    // transaction open across multiple network round trips.
+    const organization = await db.organization.create({
       data: {
-        organizationId,
-        areaOfficeId: input.areaOfficeId,
-        legalName: input.legalName,
-        itfEmployerNumber: reimbursementOnly ? itfEmployerNumber : undefined,
-        rcNumber: input.rcNumber,
-        taxId: input.taxId,
-        businessAddress: input.businessAddress,
-        postalAddress: input.postalAddress,
-        email: input.email,
-        telephone: input.telephone,
-        natureOfBusiness: input.natureOfBusiness,
-        establishedAt: input.establishedAt,
-        status: reimbursementOnly ? "ACTIVE" : "DRAFT",
+        workspaceId: membership.workspaceId,
+        name: input.legalName,
+        slug: `${slugify(input.legalName) || "employer"}-${randomUUID().slice(0, 8)}`,
+        organizationType: "EMPLOYER",
+        memberships: { connect: { id: membership.id } },
+        companies: { create: companyDetails },
       },
-      select: {
-        id: true,
-      },
+      select: { companies: { select: { id: true }, take: 1 } },
     });
+    created = organization.companies[0];
+  }
+  console.info("registry.company_creation_timing", {
+    contextMs: Math.round(writeStartedAt - startedAt),
+    writeMs: Math.round(performance.now() - writeStartedAt),
+    totalMs: Math.round(performance.now() - startedAt),
+    firstCompany: !activeOrganization.active,
   });
+  return created;
 }

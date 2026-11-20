@@ -1,4 +1,5 @@
 import { FormActionProgress } from "@/components/form-action-progress";
+import { CreateCompanySubmitButton } from "@/components/create-company-submit-button";
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
@@ -121,9 +122,7 @@ export default async function NewCompanyPage() {
           >
             Cancel
           </Link>
-          <button className="min-h-11 rounded-md bg-[#800020] px-5 text-sm font-semibold text-white">
-            Create company
-          </button>
+          <CreateCompanySubmitButton />
         </div>
         <FormActionProgress />
       </form>
