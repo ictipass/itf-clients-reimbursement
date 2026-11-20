@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createHmac } from "node:crypto";
 import test from "node:test";
 
-import { readUploadedFile } from "../lib/storage/staged-upload";
+import { deleteStagedUpload, readUploadedFile } from "../lib/storage/staged-upload";
 
 function reference(overrides: Record<string, unknown> = {}) {
   const ticket = {
@@ -25,8 +25,10 @@ test("staged upload references reject tampering and another session", async () =
     const data = new FormData();
     data.set("fileUploadRef", `${reference()}x`);
     await assert.rejects(readUploadedFile(data, "file", "user-1"), /Invalid upload reference/);
+    await assert.rejects(deleteStagedUpload(`${reference()}x`, "user-1"), /Invalid upload reference/);
     data.set("fileUploadRef", reference());
     await assert.rejects(readUploadedFile(data, "file", "user-2"), /does not belong/);
+    await assert.rejects(deleteStagedUpload(reference(), "user-2"), /does not belong/);
     data.set("fileUploadRef", reference({ expires: Date.now() - 1000 }));
     await assert.rejects(readUploadedFile(data, "file", "user-1"), /expired/);
     data.set("fileUploadRef", reference({ size: 11 * 1024 * 1024 }));

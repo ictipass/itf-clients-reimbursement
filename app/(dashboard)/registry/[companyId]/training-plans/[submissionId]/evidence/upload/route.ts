@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { readUploadedFile } from "@/lib/storage/staged-upload";
+import { deleteStagedUpload, readUploadedFile } from "@/lib/storage/staged-upload";
 import {
   getTrainingPlanEvidenceKinds,
   uploadTrainingPlanEvidenceBatch,
@@ -67,11 +67,15 @@ export async function POST(
   request: Request,
   context: RouteContext<"/registry/[companyId]/training-plans/[submissionId]/evidence/upload">,
 ) {
+  const expectsJson = request.headers.get("accept")?.includes("application/json") ?? false;
   const session = await getServerSession(authOptions);
 
   if (!session?.user?.email) {
-    return new Response("Authentication is required.", { status: 401 });
+    return expectsJson
+      ? Response.json({ error: "Authentication is required. Sign in and try again." }, { status: 401 })
+      : new Response("Authentication is required.", { status: 401 });
   }
+  const userId = session.user.id;
 
   const { companyId, submissionId } = await context.params;
   let selectedKind: string | undefined;
@@ -82,16 +86,17 @@ export async function POST(
 
     selectedKind = typeof kindValue === "string" ? kindValue : undefined;
 
-    const files = [];
-    for (const [name, kind] of [["trainingPlanCsv", "TRAINING_PLAN_DOCUMENT"], ["personnelCv", "LD_PERSONNEL_CV"]] as const) {
+    const selected = ([["trainingPlanCsv", "TRAINING_PLAN_DOCUMENT"], ["personnelCv", "LD_PERSONNEL_CV"]] as const).filter(([name]) => {
       const value = formData.get(name);
       const reference = formData.get(`${name}UploadRef`);
-      if ((value instanceof File && value.size > 0) || (typeof reference === "string" && reference.length > 0)) {
-        files.push({ kind, file: await readUploadedFile(formData, name, session.user.id) });
-      }
-    }
+      return (value instanceof File && value.size > 0) || (typeof reference === "string" && reference.length > 0);
+    });
+    const files = await Promise.all(selected.map(async ([name, kind]) => ({
+      kind,
+      file: await readUploadedFile(formData, name, userId, { consume: false }),
+    })));
     if (files.length === 0 && (formData.has("file") || formData.has("fileUploadRef"))) {
-      files.push({ kind: readEvidenceKind(formData), file: await readUploadedFile(formData, "file", session.user.id) });
+      files.push({ kind: readEvidenceKind(formData), file: await readUploadedFile(formData, "file", userId) });
     }
     await uploadTrainingPlanEvidenceBatch({
       companyId,
@@ -101,7 +106,14 @@ export async function POST(
       files,
     });
 
-    return redirectToTrainingPlan(submissionId);
+    // Keep staged selections available if validation fails. Once both files are saved,
+    // removing their temporary copies is best-effort and must not turn success into an error.
+    const stagedReferences = selected.map(([name]) => formData.get(`${name}UploadRef`)).filter((value): value is string => typeof value === "string");
+    await Promise.allSettled(stagedReferences.map((reference) => deleteStagedUpload(reference, userId)));
+
+    return expectsJson
+      ? Response.json({ redirect: `/training-plans/${submissionId}` }, { headers: { "Cache-Control": "no-store" } })
+      : redirectToTrainingPlan(submissionId);
   } catch (error) {
     const rateLimit = getRateLimitFeedback(error);
     const message = rateLimit
@@ -110,6 +122,9 @@ export async function POST(
         ? error.message
         : "Training plan evidence upload failed.";
 
+    if (expectsJson) {
+      return Response.json({ error: message }, { status: rateLimit ? 429 : 400, headers: { "Cache-Control": "no-store" } });
+    }
     return redirectToUploadForm({
       companyId,
       submissionId,

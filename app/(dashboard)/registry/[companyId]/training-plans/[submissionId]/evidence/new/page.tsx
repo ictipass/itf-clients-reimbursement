@@ -50,6 +50,15 @@ export default async function NewTrainingPlanEvidencePage({
       </Link>
       <p className="mt-2 text-xs leading-5 text-zinc-600">The CSV template opens in Excel and may be saved as .xlsx. Dates may use YYYY-MM-DD, DD/MM/YYYY, or Excel date cells.</p>
 
+      <div className="mt-5 rounded-lg border border-zinc-200 bg-zinc-50 p-4 text-sm" aria-label="Current evidence status">
+        <p className="font-semibold text-zinc-900">Current evidence</p>
+        <p className="mt-1 text-xs text-zinc-600">Select the missing files together, or select an existing file to replace it. Both evidence types are required before submitting the plan for review.</p>
+        <ul className="mt-3 grid gap-2">
+          <li>Training plan: {submission.documents.find((document) => document.kind === "TRAINING_PLAN_DOCUMENT")?.fileName ?? "Not uploaded"}</li>
+          <li>L&amp;D CV and qualification certificate: {submission.documents.find((document) => document.kind === "LD_PERSONNEL_CV")?.fileName ?? "Not uploaded"}</li>
+        </ul>
+      </div>
+
       {uploadError ? (
         <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-950">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

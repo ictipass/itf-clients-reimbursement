@@ -519,6 +519,10 @@ export async function getTrainingPlanSubmissionForUpload(companyId: string, subm
       id: true,
       year: true,
       status: true,
+      documents: {
+        where: { isActive: true, kind: { in: ["TRAINING_PLAN_DOCUMENT", "LD_PERSONNEL_CV"] } },
+        select: { kind: true, fileName: true },
+      },
       company: {
         select: {
           id: true,

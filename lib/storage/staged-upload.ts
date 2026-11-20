@@ -69,7 +69,7 @@ export async function createStagedUpload(input: { userId: string; name: string; 
   return { provider, key, token, reference: sign(ticket) };
 }
 
-export async function readUploadedFile(formData: FormData, name: string, userId: string): Promise<File> {
+export async function readUploadedFile(formData: FormData, name: string, userId: string, options: { consume?: boolean } = {}): Promise<File> {
   const value = formData.get(name);
   if (value instanceof File && value.size > 0) return value;
   const reference = formData.get(`${name}UploadRef`);
@@ -82,13 +82,23 @@ export async function readUploadedFile(formData: FormData, name: string, userId:
     if (!result.Body || result.ContentLength !== ticket.size) throw new Error("Uploaded file size does not match the selected file.");
     bytes = await result.Body.transformToByteArray();
     if (bytes.byteLength !== ticket.size) throw new Error("Uploaded file size does not match the selected file.");
-    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: ticket.key }));
+    if (options.consume !== false) await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: ticket.key }));
   } else {
     const result = await get(ticket.key, { access: "private" });
     if (!result || result.statusCode !== 200 || result.blob.size !== ticket.size) throw new Error("Uploaded file size does not match the selected file.");
     bytes = new Uint8Array(await new Response(result.stream).arrayBuffer());
     if (bytes.byteLength !== ticket.size) throw new Error("Uploaded file size does not match the selected file.");
-    await del(ticket.key);
+    if (options.consume !== false) await del(ticket.key);
   }
   return new File([new Uint8Array(bytes)], ticket.name, { type: ticket.type });
+}
+
+export async function deleteStagedUpload(reference: string, userId: string) {
+  const ticket = verify(reference, userId);
+  if (ticket.provider === "s3") {
+    const { bucket, client } = s3();
+    await client.send(new DeleteObjectCommand({ Bucket: bucket, Key: ticket.key }));
+  } else {
+    await del(ticket.key);
+  }
 }
