@@ -18,8 +18,8 @@ export default async function ContributionOperatingModelPage({ searchParams }: {
   const session = await getServerSession(authOptions);
   const role = session?.user?.role ?? "EMPLOYER_VIEWER";
   const canManageModel = canManageClaimPolicy(role);
-  const workspaces = canManageModel
-    ? await listClaimPolicyWorkspaces({ requesterRole: role })
+  const workspaces = canManageModel && session?.user?.email
+    ? await listClaimPolicyWorkspaces({ requesterRole: role, requesterEmail: session.user.email })
     : [];
   const testRecordsEnabled = isTestEligibilityConfigurationAllowed();
   const previewTestRecords = usesPreviewEligibilityRecords();

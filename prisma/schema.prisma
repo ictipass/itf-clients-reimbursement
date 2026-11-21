@@ -467,6 +467,7 @@ model Workspace {
   managedNumbers                ManagedRegistrationNumber[]
   workItems                     WorkItem[]
   auditEvents                   AuditEvent[]
+  reimbursementPolicyActivations ReimbursementPolicyActivation[]
   developmentEligibilityRecords DevelopmentEligibilityRecord[]
   staffDirectoryOptions         StaffDirectoryOption[]
   bankDirectoryEntries          BankDirectoryEntry[]
@@ -601,6 +602,22 @@ model User {
   preparedPaymentFileAudits                         ReimbursementPaymentFileAudit[]      @relation("PreparedPaymentFileAudits")
   verifiedPaymentFileAudits                         ReimbursementPaymentFileAudit[]      @relation("VerifiedPaymentFileAudits")
   reimbursementVoucherSignoffs                      ReimbursementVoucherSignoff[]         @relation("ReimbursementVoucherSignoffActor")
+  reimbursementPolicyActivations                    ReimbursementPolicyActivation[]      @relation("ReimbursementPolicyActivationActor")
+}
+
+model ReimbursementPolicyActivation {
+  id                String                     @id @default(cuid())
+  workspaceId       String
+  previousEdition   ReimbursementPolicyEdition
+  edition           ReimbursementPolicyEdition
+  implementationKey String
+  approvalReference String
+  activatedById     String
+  activatedAt       DateTime                   @default(now())
+  workspace         Workspace                  @relation(fields: [workspaceId], references: [id])
+  activatedBy       User                       @relation("ReimbursementPolicyActivationActor", fields: [activatedById], references: [id])
+
+  @@index([workspaceId, activatedAt])
 }
 
 model EmailVerificationToken {

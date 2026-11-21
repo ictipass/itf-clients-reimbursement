@@ -30,6 +30,7 @@ export async function updateContributionOperatingModelAction(formData: FormData)
 
   await updateContributionOperatingModel({
     requesterRole: session.user.role,
+    requesterEmail: session.user.email,
     workspaceId: readRequiredString(formData, "workspaceId"),
     revenueWorkflowMode: readRequiredString(formData, "revenueWorkflowMode"),
   });
@@ -50,7 +51,19 @@ async function authorizedWorkspace(formData: FormData) {
     throw new Error("You do not have permission to manage eligibility verification.");
   }
   const workspaceId = readRequiredString(formData, "workspaceId");
-  const workspace = await getDb().workspace.findFirst({ where: { id: workspaceId, isActive: true } });
+  const workspace = await getDb().workspace.findFirst({
+    where: {
+      id: workspaceId,
+      isActive: true,
+      memberships: {
+        some: {
+          isActive: true,
+          role: session.user.role,
+          user: { email: session.user.email.toLowerCase().trim(), isActive: true },
+        },
+      },
+    },
+  });
   if (!workspace) throw new Error("Workspace was not found.");
   if (!isTestEligibilityConfigurationAllowed()) throw new Error("Test eligibility settings are unavailable in this deployment.");
   return workspace;
