@@ -53,3 +53,48 @@ jobs:
 
       - name: Build production app
         run: npm run build
+
+  integration:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: itf_reimbursement_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d itf_reimbursement_ci"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      TEST_DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/itf_reimbursement_ci
+      DATABASE_URL: postgresql://ci:ci@127.0.0.1:5432/itf_reimbursement_ci
+      DIRECT_URL: postgresql://ci:ci@127.0.0.1:5432/itf_reimbursement_ci
+      VERCEL_ENV: preview
+      ELIGIBILITY_PROVIDER: TEST_RECORDS
+      CLAIM_TEST_AS_OF: '2027-01-15'
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '24'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci --no-audit --no-fund
+
+      - name: Replay migrations on isolated PostgreSQL
+        run: npm run db:test:migrate
+
+      - name: Run database-backed claim integration tests
+        run: npm run test:integration
