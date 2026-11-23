@@ -1,6 +1,8 @@
-# Production Readiness Roadmap
+# Production Readiness Roadmap (Historical Baseline)
 
 Last reviewed: 22 June 2026
+
+> This is an historical planning baseline. Its 60-slice count and execution order are no longer current. Use the [active slice register](active-slice-register.md) for current priorities, states, dependencies, and completion checks. Completed work is recorded in the [implementation log](implementation-slices.md).
 
 ## Purpose
 
@@ -52,7 +54,7 @@ into more slices after the claims and payment SOP is supplied.
 - **P2**: operational maturity or later optimization
 - **Policy**: cannot be finalized without approved ITF rules or external-system details
 
-## Remaining Slice Register
+## Historical Slice Register (June 2026)
 
 ### Release Confidence and Test Coverage
 
@@ -140,7 +142,7 @@ into more slices after the claims and payment SOP is supplied.
 59. **P0 - Data-protection, privacy, consent, and access-review sign-off**
 60. **P0 - Production runbook, support escalation, training, pilot, and go-live checklist**
 
-## Recommended Execution Order
+## Historical Execution Order
 
 1. Obtain and approve the claims/payment SOP.
 2. Build the dedicated integration-test harness and critical workflow tests.
@@ -163,7 +165,7 @@ The product should not be considered production grade until:
 - Security, privacy, accessibility, and operational support sign-offs are complete.
 - A controlled pilot has completed with documented issues and resolutions.
 
-## Maintaining This Roadmap
+## Historical Maintenance Guidance
 
 Add new slices under the relevant capability group. For every completed slice:
 

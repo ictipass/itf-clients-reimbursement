@@ -1,5 +1,7 @@
 # ITF Integrated Contribution and Reimbursement Platform Implementation Slices
 
+This is the historical implementation log. Current priorities, blockers and next slices are maintained in the [active slice register](active-slice-register.md).
+
 ## October 2026: Reimbursement annual eligibility foundation
 
 - Added an authenticated development compliance API with administrator-managed test company/year
