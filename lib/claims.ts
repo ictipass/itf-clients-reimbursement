@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { awardAmountBridge } from "@/lib/claim-award-explanation";
 import { isSubmittedArtifactEditable } from "@/lib/employer-correction";
 import { auditVarianceAmount, hasAuditVariance, reviewedClaimAmount } from "@/lib/claim-audit-reconciliation";
 import { buildHqComputationTableSummary, isCurrentHqComputationTable } from "@/lib/hq-computation-table";
@@ -1894,13 +1895,17 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
       where: { id: claim.id },
       select: {
         reference: true, claimYear: true, claimRecommendedAmount: true, claimRecommendedInWords: true, paymentScheduleReference: true,
+        claimedAmount: true, calculatedAwardAmount: true, policyEdition: true,
+        calculationSnapshots: { where: { stage: { in: ["AREA_OFFICE", "HEADQUARTERS", "AUDIT"] }, recordTier: "HOT" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: { stage: true, totalAmountAwarded: true } },
+        auditReview: { select: { reconciliationTableId: true } },
+        awardNotes: { where: { recordTier: "HOT" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: { kind: true, narrative: true, evidenceDocumentId: true, priorAmount: true, reviewedAmount: true, policyEdition: true, createdAt: true, actorRole: true, actor: { select: { name: true } } } },
         paymentWithholdingTax: true, paymentTaxOffset: true, bankName: true, accountNumber: true, accountName: true,
         company: { select: { legalName: true, businessAddress: true, areaOffice: { select: { name: true } } } },
         voucherSignoffs: { orderBy: { signedAt: "asc" }, select: { kind: true, actorRole: true, amount: true, remark: true, signedAt: true, actor: { select: { name: true } } } },
         documents: { where: { isActive: true, recordTier: "HOT" }, orderBy: { createdAt: "asc" }, select: { id: true, kind: true, fileName: true, receiptIssuer: true, receiptNumber: true, createdAt: true } },
         trainingRequests: { select: { trainingRequest: { select: { id: true, title: true, approvalReference: true } } } },
-        computationTables: { where: { recordTier: "HOT" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], take: 1, select: {
-          companyName: true, itfEmployerNumber: true, claimYear: true, contributionPaid: true,
+        computationTables: { where: { recordTier: "HOT" }, orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: {
+          id: true, source: true, status: true, companyName: true, itfEmployerNumber: true, claimYear: true, contributionPaid: true,
           receiptNumber: true, fiftyPercentOfContribution: true, areaOfficeName: true,
           amountRecommended: true, amountRecommendedInWords: true, recommendedContributionPercent: true,
           preparedByName: true, preparedAt: true, confirmedByName: true, confirmedAt: true,
@@ -1937,6 +1942,23 @@ export async function updateClaimPaymentHandoff(input: UpdateClaimPaymentHandoff
       ],
       evidence: archiveSource.documents.map((document) => ({ id: document.id, kind: document.kind, fileName: document.fileName, receiptIssuer: document.receiptIssuer, receiptNumber: document.receiptNumber, uploadedAt: document.createdAt.toISOString() })),
       trainings: archiveSource.trainingRequests.map(({ trainingRequest }) => ({ id: trainingRequest.id, title: trainingRequest.title, approvalReference: trainingRequest.approvalReference })),
+      awardExplanation: {
+        policyEdition: archiveSource.policyEdition,
+        bridge: awardAmountBridge({
+          employerClaimed: Number(archiveSource.claimedAmount.toString()),
+          employerCalculated: archiveSource.calculatedAwardAmount ? Number(archiveSource.calculatedAwardAmount.toString()) : null,
+          areaOffice: Number(archiveSource.calculationSnapshots.find((item) => item.stage === "AREA_OFFICE")?.totalAmountAwarded ?? NaN),
+          headquarters: Number(archiveSource.calculationSnapshots.find((item) => item.stage === "HEADQUARTERS")?.totalAmountAwarded ?? NaN),
+          hqComputation: Number(archiveSource.computationTables.find((item) => item.source === "HQ_REVIEW")?.amountRecommended ?? NaN),
+          audited: Number(archiveSource.calculationSnapshots.find((item) => item.stage === "AUDIT")?.totalAmountAwarded ?? NaN),
+          reconciled: Number(archiveSource.computationTables.find((item) => item.id === archiveSource.auditReview?.reconciliationTableId && item.source === "AUDIT_RECONCILIATION")?.amountRecommended ?? NaN),
+          reconciliationConfirmed: archiveSource.computationTables.some((item) => item.id === archiveSource.auditReview?.reconciliationTableId && item.status === "CONFIRMED"),
+          finalApproved: archiveSource.claimRecommendedAmount ? Number(archiveSource.claimRecommendedAmount.toString()) : null,
+        }),
+        notes: archiveSource.awardNotes.map((item) => ({ kind: item.kind, officer: item.actor.name, role: item.actorRole,
+          narrative: item.narrative, evidenceDocumentId: item.evidenceDocumentId, priorAmount: item.priorAmount?.toString() ?? null,
+          reviewedAmount: item.reviewedAmount?.toString() ?? null, policyEdition: item.policyEdition, at: item.createdAt.toISOString() })),
+      },
       hqComputation: archiveSource.computationTables[0] ? {
         companyName: archiveSource.computationTables[0].companyName,
         itfEmployerNumber: archiveSource.computationTables[0].itfEmployerNumber,

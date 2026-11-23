@@ -149,6 +149,12 @@ enum ReimbursementClaimLineStage {
   AUDIT
 }
 
+enum ReimbursementAwardNoteKind {
+  HQ_REVIEW
+  DIVISION_ATTESTATION
+  ARCHIVE_ADDENDUM
+}
+
 enum ReimbursementStaffTrainingArea {
   MANAGEMENT
   SUPERVISORY
@@ -602,6 +608,7 @@ model User {
   preparedPaymentFileAudits                         ReimbursementPaymentFileAudit[]      @relation("PreparedPaymentFileAudits")
   verifiedPaymentFileAudits                         ReimbursementPaymentFileAudit[]      @relation("VerifiedPaymentFileAudits")
   reimbursementVoucherSignoffs                      ReimbursementVoucherSignoff[]         @relation("ReimbursementVoucherSignoffActor")
+  reimbursementAwardNotes                            ReimbursementAwardNote[]             @relation("ReimbursementAwardNoteActor")
   reimbursementPolicyActivations                    ReimbursementPolicyActivation[]      @relation("ReimbursementPolicyActivationActor")
 }
 
@@ -1374,6 +1381,7 @@ model ReimbursementClaim {
   documents                      Document[]
   lines                          ReimbursementClaimLine[]
   calculationSnapshots           ReimbursementCalculationSnapshot[]
+  awardNotes                     ReimbursementAwardNote[]
   staffEntries                   ReimbursementClaimStaffEntry[]
   computationTables              ReimbursementComputationTable[]
   auditReview                    ReimbursementAuditReview?
@@ -1392,6 +1400,28 @@ model ReimbursementClaim {
   @@index([paymentHandoffStatus, recordTier])
   @@index([paymentScheduleReference, recordTier])
   @@index([paymentScheduleExportedById, recordTier])
+}
+
+model ReimbursementAwardNote {
+  id                    String                     @id @default(cuid())
+  reimbursementClaimId  String
+  kind                  ReimbursementAwardNoteKind
+  actorId               String
+  actorRole             Role
+  narrative             String
+  evidenceDocumentId    String?
+  sourceCalculationId   String?
+  sourceTableId         String?
+  priorAmount           Decimal?                   @db.Decimal(14, 2)
+  reviewedAmount        Decimal?                   @db.Decimal(14, 2)
+  policyEdition         ReimbursementPolicyEdition
+  recordTier            RecordTier                 @default(HOT)
+  createdAt             DateTime                   @default(now())
+  reimbursementClaim    ReimbursementClaim         @relation(fields: [reimbursementClaimId], references: [id], onDelete: Restrict)
+  actor                 User                       @relation("ReimbursementAwardNoteActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([reimbursementClaimId, createdAt])
+  @@index([actorId, createdAt])
 }
 
 model ReimbursementVoucherSignoff {

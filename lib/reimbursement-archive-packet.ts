@@ -30,6 +30,11 @@ type ArchivedHqComputation = {
   }[];
 };
 
+export type ArchivedAwardNote = {
+  kind: string; officer: string; role: string; narrative: string; evidenceDocumentId: string | null;
+  priorAmount: string | null; reviewedAmount: string | null; policyEdition: string; at: string;
+};
+
 export type ArchivedPaymentPacket = {
   version: number;
   archivedAt: string;
@@ -53,6 +58,7 @@ export type ArchivedPaymentPacket = {
   evidence: { id: string; kind: string; fileName: string; uploadedAt: string }[];
   trainings?: { id: string; title: string; approvalReference: string | null }[];
   hqComputation?: ArchivedHqComputation | null;
+  awardExplanation?: { policyEdition: string; bridge: { label: string; amount: number; change: number | null }[]; notes: ArchivedAwardNote[] };
   decisions: { action: string; reason: string | null; officer: string; at: string }[];
 };
 
@@ -64,7 +70,7 @@ export function parseArchivedPaymentPacket(value: unknown): ArchivedPaymentPacke
   return value as ArchivedPaymentPacket;
 }
 
-export async function buildArchivedPaymentPacketPdf(packet: ArchivedPaymentPacket, evidenceBaseUrl: string, voucherPdf?: Uint8Array) {
+export async function buildArchivedPaymentPacketPdf(packet: ArchivedPaymentPacket, evidenceBaseUrl: string, voucherPdf?: Uint8Array, postArchiveAddenda: ArchivedAwardNote[] = []) {
   const pdf = await PDFDocument.create();
   const regular = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
@@ -84,6 +90,18 @@ export async function buildArchivedPaymentPacketPdf(packet: ArchivedPaymentPacke
       })));
     }
     y -= heading ? 21 : 14;
+  };
+  const writeWrapped = (value: string) => {
+    for (const paragraph of value.split(/\r?\n/)) {
+      let line = "";
+      for (let word of safe(paragraph).split(/\s+/)) {
+        if (!word) continue;
+        if (line && `${line} ${word}`.length > 105) { write(line); line = ""; }
+        while (word.length > 105) { write(word.slice(0, 105)); word = word.slice(105); }
+        line = line ? `${line} ${word}` : word;
+      }
+      if (line) write(line);
+    }
   };
   write("ITF REIMBURSEMENT - ARCHIVED PAYMENT PACKET", true);
   write(`Claim ${packet.reference} | Archived ${packet.archivedAt}`);
@@ -109,6 +127,28 @@ export async function buildArchivedPaymentPacketPdf(packet: ArchivedPaymentPacke
     write("HQ COMPUTATION TABLE", true);
     write(`Recommendation: NGN ${packet.hqComputation.amountRecommended} | Confirmed by: ${packet.hqComputation.confirmedBy ?? "Pending"}`);
     write("The complete 11-column computation sheet follows on a landscape page.");
+  }
+  if (packet.awardExplanation) {
+    y -= 8;
+    write("AWARD EXPLANATION (STAFF ONLY)", true);
+    write(`Policy edition: ${packet.awardExplanation.policyEdition.replaceAll("_", " ")}`);
+    for (const row of packet.awardExplanation.bridge) write(`${row.label}: NGN ${row.amount.toFixed(2)}${row.change == null ? "" : ` | change: NGN ${row.change.toFixed(2)}`}`);
+    if (!packet.awardExplanation.notes.length) write("No attributed award explanation was recorded before archive.");
+    for (const note of packet.awardExplanation.notes) {
+      write(`${note.kind.replaceAll("_", " ")} | ${note.officer} (${note.role.replaceAll("_", " ")}) | ${note.at}`);
+      write(`Recorded amount: NGN ${note.priorAmount ?? "N/A"} to NGN ${note.reviewedAmount ?? "N/A"}`);
+      writeWrapped(note.narrative);
+      if (note.evidenceDocumentId) write("Open cited evidence", false, `${evidenceBaseUrl}/${encodeURIComponent(note.evidenceDocumentId)}?disposition=inline`);
+    }
+  }
+  if (postArchiveAddenda.length) {
+    y -= 8;
+    write("POST-ARCHIVE ADDENDA - NOT PART OF ORIGINAL SIGN-OFF", true);
+    for (const note of postArchiveAddenda) {
+      write(`${note.officer} (${note.role.replaceAll("_", " ")}) | ${note.at}`);
+      writeWrapped(note.narrative);
+      if (note.evidenceDocumentId) write("Open cited evidence", false, `${evidenceBaseUrl}/${encodeURIComponent(note.evidenceDocumentId)}?disposition=inline`);
+    }
   }
   if (packet.trainings?.length) {
     y -= 8;

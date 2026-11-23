@@ -13,6 +13,7 @@ import {
   calculateAreaOfficeClaimAction,
   calculateHeadquartersClaimAction,
   calculateAuditorClaimAction,
+  addClaimAwardNoteAction,
   createEpaymentScheduleAction,
   addClaimLineAction,
   attachTrainingsToClaimAction,
@@ -45,6 +46,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { getAreaOfficeCalculationBaseline } from "@/lib/area-office-claim-calculation";
 import { hasAuditVariance } from "@/lib/claim-audit-reconciliation";
+import { awardAmountBridge, canWriteAwardNote } from "@/lib/claim-award-explanation";
 import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
 import { getClaimAssignmentSenderId, isClaimAssignedToAnotherOfficer, isIndividuallyAssignedClaimRole, listAssignableClaimOfficers } from "@/lib/claim-officer-assignment";
 import { nairaInWords } from "@/lib/naira-in-words";
@@ -84,7 +86,7 @@ import { formatReimbursementPolicyEdition } from "@/lib/reimbursement-policy";
 import { isItfRole } from "@/lib/rbac";
 
 function formatMoney(value: { toString(): string } | null) {
-  if (!value) {
+  if (value == null) {
     return "Not provided";
   }
 
@@ -160,7 +162,7 @@ export default async function ClaimDetailPage({
   searchParams,
 }: Readonly<{
   params: Promise<{ claimId: string }>;
-  searchParams: Promise<{ paymentCheck?: string; paymentCheckError?: string; routingError?: string; assignmentError?: string; reassigned?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; calculationError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; computationError?: string; computationSaved?: string; reconciliationError?: string; reconciliationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string; signoffError?: string; staffImportError?: string; staffImported?: string }>;
+  searchParams: Promise<{ awardNoteError?: string; awardNoteSaved?: string; paymentCheck?: string; paymentCheckError?: string; routingError?: string; assignmentError?: string; reassigned?: string; lineSaved?: string; lineError?: string; formSaved?: string; formError?: string; calculationError?: string; assessmentSaved?: string; assessmentError?: string; areaCalculationError?: string; areaCalculationSaved?: string; hqCalculationError?: string; hqCalculationSaved?: string; computationError?: string; computationSaved?: string; reconciliationError?: string; reconciliationSaved?: string; auditError?: string; auditSaved?: string; auditCalculationError?: string; auditCalculationSaved?: string; preAuditError?: string; preAuditSaved?: string; evidenceError?: string; evidenceSaved?: string; scheduleError?: string; scheduleCreated?: string; paymentHandoffError?: string; signoffError?: string; staffImportError?: string; staffImported?: string }>;
 }>) {
   const { claimId } = await params;
   const query = await searchParams;
@@ -326,6 +328,11 @@ export default async function ClaimDetailPage({
           totalAmountAwarded: true,
         },
       },
+      awardNotes: { orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: {
+        id: true, kind: true, narrative: true, evidenceDocumentId: true, sourceCalculationId: true, sourceTableId: true,
+        priorAmount: true, reviewedAmount: true,
+        policyEdition: true, createdAt: true, actorRole: true, actor: { select: { name: true } },
+      } },
       computationTables: { orderBy: [{ createdAt: "desc" }, { id: "desc" }], select: {
         id: true, source: true, status: true, createdAt: true, amountRecommended: true, amountRecommendedInWords: true,
         recommendedContributionPercent: true, preparedByName: true, preparedAt: true, confirmedByName: true, confirmedAt: true,
@@ -470,6 +477,18 @@ export default async function ClaimDetailPage({
     ? latestReconciliationTable : null;
   const reconciliationPrepared = currentReconciliationTable?.status === "PREPARED";
   const reconciliationConfirmed = currentReconciliationTable?.status === "CONFIRMED";
+  const amountBridge = awardAmountBridge({
+    employerClaimed: Number(claim.claimedAmount.toString()),
+    employerCalculated: claim.calculatedAwardAmount ? Number(claim.calculatedAwardAmount.toString()) : null,
+    areaOffice: latestAreaCalculation ? Number(latestAreaCalculation.totalAmountAwarded.toString()) : null,
+    headquarters: latestHeadquartersCalculation ? Number(latestHeadquartersCalculation.totalAmountAwarded.toString()) : null,
+    hqComputation: currentHqComputationTable ? Number(currentHqComputationTable.amountRecommended.toString()) : null,
+    audited: latestAuditCalculation ? Number(latestAuditCalculation.totalAmountAwarded.toString()) : null,
+    reconciled: currentReconciliationTable ? Number(currentReconciliationTable.amountRecommended.toString()) : null,
+    reconciliationConfirmed,
+    finalApproved: claim.status === "ARCHIVED" || claim.status === "APPROVED" || claim.status === "SETTLED" || claim.voucherSignoffs.some((signoff) => signoff.kind === "PAYMENT_APPROVED")
+      ? claim.claimRecommendedAmount ? Number(claim.claimRecommendedAmount.toString()) : null : null,
+  });
   const currentComputationTable = currentReconciliationTable ?? currentHqComputationTable;
   const computationCapAdjustment = currentComputationTable
     ? Math.round((Number(currentComputationTable.amountRecommended.toString()) - currentComputationTable.rows.reduce((total, row) => total + Number(row.amountAwardedLowerOfContributionOrClaim?.toString() ?? 0), 0)) * 100) / 100
@@ -564,6 +583,8 @@ export default async function ClaimDetailPage({
   });
   const currentWorkItem = claim.workItems.find((item) => item.status === "OPEN" && item.assignedRole === claim.currentDesk);
   const assignedElsewhere = isClaimAssignedToAnotherOfficer(currentWorkItem?.assignedUserId ?? null, currentUser?.id ?? null);
+  const awardNoteKind = claim.status === "ARCHIVED" ? "ARCHIVE_ADDENDUM" : activeRole === "HQ_REIMBURSEMENT_OFFICER" ? "HQ_REVIEW" : "DIVISION_ATTESTATION";
+  const canAddAwardNote = Boolean(currentUser && (claim.status === "ARCHIVED" || !assignedElsewhere) && canWriteAwardNote(awardNoteKind, activeRole, claim.currentDesk, claim.status));
   const currentAssignmentRole = isIndividuallyAssignedClaimRole(claim.currentDesk) ? claim.currentDesk : null;
   const canReassignOfficer = Boolean(currentAssignmentRole && currentWorkItem && currentUser && (
     activeRole === "SYSTEM_ADMIN" || activeRole === "WORKSPACE_APP_ADMIN" ||
@@ -1107,6 +1128,30 @@ export default async function ClaimDetailPage({
           <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Prepare revised audit/FSD table</button>
           <FormActionProgress />
         </form> : null}
+        <div id="award-explanation" className="mt-6 border-t border-zinc-200 pt-5">
+          <h3 className="text-lg font-semibold">Award explanation and amount bridge</h3>
+          <p className="mt-1 text-sm text-zinc-600">Staff-only record. Amounts come from the claim&apos;s saved calculations; notes are attributed, timestamped and cannot be edited or removed. Policy: {formatReimbursementPolicyEdition(claim.policyEdition)}.</p>
+          {query.awardNoteSaved ? <p className="mt-3 rounded-md bg-emerald-50 p-3 text-sm font-semibold text-emerald-900">Explanation recorded.</p> : null}
+          {query.awardNoteError ? <p className="mt-3 rounded-md bg-red-50 p-3 text-sm font-semibold text-red-900">{query.awardNoteError}</p> : null}
+          <div className="mt-4 overflow-x-auto"><table className="min-w-full border-collapse text-left text-sm">
+            <thead><tr className="bg-zinc-50"><th className="border border-zinc-200 p-2">Stage</th><th className="border border-zinc-200 p-2">Amount</th><th className="border border-zinc-200 p-2">Change from preceding stage</th></tr></thead>
+            <tbody>{amountBridge.map((row) => <tr key={row.label}><td className="border border-zinc-200 p-2">{row.label}</td><td className="border border-zinc-200 p-2">{formatMoney(row.amount)}</td><td className="border border-zinc-200 p-2">{row.change == null ? "—" : `${row.change > 0 ? "+" : ""}${formatMoney(row.change)}`}</td></tr>)}</tbody>
+          </table></div>
+          {claim.awardNotes.length ? <ol className="mt-4 space-y-3">{claim.awardNotes.map((note) => <li key={note.id} className="rounded-md border border-zinc-200 bg-zinc-50 p-3 text-sm">
+            <p className="font-semibold">{note.kind === "HQ_REVIEW" ? "HQ RO processing note" : note.kind === "DIVISION_ATTESTATION" ? "Head of Division attestation" : "Post-archive addendum"} · {note.actor.name} ({note.actorRole.replaceAll("_", " ")}) · {formatDate(note.createdAt)}</p>
+            <p className="mt-1 text-zinc-600">Recorded bridge: {formatMoney(note.priorAmount)} → {formatMoney(note.reviewedAmount)} · {formatReimbursementPolicyEdition(note.policyEdition)}</p>
+            {note.kind === "HQ_REVIEW" && (note.sourceCalculationId !== latestHeadquartersCalculation?.id || note.sourceTableId !== currentHqComputationTable?.id) ? <p className="mt-1 font-semibold text-amber-800">This note refers to an earlier HQ calculation or table; review the latest figures separately.</p> : null}
+            <p className="mt-2 whitespace-pre-wrap">{note.narrative}</p>
+            {note.evidenceDocumentId ? <Link href={`/registry/${claim.company.id}/evidence/${note.evidenceDocumentId}?disposition=inline`} target="_blank" rel="noopener noreferrer" className="mt-2 inline-block font-semibold text-[#800020] underline">Open cited evidence</Link> : null}
+          </li>)}</ol> : <p className="mt-4 text-sm text-amber-800">No award explanation has been recorded. Older claims may predate this feature; the calculation and decision trail remain available.</p>}
+          {canAddAwardNote ? <form action={addClaimAwardNoteAction.bind(null, claim.id)} className="mt-5 grid gap-3 rounded-md border border-zinc-200 p-4">
+            <input type="hidden" name="noteKind" value={awardNoteKind} />
+            <p className="font-semibold">{awardNoteKind === "HQ_REVIEW" ? "Record HQ processing explanation" : awardNoteKind === "DIVISION_ATTESTATION" ? "Attest Division review" : "Add a post-archive clarification"}</p>
+            <label className="grid gap-1 text-sm">Reason for award difference and evidence basis<textarea name="narrative" required minLength={20} maxLength={3000} className="min-h-28 rounded-md border border-zinc-200 p-3" /></label>
+            <label className="grid gap-1 text-sm">Cited claim evidence (optional)<select name="evidenceDocumentId" className="min-h-10 rounded-md border border-zinc-200 bg-white px-3"><option value="">No individual file cited</option>{claim.documents.map((document) => <option key={document.id} value={document.id}>{document.kind.replaceAll("_", " ")} · {document.fileName}</option>)}</select></label>
+            <button className="w-fit rounded-md bg-[#800020] px-4 py-2 text-sm font-semibold text-white">Record attributed note</button><FormActionProgress />
+          </form> : null}
+        </div>
       </section>
       </CollapsibleClaimSection> : null}
 

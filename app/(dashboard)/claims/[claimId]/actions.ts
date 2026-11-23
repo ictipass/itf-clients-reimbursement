@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { authOptions } from "@/lib/auth";
+import { addClaimAwardNote, type AwardNoteKind } from "@/lib/claim-award-explanation";
 import { assertEmployerSubmissionAcknowledged } from "@/lib/submission-acknowledgement";
 import { isManualVoucherSignoffKind, recordVoucherSignoff } from "@/lib/reimbursement-voucher-signoffs";
 import { assertClaimActionAssignee, reassignClaimOfficer } from "@/lib/claim-officer-assignment";
@@ -108,6 +109,26 @@ function readRequiredString(formData: FormData, name: string) {
   }
 
   return value;
+}
+
+export async function addClaimAwardNoteAction(claimId: string, formData: FormData) {
+  const session = await getServerSession(authOptions);
+  if (!session?.user?.email || !session.user.id) throw new Error("Authentication is required.");
+  try {
+    const kind = readRequiredString(formData, "noteKind");
+    if (!["HQ_REVIEW", "DIVISION_ATTESTATION", "ARCHIVE_ADDENDUM"].includes(kind)) throw new Error("Unsupported explanation type.");
+    await addClaimAwardNote({
+      claimId, requesterId: session.user.id, requesterEmail: session.user.email,
+      requesterRole: session.user.role, kind: kind as AwardNoteKind,
+      narrative: readRequiredString(formData, "narrative"),
+      evidenceDocumentId: readOptionalString(formData, "evidenceDocumentId"),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "The award note could not be recorded.";
+    redirect(`/claims/${claimId}?awardNoteError=${encodeURIComponent(message.slice(0, 280))}#award-explanation`);
+  }
+  revalidatePath(`/claims/${claimId}`);
+  redirect(`/claims/${claimId}?awardNoteSaved=1#award-explanation`);
 }
 
 async function requireAssignedClaimOfficer(claimId: string, requesterId: string) {

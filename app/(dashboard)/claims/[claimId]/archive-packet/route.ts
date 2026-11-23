@@ -15,7 +15,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ clai
   const visibility = await getClaimVisibilityWhere({ email: session.user.email, role: session.user.role });
   const claim = await getDb().reimbursementClaim.findFirst({
     where: { id: claimId, recordTier: "HOT", status: "ARCHIVED", AND: [visibility] },
-    select: { archiveSnapshot: true, companyId: true },
+    select: { archiveSnapshot: true, companyId: true,
+      awardNotes: { where: { kind: "ARCHIVE_ADDENDUM", recordTier: "HOT" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: {
+        kind: true, narrative: true, evidenceDocumentId: true, priorAmount: true, reviewedAmount: true,
+        policyEdition: true, createdAt: true, actorRole: true, actor: { select: { name: true } },
+      } },
+    },
   });
   if (!claim) return Response.json({ error: "Archived packet was not found." }, { status: 404 });
   const packet = parseArchivedPaymentPacket(claim.archiveSnapshot);
@@ -27,8 +32,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ clai
     company: { legalName: packet.companyName, businessAddress: packet.companyAddress },
   }, new Date(packet.voucherRaised), packet.voucherPreparedBy,
   packet.signoffs.map((signoff) => ({ kind: signoff.kind, officer: signoff.officer, signedAt: new Date(signoff.signedAt) }))) : undefined;
+  const addenda = claim.awardNotes.filter((note) => note.createdAt > new Date(packet.archivedAt)).map((note) => ({
+    kind: note.kind, officer: note.actor.name, role: note.actorRole, narrative: note.narrative,
+    evidenceDocumentId: note.evidenceDocumentId, priorAmount: note.priorAmount?.toString() ?? null,
+    reviewedAmount: note.reviewedAmount?.toString() ?? null, policyEdition: note.policyEdition, at: note.createdAt.toISOString(),
+  }));
   const pdf = await buildArchivedPaymentPacketPdf(packet,
-    `${new URL(request.url).origin}/registry/${encodeURIComponent(claim.companyId)}/evidence`, voucher);
+    `${new URL(request.url).origin}/registry/${encodeURIComponent(claim.companyId)}/evidence`, voucher, addenda);
   return new Response(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",

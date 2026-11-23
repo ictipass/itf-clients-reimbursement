@@ -91,3 +91,26 @@ test("archived packet renders the complete HQ computation on a landscape page", 
   const oldPdf = await PDFDocument.load(await buildArchivedPaymentPacketPdf(legacy, "https://example.test/registry/company-1/evidence"));
   assert.equal(oldPdf.getPageCount(), 2);
 });
+
+test("archived packet renders the original award explanation and later addenda separately", async () => {
+  const note = { kind: "HQ_REVIEW", officer: "Original HQ RO", role: "HQ_REIMBURSEMENT_OFFICER",
+    narrative: "Verified expenditure and attendance. ".repeat(45), evidenceDocumentId: "doc-1",
+    priorAmount: "450", reviewedAmount: "420", policyEdition: "EIGHTH_REVISED", at: "2026-10-24T10:00:00Z" };
+  const packet = parseArchivedPaymentPacket({
+    version: 1, archivedAt: "2026-10-25T12:00:00Z", reference: "CLM-003", claimYear: 2025,
+    companyName: "Ada Training Ltd", areaOffice: "Abuja", approvedAmount: "420",
+    amountInWords: "Four hundred and twenty naira", companyAddress: "Abuja", scheduleReference: null,
+    withholdingTax: null, taxOffset: null, bankName: null, accountNumber: null,
+    accountNumberLast4: null, paymentReference: null, voucherRaised: null, voucherPreparedBy: null,
+    signoffs: [], evidence: [], decisions: [],
+    awardExplanation: { policyEdition: "EIGHTH_REVISED", bridge: [
+      { label: "Employer claimed", amount: 1000, change: null },
+      { label: "Final approved award", amount: 420, change: -580 },
+    ], notes: [note] },
+  });
+  assert.ok(packet);
+  const pdf = await PDFDocument.load(await buildArchivedPaymentPacketPdf(packet,
+    "https://example.test/registry/company-1/evidence", undefined,
+    [{ ...note, kind: "ARCHIVE_ADDENDUM", officer: "Successor Head", at: "2031-01-01T12:00:00Z" }]));
+  assert.ok(pdf.getPageCount() >= 2);
+});

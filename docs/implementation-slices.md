@@ -3287,3 +3287,18 @@ Implemented design:
 - Added **Happening Today** and **Coming Up / Happening Next Week** dashboard sections
 - Included training monitoring entries in both sections
 - Added a calendar-oriented monitoring view for ITF officers
+
+### 23 November 2026: Defensible award explanation (active register slice 02)
+
+- Added a staff-only amount bridge on the claim computation section. It distinguishes employer claim, employer calculation, Area Office, HQ RO, verified-expenditure-limited HQ table, independent Audit recalculation, confirmed FSD reconciliation, and final approval. Audit values are displayed as a separate stage, not silently substituted for FSD's approved recommendation.
+- The named HQ RO can record a processing explanation against the current HQ calculation and table. The Head of Reimbursement Division can record a separate attestation after that HQ explanation. Either role can add a clearly labeled post-archive clarification. Each entry captures the author, role, time, policy edition, amount references, narrative and an optional attached evidence document. Employers cannot view or write these notes. Admin roles can inspect but cannot author them.
+- The original notes and bridge are captured when payment is archived and rendered in the staff-only archived-packet PDF. Later addenda are rendered separately; they do not rewrite the archive snapshot. Legacy archived packets still render without an explanation and are labeled as such in the claim screen.
+- Added the `ReimbursementAwardNote` table and an update/delete-rejecting database trigger. Deploy `prisma migrate deploy` before exposing the new page in staging. No new environment variables or live provider calls are required. Existing notes cannot be amended or deleted by application actions; an attributed new entry is required.
+- Verified with 152 unit tests, an isolated PostgreSQL migration plus authorization/immutability integration test, lint, TypeScript and production build. The test database was temporary and removed after verification.
+
+Assessment in staging:
+
+1. Deploy the migration and app to Preview. Open a claim at a named HQ RO desk after HQ Form 1B and the computation table have been saved. The assigned officer should see the employer-to-HQ amount bridge and be able to record a reason with a cited claim document. Another HQ RO should be unable to record or alter it.
+2. Forward to Head of Reimbursement Division. The Head should see the original note and be able to add a separate attestation; the original note must remain unchanged. If Audit recalculates, confirm that the Audit figure appears as its own stage and only a confirmed FSD reconciliation appears as the reconciled stage.
+3. On a paid/archived claim, download the archived packet as authorized staff. Confirm the original bridge, processing note, attestation and evidence link appear. Add a later clarification as Head or HQ RO and download again: it must be marked as a post-archive addendum rather than part of the original sign-off. An employer should not see the staff explanation or download the packet.
+4. Do not use a legacy claim's missing note as evidence that an officer failed to document it; the feature did not exist when it was processed. Mandatory-note and final-signature policy remains to be approved before making this a routing gate.
