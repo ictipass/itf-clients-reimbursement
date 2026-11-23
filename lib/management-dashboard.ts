@@ -1,4 +1,5 @@
 import { getDb } from "@/lib/db";
+import { combineClaimFinancialFacts, emptyClaimFinancialFacts, getClaimFinancialFactsByOffice } from "@/lib/claim-reporting";
 import { can, isItfRole, type Role } from "@/lib/rbac";
 
 export type ManagementDashboardFilters = {
@@ -71,16 +72,6 @@ function areaOfficeIdWhere(areaOfficeIds?: string[]) {
   return {
     in: areaOfficeIds,
   };
-}
-
-function companyAreaOfficeWhere(areaOfficeIds?: string[]) {
-  return areaOfficeIds
-    ? {
-        company: {
-          areaOfficeId: areaOfficeIdWhere(areaOfficeIds),
-        },
-      }
-    : {};
 }
 
 export async function listManagementDashboardAreaOffices() {
@@ -184,7 +175,6 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
   const areaOfficeFilter = effectiveAreaOfficeIds
     ? { areaOfficeId: areaOfficeIdWhere(effectiveAreaOfficeIds) }
     : {};
-  const companyAreaFilter = companyAreaOfficeWhere(effectiveAreaOfficeIds);
   const complianceCompanyAreaFilter = effectiveAreaOfficeIds
     ? {
         company: {
@@ -203,9 +193,7 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
     urgentWorkItems,
     registrationRevenue,
     complianceRevenue,
-    claimsPaid,
-    claimsPending,
-    claimsRecommended,
+    claimFactsByOffice,
     complianceApproved,
     areaOfficeBreakdown,
     scopedAreaOffices,
@@ -270,19 +258,21 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
         ...(effectiveAreaOfficeIds ? { areaOfficeId: areaOfficeIdWhere(effectiveAreaOfficeIds) } : {}),
       },
     }),
-    db.registrationContributionAssessment.aggregate({
+    db.contributionInvoice.aggregate({
       where: {
         recordTier: "HOT",
-        amReleasedAt: yearRange,
-        ...(effectiveAreaOfficeIds ? { areaOfficeId: areaOfficeIdWhere(effectiveAreaOfficeIds) } : {}),
+        status: "PAID",
+        paidAt: yearRange,
+        ...(effectiveAreaOfficeIds ? { contributionAssessment: { areaOfficeId: areaOfficeIdWhere(effectiveAreaOfficeIds) } } : {}),
       },
       _sum: {
-        recommendedAmount: true,
+        amount: true,
       },
     }),
     db.complianceYear.aggregate({
       where: {
         recordTier: "HOT",
+        status: "APPROVED",
         year: filters.year,
         ...complianceCompanyAreaFilter,
       },
@@ -290,38 +280,7 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
         amountPaid: true,
       },
     }),
-    db.reimbursementClaim.aggregate({
-      where: {
-        recordTier: "HOT",
-        status: "SETTLED",
-        settledAt: yearRange,
-        ...companyAreaFilter,
-      },
-      _sum: {
-        claimRecommendedAmount: true,
-      },
-    }),
-    db.reimbursementClaim.count({
-      where: {
-        recordTier: "HOT",
-        status: {
-          in: ["SUBMITTED", "IN_REVIEW", "APPROVED"],
-        },
-        claimYear: filters.year,
-        ...companyAreaFilter,
-      },
-    }),
-    db.reimbursementClaim.aggregate({
-      where: {
-        recordTier: "HOT",
-        claimYear: filters.year,
-        ...companyAreaFilter,
-      },
-      _sum: {
-        claimRecommendedAmount: true,
-        claimedAmount: true,
-      },
-    }),
+    getClaimFinancialFactsByOffice({ year: filters.year, areaOfficeIds: effectiveAreaOfficeIds }),
     db.complianceYear.count({
       where: {
         recordTier: "HOT",
@@ -371,7 +330,6 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
     }),
     db.areaOffice.findMany({
       where: {
-        isActive: true,
         ...(effectiveAreaOfficeIds ? { id: areaOfficeIdWhere(effectiveAreaOfficeIds) } : {}),
       },
       select: {
@@ -384,33 +342,32 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
     }),
   ]);
 
-  const registrationRevenueValue = decimalToNumber(registrationRevenue._sum.recommendedAmount);
+  const registrationRevenueValue = decimalToNumber(registrationRevenue._sum.amount);
   const complianceRevenueValue = decimalToNumber(complianceRevenue._sum.amountPaid);
-  const claimsPaidValue = decimalToNumber(claimsPaid._sum.claimRecommendedAmount);
-  const claimsRecommendedValue = decimalToNumber(claimsRecommended._sum.claimRecommendedAmount);
-  const claimsRequestedValue = decimalToNumber(claimsRecommended._sum.claimedAmount);
+  const claimFacts = combineClaimFinancialFacts([...claimFactsByOffice.values()]);
 
-  const financialBreakdown = await Promise.all(
+  const officeFinancialBreakdown = await Promise.all(
     scopedAreaOffices.map(async (areaOffice) => {
       const [
         officeRegistrationRevenue,
         officeComplianceRevenue,
-        officeClaimsPaid,
         officeComplianceApproved,
       ] = await Promise.all([
-        db.registrationContributionAssessment.aggregate({
+        db.contributionInvoice.aggregate({
           where: {
             recordTier: "HOT",
-            areaOfficeId: areaOffice.id,
-            amReleasedAt: yearRange,
+            status: "PAID",
+            paidAt: yearRange,
+            contributionAssessment: { areaOfficeId: areaOffice.id },
           },
           _sum: {
-            recommendedAmount: true,
+            amount: true,
           },
         }),
         db.complianceYear.aggregate({
           where: {
             recordTier: "HOT",
+            status: "APPROVED",
             year: filters.year,
             company: {
               areaOfficeId: areaOffice.id,
@@ -418,19 +375,6 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
           },
           _sum: {
             amountPaid: true,
-          },
-        }),
-        db.reimbursementClaim.aggregate({
-          where: {
-            recordTier: "HOT",
-            status: "SETTLED",
-            settledAt: yearRange,
-            company: {
-              areaOfficeId: areaOffice.id,
-            },
-          },
-          _sum: {
-            claimRecommendedAmount: true,
           },
         }),
         db.complianceYear.count({
@@ -445,16 +389,26 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
         }),
       ]);
 
+      const officeClaimFacts = claimFactsByOffice.get(areaOffice.id) ?? emptyClaimFinancialFacts();
       return {
         id: areaOffice.id,
         name: areaOffice.name,
-        registrationRevenue: decimalToNumber(officeRegistrationRevenue._sum.recommendedAmount),
+        registrationRevenue: decimalToNumber(officeRegistrationRevenue._sum.amount),
         complianceRevenue: decimalToNumber(officeComplianceRevenue._sum.amountPaid),
-        claimsPaid: decimalToNumber(officeClaimsPaid._sum.claimRecommendedAmount),
+        claimsPaid: officeClaimFacts.paidNetConfirmed,
+        paidMissingBreakdown: officeClaimFacts.paidMissingBreakdown,
         complianceApproved: officeComplianceApproved,
       };
     }),
   );
+  const unassignedFacts = claimFactsByOffice.get(null);
+  const financialBreakdown = scope.scopeType === "HQ" && unassignedFacts
+    ? [...officeFinancialBreakdown, {
+        id: "unassigned", name: "No Area Office assigned", registrationRevenue: 0,
+        complianceRevenue: 0, claimsPaid: unassignedFacts.paidNetConfirmed,
+        paidMissingBreakdown: unassignedFacts.paidMissingBreakdown, complianceApproved: 0,
+      }]
+    : officeFinancialBreakdown;
 
   return {
     filters: {
@@ -469,11 +423,16 @@ export async function getManagementDashboard(input: ManagementDashboardInput) {
       complianceApproved,
       registrationRevenue: registrationRevenueValue,
       complianceRevenue: complianceRevenueValue,
-      totalRevenue: registrationRevenueValue + complianceRevenueValue,
-      claimsPaid: claimsPaidValue,
-      claimsPending,
-      claimsRecommended: claimsRecommendedValue,
-      claimsRequested: claimsRequestedValue,
+      claimsPaid: claimFacts.paidNetConfirmed,
+      claimsPaidGross: claimFacts.paidGross,
+      claimsPaidDeductions: claimFacts.paidDeductions,
+      claimsPaidCount: claimFacts.paidCount,
+      claimsPaidMissingBreakdown: claimFacts.paidMissingBreakdown,
+      claimsArchived: claimFacts.archivedCount,
+      claimsPending: claimFacts.activeCount,
+      claimsRecommended: claimFacts.activeReviewed,
+      claimsRequested: claimFacts.activeClaimed,
+      claimsApprovedOutstanding: claimFacts.approvedOutstandingGross,
       approvedRegistrationApplications,
       pendingRegistrationApplications,
       openWorkItems,

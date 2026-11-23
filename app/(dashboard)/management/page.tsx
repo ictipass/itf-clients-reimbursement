@@ -175,6 +175,12 @@ export default async function ManagementDashboardPage({
             payment processing is handled outside this platform.
           </p>
         ) : null}
+        <p className="mt-4 rounded-md bg-zinc-50 px-3 py-2 text-sm leading-6 text-zinc-700">
+          Selected year means the <strong>training year</strong> for claims and annual compliance,
+          but the <strong>payment year</strong> for reimbursements and paid registration invoices.
+          Payment and archive years use UTC timestamps. Area Office claim figures follow the
+          company&apos;s current jurisdiction; historical office attribution is a later archive improvement.
+        </p>
       </section>
 
       {usesInAppRevenue ? (
@@ -182,23 +188,21 @@ export default async function ManagementDashboardPage({
           <p className="text-sm font-semibold uppercase tracking-[0.18em] text-[#800020]">
             HQ summary
           </p>
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="mt-4 grid gap-3 md:grid-cols-3">
             <MetricCard
-              label="Total revenue"
-              value={formatMoney(dashboard.headline.totalRevenue)}
-              detail="Registration plus annual compliance revenue"
-            />
-            <MetricCard
-              label="Registration revenue"
+              label="Paid registration invoices"
               value={formatMoney(dashboard.headline.registrationRevenue)}
+              detail="Invoices paid in the selected payment year"
             />
             <MetricCard
-              label="Compliance revenue"
+              label="Approved annual contributions"
               value={formatMoney(dashboard.headline.complianceRevenue)}
+              detail="Recorded paid amount for the selected compliance year"
             />
             <MetricCard
-              label="Claims paid"
+              label="Net reimbursement recorded"
               value={formatMoney(dashboard.headline.claimsPaid)}
+              detail="Confirmed net amount in the selected payment year"
             />
           </div>
         </section>
@@ -215,24 +219,25 @@ export default async function ManagementDashboardPage({
           value={dashboard.headline.complianceApproved}
           detail="Approved annual compliance records for selected year"
         />
-        {usesInAppRevenue ? (
-          <MetricCard
-            label="Revenue generated"
-            value={formatMoney(dashboard.headline.totalRevenue)}
-            detail={`${formatMoney(dashboard.headline.registrationRevenue)} registration, ${formatMoney(
-              dashboard.headline.complianceRevenue,
-            )} compliance`}
-          />
-        ) : null}
         <MetricCard
-          label="Reimbursement paid"
+          label="Net reimbursement recorded"
           value={formatMoney(dashboard.headline.claimsPaid)}
-          detail={`${dashboard.headline.claimsPending} pending claims`}
+          detail={`${dashboard.headline.claimsPaidCount} paid records; gross ${formatMoney(dashboard.headline.claimsPaidGross)}, confirmed deductions ${formatMoney(dashboard.headline.claimsPaidDeductions)}`}
         />
         <MetricCard
-          label="Claim exposure"
+          label="Active claim requests"
           value={formatMoney(dashboard.headline.claimsRequested)}
-          detail={`${formatMoney(dashboard.headline.claimsRecommended)} currently recommended`}
+          detail={`${dashboard.headline.claimsPending} active claims for the training year; ${formatMoney(dashboard.headline.claimsRecommended)} current review amount (not final)`}
+        />
+        <MetricCard
+          label="DG-approved, not paid"
+          value={formatMoney(dashboard.headline.claimsApprovedOutstanding)}
+          detail="Gross approved award, before deductions; selected training year"
+        />
+        <MetricCard
+          label="Archived claims"
+          value={dashboard.headline.claimsArchived}
+          detail="Archived in the selected calendar year"
         />
         <MetricCard
           label="Completed registrations"
@@ -250,6 +255,12 @@ export default async function ManagementDashboardPage({
           detail={`${dashboard.headline.urgentWorkItems} high or urgent items`}
         />
       </section>
+
+      {dashboard.headline.claimsPaidMissingBreakdown > 0 ? (
+        <p className="mt-4 rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-950">
+          {dashboard.headline.claimsPaidMissingBreakdown} paid record{dashboard.headline.claimsPaidMissingBreakdown === 1 ? "" : "s"} lack a valid award/deduction breakdown. Their net amount is excluded from the confirmed net total until reconciled.
+        </p>
+      ) : null}
 
       <section className="mt-6 rounded-lg border border-zinc-200 bg-white p-6">
         <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
@@ -303,11 +314,11 @@ export default async function ManagementDashboardPage({
                 <th className="px-4 py-3">Complied</th>
                 {usesInAppRevenue ? (
                   <>
-                    <th className="px-4 py-3">Registration revenue</th>
-                    <th className="px-4 py-3">Compliance revenue</th>
+                    <th className="px-4 py-3">Paid registration invoices</th>
+                    <th className="px-4 py-3">Approved annual contributions</th>
                   </>
                 ) : null}
-                <th className="px-4 py-3">Claims paid</th>
+                <th className="px-4 py-3">Net reimbursement recorded</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 bg-white">
@@ -327,6 +338,7 @@ export default async function ManagementDashboardPage({
                   ) : null}
                   <td className="px-4 py-4 text-zinc-700">
                     {formatMoney(areaOffice.claimsPaid)}
+                    {areaOffice.paidMissingBreakdown > 0 ? <span className="block text-xs text-amber-800">{areaOffice.paidMissingBreakdown} paid record(s) need reconciliation</span> : null}
                   </td>
                 </tr>
               ))}

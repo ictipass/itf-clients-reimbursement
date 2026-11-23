@@ -2,6 +2,13 @@
 
 This is the historical implementation log. Current priorities, blockers and next slices are maintained in the [active slice register](active-slice-register.md).
 
+## 23 November 2026: Financial reporting facts
+
+- Corrected management paid-claim reporting to use recorded payment handoff and `paidAt`, rather than a `SETTLED` status the live workflow does not retain. The confirmed net figure subtracts WHT and Tax Off; incomplete legacy breakdowns raise a warning instead of being counted as zero-deduction payments.
+- Separated training-year active requests and DG-approved unpaid gross awards from payment-year paid amounts and archive-year counts. Replaced assessed registration revenue with paid invoices, restricted annual contribution totals to approved records, and removed a total that mixed incompatible year bases.
+- Added Area Office-scoped aggregation and an unassigned office bucket. No schema or environment changes; no change to payment authorization or settlement behavior. See [financial reporting facts](financial-reporting-facts.md) for definitions and remaining limitations.
+- Assessment: run `npm.cmd test`, `npx.cmd tsc --noEmit`, and `npm.cmd run lint` from this app. The isolated PostgreSQL job runs `npm run test:integration`; do not run it against a real database. In staging, open `/management`, compare a paid claim's e-payment schedule net amount with the payment-year card, and verify the training-year active and DG-approved gross figures change as the claim proceeds. Check the missing-breakdown warning on a permitted legacy test record.
+
 ## October 2026: Reimbursement annual eligibility foundation
 
 - Added an authenticated development compliance API with administrator-managed test company/year
