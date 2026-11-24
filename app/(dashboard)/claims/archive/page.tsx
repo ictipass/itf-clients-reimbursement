@@ -33,13 +33,12 @@ export default async function ArchivedClaimsPage({ searchParams }: Readonly<{
     recordTier: "HOT" as const,
     status: "ARCHIVED" as const,
     AND: [visibilityWhere],
-    company: {
-      ...(companyQuery ? { OR: [
-        { legalName: { contains: companyQuery, mode: "insensitive" as const } },
-        { itfEmployerNumber: { contains: companyQuery, mode: "insensitive" as const } },
-      ] } : {}),
-      ...(areaOfficeQuery ? { areaOffice: { name: { contains: areaOfficeQuery, mode: "insensitive" as const } } } : {}),
-    },
+    ...(companyQuery ? { OR: [
+      { reference: { contains: companyQuery, mode: "insensitive" as const } },
+      { archiveCompanyName: { contains: companyQuery, mode: "insensitive" as const } },
+      { archiveItfEmployerNumber: { contains: companyQuery, mode: "insensitive" as const } },
+    ] } : {}),
+    ...(areaOfficeQuery ? { archiveAreaOfficeName: { contains: areaOfficeQuery, mode: "insensitive" as const } } : {}),
   };
   const db = getDb();
   const [total, claims] = await db.$transaction([
@@ -47,15 +46,15 @@ export default async function ArchivedClaimsPage({ searchParams }: Readonly<{
     db.reimbursementClaim.findMany({
       where,
       select: {
-        id: true, reference: true, claimYear: true,
-        company: { select: { id: true, legalName: true, itfEmployerNumber: true, areaOffice: { select: { name: true } } } },
+        id: true, reference: true, claimYear: true, archiveAreaOfficeName: true,
+        archiveCompanyName: true, archiveItfEmployerNumber: true, archiveVersion: true,
       },
-      orderBy: [{ company: { legalName: "asc" } }, { updatedAt: "desc" }],
+      orderBy: [{ archiveAreaOfficeName: "asc" }, { archiveCompanyName: "asc" }, { archivedAt: "desc" }, { id: "asc" }],
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
   ]);
-  const grouped = Map.groupBy(claims, (claim) => claim.company.areaOffice?.name ?? "No Area Office assigned");
+  const grouped = Map.groupBy(claims, (claim) => claim.archiveAreaOfficeName ?? "Historical Area Office unresolved");
   const groups = [...grouped.entries()].sort(([a], [b]) => a.localeCompare(b));
   const pageCount = Math.max(1, Math.ceil(total / pageSize));
 
@@ -63,10 +62,10 @@ export default async function ArchivedClaimsPage({ searchParams }: Readonly<{
     <div className="mx-auto max-w-7xl px-6 py-8 lg:px-8">
       <Link href="/claims" className="text-sm font-semibold text-[#800020]">← Back to claims</Link>
       <h1 className="mt-4 text-3xl font-semibold">Archived reimbursement claims</h1>
-      <p className="mt-2 text-sm text-zinc-600">Browse read-only employer profiles and claim packets grouped by Area Office. Area Office staff see only their jurisdiction.</p>
+      <p className="mt-2 text-sm text-zinc-600">Browse read-only claim packets grouped by their archived Area Office. Area Office staff see only claims from their submission-time jurisdiction. Unresolved legacy attribution requires records review.</p>
       <form className="mt-6 grid gap-3 rounded-lg border border-zinc-200 bg-white p-4 md:grid-cols-[1fr_1fr_auto]">
-        <label className="grid gap-1 text-sm">Employer or ITF number<input name="company" defaultValue={companyQuery} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
-        <label className="grid gap-1 text-sm">Area Office<input name="areaOffice" defaultValue={areaOfficeQuery} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+        <label className="grid gap-1 text-sm">Employer, ITF number or claim reference<input name="company" defaultValue={companyQuery} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
+        <label className="grid gap-1 text-sm">Archived Area Office<input name="areaOffice" defaultValue={areaOfficeQuery} className="min-h-10 rounded-md border border-zinc-200 px-3" /></label>
         <button className="min-h-10 self-end rounded-md bg-[#800020] px-4 text-sm font-semibold text-white">Find archived claims</button>
         <FormActionProgress />
       </form>
@@ -79,10 +78,15 @@ export default async function ArchivedClaimsPage({ searchParams }: Readonly<{
             {officeClaims.map((claim) => (
               <div key={claim.id} className="grid gap-2 rounded-md border border-zinc-100 p-4 text-sm md:grid-cols-[1fr_auto]">
                 <div>
-                  <Link href={`/registry/${claim.company.id}`} className="font-semibold text-[#800020] hover:underline">{claim.company.legalName}</Link>
-                  <p className="mt-1 text-zinc-600">ITF No. {claim.company.itfEmployerNumber ?? "Not recorded"} · Claim {claim.reference} · Training year {claim.claimYear ?? "Not recorded"}</p>
+                  <p className="font-semibold text-zinc-950">{claim.archiveCompanyName ?? "Historical employer name unavailable"}</p>
+                  <p className="mt-1 text-zinc-600">ITF No. {claim.archiveItfEmployerNumber ?? "Not captured"} · Claim {claim.reference} · Training year {claim.claimYear ?? "Not recorded"}</p>
                 </div>
-                <Link href={`/claims/${claim.id}`} className="w-fit self-center rounded-md border border-zinc-200 px-3 py-2 font-semibold">View archived claim</Link>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Link href={`/claims/${claim.id}`} className="w-fit rounded-md border border-zinc-200 px-3 py-2 font-semibold">View archived claim</Link>
+                  {claim.archiveVersion === 1 || claim.archiveVersion === 2
+                    ? <Link href={`/claims/${claim.id}/archive-packet`} target="_blank" rel="noopener noreferrer" className="w-fit rounded-md border border-[#800020] px-3 py-2 font-semibold text-[#800020]">Open packet PDF</Link>
+                    : <span className="w-fit rounded-md border border-amber-300 bg-amber-50 px-3 py-2 font-semibold text-amber-950">Legacy packet not captured</span>}
+                </div>
               </div>
             ))}
           </div>

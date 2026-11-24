@@ -51,10 +51,19 @@ export function buildClaimVisibilityWhere(role: Role, activeMemberships: ActiveM
   const officeIds = memberships.flatMap((membership) => membership.areaOfficeId ? [membership.areaOfficeId] : []);
   if (areaOfficeRoles.includes(role) && !officeIds.length) return noClaims;
 
+  if (areaOfficeRoles.includes(role)) {
+    return {
+      company: { organization: { workspaceId: { in: workspaceIds } } },
+      OR: [
+        { status: "ARCHIVED", archiveAreaOfficeId: { in: officeIds } },
+        { status: { not: "ARCHIVED" }, company: { areaOfficeId: { in: officeIds } },
+          workItems: { some: { assignedRole: role, app: "REIMBURSEMENT", recordTier: "HOT" } } },
+      ],
+    };
+  }
   return {
     company: {
       organization: { workspaceId: { in: workspaceIds } },
-      ...(areaOfficeRoles.includes(role) ? { areaOfficeId: { in: officeIds } } : {}),
     },
     OR: [
       { workItems: { some: { assignedRole: role, app: "REIMBURSEMENT", recordTier: "HOT" } } },

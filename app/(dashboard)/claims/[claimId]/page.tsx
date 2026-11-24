@@ -199,6 +199,8 @@ export default async function ClaimDetailPage({
       computationRequired: true,
       voucherSignoffRequired: true,
       archivedAt: true,
+      archiveAreaOfficeName: true,
+      archiveVersion: true,
       voucherSignoffs: { orderBy: { signedAt: "asc" }, select: { kind: true, amount: true, remark: true, signedAt: true, actorRole: true, actor: { select: { name: true } } } },
       paymentScheduleReference: true,
       paymentScheduleExportedAt: true,
@@ -691,6 +693,8 @@ export default async function ClaimDetailPage({
         </form>}
       </section> : null}
 
+      {claim.status === "ARCHIVED" && isItfRole(activeRole) ? <p className="mt-4 rounded-md border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-950">This claim is archived and read-only. The archived packet PDF is the settlement-time record; live company-profile fields elsewhere on this page may have changed since payment.</p> : null}
+
       <fieldset disabled={assignedElsewhere} className="min-w-0 border-0 p-0">
 
       <div className="mt-4 rounded-lg border border-[#800020]/20 bg-[#800020]/5 px-5 py-4">
@@ -737,7 +741,7 @@ export default async function ClaimDetailPage({
             Area Office
           </p>
           <p className="mt-2 text-sm font-semibold text-zinc-950">
-            {claim.company.areaOffice?.name ?? "No Area Office"}
+            {claim.status === "ARCHIVED" ? claim.archiveAreaOfficeName ?? "Historical office unresolved" : claim.company.areaOffice?.name ?? "No Area Office"}
           </p>
         </div>
         <div className="rounded-lg border border-zinc-200 bg-white p-4">
@@ -2000,7 +2004,9 @@ export default async function ClaimDetailPage({
           </div>
           <div className="flex flex-wrap gap-2">
           {isItfRole(activeRole) && canDownloadVoucher ? <Link href={`/claims/${claim.id}/payment-voucher`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 w-fit items-center rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">View payment voucher PDF</Link> : isItfRole(activeRole) ? <button type="button" disabled className="inline-flex min-h-10 w-fit items-center rounded-md bg-zinc-200 px-4 text-sm font-semibold text-zinc-500">Payment voucher not raised</button> : null}
-          {claim.status === "ARCHIVED" && isItfRole(activeRole) ? <Link href={`/claims/${claim.id}/archive-packet`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 w-fit items-center rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">View archived payment packet</Link> : null}
+          {claim.status === "ARCHIVED" && isItfRole(activeRole) ? (claim.archiveVersion === 1 || claim.archiveVersion === 2
+            ? <Link href={`/claims/${claim.id}/archive-packet`} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 w-fit items-center rounded-md border border-[#800020] px-4 text-sm font-semibold text-[#800020]">View archived payment packet</Link>
+            : <p className="rounded-md bg-amber-50 p-3 text-sm font-semibold text-amber-950">The historical packet snapshot was not captured for this legacy claim. The live claim record is available for records review but must not be mistaken for an original archived packet.</p>) : null}
           {isItfRole(activeRole) && canDownloadSchedule ? (
             <Link
               href={`/claims/${claim.id}/payment-schedule`}

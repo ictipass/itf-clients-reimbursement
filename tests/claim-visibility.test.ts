@@ -31,7 +31,12 @@ test("Area Office access also requires the assigned office and role", () => {
   const where = buildClaimVisibilityWhere("REIMBURSEMENT_OFFICER", [{
     role: "REIMBURSEMENT_OFFICER", workspaceId, organizationId: "itf-office", areaOfficeId: "area-1",
   }]);
-  assert.deepEqual(where.company, { organization: { workspaceId: { in: [workspaceId] } }, areaOfficeId: { in: ["area-1"] } });
+  assert.deepEqual(where.company, { organization: { workspaceId: { in: [workspaceId] } } });
+  assert.deepEqual(where.OR, [
+    { status: "ARCHIVED", archiveAreaOfficeId: { in: ["area-1"] } },
+    { status: { not: "ARCHIVED" }, company: { areaOfficeId: { in: ["area-1"] } },
+      workItems: { some: { assignedRole: "REIMBURSEMENT_OFFICER", app: "REIMBURSEMENT", recordTier: "HOT" } } },
+  ]);
   assert.deepEqual(buildClaimVisibilityWhere("REIMBURSEMENT_OFFICER", []), { id: { in: [] } });
 });
 

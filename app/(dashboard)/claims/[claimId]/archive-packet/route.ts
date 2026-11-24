@@ -1,21 +1,20 @@
 import { getServerSession } from "next-auth";
 
 import { authOptions } from "@/lib/auth";
-import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
+import { canBrowseArchivedClaims, getClaimVisibilityWhere } from "@/lib/claim-visibility";
 import { getDb } from "@/lib/db";
 import { buildArchivedPaymentPacketPdf, parseArchivedPaymentPacket } from "@/lib/reimbursement-archive-packet";
 import { buildPaymentVoucherPdf } from "@/lib/reimbursement-payment-voucher";
-import { isItfRole } from "@/lib/rbac";
 
 export async function GET(request: Request, { params }: { params: Promise<{ claimId: string }> }) {
   const session = await getServerSession(authOptions);
   if (!session?.user?.email) return Response.json({ error: "Authentication is required." }, { status: 401 });
-  if (!isItfRole(session.user.role)) return Response.json({ error: "Archived payment packets are restricted to ITF staff." }, { status: 403 });
+  if (!canBrowseArchivedClaims(session.user.role)) return Response.json({ error: "Archived payment packets are restricted to authorized staff." }, { status: 403 });
   const { claimId } = await params;
   const visibility = await getClaimVisibilityWhere({ email: session.user.email, role: session.user.role });
   const claim = await getDb().reimbursementClaim.findFirst({
     where: { id: claimId, recordTier: "HOT", status: "ARCHIVED", AND: [visibility] },
-    select: { archiveSnapshot: true, companyId: true,
+    select: { archiveSnapshot: true,
       awardNotes: { where: { kind: "ARCHIVE_ADDENDUM", recordTier: "HOT" }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], select: {
         kind: true, narrative: true, evidenceDocumentId: true, priorAmount: true, reviewedAmount: true,
         policyEdition: true, createdAt: true, actorRole: true, actor: { select: { name: true } },
@@ -25,12 +24,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ clai
   if (!claim) return Response.json({ error: "Archived packet was not found." }, { status: 404 });
   const packet = parseArchivedPaymentPacket(claim.archiveSnapshot);
   if (!packet) return Response.json({ error: "The archive snapshot is unavailable." }, { status: 409 });
-  const voucher = packet.voucherRaised && packet.voucherPreparedBy ? await buildPaymentVoucherPdf({
+  const prepared = packet.signoffs.find((signoff) => signoff.kind === "PV_PREPARED");
+  const voucherRaised = packet.voucherRaised ?? prepared?.signedAt;
+  const voucherPreparedBy = packet.voucherPreparedBy ?? prepared?.officer;
+  const voucher = voucherRaised && voucherPreparedBy ? await buildPaymentVoucherPdf({
     reference: packet.reference, claimYear: packet.claimYear,
     bankName: packet.bankName, accountNumber: packet.accountNumber,
     claimRecommendedAmount: packet.approvedAmount, claimRecommendedInWords: packet.amountInWords,
     company: { legalName: packet.companyName, businessAddress: packet.companyAddress },
-  }, new Date(packet.voucherRaised), packet.voucherPreparedBy,
+  }, new Date(voucherRaised), voucherPreparedBy,
   packet.signoffs.map((signoff) => ({ kind: signoff.kind, officer: signoff.officer, signedAt: new Date(signoff.signedAt) }))) : undefined;
   const addenda = claim.awardNotes.filter((note) => note.createdAt > new Date(packet.archivedAt)).map((note) => ({
     kind: note.kind, officer: note.actor.name, role: note.actorRole, narrative: note.narrative,
@@ -38,7 +40,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ clai
     reviewedAmount: note.reviewedAmount?.toString() ?? null, policyEdition: note.policyEdition, at: note.createdAt.toISOString(),
   }));
   const pdf = await buildArchivedPaymentPacketPdf(packet,
-    `${new URL(request.url).origin}/registry/${encodeURIComponent(claim.companyId)}/evidence`, voucher, addenda);
+    `${new URL(request.url).origin}/claims/${encodeURIComponent(claimId)}/archive-evidence`, voucher, addenda);
   return new Response(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",

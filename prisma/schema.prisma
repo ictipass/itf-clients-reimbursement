@@ -1317,6 +1317,12 @@ model TrainingMonitoringEvaluation {
 model ReimbursementClaim {
   id                             String                            @id @default(cuid())
   companyId                      String
+  claimAreaOfficeId              String?
+  archiveAreaOfficeId            String?
+  archiveAreaOfficeName          String?
+  archiveCompanyName             String?
+  archiveItfEmployerNumber       String?
+  archiveVersion                 Int?
   reference                      String                            @unique
   claimYear                      Int?
   employerScale                  ReimbursementEmployerScale?
@@ -1392,6 +1398,7 @@ model ReimbursementClaim {
   comments                       Comment[]
 
   @@index([companyId, status, recordTier])
+  @@index([archiveAreaOfficeId, status, recordTier])
   @@index([currentDesk, status, recordTier])
   @@index([policyEdition, status, recordTier])
   @@index([contributionVerificationStatus, recordTier], map: "ReimbursementClaim_contributionVerificationStatus_recordTier_id")

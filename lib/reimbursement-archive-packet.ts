@@ -35,6 +35,14 @@ export type ArchivedAwardNote = {
   priorAmount: string | null; reviewedAmount: string | null; policyEdition: string; at: string;
 };
 
+export type ArchivedTrainingPlan = {
+  id: string; year: number; rows: {
+    rowNumber: number; staffName: string; department: string; gapIdentified: string;
+    trainingTitle: string; estimatedCost: string; plannedDate: string | null;
+    location: string; trainer: string;
+  }[];
+};
+
 export type ArchivedPaymentPacket = {
   version: number;
   archivedAt: string;
@@ -42,6 +50,15 @@ export type ArchivedPaymentPacket = {
   claimYear: number | null;
   companyName: string;
   areaOffice: string | null;
+  areaOfficeId?: string | null;
+  jurisdictionBasis?: "SUBMISSION" | "ARCHIVE_FALLBACK";
+  claimDetails?: Record<string, string | number | null>;
+  lines?: Record<string, string | number | null>[];
+  staffEntries?: Record<string, string | number | null>[];
+  calculations?: (Record<string, unknown> & { stage: string })[];
+  auditReview?: Record<string, unknown> | null;
+  paymentFileAudit?: Record<string, unknown> | null;
+  paymentSchedule?: Record<string, string | null>;
   approvedAmount: string | null;
   amountInWords: string | null;
   companyAddress: string | null;
@@ -50,13 +67,19 @@ export type ArchivedPaymentPacket = {
   taxOffset: string | null;
   bankName: string | null;
   accountNumber: string | null;
+  accountName?: string | null;
   accountNumberLast4: string | null;
   paymentReference: string | null;
   voucherRaised: string | null;
   voucherPreparedBy: string | null;
   signoffs: { kind: string; officer: string; role: string; amount: string; remark: string | null; signedAt: string }[];
-  evidence: { id: string; kind: string; fileName: string; uploadedAt: string }[];
-  trainings?: { id: string; title: string; approvalReference: string | null }[];
+  evidence: { id: string; kind: string; fileName: string; uploadedAt: string; scope?: string;
+    receiptIssuer?: string | null; receiptNumber?: string | null; checksum?: string; fileSize?: number;
+    mimeType?: string; scanStatus?: string; expiresAt?: string | null; trainingPlanId?: string | null }[];
+  trainings?: { id: string; title: string; approvalReference: string | null;
+    startsAt?: string; endsAt?: string; estimatedCost?: string }[];
+  trainingPlans?: ArchivedTrainingPlan[];
+  computationTables?: (ArchivedHqComputation & { source: string; status: string })[];
   hqComputation?: ArchivedHqComputation | null;
   awardExplanation?: { policyEdition: string; bridge: { label: string; amount: number; change: number | null }[]; notes: ArchivedAwardNote[] };
   decisions: { action: string; reason: string | null; officer: string; at: string }[];
@@ -65,9 +88,29 @@ export type ArchivedPaymentPacket = {
 export function parseArchivedPaymentPacket(value: unknown): ArchivedPaymentPacket | null {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const record = value as Record<string, unknown>;
-  if (record.version !== 1 || typeof record.reference !== "string" || typeof record.companyName !== "string" ||
+  if (record.version !== 1 && record.version !== 2) return null;
+  if (typeof record.archivedAt !== "string" || typeof record.reference !== "string" || typeof record.companyName !== "string" ||
     !Array.isArray(record.signoffs) || !Array.isArray(record.evidence) || !Array.isArray(record.decisions)) return null;
+  if (!record.signoffs.every((item) => item && typeof item === "object" &&
+    typeof item.kind === "string" && typeof item.officer === "string" && typeof item.signedAt === "string")) return null;
+  if (!record.decisions.every((item) => item && typeof item === "object" &&
+    typeof item.action === "string" && typeof item.officer === "string" && typeof item.at === "string")) return null;
+  if (!record.evidence.every((item) => item && typeof item === "object" && typeof item.id === "string" &&
+    typeof item.kind === "string" && typeof item.fileName === "string")) return null;
+  if (record.version === 2 && (!record.claimDetails || typeof record.claimDetails !== "object" ||
+    !Array.isArray(record.lines) || !Array.isArray(record.calculations))) return null;
+  if (record.trainingPlans !== undefined && (!Array.isArray(record.trainingPlans) ||
+    !record.trainingPlans.every((item) => item && typeof item.id === "string" && Array.isArray(item.rows)))) return null;
   return value as ArchivedPaymentPacket;
+}
+
+export function isArchivedEvidenceLinked(packet: ArchivedPaymentPacket | null, documentId: string) {
+  return Boolean(packet?.evidence.some((item) => item.id === documentId));
+}
+
+export function canDownloadArchivedRawEvidence(packet: ArchivedPaymentPacket | null, documentId: string) {
+  const item = packet?.evidence.find((evidence) => evidence.id === documentId);
+  return Boolean(item && item.kind !== "TRAINING_PLAN_DOCUMENT");
 }
 
 export async function buildArchivedPaymentPacketPdf(packet: ArchivedPaymentPacket, evidenceBaseUrl: string, voucherPdf?: Uint8Array, postArchiveAddenda: ArchivedAwardNote[] = []) {
@@ -76,40 +119,84 @@ export async function buildArchivedPaymentPacketPdf(packet: ArchivedPaymentPacke
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
   let page = pdf.addPage([595, 842]);
   let y = 795;
-  const safe = (value: string) => value.normalize("NFKD").replace(/[^\x20-\x7E]/g, "?");
+  const safe = (value: string) => Array.from(value.normalize("NFKD"), (character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code >= 32 && code <= 126 ? character : `[U+${code.toString(16).toUpperCase().padStart(4, "0")}]`;
+  }).join("");
   const write = (value: string, heading = false, link?: string) => {
     const size = heading ? 11 : 8;
-    if (y < 52) { page = pdf.addPage([595, 842]); y = 795; }
-    const text = safe(value).slice(0, 122);
-    page.drawText(text, { x: 42, y, size, font: heading ? bold : regular, color: rgb(0.12, 0.16, 0.2) });
-    if (link) {
-      page.node.addAnnot(pdf.context.register(pdf.context.obj({
+    const font = heading ? bold : regular;
+    const width = 511;
+    const draw = (line: string) => {
+      if (y < 52) { page = pdf.addPage([595, 842]); y = 795; }
+      page.drawText(line, { x: 42, y, size, font, color: rgb(0.12, 0.16, 0.2) });
+      if (link) page.node.addAnnot(pdf.context.register(pdf.context.obj({
         Type: PDFName.of("Annot"), Subtype: PDFName.of("Link"),
         Rect: [42, y - 2, 553, y + 12], Border: [0, 0, 0],
         A: { S: PDFName.of("URI"), URI: PDFString.of(link) },
       })));
-    }
-    y -= heading ? 21 : 14;
-  };
-  const writeWrapped = (value: string) => {
+      y -= heading ? 21 : 14;
+    };
     for (const paragraph of value.split(/\r?\n/)) {
       let line = "";
-      for (let word of safe(paragraph).split(/\s+/)) {
-        if (!word) continue;
-        if (line && `${line} ${word}`.length > 105) { write(line); line = ""; }
-        while (word.length > 105) { write(word.slice(0, 105)); word = word.slice(105); }
-        line = line ? `${line} ${word}` : word;
+      for (const word of safe(paragraph).split(/\s+/).filter(Boolean)) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (font.widthOfTextAtSize(candidate, size) <= width) { line = candidate; continue; }
+        if (line) { draw(line); line = ""; }
+        for (const character of word) {
+          if (line && font.widthOfTextAtSize(line + character, size) > width) { draw(line); line = ""; }
+          line += character;
+        }
       }
-      if (line) write(line);
+      if (line) draw(line);
+      else if (!paragraph) draw(" ");
     }
   };
+  const writeWrapped = (value: string) => write(value);
+  const label = (key: string) => key.replace(/([a-z])([A-Z])/g, "$1 $2").replaceAll("_", " ");
+  const valueText = (value: unknown): string => value == null ? "Not recorded" :
+    typeof value === "object" ? JSON.stringify(value) : String(value);
+  const writeFields = (title: string, values: Record<string, unknown> | null | undefined) => {
+    y -= 8;
+    write(title, true);
+    if (!values) { write("Not captured in this archive snapshot."); return; }
+    for (const [key, value] of Object.entries(values)) write(`${label(key)}: ${valueText(value)}`);
+  };
   write("ITF REIMBURSEMENT - ARCHIVED PAYMENT PACKET", true);
+  write("Non-ASCII characters are preserved as [U+XXXX] code points; no text is silently truncated.");
   write(`Claim ${packet.reference} | Archived ${packet.archivedAt}`);
   write(`Employer: ${packet.companyName} | Area office: ${packet.areaOffice ?? "Unassigned"}`);
   write(`Training year: ${packet.claimYear ?? "Not recorded"} | Approved award: NGN ${packet.approvedAmount ?? "Not recorded"}`);
   write(`Payment reference: ${packet.paymentReference ?? "Not recorded"} | Schedule: ${packet.scheduleReference ?? "Not created"}`);
   write(`Bank: ${packet.bankName ?? "Not recorded"} | Account ending: ${packet.accountNumberLast4 ?? "Not recorded"}`);
   write(`WHT: NGN ${packet.withholdingTax ?? "0"} | Tax Off: NGN ${packet.taxOffset ?? "0"}`);
+  if (packet.version === 1) write("LEGACY SNAPSHOT: Form 1, detailed calculations and audit fields were not captured at settlement.");
+  else {
+    writeFields("EMPLOYER CLAIM DETAILS (FORM 1)", {
+      companyName: packet.companyName, companyAddress: packet.companyAddress, areaOffice: packet.areaOffice,
+      bankName: packet.bankName, accountName: packet.accountName,
+      accountNumber: packet.accountNumber, ...packet.claimDetails,
+    });
+    writeFields("E-PAYMENT SCHEDULE AND SETTLEMENT", {
+      scheduleReference: packet.scheduleReference, approvedAmount: packet.approvedAmount,
+      withholdingTax: packet.withholdingTax, taxOffset: packet.taxOffset,
+      paymentReference: packet.paymentReference, ...packet.paymentSchedule,
+    });
+    y -= 8;
+    write("FORM 2A/2B CLAIM ROWS", true);
+    if (!packet.lines?.length) write("No structured claim rows were captured.");
+    for (const [index, line] of (packet.lines ?? []).entries()) writeFields(`Row ${index + 1}`, line);
+    y -= 8;
+    write("FORM 1 STAFF ENTRIES", true);
+    if (!packet.staffEntries?.length) write("No staff entries were captured.");
+    for (const entry of packet.staffEntries ?? []) write(`${entry.employeeId ?? "N/A"} | ${entry.employeeName ?? "N/A"} | ${entry.trainingArea ?? "N/A"} | duplicate: ${entry.duplicateGroupKey ?? "none"}`);
+    y -= 8;
+    write("CALCULATION HISTORY", true);
+    if (!packet.calculations?.length) write("No calculation snapshots were captured.");
+    for (const [index, calculation] of (packet.calculations ?? []).entries()) writeFields(`Calculation ${index + 1}: ${calculation.stage}`, calculation);
+    writeFields("CLAIM AUDIT REVIEW", packet.auditReview);
+    writeFields("PAYMENT-FILE PRE-AUDIT REVIEW", packet.paymentFileAudit);
+  }
   y -= 8;
   write("VOUCHER CLEARANCES AND PAYMENT RECORD", true);
   if (!packet.signoffs.length) write("Legacy packet: electronic clearance attestations were not recorded.");
@@ -120,13 +207,22 @@ export async function buildArchivedPaymentPacketPdf(packet: ArchivedPaymentPacke
   y -= 8;
   write("EVIDENCE INDEX", true);
   write("Select an evidence row to open the original file. ITF login and claim access are required.");
-  for (const evidence of packet.evidence) write(`${evidence.kind.replaceAll("_", " ")} | ${evidence.fileName} | ${evidence.uploadedAt}`,
-    false, `${evidenceBaseUrl}/${encodeURIComponent(evidence.id)}?disposition=inline`);
+  for (const evidence of packet.evidence) {
+    const planPdf = evidence.kind === "TRAINING_PLAN_DOCUMENT" && evidence.trainingPlanId &&
+      evidenceBaseUrl.endsWith("/archive-evidence")
+      ? `${evidenceBaseUrl.slice(0, -"/archive-evidence".length)}/archive-training-plan/${encodeURIComponent(evidence.trainingPlanId)}` : null;
+    write(`${(evidence.scope ?? "CLAIM").replaceAll("_", " ")} | ${evidence.kind.replaceAll("_", " ")} | ${evidence.fileName} | ${evidence.uploadedAt}${evidence.checksum ? ` | SHA-256: ${evidence.checksum}` : ""}${evidence.receiptNumber ? ` | Receipt: ${evidence.receiptIssuer ?? "N/A"} ${evidence.receiptNumber}` : ""}${evidence.scanStatus ? ` | Scan: ${evidence.scanStatus}` : ""}`,
+      false, planPdf ?? `${evidenceBaseUrl}/${encodeURIComponent(evidence.id)}?disposition=inline`);
+  }
   if (packet.hqComputation) {
     y -= 8;
     write("HQ COMPUTATION TABLE", true);
     write(`Recommendation: NGN ${packet.hqComputation.amountRecommended} | Confirmed by: ${packet.hqComputation.confirmedBy ?? "Pending"}`);
     write("The complete 11-column computation sheet follows on a landscape page.");
+  }
+  if (packet.computationTables?.length) {
+    write("Computation sheets captured at settlement:");
+    for (const table of packet.computationTables) write(`${table.source} | ${table.status} | NGN ${table.amountRecommended}`);
   }
   if (packet.awardExplanation) {
     y -= 8;
@@ -163,10 +259,59 @@ export async function buildArchivedPaymentPacketPdf(packet: ArchivedPaymentPacke
     write(`${decision.at} | ${decision.officer} | ${decision.action}`);
     if (decision.reason) write(decision.reason);
   }
-  if (packet.hqComputation) appendHqComputationSheet(pdf, packet, packet.hqComputation, regular, bold);
+  if (packet.computationTables?.length) {
+    for (const table of packet.computationTables) appendHqComputationSheet(pdf, packet, table, regular, bold, `${table.source} (${table.status})`);
+  } else if (packet.hqComputation) appendHqComputationSheet(pdf, packet, packet.hqComputation, regular, bold);
   if (voucherPdf) {
     const voucher = await PDFDocument.load(voucherPdf);
     for (const copied of await pdf.copyPages(voucher, voucher.getPageIndices())) pdf.addPage(copied);
+  }
+  return pdf.save();
+}
+
+export async function buildArchivedTrainingPlanPdf(packet: ArchivedPaymentPacket, plan: ArchivedTrainingPlan) {
+  const pdf = await PDFDocument.create();
+  const regular = await pdf.embedFont(StandardFonts.Helvetica);
+  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  let page = pdf.addPage([595, 842]);
+  let y = 795;
+  const printable = (value: string) => Array.from(value.normalize("NFKD"), (character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code >= 32 && code <= 126 ? character : `[U+${code.toString(16).toUpperCase().padStart(4, "0")}]`;
+  }).join("");
+  const write = (value: string, heading = false) => {
+    const font = heading ? bold : regular;
+    const size = heading ? 11 : 9;
+    let line = "";
+    const draw = () => {
+      if (y < 45) { page = pdf.addPage([595, 842]); y = 795; }
+      page.drawText(line || " ", { x: 42, y, size, font, color: rgb(0.12, 0.16, 0.2) });
+      y -= heading ? 22 : 15;
+      line = "";
+    };
+    for (const paragraph of value.split(/\r?\n/)) {
+      for (const word of printable(paragraph).split(/\s+/).filter(Boolean)) {
+        const candidate = line ? `${line} ${word}` : word;
+        if (font.widthOfTextAtSize(candidate, size) <= 511) { line = candidate; continue; }
+        if (line) draw();
+        for (const character of word) {
+          if (line && font.widthOfTextAtSize(line + character, size) > 511) draw();
+          line += character;
+        }
+      }
+      draw();
+    }
+  };
+  write("ANNUAL TRAINING PLAN - ARCHIVED PDF VIEW", true);
+  write(`Claim: ${packet.reference} | Employer: ${packet.companyName} | Training year: ${plan.year}`);
+  write("This is the frozen structured training plan at claim settlement. The original upload is indexed in the payment packet.");
+  for (const row of plan.rows) {
+    y -= 6;
+    write(`Row ${row.rowNumber}: ${row.trainingTitle}`, true);
+    write(`Staff: ${row.staffName} | Department: ${row.department}`);
+    write(`Gap identified: ${row.gapIdentified}`);
+    write(`Estimated cost: NGN ${row.estimatedCost} | Planned date: ${row.plannedDate ?? "Not provided"}`);
+    write(`Location: ${row.location} | Trainer: ${row.trainer}`);
   }
   return pdf.save();
 }
@@ -177,6 +322,7 @@ function appendHqComputationSheet(
   table: ArchivedHqComputation,
   regular: PDFFont,
   bold: PDFFont,
+  source = "HQ REVIEW",
 ) {
   const pageWidth = 1191;
   const pageHeight = 842;
@@ -197,7 +343,10 @@ function appendHqComputationSheet(
   const fullWidth = columns.reduce((sum, column) => sum + column.width, 0);
   const border = rgb(0.73, 0.76, 0.8);
   const ink = rgb(0.12, 0.16, 0.2);
-  const printable = (value: string) => value.normalize("NFKD").replace(/[^\x20-\x7E]/g, "?");
+  const printable = (value: string) => Array.from(value.normalize("NFKD"), (character) => {
+    const code = character.codePointAt(0) ?? 0;
+    return code >= 32 && code <= 126 ? character : `[U+${code.toString(16).toUpperCase().padStart(4, "0")}]`;
+  }).join("");
   let page = pdf.addPage([pageWidth, pageHeight]);
   let y = 800;
 
@@ -232,7 +381,7 @@ function appendHqComputationSheet(
   function startPage(continued = false) {
     if (continued) page = pdf.addPage([pageWidth, pageHeight]);
     y = 800;
-    page.drawText(`COMPUTATION OF EMPLOYER'S REIMBURSEMENT${continued ? " (continued)" : ""}`,
+    page.drawText(`COMPUTATION OF EMPLOYER'S REIMBURSEMENT - ${printable(source)}${continued ? " (continued)" : ""}`,
       { x: left, y, font: bold, size: 14, color: ink });
     y -= 23;
     const details = [
@@ -289,10 +438,10 @@ function appendHqComputationSheet(
   const rowTotal = table.rows.reduce((sum, row) => sum + Number(row.awarded ?? 0), 0);
   const capAdjustment = Math.round((Number(table.amountRecommended) - rowTotal) * 100) / 100;
   const footer = [
-    `HQ amount recommended (in words): ${table.amountRecommendedInWords ?? "Not captured in archived computation"}`,
+    `${source} amount recommended (in words): ${table.amountRecommendedInWords ?? "Not captured in archived computation"}`,
     `Percentage of training contribution recommended: ${table.recommendedContributionPercent ?? "N/A"}% (NGN ${table.amountRecommended})`,
     ...(capAdjustment < 0 ? [`8th edition 50% contribution cap adjustment: NGN ${capAdjustment.toFixed(2)}`] : []),
-    `Prepared by HQ RO: ${table.preparedBy ?? "Not recorded"}${table.preparedAt ? ` | ${table.preparedAt}` : ""}`,
+    `Prepared by: ${table.preparedBy ?? "Not recorded"}${table.preparedAt ? ` | ${table.preparedAt}` : ""}`,
     `Confirmed by Head of Division: ${table.confirmedBy ?? "Pending"}${table.confirmedAt ? ` | ${table.confirmedAt}` : ""}`,
   ];
   for (const detail of footer) {

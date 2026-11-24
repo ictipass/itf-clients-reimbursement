@@ -6,7 +6,8 @@ import { assertUploadRateLimit } from "@/lib/rate-limit";
 import { sanitizeFileName, validateUpload } from "@/lib/storage/security";
 import { openObject, uploadObject } from "@/lib/storage";
 import { can, isItfRole, type Role } from "@/lib/rbac";
-import { getClaimVisibilityWhere } from "@/lib/claim-visibility";
+import { canBrowseArchivedClaims, getClaimVisibilityWhere } from "@/lib/claim-visibility";
+import { canDownloadArchivedRawEvidence, parseArchivedPaymentPacket } from "@/lib/reimbursement-archive-packet";
 import { getAreaOfficeOfficerRoles } from "@/lib/area-office-management";
 
 const companyEvidenceKinds = [
@@ -251,6 +252,32 @@ export async function downloadCompanyEvidence(input: DownloadCompanyEvidenceInpu
     fileSize: downloaded.fileSize,
     mimeType: document.mimeType,
   };
+}
+
+/** Archive links are claim-scoped and checked again at click time, not presigned storage URLs. */
+export async function downloadArchivedClaimEvidence(input: Omit<DownloadCompanyEvidenceInput, "companyId"> & { claimId: string }) {
+  if (!canBrowseArchivedClaims(input.requesterRole)) return null;
+  const db = getDb();
+  const visibility = await getClaimVisibilityWhere({ email: input.requesterEmail, role: input.requesterRole });
+  const claim = await db.reimbursementClaim.findFirst({
+    where: { id: input.claimId, status: "ARCHIVED", recordTier: "HOT", AND: [visibility] },
+    select: { companyId: true, archiveSnapshot: true },
+  });
+  const packet = parseArchivedPaymentPacket(claim?.archiveSnapshot);
+  if (!claim || !canDownloadArchivedRawEvidence(packet, input.documentId)) return null;
+  const document = await db.document.findFirst({
+    where: { id: input.documentId, companyId: claim.companyId, isActive: true, revokedAt: null, recordTier: "HOT" },
+    select: { storageProvider: true, bucket: true, objectKey: true, fileName: true, mimeType: true,
+      access: true, scanStatus: true, scanReason: true },
+  });
+  if (!document) return null;
+  if (document.access !== "PRIVATE") throw new Error("Unsupported document access policy.");
+  assertDocumentSafe(document);
+  const downloaded = await openObject({
+    storageProvider: document.storageProvider, bucket: document.bucket, objectKey: document.objectKey,
+  });
+  return { stream: downloaded.stream, fileName: document.fileName,
+    fileSize: downloaded.fileSize, mimeType: document.mimeType };
 }
 
 export async function deleteCompanyEvidence(input: DeleteCompanyEvidenceInput) {

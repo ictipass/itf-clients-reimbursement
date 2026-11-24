@@ -1,0 +1,27 @@
+# Archived reimbursement claim records
+
+The claim packet is frozen when the Reimbursement Schedule Accountant records payment at the third desk visit. Version 2 snapshots retain the settlement-time employer/Form 1 details, Form 2A/2B rows, staff list, all calculation inputs and results, HQ and reconciliation computation sheets, claim audit and payment-file pre-audit reviews, approved trainings and their linked training plans, decision trail, voucher clearances, payment schedule and payment references, award explanation, and an evidence manifest. The voucher PDF is reproduced from the frozen packet fields and appended to the downloadable PDF. Later award addenda are displayed separately and do not change the original packet.
+
+The archive PDF renders long values over additional lines and pages. Characters outside the built-in PDF font are displayed as `[U+XXXX]` code points rather than silently dropped. Original evidence files are not embedded in the PDF. Its links point to authenticated, claim-scoped routes that recheck the current user's role, workspace, and archived jurisdiction on every click. The links are not expiring storage URLs. A linked training plan opens a frozen PDF representation of its structured rows; the raw CSV/XLSX is not exposed through the archive route. Other evidence remains subject to malware-scan checks.
+
+## Jurisdiction and legacy records
+
+For new claims, the Area Office is captured when the employer submits the claim. Archive access and grouping continue to use that original office if the company later transfers. HQ archive roles continue to see claims across their workspace. The migration matches pre-existing archived snapshots' office *names* to an Area Office ID only when exactly one office in the workspace matches. Unmatched or ambiguous historical offices are not guessed: Area Office staff cannot retrieve those packets until records staff reconcile their provenance; authorized HQ staff can still investigate them. The current company profile must not be treated as the historical archive record.
+
+Version 1 packets remain downloadable, but fields not captured at the time are explicitly labeled as unavailable. Claims with no captured snapshot display a legacy warning instead of inventing an original PDF. A records-reconciliation procedure for those cases must use contemporaneous source files and a separately attributed reconstruction, never overwrite a historical snapshot.
+
+## Retention and deployment
+
+The current ITF direction is to retain archived packets and linked evidence indefinitely pending a formal records policy and future electronic document-management-server integration. There is no automatic archival deletion. A database trigger rejects updates and deletes of archived claims; award clarifications are append-only records. Payment settlement is blocked if indexed evidence is not security-scanned as `SAFE` or has a document expiry date. The storage bucket/blob account must also be configured without an expiry/lifecycle deletion for these objects. The application cannot itself guarantee storage-level write-once retention, backup recovery, or legal hold outside its database; those controls must be specified with the document-management contract before claiming records-policy compliance.
+
+Deploy `prisma migrate deploy` against the intended staging database before deploying the application build. Do **not** run migrations against production from a local `.env`. The migration backfills available archive names/versions and unique historical offices, then installs the immutability trigger. No new environment variable is required.
+
+Assessment in staging:
+
+1. Settle a test claim with an approved training plan, training approval evidence, a claim receipt, calculations, both audits, voucher sign-offs, and an e-payment schedule. Confirm the resulting archive PDF contains those sections, full long remarks, and the original payment references. Check that the evidence index opens only the files attached to that claim, and that its training plan link opens a PDF, not the source spreadsheet.
+2. Move the company to another Area Office **after** archiving. A staff member of the original office should still find the claim under the original office and open its packet/evidence; a staff member of the new office should not. The archived employer name should not change if the live company profile is renamed. HQ roles listed in the register should still be able to retrieve it.
+3. Test page 2 of `/claims/archive`, employer/ITF/reference search, and archived-office filtering. Reopen the packet after an ordinary storage signed URL would have expired; the authenticated evidence route should issue a fresh storage read. Test an unrelated document ID, a deactivated user, and an employer login; all must fail.
+4. Inspect one version 1 packet and one legacy claim without a snapshot. Missing historical fields must be labeled, not fabricated. An ambiguous legacy office must remain HQ-only pending manual provenance review.
+5. Confirm the storage provider's retention/lifecycle and backup settings with operations. A database snapshot does not preserve an object that an operator deletes directly from blob/S3 storage.
+
+The isolated-PostgreSQL integration suite checks historical-office visibility and archived-row immutability. It requires the guarded local `itf_reimbursement_ci` database and must not be pointed at staging or production.
