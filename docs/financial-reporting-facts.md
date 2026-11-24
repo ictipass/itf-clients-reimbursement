@@ -18,7 +18,7 @@ This is the reporting contract for the management dashboard and the starting poi
 
 The dashboard does not combine registration payment-year receipts with compliance-year amounts into one “total revenue” number. Those year bases differ. Amounts are stored as two-decimal PostgreSQL numerics; aggregation is performed in PostgreSQL before conversion for dashboard display. No partial-payment or reversal ledger exists yet; those require an approved finance contract before “net paid” can be treated as fully bank-reconciled cash.
 
-Area Office claim grouping currently uses the company's **current** `areaOfficeId`, including an unassigned bucket. It does not assert the office that handled a historic claim. The archive reliability slice must preserve original-office attribution. The statistics page labels this limitation.
+The existing `/management` dashboard still groups claims by the company's **current** `areaOfficeId`, including an unassigned bucket; its label discloses that limitation. The newer [FSD analytics service](claim-analytics-contract.md) instead uses the claim's submission-time Area Office and archived original office. Do not reconcile the two office breakdowns as though they used the same attribution. Aligning the older dashboard is a separate decision for the analytics UI slice.
 
 ## Assessment
 
