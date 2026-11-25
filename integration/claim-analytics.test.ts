@@ -4,7 +4,8 @@ import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 
-import { getClaimAnalyticsSummary, listClaimAnalyticsDetails } from "../lib/claim-analytics";
+import { getClaimAnalyticsDimensions, getClaimAnalyticsSummary, listClaimAnalyticsDetails } from "../lib/claim-analytics";
+import { buildClaimAnalyticsCsv, collectClaimAnalyticsExport, recordClaimAnalyticsExport } from "../lib/claim-analytics-report";
 import { getDb } from "../lib/db";
 
 test("FSD analytics isolate workspaces, preserve original office, reconcile net paid, and page details", async () => {
@@ -74,6 +75,11 @@ test("FSD analytics isolate workspaces, preserve original office, reconcile net 
   assert.equal(report.byCompany[0].companyId, company.id);
   assert.equal(report.byCompany[0].companyName, "Renamed Employer");
   assert.equal(report.byCompany[0].paidNetConfirmed, "725.00");
+  const dimensions = await getClaimAnalyticsDimensions({ ...request, filters: { companyIds: [company.id] } }, "Renamed");
+  assert.deepEqual(dimensions.companies.map((item) => item.id), [company.id]);
+  assert.deepEqual(dimensions.offices.map((item) => item.id), [originalOffice.id]);
+  const hiddenDimensions = await getClaimAnalyticsDimensions({ requesterEmail: peer.email, requesterRole: request.requesterRole }, "Private");
+  assert.deepEqual(hiddenDimensions.companies, [], "company selectors must not reveal another workspace");
 
   const paid = await getClaimAnalyticsSummary({ ...request, filters: { paymentYears: [2026], statuses: ["ARCHIVED"],
     areaOfficeIds: [originalOffice.id], companyIds: [company.id], yearBasis: "PAYMENT" } });
@@ -133,4 +139,21 @@ test("FSD analytics isolate workspaces, preserve original office, reconcile net 
     afterId = page.nextCursor ?? undefined;
   } while (afterId);
   assert.equal(ids.size, 1105, "large reports must page without repeating or omitting claims");
+  const exportReport = await collectClaimAnalyticsExport(directorRequest, new Date("2026-11-24T00:00:00.000Z"), "integration-report");
+  assert.equal(exportReport.rows.length, 1105);
+  assert.equal(exportReport.summary.totals.claimCount, 1105);
+  const csv = buildClaimAnalyticsCsv(exportReport);
+  assert.match(csv, /integration-report/);
+  assert.doesNotMatch(csv, /Private Employer/);
+  await recordClaimAnalyticsExport(directorRequest, exportReport, "csv");
+  const exportAudit = await db.auditEvent.findFirst({ where: { entityType: "ClaimAnalyticsExport", entityId: "integration-report" } });
+  assert.equal(exportAudit?.actorId, director.id);
+  assert.equal(exportAudit?.workspaceId, firstWorkspace.id);
+  assert.equal((exportAudit?.metadata as Record<string, unknown>)?.claimCount, 1105);
+  const secondCompany = await db.company.create({ data: { organizationId: firstOrg.id, legalName: "Second Employer" } });
+  await db.reimbursementClaim.create({ data: { companyId: secondCompany.id, reference: `ANALYTICS-SECOND-${suffix}`,
+    claimYear: 2025, claimedAmount: 20, status: "ARCHIVED" } });
+  const selectorWithoutSearch = await getClaimAnalyticsDimensions({ ...request, filters: { companyIds: [company.id] } });
+  assert.deepEqual(selectorWithoutSearch.companies.map((item) => item.id), [company.id, secondCompany.id],
+    "an existing selection must not hide other companies that can be added to the filter");
 });

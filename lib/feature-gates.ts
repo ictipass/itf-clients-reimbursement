@@ -1,4 +1,4 @@
-import { can, canManageClaimPolicy, type Permission, type Role } from "@/lib/rbac";
+import { can, canManageClaimPolicy, canViewFsdAnalytics, type Permission, type Role } from "@/lib/rbac";
 
 export type FeatureGate = {
   key: string;
@@ -58,6 +58,12 @@ export const featureGates: FeatureGate[] = [
     permissions: ["audit:read", "workspace:manage"],
   },
   {
+    key: "analytics",
+    label: "Claim Analytics",
+    routePrefix: "/analytics",
+    permissions: [],
+  },
+  {
     key: "employer-users",
     label: "Organization users",
     routePrefix: "/employer/users",
@@ -114,6 +120,7 @@ export const featureGates: FeatureGate[] = [
 ];
 
 export function canUseFeature(role: Role, gate: FeatureGate) {
+  if (gate.key === "analytics") return canViewFsdAnalytics(role);
   if (gate.key === "settings-claims" || gate.key === "settings-operating-model") {
     return canManageClaimPolicy(role);
   }

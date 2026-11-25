@@ -13,6 +13,7 @@ const protectedPrefixes = [
   "/training-monitoring",
   "/claims",
   "/management",
+  "/analytics",
   "/employer",
   "/settings",
 ];
@@ -68,6 +69,7 @@ export const config = {
     "/training-monitoring/:path*",
     "/claims/:path*",
     "/management/:path*",
+    "/analytics/:path*",
     "/employer/:path*",
     "/settings/:path*",
   ],

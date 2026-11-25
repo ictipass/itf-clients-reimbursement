@@ -1,4 +1,4 @@
-import { can, isItfRole, type Role } from "@/lib/rbac";
+import { can, canViewFsdAnalytics, isItfRole, type Role } from "@/lib/rbac";
 import { isMonitoringHeadquartersRole } from "@/lib/monitoring-routing";
 import type { RevenueWorkflowMode } from "@/lib/revenue-workflow";
 
@@ -103,6 +103,12 @@ export const navGroups: NavGroup[] = [
         label: "Management",
         module: "management",
         isVisible: canUseManagement,
+      },
+      {
+        href: "/analytics",
+        label: "Claim Analytics",
+        module: "analytics",
+        isVisible: canViewFsdAnalytics,
       },
     ],
   },

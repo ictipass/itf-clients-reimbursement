@@ -1,6 +1,6 @@
-# FSD claim analytics contract (slice 04)
+# FSD claim analytics contract (slices 04–05)
 
-This slice is the server-side reporting and authorization layer. It does not expose a new page or export yet; those belong to slice 05. `getClaimAnalyticsSummary` returns totals by company, Area Office and year, and `listClaimAnalyticsDetails` returns a privacy-minimized, cursor-paged claim list. Both recheck the current user and active role membership on every call. Data is confined to the member's workspace and `HOT` record tier. No bank account, participant, or staff-list fields are returned.
+The server-side reporting and authorization layer powers `/analytics` and `/analytics/export`. `getClaimAnalyticsSummary` returns totals by company, Area Office and year, and `listClaimAnalyticsDetails` returns a privacy-minimized, cursor-paged claim list. Every request rechecks the current user and active role membership. Data is confined to the member's workspace and `HOT` record tier. No bank account, participant, or staff-list fields are returned.
 
 ## Who sees what
 
@@ -29,8 +29,16 @@ Figures follow [financial reporting facts](financial-reporting-facts.md):
 
 Amounts are returned as exact two-decimal strings from PostgreSQL aggregation, not floating-point display totals. The detail service returns no more than 500 rows per call, ordered by claim ID with a next cursor. This lets slice 05 stream large authorized exports in chunks without holding all rows in memory. `paidNetConfirmed` is a recorded application figure, not yet a bank-reconciled settlement ledger. Partial payments and reversals remain unmodeled pending the outgoing-payment contract.
 
+## Screens and exports
+
+The Claim Analytics navigation entry is shown only to Director FSD, Head of Reimbursement Division and HQ reimbursement officers. The filter form accepts one or many companies and Area Offices, comma-separated training/submission/payment years, claim status, policy edition and year grouping. Company selector options themselves come from authorized claim rows; searching does not reveal unreached companies. The page shows totals, year/office comparisons, a capped company comparison and 50-row claim pages. Only archived details link to the read-only claim packet, because the Director's national summary can include active claims not yet routed to their desk.
+
+Those same three roles may download only their scoped records in CSV or Excel format, up to 5,000 claims per report. The server repeats role/membership checks; hiding a button is not the authorization control. Both formats contain a report ID, generation time in UTC, applied filters, metric definitions and privacy-minimized claim rows. An audit event with report ID, actor, format, filters, time and count must be written before the file is served; an audit-write failure prevents delivery. Excel also has total, year, original-office and company breakdown sheets. CSV neutralizes formula-like company/reference values, and Excel writes them as text. No bank account, staff number, participant, email or phone fields are exported.
+
+The generation timestamp is **not** a point-in-time database snapshot: aggregates and cursor pages are separate queries. A change that alters the detail row count causes the export to fail and ask for a retry, but an in-place amount edit during generation can still produce mixed-time facts. These exports are labeled operational, not official financial statements. Finance must sign off the metric dictionary and an appropriate snapshot/signature policy before official use. There is no scheduled report cadence in this slice. The 5,000-row limit and role set are conservative implementation defaults pending ITF policy approval.
+
 ## Verification and next step
 
-The pure unit tests check role/filter boundaries. `integration/claim-analytics.test.ts` uses the guarded local `itf_reimbursement_ci` database to prove workspace isolation, pre-routing privacy, original-office grouping, UTC payment/training-year separation, gross/net totals, and more than 1,000 cursor-paged rows. Do not point the integration test at development, staging or production data. For staging validation, deploy the existing migrations and use slice 05's UI/export against known claims; there is intentionally no new browser entry point in slice 04.
+The pure unit tests check role/filter boundaries, report limit, provenance, CSV injection safety and Excel cell types. `integration/claim-analytics.test.ts` uses the guarded local `itf_reimbursement_ci` database to prove workspace isolation, selector privacy, pre-routing privacy, original-office grouping, UTC payment/training-year separation, gross/net totals, and export of more than 1,000 cursor-paged rows. Do not point the integration test at development, staging or production data. In staging, use `/analytics` and both export formats against known claims; there is no new schema migration or environment variable for slice 05.
 
-Before slice 05, approve who may export, the maximum export size, personal-data exclusions, and the report's as-of timestamp/report identifier. The metric definitions here are the implementation baseline; finance should sign them off before using exports as official statements.
+The metric definitions here are the implementation baseline; Finance should sign them off before using exports as official statements. Confirm whether the existing `/management` dashboard should adopt historical-office attribution rather than its current-office grouping.

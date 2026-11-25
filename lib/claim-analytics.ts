@@ -1,12 +1,17 @@
 import { Prisma } from "@/lib/generated/prisma/client";
 
 import { getDb } from "@/lib/db";
-import type { Role } from "@/lib/rbac";
+import { canViewFsdAnalytics, type Role } from "@/lib/rbac";
 
 /** Deliberately narrower than management-dashboard access: these are the FSD analytics owners. */
-const analyticsRoles: Role[] = ["DIRECTOR_FSD", "HEAD_OF_DIVISION", "HQ_REIMBURSEMENT_OFFICER"];
 const claimStatuses = ["DRAFT", "SUBMITTED", "IN_REVIEW", "CHANGES_REQUESTED", "APPROVED", "REJECTED", "SETTLED", "ARCHIVED"] as const;
 const policyEditions = ["EIGHTH_REVISED"] as const;
+
+export class ClaimAnalyticsAccessError extends Error {}
+
+export function canViewClaimAnalytics(role: Role) {
+  return canViewFsdAnalytics(role);
+}
 
 export type ClaimAnalyticsFilters = {
   companyIds?: string[];
@@ -64,10 +69,10 @@ export function normalizeClaimAnalyticsFilters(filters: ClaimAnalyticsFilters = 
 }
 
 export function analyticsWorkspaceIds(role: Role, isActive: boolean, memberships: { role: Role; workspaceId: string; isActive: boolean }[]) {
-  if (!isActive || !analyticsRoles.includes(role)) throw new Error("You do not have permission to view FSD claim analytics.");
+  if (!isActive || !canViewFsdAnalytics(role)) throw new ClaimAnalyticsAccessError("You do not have permission to view FSD claim analytics.");
   const ids = [...new Set(memberships.filter((membership) => membership.isActive && membership.role === role)
     .map((membership) => membership.workspaceId))];
-  if (!ids.length) throw new Error("An active FSD role assignment is required for claim analytics.");
+  if (!ids.length) throw new ClaimAnalyticsAccessError("An active FSD role assignment is required for claim analytics.");
   return ids;
 }
 
@@ -199,6 +204,26 @@ export async function getClaimAnalyticsSummary(input: ClaimAnalyticsRequest) {
     byCompany: companies.map((row) => ({ companyId: row.companyId, companyName: row.companyName,
       ...serializeClaimAnalyticsFacts(row) })),
   };
+}
+
+/** Selector options are drawn from the same authorized rows, so names do not reveal unreached work. */
+export async function getClaimAnalyticsDimensions(input: ClaimAnalyticsRequest, companySearch = "") {
+  if (companySearch.length > 100) throw new Error("Search term is too long.");
+  const source = sourceSql(await scopeFor(input), normalizeClaimAnalyticsFilters());
+  const selected = normalizeClaimAnalyticsFilters(input.filters).companyIds ?? [];
+  const companyMatch = companySearch.trim()
+    ? Prisma.sql`WHERE ("currentCompanyName" ILIKE ${`%${companySearch.trim()}%`} ${selected.length ? Prisma.sql`OR "companyId" IN (${Prisma.join(selected)})` : Prisma.empty})`
+    : Prisma.empty;
+  const selectedFirst = selected.length ? Prisma.sql`CASE WHEN "id" IN (${Prisma.join(selected)}) THEN 0 ELSE 1 END,` : Prisma.empty;
+  const db = getDb();
+  const [companies, offices] = await db.$transaction([
+    db.$queryRaw<{ id: string; name: string }[]>(Prisma.sql`${source} SELECT "id", "name" FROM (
+      SELECT DISTINCT "companyId" AS "id", "currentCompanyName" AS "name" FROM scoped ${companyMatch}
+    ) dimensions ORDER BY ${selectedFirst} "name", "id" LIMIT ${101 + selected.length}`),
+    db.$queryRaw<{ id: string | null; name: string }[]>(Prisma.sql`${source} SELECT DISTINCT "areaOfficeId" AS "id", "areaOfficeName" AS "name"
+      FROM scoped ORDER BY "name", "id"`),
+  ]);
+  return { companies: companies.slice(0, 100 + selected.length), companyLimitReached: companies.length > 100 + selected.length, offices };
 }
 
 type DetailRow = {

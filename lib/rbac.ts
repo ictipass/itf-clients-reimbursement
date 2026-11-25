@@ -40,6 +40,10 @@ export const roles = [
 
 export type Role = (typeof roles)[number];
 
+export function canViewFsdAnalytics(role: Role) {
+  return role === "DIRECTOR_FSD" || role === "HEAD_OF_DIVISION" || role === "HQ_REIMBURSEMENT_OFFICER";
+}
+
 export type Permission =
   | "workspace:manage"
   | "numbers:manage"
